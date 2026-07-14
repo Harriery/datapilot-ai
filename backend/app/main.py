@@ -14,7 +14,21 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 app = FastAPI()
 client = OpenAI(api_key=api_key)
+conversation_history = {}               #Her session_id, kendi konuşma listesini gösterecek.
+                                        #{
+                                        #    "session-1": [...],
+                                        #    "session-2": [...],
+                                        #} seklinde gorunecek
+                                        #bütün kullanıcıların konuşmalarını tutan büyük dolap: {
+                                        #{
+                                        #     "yasin-1": [...],
+                                        #    "ayse-1": [...],
+                                        #}
+
+
+
 class ChatRequest(BaseModel):
+    session_id: str
     message: str
 
 @app.get("/")
@@ -23,51 +37,66 @@ def home():
 
 
 @app.post("/chat")
-def chat(request: ChatRequest):         #request, kullanıcının gönderdiği JSON verisinin
-                                        #FastAPI tarafından ChatRequest modeline çevrilmiş halidir.
-                                        #request değişken adını biz verdik.
-                                        #ChatRequest ise verinin hangi yapıda olması gerektiğini belirtir.
-    message = request.message.strip()   # request.message yazınca kullanıcının body içinde gönderdiği message değerine ulaşıyoruz.
-                                        #def chat(data: ChatRequest):
-                                        #message = data.message
-                                        #Yani request özel bir Python kelimesi değil; anlamlı olduğu için seçtiğimiz parametre adı.
+def chat(request: ChatRequest):
+    # Kullanıcının mesajını alır ve başındaki/sonundaki boşlukları temizler.
+    message = request.message.strip()
+
     if message == "":
         return {"reply": "Bu mesaj boş olamaz"}
-    
-    try:                                    # response = OpenAI’den dönen cevabın tamamını tutar.
-        response = client.responses.create( #OpenAI client üzerinden yeni bir cevap üretme isteği gönder.
-            model="gpt-5-mini",             #hangi modelin cevap üreteceğini seçer.
 
-             instructions=SYSTEM_PROMPT,    #System Prompt, ai in nasil calisacagini yani karakterini belirledigimiz yer.
-             input=message,                  #kullanıcının yazdığı mesajı OpenAI’ye gönderir.
+    # Bu session_id daha önce varsa onun konuşma listesini getirir.
+    # Yoksa yeni bir boş liste oluşturup sözlüğe ekler.
+    history = conversation_history.setdefault(
+        request.session_id,
+        [],
+    )
+
+    # Kullanıcının yeni mesajını o session'ın geçmişine ekler.
+    history.append(
+        {
+            "role": "user",
+            "content": message,
+        }
+    )
+
+    try:
+        # Bu session'a ait tüm konuşma geçmişini OpenAI'ye gönderir.
+        response = client.responses.create(
+            model="gpt-5-mini",
+            instructions=SYSTEM_PROMPT,
+            input=history,
         )
-        return {"reply": response.output_text}  #response.output_text == o cevabın içindeki metni alır.
-                                            # response bize sadece cevap gondermiyor, id, model, create_at, usage, output,output_text 
-                                            # ama bize sadece output_text lazim
 
-                                            # try except ile olasi bir hata durumunda uygulama cokmesin diye yapilir
-                                            # ve biz burada olasi hatalai cesitlerine gore yazdik.
-    except AuthenticationError:             # Yanlis API key 401      
-        raise HTTPException(                
+        # OpenAI'nin cevabını aynı session'ın geçmişine ekler.
+        history.append(
+            {
+                "role": "assistant",
+                "content": response.output_text,
+            }
+        )
+
+        return {"reply": response.output_text}
+
+    except AuthenticationError:
+        raise HTTPException(
             status_code=401,
             detail="OpenAI API anahtarı geçersiz.",
         )
 
-    except RateLimitError:                  # Kota/bakiye sorunu 429
+    except RateLimitError:
         raise HTTPException(
             status_code=429,
             detail="AI kullanım limiti veya bakiyesi yetersiz.",
         )
-    
-    except APIConnectionError:              # Baglanti sorunu 503
+
+    except APIConnectionError:
         raise HTTPException(
             status_code=503,
             detail="AI servisine şu anda ulaşılamıyor.",
         )
-    
-    except Exception:                       # Bilinmeyen hata 500
+
+    except Exception:
         raise HTTPException(
             status_code=500,
             detail="Beklenmeyen bir sunucu hatası oluştu.",
-        )    
-        
+        )
