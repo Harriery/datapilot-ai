@@ -74,28 +74,35 @@ def chat(request: ChatRequest):
                 "content": response.output_text,
             }
         )
-
+        print(conversation_history)
         return {"reply": response.output_text}
 
+
+    # Hata oluşursa son eklenen user mesajı cevapsız kalır.
+    # Bu nedenle HTTP hatasını göndermeden önce history'den kaldırılır.
     except AuthenticationError:
+        history.pop()               ## OpenAI cevap veremezse son eklenen, cevapsız user mesajını geçmişten kaldırır.
         raise HTTPException(
             status_code=401,
             detail="OpenAI API anahtarı geçersiz.",
         )
 
     except RateLimitError:
+        history.pop()
         raise HTTPException(
             status_code=429,
             detail="AI kullanım limiti veya bakiyesi yetersiz.",
         )
 
     except APIConnectionError:
+        history.pop()
         raise HTTPException(
             status_code=503,
             detail="AI servisine şu anda ulaşılamıyor.",
         )
 
     except Exception:
+        history.pop()
         raise HTTPException(
             status_code=500,
             detail="Beklenmeyen bir sunucu hatası oluştu.",
