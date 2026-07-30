@@ -22,19 +22,28 @@ api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
 
-# Bir metni embedding vektörüne dönüştürür.
-def create_embeddings(text: list[str]) -> list[list[float]]:         #text: str → dışarıdan metin alır,  list[float] → ondalıklı sayılardan oluşan liste döndürür
-     # Metni OpenAI embedding modeline gönderir.
-    response = client.embeddings.create(            # embedding oluşturma isteği gönderir
+# Tek bir metni embedding vektörüne dönüştürür.
+def create_embedding(text: str) -> list[float]:
+    response = client.embeddings.create(
         model="text-embedding-3-small",
         input=text,
     )
-    #print(response)
-    #print(response.data)
-    return[
-          item.embedding                # tek bir chunk’ın sayı listesi
-          for item in response.data     # embedding sonuclarini bize data adinda bir nesne de dondurdugu icin biz bunu kullandik
-                                        # API cevabındaki ilk embedding vektörünü alır.
-    ]                       
+
+    # API cevabındaki ilk ve tek embedding vektörünü döndürür.
+    return response.data[0].embedding
+
+
+# Birden fazla metni embedding vektörlerine dönüştürür.
+def create_embeddings(texts: list[str]) -> list[list[float]]:
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texts,
+    )
+
+    # Her metne ait embedding vektörünü liste olarak döndürür.
+    return [
+        item.embedding
+        for item in response.data
+    ]                 
              
                                         

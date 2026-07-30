@@ -31,10 +31,35 @@ Kullanıcıdan PDF veya TXT dosyası almak, metni çıkarmak, küçük parçalar
 create_embedding(text)
 → Tek bir metin alır
 → list[float] döndürür
+```
 
+### Kullanım örnekleri
+
+```python
+create_embedding("Soru")
+
+# Dönen veri tipi:
+# list[float]
+
+# Örnek sonuç:
+# [0.01, -0.02, ...]
+```
 create_embeddings(texts)
 → Birden fazla metin alır
 → list[list[float]] döndürür.
+```
+
+```python
+create_embeddings(["chunk 1", "chunk 2"])
+
+# Dönen veri tipi:
+# list[list[float]]
+
+# Örnek sonuç:
+# [
+#     [0.01, -0.02, ...],  # chunk 1'in embedding'i
+#     [0.04, 0.03, ...],   # chunk 2'nin embedding'i
+# ]
 ```
 
 ### `database.py`
@@ -208,6 +233,9 @@ sqlite3.Row
     "content": "Metin parçası",
     "embedding": [0.012, -0.034, ...]
 }
+
+
+
 
 
 Böylece bu dosya yalnızca eski belge yükleme sürecini değil, şu anda tamamladığımız **belge ingestion + embedding oluşturma + SQLite’a kaydetme + tekrar okuma** akışını eksiksiz anlatır.
