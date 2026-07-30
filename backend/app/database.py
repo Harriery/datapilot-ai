@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+import json
 
 
 # DATABASE_PATH
@@ -93,13 +94,15 @@ def init_db():
             document_id INTEGER NOT NULL,
             chunk_index INTEGER NOT NULL,
             content TEXT NOT NULL,
+            embedding TEXT NOT NULL,                
             FOREIGN KEY (document_id)
                 REFERENCES documents(id)
                 ON DELETE CASCADE
         )
         """
     )
-    
+    # NEDEN embedding TEXT NOT NULLSQLite’ta doğrudan list[float] türü yok.
+    # Embedding listesini önce JSON metnine çevirip saklayacağız; okurken tekrar listeye çevireceğiz.
      
     connection.commit()
     connection.close()
@@ -289,16 +292,27 @@ def insert_document(filename: str, content_type: str) -> int:
                                 #Chunk 2 → document_id 1
 
 # Bir belgeye ait bütün chunk'ları chunks tablosuna kaydeder.
-def insert_chunks(document_id: int, chunks: list[str]):
+def insert_chunks(
+        document_id: int,
+        chunks: list[str],
+        embeddings: list[list[float]]
+    ):
+    
+
+    if len(chunks) != len(embeddings):
+        raise ValueError("Chunk ve embedding sayıları eşit olmalıdır.") 
+
     connection = get_connection()
 
-    for chunk_index, content in enumerate(chunks):  # her chunk’a sıra numarası verir:
+    for chunk_index,(content, embedding) in enumerate(zip(chunks, embeddings)):  # zip() → aynı sıradaki chunk ve embedding’i eşleştirir
+        embedding_json = json.dumps(embedding)
+
         connection.execute(
             """
-            INSERT INTO chunks (document_id, chunk_index, content)
-            VALUES (?, ?, ?)
+            INSERT INTO chunks (document_id, chunk_index, content, embedding)
+            VALUES (?, ?, ?, ?)
             """,
-            (document_id, chunk_index, content),
+            (document_id, chunk_index, content, embedding_json),
         )
 
     connection.commit()
@@ -327,15 +341,31 @@ def get_document_by_id(document_id: int):
 def get_chunks_by_document(document_id: int):
     connection = get_connection()
 
-    chunks = connection.execute(
+    # rows -> SQLite’tan gelen ham satırlardır. Hemen altına dönüşüm
+    # Yani: row["embedding"] -> "[0.12, -0.04, 0.08]"   → str seklinde geliyor asagida
+    # SQLite sorgusundan gelen satırlar henüz uygulamanın kullanacağı
+    # Python sözlüklerine dönüştürülmemiş sqlite3.Row nesneleridir.
+    rows = connection.execute(
         """
-        SELECT chunk_index, content
+        SELECT chunk_index, content, embedding
         FROM chunks
         WHERE document_id = ?
         ORDER BY chunk_index ASC
         """,
         (document_id,),
     ).fetchall()
+
+    # Dönüştürülmüş chunk sözlüklerini burada toplayacağız.
+    chunks = []
+
+    for row in rows:
+        chunks.append({
+            "chunk_index": row["chunk_index"],  
+            "content": row["content"],    
+            # Embedding veritabanında JSON metni olarak saklanır.
+            # json.loads() bu metni tekrar Python sayı listesine dönüştürür.      
+            "embedding": json.loads(row["embedding"]),    # json.loads() ile listeye çevir
+        })
 
     connection.close()
 

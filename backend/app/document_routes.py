@@ -1,6 +1,10 @@
 """
 Bu dosya belge yükleme endpoint'lerini içerir.
 
+RAG (Retrieval-Augmented Generation):
+Yapay zekânın cevap vermeden önce yüklenen belgeler içinde arama yapmasını,
+soruyla ilgili bilgileri bulmasını ve cevabı bu bilgilere dayandırmasını sağlar.
+
 Bu dosya RAG sisteminin belge hazırlama aşamasını yönetir.
 
 Belge hazırlama akışı:
@@ -10,13 +14,19 @@ Belge hazırlama akışı:
 - Belgeyi ve chunk'ları SQLite'a kaydeder.
 - Kaydedilen belge ve chunk'ları geri getirir.
 
-Şu an RAG'in belge hazırlama (document ingestion) aşamasındayız.
-Embedding, retrieval ve belgeye dayalı cevap üretme daha sonra eklenecek.
+Şu anda tamamlanan aşama:
+Belge hazırlama (document ingestion).
+
+Daha sonra eklenecek aşamalar:
+- Embedding oluşturma
+- Soruyla ilgili chunk'ları bulma (retrieval)
+- Bulunan bilgilere dayanarak AI cevabı üretme
 """
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from pypdf import PdfReader
 from backend.app.database import insert_chunks, insert_document, get_document_by_id, get_chunks_by_document
+from backend.app.embedding_service import create_embeddings
 
 router = APIRouter()  # Belge endpoint'lerini gruplar.
 
@@ -105,6 +115,9 @@ def upload_document(file: UploadFile):      # stekteki file alanını al ve bir 
     # PDF veya TXT metnini chunk'lara böler.
     chunks = split_text_into_chunks(text)
 
+    # Bütün chunk'ların embedding vektörlerini oluşturur
+    chunk_embeddings = create_embeddings(chunks)
+
     # Belge bilgilerini documents tablosuna kaydeder.
     document_id = insert_document(
         filename=file.filename,
@@ -115,6 +128,7 @@ def upload_document(file: UploadFile):      # stekteki file alanını al ve bir 
     insert_chunks(
         document_id=document_id,
         chunks=chunks,
+        embeddings=chunk_embeddings
     )
 
     return {                    # Endpoint Python sözlüğü döndürüyor
@@ -125,6 +139,9 @@ def upload_document(file: UploadFile):      # stekteki file alanını al ve bir 
         "preview": text[:200],
         "chunk_count": len(chunks),
         "first_chunk_preview": chunks[0][:200],
+        "embedding_count": len(chunk_embeddings),
+        "first_embedding_length": len(chunk_embeddings[0]),
+        "first_embedding_preview": chunk_embeddings[0][:5],
     }
 
 @router.get("/documents/{document_id}")
@@ -155,6 +172,8 @@ def get_document(document_id: int):
                 # her chunk satırına bu kolon adlarıyla erişiyoruz.
                 "chunk_index": chunk["chunk_index"],
                 "content": chunk["content"],
+                "embedding_length": len(chunk["embedding"]),
+                "embedding_preview": chunk["embedding"][:5],
             }
             for chunk in chunks     # tek bir chunk değil, birden fazla chunk’tan oluşan liste döndürür
         ],
