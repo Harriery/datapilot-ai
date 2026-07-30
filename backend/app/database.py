@@ -21,6 +21,11 @@ from pathlib import Path
 DATABASE_PATH = Path("data/datapilot.db")
 
 
+# ==================================================
+# VERİTABANI BAĞLANTISI
+# ==================================================
+
+# Veritabanının kapısını açar
 def get_connection():
     DATABASE_PATH.parent.mkdir(exist_ok=True) # data klasoru olusturur.
 
@@ -30,11 +35,17 @@ def get_connection():
 
     return connection
 
-
 # mkdir       → klasörü hazırlar
 # PRAGMA      → tablo ilişkilerini denetler
 # row_factory → SELECT sonuçlarını kolon adıyla okumamızı sağlar
 
+
+# ==================================================
+# TABLOLARIN OLUŞTURULMASI
+# ==================================================
+
+#veritabanının başlangıç hazırlığını yapar.
+# Tablolar yoksa oluşturur; varsa mevcut tablolara dokunmaz.
 def init_db():
     connection = get_connection()
 
@@ -61,6 +72,33 @@ def init_db():
         )
         """
     )
+
+        # Yüklenen belgelerin bilgilerini saklar.
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    # Belgelerden oluşturulan metin parçalarını saklar. (chunk lari saklar)
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id INTEGER NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            FOREIGN KEY (document_id)
+                REFERENCES documents(id)
+                ON DELETE CASCADE
+        )
+        """
+    )
     
      
     connection.commit()
@@ -68,6 +106,10 @@ def init_db():
 
 
 
+
+# ==================================================
+# SESSION İŞLEMLERİ
+# ==================================================
 
 # session_id alır
 # ↓
@@ -129,6 +171,10 @@ def delete_session_by_id(session_id: str):
     return cursor.rowcount
 
 
+
+# ==================================================
+# MESAJ İŞLEMLERİ
+# ==================================================
 
 # insert_message()
 # ↓
@@ -209,3 +255,88 @@ def delete_last_message(session_id: str):
 
     connection.commit()
     connection.close()
+
+
+
+# ==================================================
+# BELGE VE CHUNK İŞLEMLERİ
+# ==================================================
+
+# Yüklenen belgeyi documents tablosuna kaydeder
+# ve oluşturulan document id'sini geri döndürür.
+def insert_document(filename: str, content_type: str) -> int:
+    connection = get_connection()
+
+    cursor = connection.execute(
+        """
+        INSERT INTO documents (filename, content_type)
+        VALUES (?, ?)
+        """,
+        (filename, content_type),
+    )
+
+    connection.commit()
+
+    document_id = cursor.lastrowid  # ise yeni oluşturulan belgenin otomatik id değerini verir.
+
+    connection.close()
+
+    return document_id          # Bu document_idyi sonraki adımda chunk’ları kaydederken kullanacağız:
+                                #Belge id = 1
+                                #↓
+                                #Chunk 0 → document_id 1
+                                #Chunk 1 → document_id 1
+                                #Chunk 2 → document_id 1
+
+# Bir belgeye ait bütün chunk'ları chunks tablosuna kaydeder.
+def insert_chunks(document_id: int, chunks: list[str]):
+    connection = get_connection()
+
+    for chunk_index, content in enumerate(chunks):  # her chunk’a sıra numarası verir:
+        connection.execute(
+            """
+            INSERT INTO chunks (document_id, chunk_index, content)
+            VALUES (?, ?, ?)
+            """,
+            (document_id, chunk_index, content),
+        )
+
+    connection.commit()
+    connection.close()
+
+
+    # Verilen ID'ye ait belge kaydını getirir.
+def get_document_by_id(document_id: int):
+    connection = get_connection()
+
+    document = connection.execute(
+        """
+        SELECT *
+        FROM documents
+        WHERE id = ?
+        """,
+        (document_id,),
+    ).fetchone()
+
+    connection.close()
+
+    return document
+
+
+# Verilen belgeye ait bütün chunk'ları sırasıyla getirir.
+def get_chunks_by_document(document_id: int):
+    connection = get_connection()
+
+    chunks = connection.execute(
+        """
+        SELECT chunk_index, content
+        FROM chunks
+        WHERE document_id = ?
+        ORDER BY chunk_index ASC
+        """,
+        (document_id,),
+    ).fetchall()
+
+    connection.close()
+
+    return chunks
