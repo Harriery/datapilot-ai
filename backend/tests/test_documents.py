@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
+from unittest.mock import patch
 
 
 client = TestClient(app)
@@ -89,3 +90,63 @@ def test_get_nonexistent_document():
 
     # JSON içindeki detail mesajı doğru mu?
     assert body["detail"] == "Belge bulunamadı."
+
+
+
+def test_search_uploaded_document():
+    # Belge yüklenirken gerçek OpenAI çağrısı yerine
+    # sahte bir chunk embedding'i döndürür.
+    with patch(
+        "backend.app.document_routes.create_embeddings"
+    ) as mock_create_embeddings:
+
+        mock_create_embeddings.return_value = [
+            [1.0, 0.0]
+        ]
+
+        upload_response = client.post(
+            "/documents/upload",
+            files={
+                "file": (
+                    "search_test.txt",
+                    b"Python listeleri sirali veri saklar.",
+                    "text/plain",
+                )
+            },
+        )
+
+        # Belge yükleme isteğinin başarılı olduğunu kontrol eder.
+        assert upload_response.status_code == 200
+
+        # JSON cevabını Python sözlüğüne dönüştürür.
+        upload_body = upload_response.json()
+
+        # Oluşturulan belgenin id değerini alır.
+        document_id = upload_body["document_id"]
+
+    # Arama sırasında sorunun embedding'ini sahte değerle değiştirir.
+    with patch(
+        "backend.app.document_routes.create_embedding"
+    ) as mock_create_embedding:
+        # Soru embedding'i, chunk embedding'iyle aynı olsun.
+        mock_create_embedding.return_value = [1.0, 0.0]
+        search_response = client.post(
+            f"/documents/{document_id}/search",
+            json={
+                "question": "Python listeleri nedir?",
+                "top_k": 1,
+            },
+        )
+        # Arama isteğinin başarılı olduğunu kontrol eder.
+        assert search_response.status_code == 200
+        # JSON cevabını Python sözlüğüne dönüştürür.
+        search_body = search_response.json()
+        # Dönen ilgili chunk listesini alır.
+        results = search_body["results"]
+
+        # top_k=1 olduğu için yalnızca bir sonuç dönmelidir.
+        assert len(results) == 1
+        # İlk sonuç yüklediğimiz chunk olmalıdır.
+        assert results[0]["chunk_index"] == 0
+        # Soru ve chunk embedding'leri aynı olduğu için benzerlik 1 olmalıdır.
+        assert round(results[0]["similarity"], 5) == 1.0

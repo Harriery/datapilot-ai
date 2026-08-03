@@ -26,7 +26,13 @@ Daha sonra eklenecek aşamalar:
 from fastapi import APIRouter, HTTPException, UploadFile
 from pypdf import PdfReader
 from backend.app.database import insert_chunks, insert_document, get_document_by_id, get_chunks_by_document
-from backend.app.embedding_service import create_embeddings
+from backend.app.embedding_service import (
+    create_embedding,
+    create_embeddings,
+)
+from backend.app.retrieval_service import find_relevant_chunks
+from backend.app.models import DocumentSearchRequest
+
 
 router = APIRouter()  # Belge endpoint'lerini gruplar.
 
@@ -177,4 +183,51 @@ def get_document(document_id: int):
             }
             for chunk in chunks     # tek bir chunk değil, birden fazla chunk’tan oluşan liste döndürür
         ],
+    }
+
+@router.post("/documents/{document_id}/search")
+def search_document(
+    document_id: int,
+    request: DocumentSearchRequest  # model.py icinde body icin gerekli question ve top-k kismi gelir. bunu body de doldurmak gerek
+    ):
+
+    # URL'den gelen document_id ile belgeyi veritabanında arar.
+    document = get_document_by_id(document_id)
+
+    # Belge bulunamazsa arama yapılamaz.
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Belge bulunamadı.",
+        )
+
+    # Kullanıcının gönderdiği sorunun başındaki ve sonundaki boşlukları temizler.
+    question = request.question.strip() #model icinde questionve top-k vardi, biz questionaldik.
+
+    # Soru boşsa arama yapılamaz.
+    if not question:
+        raise HTTPException(
+            status_code=400,
+            detail="Soru boş olamaz.",
+        )
+
+    # Bu belgeye ait bütün chunk'ları veritabanından getirir.
+    chunks = get_chunks_by_document(document_id)    # → O belgeye ait bütün chunk’ları getirir ve embeddingleride
+
+
+     # Kullanıcının sorusunu sayı listesine dönüştürür.
+    question_embedding = create_embedding(question)
+
+
+    # Soruya en çok benzeyen chunk'ları bulur.
+    relevant_chunks = find_relevant_chunks(
+        question_embedding=question_embedding,
+        chunks=chunks,
+        top_k=request.top_k,
+    )
+    # Bulunan en ilgili chunk'ları JSON cevap olarak döndürür.
+    return {
+        "document_id": document_id,
+        "question": question,
+        "results": relevant_chunks,
     }

@@ -20,3 +20,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):      #/chat endpoint’inin başarılı cevabında
                                     #reply isimli string alan bulunacak.
     reply: str
+
+
+class DocumentSearchRequest(BaseModel):
+    question: str
+    top_k: int = 3
