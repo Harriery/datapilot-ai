@@ -32,7 +32,7 @@ from backend.app.embedding_service import (
 )
 from backend.app.retrieval_service import find_relevant_chunks
 from backend.app.models import DocumentSearchRequest
-
+from backend.app.rag_service import build_context, generate_answer
 
 router = APIRouter()  # Belge endpoint'lerini gruplar.
 
@@ -185,6 +185,9 @@ def get_document(document_id: int):
         ],
     }
 
+
+# /search
+# → Yalnızca ilgili chunk’ları bulur ve döndürür
 @router.post("/documents/{document_id}/search")
 def search_document(
     document_id: int,
@@ -230,4 +233,62 @@ def search_document(
         "document_id": document_id,
         "question": question,
         "results": relevant_chunks,
+    }
+
+
+# /ask
+# → İlgili chunk’ları bulur
+# → context oluşturur
+# → OpenAI’den cevap üretir
+@router.post("/documents/{document_id}/ask")
+def ask_document(
+    document_id: int,
+    request: DocumentSearchRequest,     # question ve top_k alanlarını taşır
+):
+    
+    # URL'den gelen document_id ile belgeyi veritabanında arar.
+    document = get_document_by_id(document_id)
+
+    # Belge bulunamazsa arama yapılamaz.
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Belge bulunamadı.",
+        )
+
+    # Kullanıcının gönderdiği sorunun başındaki ve sonundaki boşlukları temizler.
+    question = request.question.strip() #model icinde questionve top-k vardi, biz questionaldik.
+
+    # Soru boşsa arama yapılamaz.
+    if not question:
+        raise HTTPException(
+            status_code=400,
+            detail="Soru boş olamaz.",
+        )
+
+    # Bu belgeye ait bütün chunk'ları veritabanından getirir.
+    chunks = get_chunks_by_document(document_id)
+
+    # Kullanıcının sorusunu sayı listesine dönüştürür.
+    question_embedding = create_embedding(question)
+
+    # Soruya en çok benzeyen chunk'ları bulur.
+    relevant_chunks = find_relevant_chunks(
+        question_embedding=question_embedding,
+        chunks=chunks,
+        top_k=request.top_k,
+    )
+
+    context = build_context(relevant_chunks= relevant_chunks)
+
+    answer = generate_answer(
+    question=question,
+    context=context,
+    )
+
+    return {
+        "document_id": document_id,
+        "question": question,
+        "sources": relevant_chunks,
+        "answer": answer,
     }

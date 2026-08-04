@@ -150,3 +150,65 @@ def test_search_uploaded_document():
         assert results[0]["chunk_index"] == 0
         # Soru ve chunk embedding'leri aynı olduğu için benzerlik 1 olmalıdır.
         assert round(results[0]["similarity"], 5) == 1.0
+
+
+def test_ask_uploaded_document():
+    with patch(
+        "backend.app.document_routes.create_embeddings"
+    ) as mock_create_embeddings:
+
+        mock_create_embeddings.return_value = [
+            [1.0, 0.0]
+        ]
+
+        upload_response = client.post(
+            "/documents/upload",
+            files={
+                "file": (
+                    "ask_test.txt",
+                    b"Python listeleri sirali veri saklar.",
+                    "text/plain",
+                )
+            },
+        )
+
+        # Belge yükleme isteğinin başarılı olduğunu kontrol eder.
+        assert upload_response.status_code == 200
+
+        # JSON cevabını Python sözlüğüne dönüştürür.
+        upload_body = upload_response.json()
+
+        # Oluşturulan belgenin id değerini alır.
+        document_id = upload_body["document_id"]
+
+         # Arama sırasında sorunun embedding'ini sahte değerle değiştirir.
+        with patch(
+            "backend.app.document_routes.create_embedding"
+        ) as mock_create_embedding:
+            # Soru embedding'i, chunk embedding'iyle aynı olsun.
+            mock_create_embedding.return_value = [1.0, 0.0]
+
+        with patch(
+            "backend.app.document_routes.generate_answer"
+        ) as mock_generate_answer:
+
+            mock_generate_answer.return_value = (
+                "Python listeleri sıralı verileri saklar."
+            )
+
+            ask_response = client.post(
+                f"/documents/{document_id}/ask",
+                json={
+                    "question": "Python listeleri nedir?",
+                    "top_k": 1,
+                },
+            )
+            # Arama isteğinin başarılı olduğunu kontrol eder.
+            assert ask_response.status_code == 200
+
+            # JSON cevabını Python sözlüğüne dönüştürür.
+            ask_body = ask_response.json()
+
+            assert ask_body["answer"] == (
+                "Python listeleri sıralı verileri saklar."
+            )       
