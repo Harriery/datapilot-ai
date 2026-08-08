@@ -212,3 +212,85 @@ def test_ask_uploaded_document():
             assert ask_body["answer"] == (
                 "Python listeleri sıralı verileri saklar."
             )       
+
+
+
+
+def test_ask_document_without_chunks():
+    with patch(
+    "backend.app.document_routes.get_document_by_id"
+    ) as mock_get_document:
+
+        mock_get_document.return_value = {
+            "id": 99,
+            "filename": "empty.txt",
+        }
+
+        with patch(
+        "backend.app.document_routes.get_chunks_by_document"
+        ) as mock_get_chunks:
+
+            mock_get_chunks.return_value = []
+            response = client.post(
+            "/documents/99/ask",
+            json={
+                "question": "Bu belgede ne anlatılıyor?",
+                "top_k": 1,
+            },
+
+        )
+            assert response.status_code == 400
+
+            body = response.json()
+            assert body["detail"] == "Belgede aranabilir içerik bulunamadı."
+
+def test_ask_document_ai_error():
+    with patch(
+        "backend.app.document_routes.get_document_by_id"
+    ) as mock_get_document:
+
+        mock_get_document.return_value = {
+            "id": 99,
+            "filename": "ai_error_test.txt",
+        }
+
+        with patch(
+            "backend.app.document_routes.get_chunks_by_document"
+        ) as mock_get_chunks:
+
+            mock_get_chunks.return_value = [
+                {
+                    "chunk_index": 0,
+                    "content": "Python listeleri sıralı veri saklar.",
+                    "embedding": [1.0, 0.0],
+                }
+            ]
+
+            with patch(
+                "backend.app.document_routes.create_embedding"
+            ) as mock_create_embedding:
+
+                mock_create_embedding.return_value = [1.0, 0.0]
+
+                with patch(
+                    "backend.app.document_routes.generate_answer"
+                ) as mock_generate_answer:
+
+                    mock_generate_answer.side_effect = Exception(
+                        "OpenAI bağlantı hatası"
+                    )
+
+                    response = client.post(
+                        "/documents/99/ask",
+                        json={
+                            "question": "Python listeleri nedir?",
+                            "top_k": 1,
+                        },
+                    )
+
+                    assert response.status_code == 502
+                    body = response.json()
+
+                    assert body["detail"] == (
+                        "AI servisine şu anda ulaşılamıyor."
+                    )

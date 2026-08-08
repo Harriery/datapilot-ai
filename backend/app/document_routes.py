@@ -269,6 +269,12 @@ def ask_document(
     # Bu belgeye ait bütün chunk'ları veritabanından getirir.
     chunks = get_chunks_by_document(document_id)
 
+    if not chunks:
+        raise HTTPException(
+            status_code=400,
+            detail="Belgede aranabilir içerik bulunamadı.",
+        )
+
     # Kullanıcının sorusunu sayı listesine dönüştürür.
     question_embedding = create_embedding(question)
 
@@ -281,10 +287,20 @@ def ask_document(
 
     context = build_context(relevant_chunks= relevant_chunks)
 
-    answer = generate_answer(
-    question=question,
-    context=context,
-    )
+
+    # OpenAI tarafında bağlantı/API hatası olursa endpoint 500 ile patlayabilir.
+    # Biz bunun yerine kullanıcıya anlaşılır bir API hatası döndüreceğiz.
+    try:
+        answer = generate_answer(
+        question=question,
+        context=context,
+        )
+    except Exception:
+        raise HTTPException(
+            status_code= 502,
+            detail= "AI servisine şu anda ulaşılamıyor."
+        )
+
 
     return {
         "document_id": document_id,

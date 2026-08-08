@@ -11,7 +11,7 @@ Modeller:
 ChatRequest  -> Kullanıcıdan gelen verinin yapısı
 ChatResponse -> Kullanıcıya dönen verinin yapısı
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class ChatRequest(BaseModel):
     session_id: str
@@ -24,4 +24,9 @@ class ChatResponse(BaseModel):      #/chat endpoint’inin başarılı cevabınd
 
 class DocumentSearchRequest(BaseModel):
     question: str
-    top_k: int = 3
+    top_k: int =Field(default=3, ge=1, le=10)   
+# Field(...)
+# │
+# ├── default=3  → top_k gönderilmezse 3
+# ├── ge=1       → greater than or equal → en az 1
+# └── le=10      → less than or equal → en fazla 10
