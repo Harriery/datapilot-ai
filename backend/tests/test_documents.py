@@ -175,11 +175,16 @@ def test_ask_uploaded_document():
         # Belge yükleme isteğinin başarılı olduğunu kontrol eder.
         assert upload_response.status_code == 200
 
+        
+
         # JSON cevabını Python sözlüğüne dönüştürür.
         upload_body = upload_response.json()
 
         # Oluşturulan belgenin id değerini alır.
         document_id = upload_body["document_id"]
+
+        session_response = client.post("/sessions")
+        session_id = session_response.json()["session_id"]
 
          # Arama sırasında sorunun embedding'ini sahte değerle değiştirir.
         with patch(
@@ -188,21 +193,25 @@ def test_ask_uploaded_document():
             # Soru embedding'i, chunk embedding'iyle aynı olsun.
             mock_create_embedding.return_value = [1.0, 0.0]
 
-        with patch(
-            "backend.app.document_routes.generate_answer"
-        ) as mock_generate_answer:
+            with patch(
+                "backend.app.document_routes.generate_answer"
+            ) as mock_generate_answer:
 
-            mock_generate_answer.return_value = (
-                "Python listeleri sıralı verileri saklar."
-            )
+                mock_generate_answer.return_value = (
+                    "Python listeleri sıralı verileri saklar."
+                )
 
-            ask_response = client.post(
-                f"/documents/{document_id}/ask",
-                json={
-                    "question": "Python listeleri nedir?",
-                    "top_k": 1,
-                },
-            )
+                ask_response = client.post(
+                    f"/documents/{document_id}/ask",
+                    json={
+                        "question": "Python listeleri nedir?",
+                        "top_k": 1,
+                        "session_id": session_id,
+                    },
+                )
+
+            called_history = mock_generate_answer.call_args.kwargs["history"]
+            assert called_history == []
             # Arama isteğinin başarılı olduğunu kontrol eder.
             assert ask_response.status_code == 200
 
@@ -226,6 +235,9 @@ def test_ask_document_without_chunks():
             "filename": "empty.txt",
         }
 
+        session_response = client.post("/sessions")
+        session_id = session_response.json()["session_id"]
+
         with patch(
         "backend.app.document_routes.get_chunks_by_document"
         ) as mock_get_chunks:
@@ -236,6 +248,7 @@ def test_ask_document_without_chunks():
             json={
                 "question": "Bu belgede ne anlatılıyor?",
                 "top_k": 1,
+                "session_id": session_id,
             },
 
         )
@@ -253,6 +266,9 @@ def test_ask_document_ai_error():
             "id": 99,
             "filename": "ai_error_test.txt",
         }
+
+        session_response = client.post("/sessions")
+        session_id = session_response.json()["session_id"]
 
         with patch(
             "backend.app.document_routes.get_chunks_by_document"
@@ -285,6 +301,7 @@ def test_ask_document_ai_error():
                         json={
                             "question": "Python listeleri nedir?",
                             "top_k": 1,
+                            "session_id": session_id,
                         },
                     )
 

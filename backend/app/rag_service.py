@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
-from backend.app.database import get_messages_by_session
+
 
 # .env dosyasındaki değişkenleri uygulamaya yükler.
 load_dotenv()

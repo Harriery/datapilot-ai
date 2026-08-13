@@ -46,7 +46,12 @@ def test_generate_answer_returns_output_text():
 
         context = "Belgede veri temizleme işlemleri anlatılıyor."
 
-        answer = generate_answer(question, context)
+        history = [
+            {"role": "user", "content": "Önceki soru"},
+            {"role": "assistant", "content": "Önceki cevap"},
+        ]
+
+        answer = generate_answer(question, context, history)
 
         assert answer ==  fake_response.output_text
 
