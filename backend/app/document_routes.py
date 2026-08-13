@@ -25,14 +25,24 @@ Daha sonra eklenecek aşamalar:
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from pypdf import PdfReader
-from backend.app.database import insert_chunks, insert_document, get_document_by_id, get_chunks_by_document
+from backend.app.database import(
+    insert_chunks,
+    insert_document,
+    get_document_by_id,
+    get_chunks_by_document,
+    get_session_by_id,
+    insert_message,
+    get_messages_by_session
+) 
+
 from backend.app.embedding_service import (
     create_embedding,
     create_embeddings,
 )
 from backend.app.retrieval_service import find_relevant_chunks
-from backend.app.models import DocumentSearchRequest
+from backend.app.models import DocumentSearchRequest, DocumentAskRequest
 from backend.app.rag_service import build_context, generate_answer
+
 
 router = APIRouter()  # Belge endpoint'lerini gruplar.
 
@@ -240,11 +250,22 @@ def search_document(
 # → İlgili chunk’ları bulur
 # → context oluşturur
 # → OpenAI’den cevap üretir
-@router.post("/documents/{document_id}/ask")
+@router.post("/documents/{document_id}/ask")    # FastAPI gelen JSON body’yi DocumentAskRequest modeline göre doğruluyor ve bize request nesnesi olarak veriyo
 def ask_document(
     document_id: int,
-    request: DocumentSearchRequest,     # question ve top_k alanlarını taşır
+    request: DocumentAskRequest,     # question, top_k ve session_id alanlarını taşır
 ):
+
+    
+    # Session veritabanında var mı kontrol eder.
+    session = get_session_by_id(request.session_id) # DocumentAskRequest ile session_id dogrulanir
+                                                    # Sonra request nesnesi olusur ve request,session_id ile session_id ye ulasilir.
+
+    if session is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Session bulunamadı. Önce yeni bir session oluşturun.",
+        )
     
     # URL'den gelen document_id ile belgeyi veritabanında arar.
     document = get_document_by_id(document_id)
@@ -286,21 +307,37 @@ def ask_document(
     )
 
     context = build_context(relevant_chunks= relevant_chunks)
+    history = get_messages_by_session(request.session_id)
+    
+    #kullanicin sorusunu kaydediyoruz.
+    insert_message(     
+        session_id=request.session_id,
+        role="user",
+        content=question, #yukarda trip ile bosluklarini almistik.
+    )
 
 
     # OpenAI tarafında bağlantı/API hatası olursa endpoint 500 ile patlayabilir.
     # Biz bunun yerine kullanıcıya anlaşılır bir API hatası döndüreceğiz.
     try:
-        answer = generate_answer(
-        question=question,
-        context=context,
+        answer = generate_answer(   #rag_service icinden generate_answer fonk gore doldurduk.
+            question=question,
+            context=context,
+            history=history,
         )
+
     except Exception:
         raise HTTPException(
             status_code= 502,
             detail= "AI servisine şu anda ulaşılamıyor."
         )
-
+    
+    
+    insert_message(                 # o session'a ait eski mesajlari getirdik, oncesinde biz bu session ile user in sorusunu kaydetmistik
+        session_id=request.session_id,
+        role="assistant",
+        content=answer,
+        )
 
     return {
         "document_id": document_id,

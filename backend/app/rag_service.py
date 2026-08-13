@@ -2,6 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from backend.app.database import get_messages_by_session
 
 # .env dosyasındaki değişkenleri uygulamaya yükler.
 load_dotenv()
@@ -38,11 +39,30 @@ def build_context(
 def generate_answer(
     question: str,  # Kullanıcının sorusu
     context: str,   # İlgili chunk metinlerinin birleşmiş hâli
+    history: list[dict],    #[
+                            # {"role": "user", "content": "Silver nedir?"},
+                            # {"role": "assistant", "content": "Silver..."}
+                            #]
 ) -> str:
+
+    history = history[-10:] # AI’ye yalnızca en güncel 10 mesaj gider.
+    history_lines =[]   # list[str] # history içindeki dict'leri okunabilir string satırlarına çevirip burada toplar 
+                        # Örn: ["user: Silver nedir?", "assistant: Silver katman..."]
+    
+
+    for message in history:
+        role = message["role"]
+        content = message["content"]
+        history_lines.append(f"{role}: {content}")
+
+    history_text = "\n".join(history_lines) # join ile liste den string e cevirdik
 
     # Belge bağlamı ile kullanıcı sorusunu OpenAI'ye gönderilecek
     # tek bir metin içinde birleştirir.
     input_text = f"""
+        Konuşma geçmişi:
+        {history_text}
+        
         Belge bağlamı:
         {context}
 

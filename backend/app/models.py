@@ -22,7 +22,12 @@ class ChatResponse(BaseModel):      #/chat endpoint’inin başarılı cevabınd
     reply: str
 
 
-class DocumentSearchRequest(BaseModel):
+class DocumentAskRequest(BaseModel):
+    question: str
+    top_k: int =Field(default=3, ge=1, le=10)
+    session_id: str
+
+class DocumentSearchRequest(BaseModel): # sadece dokuman icinde arama yapiyor.
     question: str
     top_k: int =Field(default=3, ge=1, le=10)   
 # Field(...)
