@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
+from unittest.mock import patch
 
 
 client = TestClient(app)
@@ -13,16 +14,24 @@ def test_profile_valid_csv():
         "Ali,30,Den Haag\n"
     )
 
-    response = client.post(
-    "/data/profile",
-    files={
-        "file": (
-            "test.csv",
-            csv_content.encode("utf-8"),
-            "text/csv",
-        )
-    },
-    )
+    with patch(
+    "backend.app.data_routes.generate_data_recommendations"
+    ) as mock_recommendations:
+
+            mock_recommendations.return_value = (
+                "Test cleaning recommendation."
+            )
+
+            response = client.post(
+                "/data/profile",
+                files={
+                    "file": (
+                        "test.csv",
+                        csv_content.encode("utf-8"),
+                        "text/csv",
+                    )
+                },
+            )
     body = response.json()
 
     assert response.status_code == 200
@@ -37,6 +46,7 @@ def test_profile_valid_csv():
     assert body["numeric_summary"]["age"]["min"] == 30.0
     assert body["numeric_summary"]["age"]["max"] == 30.0
     assert body["sample_rows"][1]["age"] is None
+    assert body["recommendations"] == "Test cleaning recommendation."
 
 def test_profile_empty_csv():
     response = client.post(

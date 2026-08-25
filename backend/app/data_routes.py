@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 import pandas as pd
+from backend.app.data_ai_service import generate_data_recommendations
 
 router = APIRouter()
 
@@ -287,15 +288,40 @@ def profile_data(file: UploadFile): # → kullanıcıdan yüklenen dosyayı al
 
 
 
+    # = AI'nın analiz ettiği veri
+    profile = { 
+        "row_count": row_count,
+        "column_count": column_count,
+        "columns": columns,
+        "data_types": data_types,
+        "null_counts": null_counts,
+        "duplicate_count": duplicate_count,
+        "sample_rows": sample_rows,
+        "numeric_columns": numeric_columns,
+        "numeric_summary": numeric_summary,
+    }
 
-    return {
-    "row_count": row_count,
-    "column_count": column_count,
-    "columns": columns,
-    "data_types": data_types,
-    "null_counts": null_counts,
-    "duplicate_count": duplicate_count,
-    "sample_rows": sample_rows,
-    "numeric_columns": numeric_columns,
-    "numeric_summary": numeric_summary,
-}
+    # = AI'nın ürettiği cevap
+    recommendations = generate_data_recommendations(profile) 
+
+    response_body = profile.copy()
+    response_body["recommendations"] = recommendations
+
+    return response_body    # = ikisini kullanıcıya birlikte verdiğimiz API cevabı
+
+# --------ORNEK------
+# {
+#   "row_count": 8807,
+#   "column_count": 12,
+#   "null_counts": {
+#     "director": 2634
+#   },
+#   "duplicate_count": 0,
+#   "numeric_summary": {
+#     "release_year": {
+#       "min": 1925,
+#       "max": 2021
+#     }
+#   },
+#   "recommendations": "Director kolonunda yüksek miktarda eksik veri bulunmaktadır..."
+# }
