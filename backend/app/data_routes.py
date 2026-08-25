@@ -43,7 +43,47 @@ def profile_data(file: UploadFile): # → kullanıcıdan yüklenen dosyayı al
 # 0      Ali   30   Den Haag
 # 1     Ayse   25  Rotterdam
 # 2   Mehmet   40    Utrecht
-    df = pd.read_csv(file.file)
+
+
+# CSV dosyasını okumayı deneriz.
+#
+# try:
+# → hata çıkabilecek kod burada çalışır.
+#
+# except:
+# → belirli bir hata oluşursa ne yapacağımızı söyler.
+#
+# Boş CSV yüklenirse pandas:
+# pd.errors.EmptyDataError
+# hatasını üretir.
+#
+# Bu kullanıcıdan gelen geçersiz veri olduğu için
+# 500 yerine 400 Bad Request döndürüyoruz.
+    try:
+        df = pd.read_csv(file.file)
+
+    except pd.errors.EmptyDataError:
+        raise HTTPException(
+            status_code=400,
+            detail="CSV dosyası boş.",
+        )
+# ParserError:
+# CSV içinde veri vardır fakat satır/sütun yapısı
+# pandas tarafından doğru şekilde okunamaz.
+#
+# Örn:
+# kapanmamış tırnak, bozuk CSV formatı vb.
+#
+# Bu da kullanıcıdan gelen geçersiz veri olduğu için
+# 400 Bad Request döndürüyoruz.
+    
+    except pd.errors.ParserError:
+        raise HTTPException(
+            status_code=400,
+            detail="CSV dosyası geçersiz veya bozuk."
+        )
+
+
 
 
 # df.shape → (satır sayısı, sütun sayısı)
