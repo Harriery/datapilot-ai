@@ -104,8 +104,52 @@ def init_db():
     # NEDEN embedding TEXT NOT NULLSQLite’ta doğrudan list[float] türü yok.
     # Embedding listesini önce JSON metnine çevirip saklayacağız; okurken tekrar listeye çevireceğiz.
      
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS learner_profiles(
+            learner_id TEXT PRIMARY KEY,
+            answer_length TEXT NOT NULL,
+            learning_style TEXT NOT NULL,
+            code_support TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+              )
+
+        """
+    )
+
+
+  
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS skill_states(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            learner_id TEXT NOT NULL,
+            skill_name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            attempts INTEGER DEFAULT 0,
+            successful_attempts INTEGER DEFAULT 0,
+            last_difficulty TEXT,
+            last_used_at TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id),
+            UNIQUE (learner_id, skill_name)
+        )
+        """
+    )
+
+
+    connection.execute(
+        """
+        
+
+        """
+
+    )
     connection.commit()
     connection.close()
+    
 
 
 
@@ -370,3 +414,94 @@ def get_chunks_by_document(document_id: int):
     connection.close()
 
     return chunks
+
+
+def insert_learner_profile(
+        learner_id: str,
+        answer_length: str,
+        learning_style: str,
+        code_support:str
+        ):
+    connection = get_connection()
+    connection.execute(
+        """
+            INSERT INTO learner_profiles(learner_id, answer_length, learning_style, code_support)
+            VALUES (?,?,?,?)
+        """,
+        (learner_id, answer_length, learning_style, code_support)
+
+    )
+
+
+    connection.commit()
+    connection.close()
+
+def get_learner_profile_by_id(learner_id:str):
+    connection = get_connection()
+    profile = connection.execute(
+        """
+        SELECT *
+        FROM learner_profiles
+        WHERE learner_id = ?
+        """,
+        (learner_id,),  #python da tek elemanli tupple icin virgul gerekli.
+    ).fetchone()
+
+    connection.close()
+    
+    return profile
+
+
+def insert_skill_state(
+        learner_id: str,
+        skill_name: str,
+        status: str,
+        last_difficulty: str | None = None,
+        last_used_at: str | None = None
+        ):
+    connection = get_connection()
+    connection.execute(
+
+        """
+            INSERT INTO skill_states(learner_id, skill_name, status, last_difficulty, last_used_at)    
+            VALUES(?,?,?,?,?)
+        """,
+        (learner_id, skill_name, status, last_difficulty, last_used_at)
+    )
+    connection.commit()
+    connection.close()
+
+
+def get_skill_state(learner_id: str, skill_name):
+    connection = get_connection()
+    skill = connection.execute(
+        """
+        SELECT *
+        FROM skill_states
+        WHERE learner_id = ?
+        AND skill_name = ?
+        """,
+        (learner_id, skill_name),
+    ).fetchone()
+
+    connection.close()
+    return skill
+
+def get_skill_states_by_learner(learner_id: str):
+    connection= get_connection()
+    skills = connection.execute(
+        """
+        SELECT * 
+        FROM skill_states
+        WHERE learner_id = ?
+        ORDER BY id ASC
+        """,
+        (learner_id,),
+    ).fetchall()
+
+    connection.close()
+    
+    return skills
+
+
+
