@@ -11,7 +11,8 @@ Modeller:
 ChatRequest  -> Kullanıcıdan gelen verinin yapısı
 ChatResponse -> Kullanıcıya dönen verinin yapısı
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field # Pydantic = Python’da gelen/giden verinin şeklini ve tipini kontrol eden kütüphane.
+from typing import Literal # Bir alanın sadece belirlediğimiz sabit değerlerden birini almasını sağlar.
 
 class ChatRequest(BaseModel):
     session_id: str
@@ -35,3 +36,13 @@ class DocumentSearchRequest(BaseModel): # sadece dokuman icinde arama yapiyor.
 # ├── default=3  → top_k gönderilmezse 3
 # ├── ge=1       → greater than or equal → en az 1
 # └── le=10      → less than or equal → en fazla 10
+
+class MentorDecision(BaseModel):
+    skill_name: str
+    assistance_level: Literal[ # Sadece izin verilen yardım seviyeleri kabul edilir.
+        "NUDGE",
+        "GUIDE",
+        "TEACH",
+        "DEMONSTRATE",
+    ]
+    reason: str
