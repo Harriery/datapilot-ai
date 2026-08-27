@@ -141,11 +141,25 @@ def init_db():
 
 
     connection.execute(
-        """
-        
+    """
+    CREATE TABLE IF NOT EXISTS learning_evidence(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        learner_id TEXT NOT NULL,
+        skill_name TEXT NOT NULL,
+        assistance_level TEXT NOT NULL,
+        success INTEGER NOT NULL,
+        evidence_type TEXT NOT NULL,
+        note TEXT,
+        session_id TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 
-        """
+        FOREIGN KEY (learner_id)
+            REFERENCES learner_profiles(learner_id),
 
+        FOREIGN KEY (session_id)
+            REFERENCES sessions(session_id)
+    )
+    """
     )
     connection.commit()
     connection.close()
@@ -505,3 +519,152 @@ def get_skill_states_by_learner(learner_id: str):
 
 
 
+def insert_learning_evidence(
+    learner_id: str,
+    skill_name: str,
+    assistance_level: str,
+    success: bool,
+    evidence_type: str,
+    note: str | None = None,
+    session_id: str | None = None,
+    ):
+    connection = get_connection()
+    connection.execute(
+
+        """
+            INSERT INTO learning_evidence(learner_id,skill_name, assistance_level, success, evidence_type,note, session_id)
+            VALUES (?,?,?,?,?,?,?)
+        """,
+        (learner_id, skill_name, assistance_level, success, evidence_type,note, session_id)
+    )
+    connection.commit()
+    connection.close()
+
+
+def get_learning_evidence_by_skill(
+        learner_id: str,
+        skill_name: str,
+        ):
+    connection= get_connection()
+    evidence = connection.execute(
+        """
+        SELECT * 
+        FROM learning_evidence
+        WHERE learner_id = ?
+        AND skill_name = ?
+        ORDER BY id ASC
+        """,
+        (learner_id, skill_name)
+        
+    ).fetchall()
+
+
+    connection.close()
+    return evidence
+
+def update_skill_state_after_evidence(
+    learner_id: str,
+    skill_name: str,
+    success: bool,
+    ):
+    connection = get_connection()
+    connection.execute(
+    """
+    UPDATE skill_states
+    SET
+        attempts = attempts + 1,
+        successful_attempts = successful_attempts + ?,
+        last_used_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE learner_id = ?
+    AND skill_name = ?
+    """,
+    (
+        int(success),
+        learner_id,
+        skill_name,
+    ),
+    )
+    connection.commit()
+    connection.close()
+
+def record_learning_evidence(
+    learner_id: str,
+    skill_name: str,
+    assistance_level: str,
+    success: bool,
+    evidence_type: str,
+    note: str | None = None,    # str | None → string de olabilir, None da olabilir
+    session_id: str | None = None,  # = None → kullanıcı değer vermezse varsayılan olarak None kullan
+
+    ):
+    connection = get_connection()
+    
+    try:
+        connection.execute(
+            """
+                INSERT INTO learning_evidence(learner_id,skill_name, assistance_level, success, evidence_type,note, session_id)
+                VALUES (?,?,?,?,?,?,?)
+            """,
+            (learner_id, skill_name, assistance_level, success, evidence_type,note, session_id)
+        ),
+        cursor = connection.execute(
+            """
+                UPDATE skill_states
+                SET
+                    attempts = attempts + 1,
+                    successful_attempts = successful_attempts + ?,
+                    last_used_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE learner_id = ?
+                AND skill_name = ?
+                """,
+                (
+                    int(success),
+                    learner_id,
+                    skill_name,
+                ),
+
+        )
+        # kontrolettigimiz, kac kayit etkilendi.
+        if cursor.rowcount == 0:                        # rowcount = 1 → skill bulundu ve update edildi
+                                                        # rowcount = 0 → skill bulunamadı, hiçbir şey update edilmedi
+            raise ValueError("Skill state bulunamadı.")
+        connection.commit()
+        
+       
+    except Exception:
+        connection.rollback() # Bu transaction içinde şimdiye kadar yaptığımız değişiklikleri iptal et.
+        raise
+
+    finally:
+        connection.close()
+
+def update_skill_status(
+  learner_id: str,
+  skill_name: str,
+  new_status: str,      
+    ):
+    valid_statuses = {"new", "learning", "practicing", "comfortable"}
+    if new_status not in valid_statuses:
+        raise ValueError("Geçersiz skill status.")
+    connection = get_connection()
+    cursor= connection.execute(
+        """
+            UPDATE skill_states
+            SET status = ?
+            WHERE learner_id = ?
+            AND skill_name = ?
+        """,
+        (new_status, learner_id, skill_name) # Mevcut status değerini new_status ile güncelliyoruz.
+    )
+    # kontrolettigimiz, kac kayit etkilendi.
+    if cursor.rowcount == 0:                        # rowcount = 1 → skill bulundu ve update edildi
+        connection.close()                                            # rowcount = 0 → skill bulunamadı, hiçbir şey update edilmedi
+        raise ValueError("Skill state bulunamadı.")
+    connection.commit()
+   
+    connection.close()
+
+        
+    
