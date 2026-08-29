@@ -1,6 +1,6 @@
 import json
 from openai import OpenAI
-from backend.app.models import MentorDecision
+from backend.app.models import MentorDecision, SkillDetection
 import backend.app.database as database
 import os
 
@@ -16,6 +16,55 @@ api_key = os.getenv("OPENAI_API_KEY")
 # OpenAI ile iletişim kuracak istemciyi oluşturur.
 client = OpenAI(api_key=api_key)
 
+
+# Mentor sisteminin MVP'de takip ettiği skill'ler.
+# AI relevant skill seçerken yalnızca bu katalogdaki değerleri kullanmalıdır.
+# Skill = junior'ın farklı görevlerde tekrar tekrar kullanacağı
+# öğrenilebilir bir yetkinliktir.
+# Tek bir soru, fonksiyon veya kütüphane için ayrı skill oluşturmayız.
+SKILL_CATALOG = {
+    # Python
+    "python_basics",
+    "python_data_structures",
+    "python_functions",
+    "python_error_handling",
+    "debugging",
+
+    # Code / Software Understanding
+    "code_flow",
+    "software_concepts",
+    "api_backend_flow",
+
+    # Data / Pandas
+    "pandas_dataframe",
+    "data_types",
+    "data_transformation",
+
+    # Data Quality
+    "null_analysis",
+    "duplicate_analysis",
+    "schema_analysis",
+    "numeric_analysis",
+    "data_validation",
+
+    # SQL / Database
+    "sql_basics",
+    "sql_joins",
+    "sql_aggregation",
+    "database_fundamentals",
+
+    # Data Engineering
+    "etl_elt",
+    "pipeline_concepts",
+    "data_modeling",
+    "file_formats",
+    "medallion_architecture",
+
+    # Engineering Workflow
+    "testing",
+    "git_workflow",
+    "development_environment",
+}
 
 # learner_profile
 # → {"answer_length": "concise", ...}
@@ -162,3 +211,32 @@ def get_mentor_decision_for_learner(
     
     return ai_decision
 
+
+def detect_relevant_skill(current_message:str):
+
+
+    skills_text = ", ".join(SKILL_CATALOG)
+
+    instructions = f"""
+        Kullanıcının mesajına en uygun skill'i seç.
+
+        Sadece aşağıdaki skill'lerden birini seç:
+        {skills_text}
+
+        Eğer listedeki hiçbir skill mesajla gerçekten ilgili değilse:
+        skill_name = null döndür.
+
+        Yeni bir skill adı üretme.
+        Neden bu kararı verdiğini kısa şekilde açıkla.
+    """
+    response = client.responses.parse(  # OpenAI cevabı için modeli kullanmasını parse() ile biz söyleriz.
+        model="gpt-5-mini",
+        input= current_message,
+        instructions= instructions             
+        text_format=SkillDetection
+    )
+
+    if detection.skill_name is not None and detection.skill_name not in SKILL_CATALOG:
+        raise ValueError("Geçersiz skill tespit edildi.")
+    detection = response.output_parsed
+    return detection

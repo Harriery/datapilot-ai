@@ -46,3 +46,9 @@ class MentorDecision(BaseModel):
         "DEMONSTRATE",
     ]
     reason: str
+# AI’nın “bu mesaj hangi skill ile ilgili?” cevabının şeklini tanımlayacağız.
+# skill_name = "python_dict"
+# reason = "Kullanıcı dictionary yapısını soruyor."
+class SkillDetection(BaseModel):
+    skill_name: str | None = None   # → string veya NoneS
+    reason: str
