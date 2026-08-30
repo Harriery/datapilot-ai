@@ -46,7 +46,7 @@ class DocumentSearchRequest(BaseModel): # sadece dokuman icinde arama yapiyor.
 class MentorDecision(BaseModel):
     skill_name: str
     assistance_level: Literal[ # Sadece izin verilen yardım seviyeleri kabul edilir.
-        "NONE"
+        "NONE",
         "NUDGE",
         "GUIDE",
         "TEACH",

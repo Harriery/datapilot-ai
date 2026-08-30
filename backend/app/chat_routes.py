@@ -103,7 +103,7 @@ def chat(request: ChatRequest):
                 input=history,
             )
 
-        reply = response.output_text
+            reply = response.output_text
 
     # OpenAI cevap veremezse son eklenen user mesajını veritabanından siler.
     except AuthenticationError:

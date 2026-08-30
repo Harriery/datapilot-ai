@@ -313,7 +313,7 @@ def generate_mentor_response(
 
             Current Message:
             {current_message}
-    """,
+    """
     instructions = """
     Sen junior Data Engineer'lar için adaptif bir mentorsun.
 
