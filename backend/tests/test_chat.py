@@ -2,10 +2,18 @@ from fastapi.testclient import TestClient
 
 from backend.app.main import app
 from unittest.mock import patch
+import pytest
+import backend.app.database as database
 
 client = TestClient(app)    # FastAPI uygulamamıza test amaçlı sahte bir kullanıcı oluşturuyoruz.
 
-
+# Her chat testi için temiz bir test DB oluşturur.
+# /chat artık learner_profiles ve skill_states tablolarını da kullandığı
+# için init_db() ile bütün tabloları hazırlıyoruz.
+@pytest.fixture(autouse=True)
+def setup_test_database(tmp_path):
+    database.DATABASE_PATH = tmp_path / "test.db"
+    database.init_db()
 
 # Boşluklardan oluşan mesaj gönder
 # ↓
@@ -55,9 +63,13 @@ def test_chat_returns_ai_response():
     create_response = client.post("/sessions")
     session_id = create_response.json()["session_id"]
 
-    with patch(     # patch geçici olarak gerçek OpenAI çağrısının yerine sahte bir cevap koyar:
+    with patch(
+        "backend.app.chat_routes.get_mentor_response_from_message",
+        return_value=None,
+    ), patch(
         "backend.app.chat_routes.client.responses.create"
     ) as mock_create:
+
         mock_create.return_value.output_text = "Test AI cevabı"
 
         response = client.post(
@@ -87,10 +99,14 @@ def test_chat_returns_500_when_openai_fails():
     session_id = create_response.json()["session_id"]
 
     with patch(
+        "backend.app.chat_routes.get_mentor_response_from_message",
+        return_value=None,
+    ), patch(
         "backend.app.chat_routes.client.responses.create"
     ) as mock_create:
-        mock_create.side_effect = Exception("Test hatası")  # side_effect, sahte OpenAI çağrısına bilerek hata verdirtir.
-
+    
+        mock_create.side_effect = Exception("Test hatası")
+    
         response = client.post(
             "/chat",
             json={

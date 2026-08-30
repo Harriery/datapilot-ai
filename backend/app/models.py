@@ -18,6 +18,12 @@ class ChatRequest(BaseModel):
     session_id: str
     message: str
 
+    # Frontend ileride kalıcı learner_id gönderebilir.
+    # Gönderilmezse /chat session_id'yi learner_id olarak kullanacak.
+    learner_id: str | None = None
+
+
+
 class ChatResponse(BaseModel):      #/chat endpoint’inin başarılı cevabında
                                     #reply isimli string alan bulunacak.
     reply: str
@@ -40,6 +46,7 @@ class DocumentSearchRequest(BaseModel): # sadece dokuman icinde arama yapiyor.
 class MentorDecision(BaseModel):
     skill_name: str
     assistance_level: Literal[ # Sadece izin verilen yardım seviyeleri kabul edilir.
+        "NONE"
         "NUDGE",
         "GUIDE",
         "TEACH",
@@ -52,3 +59,22 @@ class MentorDecision(BaseModel):
 class SkillDetection(BaseModel):
     skill_name: str | None = None   # → string veya NoneS
     reason: str
+
+
+class LearningEvidenceDecision(BaseModel):
+    # Bu mesaj gerçekten junior'ın bilgisini/uygulamasını gösteriyor mu?
+    is_evidence: bool
+
+    # Evidence varsa hangi tür?
+    evidence_type: Literal[
+        "application",
+        "explanation",
+        "debugging",
+        "validation",
+    ] | None = None
+
+    # Evidence varsa başarılı mı?
+    success: bool | None = None
+
+    # AI'nın kısa açıklaması
+    note: str | None = None
