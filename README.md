@@ -69,6 +69,8 @@ datapilot-ai/
 ├── docs/
 │   └── images/
 ├── README.md
+
+```md
 └── .gitignore
 
 ## Project Status
