@@ -86,12 +86,15 @@ def chat(request: ChatRequest):
     # OpenAI'ye yalnızca son 10 mesajı gönderir.
     history = history[-MAX_HISTORY_MESSAGES:]
 
+    previous_history = history[:-1]
+
     try:
         # Önce adaptive mentor sistemi mesajı ele almaya çalışır.
         reply = get_mentor_response_from_message(
             learner_id=learner_id,
             current_message=message,
             session_id=request.session_id,
+            conversation_history=previous_history,
         )
 
         # Mesaj katalogdaki bir learning skill ile ilgili değilse

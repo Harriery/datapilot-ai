@@ -284,6 +284,7 @@ def generate_mentor_response(
     learner_profile: dict,
     mentor_decision: MentorDecision,  # AI'nin MentorDecision modeline göre ürettiği karar
     current_message: str,
+    conversation_history: list[dict] | None = None,
 ):
     # mentor_decision bir Pydantic modelidir.
     # .assistance_level ile örn. "GUIDE" değerini alıyoruz.
@@ -303,16 +304,26 @@ def generate_mentor_response(
         indent=2,
     )   
 
+    conversation_history_text = json.dumps(
+    conversation_history or [],
+    ensure_ascii=False,
+    indent=2,
+    )
+
     #BU MESAJDA hangi yardım seviyesinde davranacağıni belirliyoruz.
     prompt = f"""
          Learner Profile:
-            {learner_profile_text}
-    
-            Mentor Guideline:
-            {guideline}
+        {learner_profile_text}
 
-            Current Message:
-            {current_message}
+        Previous Conversation:
+        {conversation_history_text}
+
+    
+        Mentor Guideline:
+        {guideline}
+
+        Current Message:
+        {current_message}
     """
     instructions = """
     Sen junior Data Engineer'lar için adaptif bir mentorsun.
@@ -352,6 +363,7 @@ def get_mentor_response_from_message(
     learner_id: str,
     current_message: str,
     session_id: str | None = None,
+    conversation_history: list[dict] | None = None,
 ) -> str | None:
     """
     Adaptive mentor sisteminin ana end-to-end servis akışı.
@@ -387,6 +399,7 @@ def get_mentor_response_from_message(
         learner_profile=learner_profile,
         mentor_decision=mentor_decision,
         current_message=current_message,
+        conversation_history=conversation_history,
     )
 
     # Junior'ın mevcut mesajı gerçek evidence içeriyorsa kaydet.
@@ -396,6 +409,7 @@ def get_mentor_response_from_message(
         mentor_decision=mentor_decision,
         current_message=current_message,
         session_id=session_id,
+        conversation_history=conversation_history,
     )
 
     return mentor_response
@@ -407,6 +421,7 @@ def get_mentor_response_from_message(
 def classify_learning_evidence(
     skill_name: str,
     current_message: str,
+    conversation_history: list[dict] | None = None,
 ) -> LearningEvidenceDecision:
     """
     Junior'ın mesajının gerçekten öğrenme evidence'ı olup olmadığını belirler.
@@ -450,9 +465,23 @@ def classify_learning_evidence(
     note alanında kısa neden yaz.
     """
 
+    conversation_history_text = json.dumps(
+    conversation_history or [],
+    ensure_ascii=False,
+    indent=2,
+    )
+
+    evidence_input = f"""
+    Previous Conversation:
+    {conversation_history_text}
+
+    Current Message:
+    {current_message}
+    """
+
     response = client.responses.parse(
         model="gpt-5-mini",
-        input=current_message,
+        input=evidence_input,
         instructions=instructions,
         text_format=LearningEvidenceDecision,
     )
@@ -519,11 +548,13 @@ def process_learning_evidence(
     mentor_decision: MentorDecision,
     current_message: str,
     session_id: str | None = None,
+    conversation_history: list[dict] | None = None,
 ) -> LearningEvidenceDecision:
 
     evidence = classify_learning_evidence(
         skill_name=mentor_decision.skill_name,
         current_message=current_message,
+        conversation_history=conversation_history,
     )
 
     # Mesaj genuine learning evidence değilse
