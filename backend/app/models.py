@@ -80,7 +80,13 @@ class LearningEvidenceDecision(BaseModel):
     note: str | None = None
 
 class DataQualityFinding(BaseModel):
-    issue_type:str
+    issue_type:Literal[
+        "missing_values",
+        "duplicate_rows",
+        "suspicious_values",
+        "data_type_issue",
+        "schema_issue",
+    ]
     column: str | None = None
     severity : Literal[
         "low",

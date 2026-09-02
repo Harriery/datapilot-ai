@@ -61,6 +61,8 @@ def generate_data_recommendations(profile: dict) -> DataQualityAnalysis:
         "Her problem için gözlem ve öneriyi en fazla 2-3 cümleyle açıkla. "
         "Hiçbir durumda veriye otomatik müdahale etmeyi önerdiğini söyleme; "
         "yalnızca kullanıcı tarafından değerlendirilebilecek öneriler sun."
+        "Her finding yalnızca tek bir kolonu temsil etsin; birden fazla kolonda aynı problem varsa ayrı finding oluştur. "
+        "Satırın tamamını ilgilendiren duplicate_rows gibi problemlerde column alanını null bırak. "
     ),
     input=prompt,
     text_format=DataQualityAnalysis,
