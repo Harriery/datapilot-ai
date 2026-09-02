@@ -302,10 +302,10 @@ def profile_data(file: UploadFile): # → kullanıcıdan yüklenen dosyayı al
     }
 
     # = AI'nın ürettiği cevap
-    recommendations = generate_data_recommendations(profile) 
+    analysis = generate_data_recommendations(profile) 
 
     response_body = profile.copy()
-    response_body["recommendations"] = recommendations
+    response_body["analysis"] = analysis.model_dump() # Pydantic nesnesini normal Python dict yapısına çevir.
 
     return response_body    # = ikisini kullanıcıya birlikte verdiğimiz API cevabı
 

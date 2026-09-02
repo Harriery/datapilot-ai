@@ -4,6 +4,7 @@ import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from backend.app.models import DataQualityAnalysis
 
 load_dotenv()
 
@@ -42,11 +43,11 @@ def build_recommendation_prompt(profile: dict) -> str:
     return prompt
 
 
-def generate_data_recommendations(profile: dict) -> str:
+def generate_data_recommendations(profile: dict) -> DataQualityAnalysis:
     prompt = build_recommendation_prompt(profile)
 
 
-    response = client.responses.create( # "OpenAI'ya yeni bir istek gönder ve cevap üret."
+    response = client.responses.parse( # "OpenAI'ya yeni bir istek gönder ve cevap üret."
     model="gpt-5-mini",
     instructions=(
         "Sen bir Data Engineering mentorusun. "
@@ -62,6 +63,7 @@ def generate_data_recommendations(profile: dict) -> str:
         "yalnızca kullanıcı tarafından değerlendirilebilecek öneriler sun."
     ),
     input=prompt,
+    text_format=DataQualityAnalysis,
     )   
 # OpenAI cevabı sadece düz metin değildir;
 # response nesnesi içinde farklı bilgiler bulunabilir.
@@ -71,6 +73,6 @@ def generate_data_recommendations(profile: dict) -> str:
 #
 # Bu metni recommendations değişkenine koyup
 # fonksiyonun dışına döndürüyoruz.
-    recommendations = response.output_text
+    recommendations = response.output_parsed
 
     return recommendations

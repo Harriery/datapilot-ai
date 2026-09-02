@@ -1,5 +1,5 @@
 from unittest.mock import patch
-
+from backend.app.models import DataQualityAnalysis
 from backend.app.data_ai_service import (
     build_recommendation_prompt,
     generate_data_recommendations,
@@ -32,13 +32,13 @@ def test_generate_data_recommendations():
     }
 
     with patch(
-    "backend.app.data_ai_service.client.responses.create"
-    ) as mock_create:
-        mock_create.return_value.output_text = (
-            "Age kolonundaki eksik değeri inceleyin."
+    "backend.app.data_ai_service.client.responses.parse"
+    ) as mock_parse:
+        mock_parse.return_value.output_parsed = DataQualityAnalysis(
+            findings=[]
         )
         recommendations = generate_data_recommendations(profile)
 
-        assert recommendations == (
-            "Age kolonundaki eksik değeri inceleyin."
+        assert recommendations == DataQualityAnalysis(
+            findings=[]
         )

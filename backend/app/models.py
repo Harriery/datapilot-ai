@@ -78,3 +78,17 @@ class LearningEvidenceDecision(BaseModel):
 
     # AI'nın kısa açıklaması
     note: str | None = None
+
+class DataQualityFinding(BaseModel):
+    issue_type:str
+    column: str | None = None
+    severity : Literal[
+        "low",
+        "medium",
+        "high",
+    ]
+    observation: str
+    suggested_action : str
+
+class DataQualityAnalysis(BaseModel):
+    findings: list[DataQualityFinding]
