@@ -8,12 +8,16 @@ from backend.app.mentor_service import (
     classify_learning_evidence,
     process_learning_evidence,
     refresh_skill_status,
+    get_skill_for_data_quality_issue,
+    get_mentor_decision_for_data_quality_finding,
+    get_mentor_response_for_data_quality_finding,
 )
 from unittest.mock import patch, MagicMock
 from backend.app.models import (
     MentorDecision,
     SkillDetection,
     LearningEvidenceDecision,
+    DataQualityFinding,
 )
 import backend.app.database as database
 import pytest
@@ -462,3 +466,82 @@ def test_process_learning_evidence_updates_skill_state(tmp_path):
     assert state["attempts"] == 1
     assert state["successful_attempts"] == 1
     assert state["status"] == "learning"
+
+def test_get_skill_for_data_quality_issue():
+    skill = get_skill_for_data_quality_issue("missing_values")
+
+    assert skill == "null_analysis"
+
+def test_get_mentor_decision_for_data_quality_finding():
+    finding = DataQualityFinding(
+        issue_type="missing_values",
+        column="age",
+        severity="medium",
+        observation="age sütununda eksik değer var.",
+        suggested_action="Eksik değerin nedenini inceleyin.",
+    )
+
+    with patch(
+        "backend.app.mentor_service.get_mentor_decision_for_learner"
+    ) as mock_get_decision:
+
+        mock_get_decision.return_value = "test-decision"
+
+        result = get_mentor_decision_for_data_quality_finding(
+            learner_id="learner-1",
+            finding=finding,
+        )
+
+        assert result == "test-decision"
+
+        mock_get_decision.assert_called_once_with(
+            learner_id="learner-1",
+            skill_name="null_analysis",
+            current_message="age sütununda eksik değer var.",
+        )
+
+def test_get_mentor_response_for_data_quality_finding():
+    finding = DataQualityFinding(
+        issue_type="missing_values",
+        column="age",
+        severity="medium",
+        observation="age sütununda eksik değer var.",
+        suggested_action="Eksik değerin nedenini inceleyin.",
+    )
+
+    fake_decision = MagicMock()
+
+    learner_profile = {
+        "answer_length": "concise",
+        "learning_style": "guided",
+        "code_support": "medium",
+    }
+
+    with patch(
+        "backend.app.mentor_service.get_mentor_decision_for_data_quality_finding",
+        return_value=fake_decision,
+    ), patch(
+        "backend.app.mentor_service.database.get_learner_profile_by_id",
+        return_value=learner_profile,
+    ), patch(
+        "backend.app.mentor_service.generate_mentor_response",
+        return_value="Test mentor cevabı.",
+    ) as mock_generate_response:
+
+        result = get_mentor_response_for_data_quality_finding(
+            learner_id="learner-1",
+            finding=finding,
+        )
+
+        assert result == "Test mentor cevabı."
+
+        mock_generate_response.assert_called_once_with(
+            learner_profile=learner_profile,
+            mentor_decision=fake_decision,
+        current_message=(
+            "Problem: age sütununda eksik değer var.\n"
+            "Suggested action: Eksik değerin nedenini inceleyin.\n"
+            "Sadece bu finding içinde verilen bilgilere dayan. "
+            "Veride olmayan kolon, değer veya metadata uydurma."
+            ),
+        )

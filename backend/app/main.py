@@ -7,6 +7,7 @@ from backend.app.database import init_db
 from backend.app.session_routes import router as session_router
 from backend.app.document_routes import router as document_router
 from backend.app.data_routes import router as data_router
+from backend.app.mentor_routes import router as mentor_router
 
 
 
@@ -39,6 +40,7 @@ app.include_router(session_router)
 app.include_router(chat_router)
 app.include_router(document_router)
 app.include_router(data_router)
+app.include_router(mentor_router)
 
 @app.get("/")
 def home():

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, UploadFile
 import pandas as pd
 from backend.app.data_ai_service import generate_data_recommendations
-
+from backend.app.models import DataQualityMentorRequest
+from backend.app.mentor_service import get_mentor_response_for_data_quality_finding
 router = APIRouter()
 
 

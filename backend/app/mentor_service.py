@@ -4,6 +4,7 @@ from backend.app.models import (
     MentorDecision,
     SkillDetection,
     LearningEvidenceDecision,
+    DataQualityFinding,
 )
 import backend.app.database as database
 import os
@@ -69,6 +70,16 @@ SKILL_CATALOG = {
     "git_workflow",
     "development_environment",
 }
+
+
+DATA_QUALITY_SKILL_MAP = {
+    "missing_values": "null_analysis",
+    "duplicate_rows": "duplicate_analysis",
+    "suspicious_values": "numeric_analysis",
+    "data_type_issue": "data_types",
+    "schema_issue": "schema_analysis",
+}
+
 
 # learner_profile
 # → {"answer_length": "concise", ...}
@@ -273,11 +284,38 @@ def get_mentor_decision_from_message(
     return decision
 
 ASSISTANCE_GUIDELINES = {
-    "NONE": "Junior görevi büyük ölçüde bağımsız yapabiliyor. Gereksiz öğretme yok; kısa cevap/review yeterli.",
-    "NUDGE": "Çok küçük bir ipucu ver. Çözümü veya kodu söyleme. Junior'ın sonraki adımı kendisinin bulmasını sağla.",
-    "GUIDE":" Problemi küçük adımlara böl. Sorular ve yönlendirmelerle ilerlet.Tam çözümü hemen verme.",
-    "TEACH": "Kavramı önce açıkla.Neden kullanıldığını ve küçük bir örneği göster.Sonra junior'ın uygulamasını iste.",
-    "DEMONSTRATE":"Junior ciddi şekilde takılmışsa çalışan bir örnek göster. Ama örneğin ne yaptığını da açıkla.Sonrasında benzer kısmı junior'ın yapmasını sağla."
+    "NONE": (
+        "Junior görevi bağımsız yapabiliyor. "
+        "Sadece kısa doğrulama veya review ver. "
+        "Yeni konu öğretme, çözüm üretme veya uzun açıklama yapma."
+    ),
+
+    "NUDGE": (
+        "Sadece küçük bir ipucu ver. "
+        "En fazla 1-2 kısa cümle kullan. "
+        "Kod veya doğrudan çözüm verme."
+    ),
+
+    "GUIDE": (
+        "Junior'a yalnızca bir sonraki küçük adımı ver. "
+        "En fazla 2-3 kısa cümle kullan. "
+        "Birden fazla adım, uzun kontrol listesi veya tam çözüm verme. "
+        "Junior bu adımı tamamladıktan sonra sonraki adıma geç."
+    ),
+
+    "TEACH": (
+        "Gerekli kavramı kısa şekilde açıkla. "
+        "Neden kullanıldığını belirt ve gerekirse tek küçük örnek ver. "
+        "Sonra junior'ın kendisinin uygulamasını iste. "
+        "Uzun ders veya tam çözüm verme."
+    ),
+
+    "DEMONSTRATE": (
+        "Junior ciddi şekilde takılmışsa tek bir çalışan örnek göster. "
+        "Örneğin ne yaptığını kısa şekilde açıkla. "
+        "Sonrasında benzer kısmı junior'ın kendisinin yapmasını iste. "
+        "Birden fazla alternatif çözüm veya uzun açıklama verme."
+    ),
 }
 
 def generate_mentor_response(
@@ -580,3 +618,67 @@ def process_learning_evidence(
     )
 
     return evidence
+def get_skill_for_data_quality_issue(issue_type: str):
+    return DATA_QUALITY_SKILL_MAP.get(issue_type)
+
+def get_mentor_decision_for_data_quality_finding(# hangi skill ve hangi assitance level onu bulacak.
+    learner_id: str,
+    finding: DataQualityFinding,
+    ):
+    skill_name = get_skill_for_data_quality_issue(finding.issue_type) # mapping e bakip konunun hangi skille alakali oldugunu anlamak
+    if skill_name is None:
+        return None # mentor kararina devam etmesin diyoruz eger skill adi yoksa
+    
+    return get_mentor_decision_for_learner(
+    learner_id=learner_id,
+    skill_name=skill_name,
+    current_message=finding.observation,
+    )
+
+
+
+# Bir DataQualityFinding'i learner'ın seviyesine uygun mentor cevabına dönüştürür.
+#
+# Akış:
+# 1. finding.issue_type üzerinden ilgili skill bulunur.
+# 2. learner'ın o skill'deki durumuna göre MentorDecision alınır.
+# 3. finding içindeki observation ve suggested_action mentor mesajına eklenir.
+# 4. generate_mentor_response() ile junior'a gösterilecek adaptif cevap üretilir.
+#
+# Eğer finding için uygun bir skill yoksa None döner.
+
+# Bu fonksiyonun görevi finding’i alıp junior’a gösterilecek gerçek mentor cevabını üretmek olacak.
+def get_mentor_response_for_data_quality_finding(
+    learner_id: str,
+    finding: DataQualityFinding,
+    ):
+
+    # finding - ilgili skill bulunur - learner'ın o skill seviyesi okunur - MentorDecision gelir
+    mentor_decision = get_mentor_decision_for_data_quality_finding(
+    learner_id=learner_id,
+    finding=finding,
+    )
+    if mentor_decision is None:
+        return None
+
+    # gerçek mentor cevabını üretmek için learner profilini almamız gerekiyor.
+    learner_profile = database.get_learner_profile_by_id(learner_id)
+    learner_profile = dict(learner_profile)
+
+    # mentora göndereceğimiz mesajı hazırlayalım. Sadece observation değil, AI’nin önerdiği aksiyonu da görsün
+    finding_message = (
+    f"Problem: {finding.observation}\n" # observation:  AI ne gördü? → problem ne?
+    f"Suggested action: {finding.suggested_action}\n" # suggested_action: → bu problem için junior ne yapmayı değerlendirmeli?
+    "Sadece bu finding içinde verilen bilgilere dayan. "
+    "Veride olmayan kolon, değer veya metadata uydurma."
+    )
+
+    # finding_message artık mentorun anlayacağı metin olacak.
+
+    return generate_mentor_response(
+    learner_profile=learner_profile,
+    mentor_decision=mentor_decision,
+    current_message=finding_message,
+    )
+
+

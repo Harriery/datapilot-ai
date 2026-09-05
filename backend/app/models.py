@@ -96,5 +96,24 @@ class DataQualityFinding(BaseModel):
     observation: str
     suggested_action : str
 
+# DataQualityAnalysis:
+# AI'nın CSV profili üzerinden bulduğu tüm data quality problemlerini tutar.
+#
+# Kullanıldığı yer:
+# data_ai_service.py içinde OpenAI structured output modeli olarak kullanılır.
+# AI birden fazla DataQualityFinding üretir ve hepsi findings listesinde tutulur.
 class DataQualityAnalysis(BaseModel):
     findings: list[DataQualityFinding]
+
+
+# DataQualityMentorRequest:
+# Junior'ın seçtiği bir data quality problemini mentor sistemine göndermek için kullanılır.
+#
+# learner_id → hangi junior için mentor cevabı üretileceğini belirtir.
+# finding    → mentorun hangi DataQualityFinding üzerinde yardım edeceğini belirtir.
+#
+# Kullanılacağı yer:
+# POST /mentor/data-quality endpoint'inde request body modeli olarak kullanılacak.
+class DataQualityMentorRequest(BaseModel):
+    learner_id: str
+    finding: DataQualityFinding
