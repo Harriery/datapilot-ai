@@ -152,9 +152,6 @@ class DataQualityAttemptResponse(BaseModel):
     ]
     evidence: LearningEvidenceDecision
 
-class DataQualityAttemptFeedback(BaseModel):
-    acknowledgement: str
-    next_step: str
 
 class DataQualityNextStep(BaseModel):
     next_step: str = Field(max_length=120)

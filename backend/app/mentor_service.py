@@ -6,7 +6,6 @@ from backend.app.models import (
     LearningEvidenceDecision,
     DataQualityFinding,
     DataQualityAttemptResponse,
-    DataQualityAttemptFeedback,
     DataQualityNextStep,
 )
 import backend.app.database as database
