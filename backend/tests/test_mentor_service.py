@@ -14,6 +14,7 @@ from backend.app.mentor_service import (
     evaluate_data_quality_attempt,
     review_data_quality_attempt,
     generate_data_quality_attempt_response,
+    review_data_quality_transformation,
 )
 from unittest.mock import patch, MagicMock
 from backend.app.models import (
@@ -24,7 +25,7 @@ from backend.app.models import (
 )
 import backend.app.database as database
 import pytest
-
+import pandas as pd
 
 # ==================================================
 # TEST - MENTOR DECISION PROMPT OLUŞTURMA
@@ -707,3 +708,84 @@ def test_generate_data_quality_attempt_response_returns_text():
     )
 
     mock_parse.assert_called_once()
+
+
+def test_review_data_quality_transformation_records_real_validation_evidence():
+
+    # Transformation öncesinde age kolonunda 2 null var.
+    before_df = pd.DataFrame(
+        {
+            "name": ["Ali", "Ayse", "Mehmet"],
+            "age": [30, None, None],
+        }
+    )
+
+    # Transformation sonrasında 1 null kalmış.
+    after_df = pd.DataFrame(
+        {
+            "name": ["Ali", "Ayse", "Mehmet"],
+            "age": [30, 25, None],
+        }
+    )
+
+    finding = DataQualityFinding(
+        issue_type="missing_values",
+        column="age",
+        severity="medium",
+        observation="age sütununda eksik değerler var.",
+        suggested_action="Eksik değerleri inceleyin.",
+    )
+
+    fake_decision = MentorDecision(
+        skill_name="null_analysis",
+        assistance_level="GUIDE",
+        reason="Learner yönlendirmeye ihtiyaç duyuyor.",
+    )
+
+    with patch(
+        "backend.app.mentor_service.get_mentor_decision_for_data_quality_finding",
+        return_value=fake_decision,
+    ), patch(
+        "backend.app.mentor_service.database.record_learning_evidence"
+    ) as mock_record, patch(
+        "backend.app.mentor_service.refresh_skill_status",
+        return_value="learning",
+    ):
+
+        result = review_data_quality_transformation(
+            learner_id="demo-learner",
+            finding=finding,
+            before_df=before_df,
+            after_df=after_df,
+        )
+
+    # Finding doğru skill'e bağlandı.
+    assert result.skill_name == "null_analysis"
+
+    # Gerçek before/after data validation sonucu.
+    assert result.validation.column == "age"
+    assert result.validation.before_null_count == 2
+    assert result.validation.after_null_count == 1
+    assert result.validation.success is True
+
+    # Validation sonucu learning evidence'a dönüştürüldü.
+    assert result.evidence.is_evidence is True
+    assert result.evidence.evidence_type == "application"
+    assert result.evidence.success is True
+
+    # Evidence sonrası skill status döndü.
+    assert result.skill_status == "learning"
+
+    # Gerçek validation sonucu DB'ye learning evidence olarak gönderildi.
+    mock_record.assert_called_once_with(
+        learner_id="demo-learner",
+        skill_name="null_analysis",
+        assistance_level="GUIDE",
+        success=True,
+        evidence_type="application",
+        note=(
+            "age kolonundaki null sayısı "
+            "2 değerinden 1 değerine değişti."
+        ),
+        session_id=None,
+    )

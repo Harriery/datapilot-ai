@@ -8,11 +8,16 @@ from backend.app.models import (
     DataQualityAttemptResponse,
     DataQualityNextStep,
     MissingValuesValidationResult,
+    DataQualityTransformationResponse,
 )
 import backend.app.database as database
 import os
-
+import pandas as pd
 from dotenv import load_dotenv
+from backend.app.transformation_validation_service import (
+    validate_transformation_for_finding,
+)
+
 # MentorDecision bizim models.py dosyasında oluşturduğumuz Pydantic modelidir.
 # AI'dan gelecek mentor kararının hangi alanlara sahip olması gerektiğini tanımlar.
 
@@ -974,4 +979,98 @@ def build_learning_evidence_from_validation(
         ),
     )
 
+# review_data_quality_transformation()
+#
+# Görevi:
+# Junior'ın gerçek data transformation sonucunu değerlendirir.
+#
+# Akış:
+#
+# finding
+# +
+# before_df
+# +
+# after_df
+# ↓
+# finding'in ilgili skill'i bulunur
+# ↓
+# transformation gerçek data üzerinden validate edilir
+# ↓
+# validation sonucu LearningEvidenceDecision'a çevrilir
+# ↓
+# evidence DB'ye kaydedilir
+# ↓
+# skill status güncellenir
+# ↓
+# structured response döner
+#
+# Buradaki success kararı AI tarafından verilmez.
+# Gerçek before/after data sonucundan gelir.
+def review_data_quality_transformation(
+    learner_id: str,
+    finding: DataQualityFinding,
+    before_df: pd.DataFrame,
+    after_df: pd.DataFrame,
+) -> DataQualityTransformationResponse | None:
 
+    # Finding hangi skill ile ilgili?
+    skill_name = get_skill_for_data_quality_issue(
+        finding.issue_type
+    )
+
+    if skill_name is None:
+        return None
+
+    # Learner'ın mevcut seviyesine göre assistance level'ı alıyoruz.
+    #
+    # Evidence DB'ye kaydedilirken hangi assistance level altında
+    # başarılı/başarısız olduğu da tutuluyor.
+    mentor_decision = get_mentor_decision_for_data_quality_finding(
+        learner_id=learner_id,
+        finding=finding,
+    )
+
+    if mentor_decision is None:
+        return None
+
+    # Gerçek before/after DataFrame sonucunu validate et.
+    validation = validate_transformation_for_finding(
+        before_df=before_df,
+        after_df=after_df,
+        finding=finding,
+    )
+
+    # Şimdilik yalnızca missing_values validation destekleniyor.
+    # Diğer issue type'larda validator None dönebilir.
+    if validation is None:
+        return None
+
+    # Deterministic validation sonucunu learning evidence'a çevir.
+    evidence = build_learning_evidence_from_validation(
+        validation
+    )
+
+    # Bu artık gerçek bir uygulama sonucu olduğu için
+    # learning evidence olarak DB'ye kaydediyoruz.
+    database.record_learning_evidence(
+        learner_id=learner_id,
+        skill_name=skill_name,
+        assistance_level=mentor_decision.assistance_level,
+        success=evidence.success,
+        evidence_type=evidence.evidence_type,
+        note=evidence.note,
+        session_id=None,
+    )
+
+    # Yeni evidence sonrası skill seviyesini tekrar hesapla.
+    skill_status = refresh_skill_status(
+        learner_id=learner_id,
+        skill_name=skill_name,
+    )
+
+    return DataQualityTransformationResponse(
+        skill_name=skill_name,
+        skill_status=skill_status,
+        validation=validation,
+        evidence=evidence,
+    )

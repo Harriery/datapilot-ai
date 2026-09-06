@@ -178,3 +178,29 @@ class MissingValuesValidationResult(BaseModel):
     before_null_count: int
     after_null_count: int
     success: bool
+
+# DataQualityTransformationResponse:
+#
+# Junior'ın yaptığı gerçek data transformation doğrulandıktan sonra
+# servis katmanının ürettiği structured sonuç.
+#
+# validation:
+# before/after data sonucunun gerçek teknik doğrulaması.
+#
+# evidence:
+# validation sonucundan üretilen learning evidence.
+#
+# skill_status:
+# evidence kaydedildikten sonraki güncel learner seviyesi.
+class DataQualityTransformationResponse(BaseModel):
+    skill_name: str
+
+    skill_status: Literal[
+        "new",
+        "learning",
+        "practicing",
+        "comfortable",
+    ]
+
+    validation: MissingValuesValidationResult
+    evidence: LearningEvidenceDecision
