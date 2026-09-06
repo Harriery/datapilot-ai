@@ -47,3 +47,43 @@ def test_mentor_data_quality_returns_mentor_response():
         assert call_arguments["finding"].issue_type == "missing_values"
         assert call_arguments["finding"].column == "age"
         assert call_arguments["finding"].severity == "medium"
+
+def test_mentor_data_quality_attempt_returns_review():
+    request_body = {
+        "learner_id": "demo-learner",
+        "finding": {
+            "issue_type": "missing_values",
+            "column": "age",
+            "severity": "medium",
+            "observation": "age sütununda eksik değer var.",
+            "suggested_action": "Eksik değerin nedenini inceleyin.",
+        },
+        "attempt": "df['age'].isna().sum() ile eksik sayısını kontrol ederim.",
+    }
+
+    fake_result = {
+        "mentor_response": "Doğru. Şimdi null oranını kontrol et.",
+        "skill_name": "null_analysis",
+        "skill_status": "learning",
+        "evidence": {
+            "is_evidence": True,
+            "evidence_type": "application",
+            "success": True,
+            "note": "Junior uygun bir null kontrolü önerdi.",
+        },
+    }
+
+    with patch(
+        "backend.app.mentor_routes.review_data_quality_attempt",
+        return_value=fake_result,
+    ) as mock_review:
+
+        response = client.post(
+            "/mentor/data-quality/attempt",
+            json=request_body,
+        )
+
+        assert response.status_code == 200
+        assert response.json() == fake_result
+
+        mock_review.assert_called_once()

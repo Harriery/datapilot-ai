@@ -11,6 +11,9 @@ from backend.app.mentor_service import (
     get_skill_for_data_quality_issue,
     get_mentor_decision_for_data_quality_finding,
     get_mentor_response_for_data_quality_finding,
+    evaluate_data_quality_attempt,
+    review_data_quality_attempt,
+    generate_data_quality_attempt_response,
 )
 from unittest.mock import patch, MagicMock
 from backend.app.models import (
@@ -545,3 +548,162 @@ def test_get_mentor_response_for_data_quality_finding():
             "Veride olmayan kolon, değer veya metadata uydurma."
             ),
         )
+
+def test_evaluate_data_quality_attempt_returns_evidence():
+    finding = DataQualityFinding(
+        issue_type="missing_values",
+        column="age",
+        severity="medium",
+        observation="age sütununda eksik değer var.",
+        suggested_action="Eksik değerin nedenini inceleyin.",
+    )
+
+    fake_evidence = LearningEvidenceDecision(
+        is_evidence=True,
+        evidence_type="application",
+        success=True,
+        note="Junior null kontrolü için uygun bir adım önerdi.",
+    )
+
+    with patch(
+        "backend.app.mentor_service.client.responses.parse"
+    ) as mock_parse:
+
+        mock_parse.return_value.output_parsed = fake_evidence
+
+        result = evaluate_data_quality_attempt(
+            skill_name="null_analysis",
+            finding=finding,
+            attempt="df['age'].isna().sum() ile eksik sayısını kontrol ederim.",
+        )
+
+        assert result == fake_evidence
+        assert result.is_evidence is True
+        assert result.success is True
+
+        mock_parse.assert_called_once()
+
+def test_review_data_quality_attempt_records_evidence_and_returns_response():
+    finding = DataQualityFinding(
+        issue_type="missing_values",
+        column="age",
+        severity="medium",
+        observation="age sütununda eksik değer var.",
+        suggested_action="Eksik değerin nedenini inceleyin.",
+    )
+
+    fake_decision = MentorDecision(
+        skill_name="null_analysis",
+        assistance_level="GUIDE",
+        reason="Learner yönlendirmeye ihtiyaç duyuyor.",
+    )
+
+    fake_evidence = LearningEvidenceDecision(
+        is_evidence=True,
+        evidence_type="application",
+        success=True,
+        note="Junior uygun bir null kontrolü önerdi.",
+    )
+
+    learner_profile = {
+        "answer_length": "concise",
+        "learning_style": "guided",
+        "code_support": "medium",
+    }
+
+    with patch(
+        "backend.app.mentor_service.get_mentor_decision_for_data_quality_finding",
+        return_value=fake_decision,
+    ), patch(
+        "backend.app.mentor_service.evaluate_data_quality_attempt",
+        return_value=fake_evidence,
+    ), patch(
+        "backend.app.mentor_service.database.record_learning_evidence"
+    ) as mock_record, patch(
+        "backend.app.mentor_service.refresh_skill_status",
+        return_value="learning",
+    ), patch(
+        "backend.app.mentor_service.database.get_learner_profile_by_id",
+        return_value=learner_profile,
+    ), patch(
+    "backend.app.mentor_service.generate_data_quality_attempt_response",
+    return_value="Doğru. Şimdi null oranını kontrol et.",
+        ):
+
+        result = review_data_quality_attempt(
+            learner_id="demo-learner",
+            finding=finding,
+            attempt="df['age'].isna().sum() ile eksik sayısını kontrol ederim.",
+        )
+
+        assert result.mentor_response == (
+            "Doğru. Şimdi null oranını kontrol et."
+        )
+
+        assert result.skill_name == "null_analysis"
+        assert result.skill_status == "learning"
+        assert result.evidence.success is True
+
+        mock_record.assert_called_once_with(
+            learner_id="demo-learner",
+            skill_name="null_analysis",
+            assistance_level="GUIDE",
+            success=True,
+            evidence_type="application",
+            note="Junior uygun bir null kontrolü önerdi.",
+            session_id=None,
+        )
+
+def test_generate_data_quality_attempt_response_returns_text():
+
+    learner_profile = {
+        "answer_length": "concise",
+        "learning_style": "guided",
+        "code_support": "medium",
+    }
+
+    mentor_decision = MentorDecision(
+        skill_name="null_analysis",
+        assistance_level="GUIDE",
+        reason="Junior yönlendirmeye ihtiyaç duyuyor.",
+    )
+
+    finding = DataQualityFinding(
+        issue_type="missing_values",
+        column="age",
+        severity="medium",
+        observation="age sütununda eksik değer var.",
+        suggested_action="Eksik değerin nedenini inceleyin.",
+    )
+
+    evidence = LearningEvidenceDecision(
+        is_evidence=True,
+        evidence_type="application",
+        success=True,
+        note="Junior doğru bir adım uyguladı.",
+    )
+
+    mock_response = MagicMock()
+    mock_response.output_parsed.next_step = (
+        "Eksik age değerlerinin bulunduğu örnek satırları inceleyin."
+    )
+
+    with patch(
+        "backend.app.mentor_service.client.responses.parse",
+        return_value=mock_response,
+    ) as mock_parse:
+
+        result = generate_data_quality_attempt_response(
+            learner_profile=learner_profile,
+            mentor_decision=mentor_decision,
+            finding=finding,
+            attempt="Eksik age değerlerinin bulunduğu satırları inceleyeceğim.",
+            evidence=evidence,
+        )
+
+    assert result == (
+        "Evet, bu doğru bir adım. "
+        "Eksik age değerlerinin bulunduğu örnek satırları inceleyin."
+    )
+
+    mock_parse.assert_called_once()

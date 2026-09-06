@@ -117,3 +117,44 @@ class DataQualityAnalysis(BaseModel):
 class DataQualityMentorRequest(BaseModel):
     learner_id: str
     finding: DataQualityFinding
+
+# DataQualityAttemptRequest:
+# Junior'ın bir data quality finding için yaptığı kendi denemesini
+# mentor sistemine göndermek için kullanılır.
+#
+# learner_id → hangi junior?
+# finding    → hangi veri kalitesi problemi?
+# attempt    → junior'ın kendi çözümü / kodu / açıklaması
+#
+# Kullanılacağı yer:
+# POST /mentor/data-quality/attempt
+class DataQualityAttemptRequest(BaseModel):
+    learner_id: str
+    finding: DataQualityFinding
+    attempt: str
+
+
+# DataQualityAttemptResponse:
+# Junior'ın attempt'i değerlendirildikten sonra API'nin döndüğü sonuç.
+#
+# mentor_response → junior'a gösterilecek adaptif mentor cevabı
+# skill_name      → finding'in bağlı olduğu skill
+# skill_status    → evidence sonrası güncel learner seviyesi
+# evidence        → attempt gerçek learning evidence mı, başarılı mı?
+class DataQualityAttemptResponse(BaseModel):
+    mentor_response: str
+    skill_name: str
+    skill_status: Literal[
+        "new",
+        "learning",
+        "practicing",
+        "comfortable",
+    ]
+    evidence: LearningEvidenceDecision
+
+class DataQualityAttemptFeedback(BaseModel):
+    acknowledgement: str
+    next_step: str
+
+class DataQualityNextStep(BaseModel):
+    next_step: str = Field(max_length=120)

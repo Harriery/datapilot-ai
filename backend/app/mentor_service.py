@@ -5,6 +5,9 @@ from backend.app.models import (
     SkillDetection,
     LearningEvidenceDecision,
     DataQualityFinding,
+    DataQualityAttemptResponse,
+    DataQualityAttemptFeedback,
+    DataQualityNextStep,
 )
 import backend.app.database as database
 import os
@@ -680,5 +683,275 @@ def get_mentor_response_for_data_quality_finding(
     mentor_decision=mentor_decision,
     current_message=finding_message,
     )
+
+
+
+# Junior'ın belirli bir DataQualityFinding için yaptığı attempt'i değerlendirir.
+#
+# Bu fonksiyon mentor cevabı üretmez.
+# Sadece şu sorulara cevap verir:
+#
+# - Junior gerçekten bir deneme yaptı mı?
+# - Bu hangi evidence türü?
+# - Deneme teknik olarak doğru / anlamlı mı?
+#
+# Finding yalnızca bağlamdır.
+# Learning evidence olarak sadece junior'ın kendi attempt'i değerlendirilir.
+def evaluate_data_quality_attempt(
+    skill_name: str,
+    finding: DataQualityFinding,
+    attempt: str,
+) -> LearningEvidenceDecision:
+
+    finding_text = json.dumps(
+        finding.model_dump(),
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    evaluation_input = f"""
+    Data Quality Finding:
+    {finding_text}
+
+    Junior Attempt:
+    {attempt}
+    """
+
+    instructions = f"""
+    Sen junior Data Engineer'ın belirli bir data quality problemi
+    üzerindeki kendi denemesini değerlendiriyorsun.
+
+    İlgili skill:
+    {skill_name}
+
+    ÖNEMLİ:
+    Data Quality Finding ve suggested_action yalnızca bağlamdır.
+    Bunları junior'ın yaptığı şey olarak değerlendirme.
+    Learning evidence olarak yalnızca Junior Attempt bölümünü değerlendir.
+
+    is_evidence=true:
+    - Junior kod deniyorsa
+    - Bir kontrol yöntemi öneriyorsa
+    - Problemi kendi cümleleriyle analiz ediyorsa
+    - Bir sonucu doğrulamaya çalışıyorsa
+
+    is_evidence=false:
+    - Sadece soru soruyorsa
+    - Yardım istiyorsa
+    - Hiç gerçek deneme yapmıyorsa
+    - Konu dışı cevap veriyorsa
+
+    Evidence varsa evidence_type değerini belirle:
+    - application
+    - explanation
+    - debugging
+    - validation
+
+    success=true:
+    Junior'ın attempt'i bu finding için teknik olarak doğru,
+    anlamlı veya uygun bir sonraki adımsa.
+
+    success=false:
+    Attempt yanlışsa, ilgisizse veya problemi yanlış yorumluyorsa.
+
+    Evidence değilse:
+    evidence_type=null
+    success=null
+
+    note alanında kararının nedenini kısa açıkla.
+
+    Finding içinde olmayan kolon, veri veya metadata uydurma.
+    """
+
+    response = client.responses.parse(
+        model="gpt-5-mini",
+        input=evaluation_input,
+        instructions=instructions,
+        text_format=LearningEvidenceDecision,
+    )
+
+    evidence = response.output_parsed
+
+    if evidence.is_evidence:
+        if evidence.evidence_type is None or evidence.success is None:
+            raise ValueError("Data quality attempt evidence sonucu eksik.")
+
+    return evidence
+
+# Data quality mentor attempt akışının ana servis fonksiyonu.
+#
+# Akış:
+#
+# finding
+# ↓
+# ilgili skill bulunur
+# ↓
+# learner'ın assistance level'ı belirlenir
+# ↓
+# junior attempt'i değerlendirilir
+# ↓
+# gerçek evidence ise DB'ye kaydedilir
+# ↓
+# skill status güncellenir
+# ↓
+# mentor attempt'e uygun adaptif cevap üretir
+#
+def review_data_quality_attempt(
+    learner_id: str,
+    finding: DataQualityFinding,
+    attempt: str,
+) -> DataQualityAttemptResponse | None:
+
+    attempt = attempt.strip()
+
+    if attempt == "":
+        raise ValueError("Attempt boş olamaz.")
+
+    # Finding hangi öğrenme skill'i ile ilgili?
+    skill_name = get_skill_for_data_quality_issue(
+        finding.issue_type
+    )
+
+    if skill_name is None:
+        return None
+
+    # Learner'ın mevcut skill durumu üzerinden
+    # hangi yardım seviyesinin uygun olduğunu belirle.
+    mentor_decision = get_mentor_decision_for_data_quality_finding(
+        learner_id=learner_id,
+        finding=finding,
+    )
+
+    if mentor_decision is None:
+        return None
+
+    # Junior'ın kendi attempt'ini değerlendir.
+    evidence = evaluate_data_quality_attempt(
+        skill_name=skill_name,
+        finding=finding,
+        attempt=attempt,
+    )
+
+    # Gerçek learning evidence ise kalıcı olarak kaydet.
+    if evidence.is_evidence:
+        database.record_learning_evidence(
+            learner_id=learner_id,
+            skill_name=skill_name,
+            assistance_level=mentor_decision.assistance_level,
+            success=evidence.success,
+            evidence_type=evidence.evidence_type,
+            note=evidence.note,
+            session_id=None,
+        )
+
+    # Evidence kaydedildiyse yeni attempt sayılarına göre,
+    # kaydedilmediyse mevcut sayılara göre status'u belirler.
+    skill_status = refresh_skill_status(
+        learner_id=learner_id,
+        skill_name=skill_name,
+    )
+
+    learner_profile = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner_profile is None:
+        raise ValueError("Learner profile bulunamadı.")
+
+    learner_profile = dict(learner_profile)
+
+    # Mentorun junior'a vereceği cevap için gerekli context.
+    review_message = (
+    f"Data quality problem: {finding.observation}\n"
+    f"Suggested action: {finding.suggested_action}\n"
+    f"Junior attempt: {attempt}\n"
+    f"Attempt success: {evidence.success}\n"
+    f"Evaluation: {evidence.note}\n\n"
+
+    "Junior'ın attempt'ine doğrudan cevap ver. "
+    "Attempt success True ise ilk cümlede bunun doğru veya uygun bir adım olduğunu açıkça belirt. "
+    "Attempt success False ise hatayı kısa şekilde belirt. "
+    "Ardından yalnızca bir sonraki küçük adımı ver. "
+    "En fazla 2 kısa cümle kullan. "
+    "Birden fazla yeni kontrol, uzun liste veya tam çözüm verme. "
+    "Sadece finding ve junior attempt içindeki bilgilere dayan. "
+    "Veride olmayan kolon, değer veya metadata uydurma."
+    )
+    mentor_response = generate_data_quality_attempt_response(
+    learner_profile=learner_profile,
+    mentor_decision=mentor_decision,
+    finding=finding,
+    attempt=attempt,
+    evidence=evidence,
+    )
+
+    return DataQualityAttemptResponse(
+        mentor_response=mentor_response,
+        skill_name=skill_name,
+        skill_status=skill_status,
+        evidence=evidence,
+    )
+
+
+
+
+
+def generate_data_quality_attempt_response(
+    learner_profile: dict,
+    mentor_decision: MentorDecision,
+    finding: DataQualityFinding,
+    attempt: str,
+    evidence: LearningEvidenceDecision,
+) -> str:
+
+    input_data = {
+        "finding": finding.model_dump(),
+        "junior_attempt": attempt,
+        "evaluation": evidence.model_dump(),
+    }
+
+    prompt = json.dumps(
+        input_data,
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    instructions = """
+    Junior Data Engineer için yalnızca BİR sonraki küçük adımı üret.
+
+    Kurallar:
+    - Sadece verilen finding, junior_attempt ve evaluation bilgilerini kullan.
+    - Junior'ın az önce yaptığı şeyi tekrar önerme.
+    - Yalnızca tek bir işlem öner.
+    - Kod verme.
+    - Örnek kod verme.
+    - Liste verme.
+    - Açıklama yapma.
+    - Veride olmayan bilgi uydurma.
+    - Kısa, doğal bir cümle yaz.
+    """
+
+    response = client.responses.parse(
+        model="gpt-5-mini",
+        input=prompt,
+        instructions=instructions,
+        text_format=DataQualityNextStep,
+    )
+
+    next_step = response.output_parsed.next_step
+
+    # Junior'ın attempt'ine verilen ilk tepkiyi
+    # AI'ya bırakmıyoruz; backend kendisi belirliyor.
+    if not evidence.is_evidence:
+        acknowledgement = "Bu henüz gerçek bir deneme değil."
+
+    elif evidence.success:
+        acknowledgement = "Evet, bu doğru bir adım."
+
+    else:
+        acknowledgement = "Bu adım henüz doğru değil."
+
+    return f"{acknowledgement} {next_step}"
+
 
 

@@ -19,9 +19,14 @@ from openai import (
     APIConnectionError,
 )
 
-from backend.app.models import DataQualityMentorRequest
+from backend.app.models import (
+    DataQualityMentorRequest,
+    DataQualityAttemptRequest,
+    DataQualityAttemptResponse,
+)
 from backend.app.mentor_service import (
     get_mentor_response_for_data_quality_finding,
+    review_data_quality_attempt,
 )
 
 
@@ -125,3 +130,77 @@ def mentor_data_quality(request: DataQualityMentorRequest):
     return {
         "mentor_response": mentor_response
     }
+
+# ---------------------------------------------------------
+# DATA QUALITY JUNIOR ATTEMPT ENDPOINT
+# ---------------------------------------------------------
+#
+# Junior mentorun yönlendirmesinden sonra kendi çözümünü,
+# kodunu veya yaklaşımını buraya gönderir.
+#
+# Akış:
+#
+# learner + finding + attempt
+# ↓
+# review_data_quality_attempt()
+# ↓
+# learning evidence değerlendirmesi
+# ↓
+# skill state update
+# ↓
+# adaptif mentor feedback
+#
+@router.post(
+    "/data-quality/attempt",
+    response_model=DataQualityAttemptResponse,
+)
+def mentor_data_quality_attempt(
+    request: DataQualityAttemptRequest,
+):
+
+    try:
+        result = review_data_quality_attempt(
+            learner_id=request.learner_id,
+            finding=request.finding,
+            attempt=request.attempt,
+        )
+
+    except ValueError as exc:
+        # Learner yoksa resource bulunamadı.
+        if "Learner profile bulunamadı" in str(exc):
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            )
+
+        # Boş attempt vb. kullanıcı request hataları.
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    except AuthenticationError:
+        raise HTTPException(
+            status_code=401,
+            detail="OpenAI API anahtarı geçersiz.",
+        )
+
+    except RateLimitError:
+        raise HTTPException(
+            status_code=429,
+            detail="AI kullanım limiti veya bakiyesi yetersiz.",
+        )
+
+    except APIConnectionError:
+        raise HTTPException(
+            status_code=503,
+            detail="AI servisine şu anda ulaşılamıyor.",
+        )
+
+    if result is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Bu data quality problemi için uygun mentor skill'i bulunamadı.",
+        )
+
+    return result
