@@ -23,12 +23,15 @@ from backend.app.models import (
     DataQualityMentorRequest,
     DataQualityAttemptRequest,
     DataQualityAttemptResponse,
+    DataQualityTransformationRequest,
+    DataQualityTransformationResponse,
 )
 from backend.app.mentor_service import (
     get_mentor_response_for_data_quality_finding,
     review_data_quality_attempt,
+    review_data_quality_transformation,
 )
-
+import pandas as pd
 
 # Bu router içindeki bütün endpoint'ler /mentor ile başlayacak.
 #
@@ -201,6 +204,66 @@ def mentor_data_quality_attempt(
         raise HTTPException(
             status_code=400,
             detail="Bu data quality problemi için uygun mentor skill'i bulunamadı.",
+        )
+
+    return result
+
+# ---------------------------------------------------------
+# DATA QUALITY TRANSFORMATION ENDPOINT
+# ---------------------------------------------------------
+#
+# Junior'ın gerçek before/after data sonucunu alır.
+#
+# API JSON içindeki row listelerini pandas DataFrame'e çevirir.
+#
+# Sonrasında:
+#
+# before_df + after_df + finding
+# ↓
+# review_data_quality_transformation()
+# ↓
+# deterministic validation
+# ↓
+# learning evidence
+# ↓
+# skill status update
+# ↓
+# structured API response
+#
+@router.post(
+    "/data-quality/transformation",
+    response_model=DataQualityTransformationResponse,
+)
+def mentor_data_quality_transformation(
+    request: DataQualityTransformationRequest,
+):
+
+    # API'den gelen JSON row listelerini
+    # pandas DataFrame'e dönüştürüyoruz.
+    before_df = pd.DataFrame(request.before_rows)
+    after_df = pd.DataFrame(request.after_rows)
+
+    try:
+        result = review_data_quality_transformation(
+            learner_id=request.learner_id,
+            finding=request.finding,
+            before_df=before_df,
+            after_df=after_df,
+        )
+
+    except ValueError as exc:
+        # Örneğin missing_values finding'inde column yoksa.
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    if result is None:
+        # Şimdilik missing_values dışındaki transformation
+        # validation türleri desteklenmiyor.
+        raise HTTPException(
+            status_code=400,
+            detail="Bu data quality transformation türü henüz desteklenmiyor.",
         )
 
     return result

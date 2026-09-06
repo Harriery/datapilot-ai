@@ -87,3 +87,78 @@ def test_mentor_data_quality_attempt_returns_review():
         assert response.json() == fake_result
 
         mock_review.assert_called_once()
+
+def test_mentor_data_quality_transformation_returns_validation_result():
+
+    request_body = {
+        "learner_id": "demo-learner",
+        "finding": {
+            "issue_type": "missing_values",
+            "column": "age",
+            "severity": "medium",
+            "observation": "age sütununda eksik değer var.",
+            "suggested_action": "Eksik değerleri inceleyin.",
+        },
+        "before_rows": [
+            {"name": "Ali", "age": 30},
+            {"name": "Ayse", "age": None},
+            {"name": "Mehmet", "age": None},
+        ],
+        "after_rows": [
+            {"name": "Ali", "age": 30},
+            {"name": "Ayse", "age": 25},
+            {"name": "Mehmet", "age": None},
+        ],
+    }
+
+    fake_result = {
+        "skill_name": "null_analysis",
+        "skill_status": "learning",
+        "validation": {
+            "column": "age",
+            "before_null_count": 2,
+            "after_null_count": 1,
+            "success": True,
+        },
+        "evidence": {
+            "is_evidence": True,
+            "evidence_type": "application",
+            "success": True,
+            "note": (
+                "age kolonundaki null sayısı "
+                "2 değerinden 1 değerine değişti."
+            ),
+        },
+    }
+
+    with patch(
+        "backend.app.mentor_routes.review_data_quality_transformation",
+        return_value=fake_result,
+    ) as mock_review:
+
+        response = client.post(
+            "/mentor/data-quality/transformation",
+            json=request_body,
+        )
+
+        assert response.status_code == 200
+        assert response.json() == fake_result
+
+        mock_review.assert_called_once()
+
+        call_arguments = mock_review.call_args.kwargs
+
+        assert call_arguments["learner_id"] == "demo-learner"
+        assert call_arguments["finding"].issue_type == "missing_values"
+        assert call_arguments["finding"].column == "age"
+
+        # Route'un JSON row listelerini gerçekten
+        # pandas DataFrame'e çevirdiğini kontrol ediyoruz.
+        before_df = call_arguments["before_df"]
+        after_df = call_arguments["after_df"]
+
+        assert before_df.shape == (3, 2)
+        assert after_df.shape == (3, 2)
+
+        assert before_df["age"].isna().sum() == 2
+        assert after_df["age"].isna().sum() == 1

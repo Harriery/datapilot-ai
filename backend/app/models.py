@@ -204,3 +204,22 @@ class DataQualityTransformationResponse(BaseModel):
 
     validation: MissingValuesValidationResult
     evidence: LearningEvidenceDecision
+
+# DataQualityTransformationRequest:
+#
+# Junior'ın yaptığı gerçek data transformation'ın
+# before/after sonucunu backend'e göndermek için kullanılır.
+#
+# before_rows:
+# transformation öncesindeki data satırları.
+#
+# after_rows:
+# transformation sonrasındaki data satırları.
+#
+# Route bu listeleri pandas DataFrame'e dönüştürecek
+# ve review_data_quality_transformation() servisine gönderecek.
+class DataQualityTransformationRequest(BaseModel):
+    learner_id: str
+    finding: DataQualityFinding
+    before_rows: list[dict]
+    after_rows: list[dict]
