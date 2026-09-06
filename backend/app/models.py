@@ -155,3 +155,26 @@ class DataQualityAttemptResponse(BaseModel):
 
 class DataQualityNextStep(BaseModel):
     next_step: str = Field(max_length=120)
+
+
+
+# MissingValuesValidationResult:
+#
+# Bir missing-values transformation sonucunu structured olarak tutar.
+#
+# Örnek:
+# age kolonunda transformation öncesi 3 null,
+# transformation sonrası 1 null varsa:
+#
+# column = "age"
+# before_null_count = 3
+# after_null_count = 1
+# success = True
+#
+# Böylece validation sonucu sadece True/False değil,
+# hangi veriye dayanarak başarılı olduğu da backend tarafından bilinir.
+class MissingValuesValidationResult(BaseModel):
+    column: str
+    before_null_count: int
+    after_null_count: int
+    success: bool

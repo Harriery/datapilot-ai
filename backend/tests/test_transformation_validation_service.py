@@ -1,7 +1,9 @@
+
 from backend.app.transformation_validation_service import (
     validate_missing_values_transformation,
     validate_missing_values_dataframes,
 )
+
 import pandas as pd
 
 from backend.app.data_profile_service import build_data_profile
@@ -29,8 +31,11 @@ def test_validate_missing_values_transformation_returns_true_when_nulls_decrease
         column="age",
     )
 
-    # 1 < 3 olduğu için transformation başarılı kabul edilir.
-    assert result is True
+    assert result.column == "age"
+    assert result.before_null_count == 3
+    assert result.after_null_count == 1
+    assert result.success is True
+
 
 def test_validate_missing_values_transformation_returns_false_when_nulls_do_not_decrease():
 
@@ -52,7 +57,11 @@ def test_validate_missing_values_transformation_returns_false_when_nulls_do_not_
         column="age",
     )
 
-    assert result is False
+    assert result.column == "age"
+    assert result.before_null_count == 3
+    assert result.after_null_count == 3
+    assert result.success is False
+
 
 def test_validate_missing_values_transformation_with_real_profiles():
 
@@ -82,7 +91,11 @@ def test_validate_missing_values_transformation_with_real_profiles():
         column="age",
     )
 
-    assert result is True
+    assert result.column == "age"
+    assert result.before_null_count == 2
+    assert result.after_null_count == 1
+    assert result.success is True
+
 
 def test_validate_missing_values_dataframes_returns_true_when_nulls_decrease():
 
@@ -106,7 +119,11 @@ def test_validate_missing_values_dataframes_returns_true_when_nulls_decrease():
         column="age",
     )
 
-    assert result is True
+    assert result.column == "age"
+    assert result.before_null_count == 2
+    assert result.after_null_count == 1
+    assert result.success is True
+
 
 def test_validate_missing_values_dataframes_returns_false_when_nulls_do_not_decrease():
 
@@ -130,4 +147,7 @@ def test_validate_missing_values_dataframes_returns_false_when_nulls_do_not_decr
         column="age",
     )
 
-    assert result is False
+    assert result.column == "age"
+    assert result.before_null_count == 2
+    assert result.after_null_count == 2
+    assert result.success is False

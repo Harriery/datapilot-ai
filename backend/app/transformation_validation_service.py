@@ -1,7 +1,7 @@
 import pandas as pd
 
 from backend.app.data_profile_service import build_data_profile
-
+from backend.app.models import MissingValuesValidationResult
 
 # validate_missing_values_transformation()
 #
@@ -61,37 +61,26 @@ def validate_missing_values_transformation(
     before_profile: dict,
     after_profile: dict,
     column: str,
-) -> bool:
+) -> MissingValuesValidationResult:
 
-    # Dönüşümden ÖNCE ilgili kolonda kaç null değer vardı?
-    #
-    # Örnek:
-    # before_profile["null_counts"]["age"]
-    # ↓
-    # 3
+    # Dönüşümden önce ilgili kolonda kaç null vardı?
     before_null_count = before_profile["null_counts"][column]
 
-    # Dönüşümden SONRA aynı kolonda kaç null değer kaldı?
-    #
-    # Örnek:
-    # after_profile["null_counts"]["age"]
-    # ↓
-    # 1
+    # Dönüşümden sonra kaç null kaldı?
     after_null_count = after_profile["null_counts"][column]
 
-    # Eğer dönüşümden sonra null sayısı azaldıysa,
-    # transformation gerçekten bir iyileşme sağlamış demektir.
-    #
-    # Örnek:
-    # before = 3
-    # after  = 1
-    #
-    # 1 < 3
-    # ↓
-    # True
-    return after_null_count < before_null_count
+    # Null sayısı azaldıysa transformation başarılıdır.
+    success = after_null_count < before_null_count
 
-
+    # Artık sadece True / False döndürmüyoruz.
+    # Validation'ın hangi sayılara dayanarak karar verdiğini
+    # structured olarak geri döndürüyoruz.
+    return MissingValuesValidationResult(
+        column=column,
+        before_null_count=before_null_count,
+        after_null_count=after_null_count,
+        success=success,
+    )
 
 
 # bu fonksiyon bir orchestrator/helper gibi davranıyor:
@@ -101,7 +90,7 @@ def validate_missing_values_dataframes(
     before_df: pd.DataFrame,
     after_df: pd.DataFrame,
     column: str,
-) -> bool:
+) -> MissingValuesValidationResult:
 
     # Dönüşümden önceki DataFrame'in profilini çıkarır.
     #
