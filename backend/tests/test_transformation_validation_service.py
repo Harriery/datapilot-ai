@@ -4,8 +4,12 @@ from backend.app.transformation_validation_service import (
     validate_missing_values_dataframes,
     validate_transformation_for_finding,
 )
+from backend.app.mentor_service import build_learning_evidence_from_validation
 
-from backend.app.models import DataQualityFinding
+from backend.app.models import (
+    DataQualityFinding,
+    MissingValuesValidationResult
+)
 
 from backend.app.data_profile_service import build_data_profile
 
@@ -256,3 +260,42 @@ def test_validate_transformation_for_unsupported_finding_returns_none():
     )
 
     assert result is None
+
+def test_build_learning_evidence_from_successful_validation():
+
+    validation = MissingValuesValidationResult(
+        column="age",
+        before_null_count=3,
+        after_null_count=1,
+        success=True,
+    )
+
+    evidence = build_learning_evidence_from_validation(validation)
+
+    assert evidence.is_evidence is True
+    assert evidence.evidence_type == "application"
+    assert evidence.success is True
+    assert evidence.note == (
+        "age kolonundaki null sayısı "
+        "3 değerinden 1 değerine değişti."
+    )
+
+
+def test_build_learning_evidence_from_failed_validation():
+
+    validation = MissingValuesValidationResult(
+        column="age",
+        before_null_count=3,
+        after_null_count=3,
+        success=False,
+    )
+
+    evidence = build_learning_evidence_from_validation(validation)
+
+    assert evidence.is_evidence is True
+    assert evidence.evidence_type == "application"
+    assert evidence.success is False
+    assert evidence.note == (
+        "age kolonundaki null sayısı "
+        "3 değerinden 3 değerine değişti."
+    )

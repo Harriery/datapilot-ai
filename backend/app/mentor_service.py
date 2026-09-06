@@ -7,6 +7,7 @@ from backend.app.models import (
     DataQualityFinding,
     DataQualityAttemptResponse,
     DataQualityNextStep,
+    MissingValuesValidationResult,
 )
 import backend.app.database as database
 import os
@@ -952,5 +953,25 @@ def generate_data_quality_attempt_response(
 
     return f"{acknowledgement} {next_step}"
 
+
+# Gerçek transformation validation sonucunu
+# LearningEvidenceDecision formatına dönüştürür.
+#
+# Burada AI kullanılmaz.
+# Çünkü başarı bilgisi before/after gerçek data sonucundan gelir.
+def build_learning_evidence_from_validation(
+    validation: MissingValuesValidationResult,
+) -> LearningEvidenceDecision:
+
+    return LearningEvidenceDecision(
+        is_evidence=True,
+        evidence_type="application",
+        success=validation.success,
+        note=(
+            f"{validation.column} kolonundaki null sayısı "
+            f"{validation.before_null_count} değerinden "
+            f"{validation.after_null_count} değerine değişti."
+        ),
+    )
 
 
