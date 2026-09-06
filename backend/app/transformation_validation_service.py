@@ -1,7 +1,10 @@
 import pandas as pd
 
 from backend.app.data_profile_service import build_data_profile
-from backend.app.models import MissingValuesValidationResult
+from backend.app.models import (
+    DataQualityFinding,
+    MissingValuesValidationResult,
+)
 
 # validate_missing_values_transformation()
 #
@@ -115,4 +118,58 @@ def validate_missing_values_dataframes(
         before_profile=before_profile,
         after_profile=after_profile,
         column=column,
+    )
+
+# validate_transformation_for_finding()
+#
+# Görevi:
+# DataQualityFinding'e bakarak hangi validation'ın
+# çalıştırılması gerektiğine karar verir.
+#
+# Şimdilik yalnızca:
+#
+# missing_values
+# ↓
+# validate_missing_values_dataframes()
+#
+# destekliyoruz.
+#
+# İleride:
+# duplicate_rows
+# suspicious_values
+# data_type_issue
+#
+# gibi validation'lar da buraya bağlanabilir.
+#
+# Böylece caller ayrıca:
+# column="age"
+#
+# demek zorunda kalmaz.
+# Kolon bilgisi finding içinden gelir.
+def validate_transformation_for_finding(
+    before_df: pd.DataFrame,
+    after_df: pd.DataFrame,
+    finding: DataQualityFinding,
+) -> MissingValuesValidationResult | None:
+
+    # Şimdilik sadece missing_values transformation'ını
+    # doğrulamayı destekliyoruz.
+    if finding.issue_type != "missing_values":
+        return None
+
+    # DataQualityFinding modelinde column opsiyoneldir,
+    # çünkü duplicate_rows gibi bazı problemlerin
+    # belirli bir kolonu olmayabilir.
+    #
+    # Ama missing_values problemi için hangi kolondaki
+    # eksik değerleri kontrol edeceğimizi bilmek zorundayız.
+    if finding.column is None:
+        raise ValueError(
+            "Missing values validation için column gerekli."
+        )
+
+    return validate_missing_values_dataframes(
+        before_df=before_df,
+        after_df=after_df,
+        column=finding.column,
     )
