@@ -4,6 +4,7 @@ from backend.app.data_profile_service import build_data_profile
 from backend.app.models import (
     DataQualityFinding,
     MissingValuesValidationResult,
+    DuplicateRowsValidationResult,
 )
 
 # validate_missing_values_transformation()
@@ -120,6 +121,66 @@ def validate_missing_values_dataframes(
         column=column,
     )
 
+
+# validate_duplicate_rows_transformation()
+#
+# Görevi:
+# Transformation sonrasında duplicate row sayısının
+# gerçekten azalıp azalmadığını kontrol eder.
+#
+# Örnek:
+#
+# BEFORE:
+# duplicate_count = 4
+#
+# AFTER:
+# duplicate_count = 1
+#
+# 1 < 4
+# ↓
+# success = True
+#
+# Bu karar AI tarafından verilmez.
+# Gerçek profile sonuçları karşılaştırılır.
+def validate_duplicate_rows_transformation(
+    before_profile: dict,
+    after_profile: dict,
+) -> DuplicateRowsValidationResult:
+
+    before_duplicate_count = before_profile["duplicate_count"]
+    after_duplicate_count = after_profile["duplicate_count"]
+
+    success = (
+        after_duplicate_count
+        < before_duplicate_count
+    )
+
+    return DuplicateRowsValidationResult(
+        before_duplicate_count=before_duplicate_count,
+        after_duplicate_count=after_duplicate_count,
+        success=success,
+    )
+
+
+# DataFrame seviyesindeki helper/orchestrator.
+#
+# before_df ve after_df alınır,
+# ikisinin de profile'ı çıkarılır,
+# ardından duplicate validator çalıştırılır.
+def validate_duplicate_rows_dataframes(
+    before_df: pd.DataFrame,
+    after_df: pd.DataFrame,
+) -> DuplicateRowsValidationResult:
+
+    before_profile = build_data_profile(before_df)
+    after_profile = build_data_profile(after_df)
+
+    return validate_duplicate_rows_transformation(
+        before_profile=before_profile,
+        after_profile=after_profile,
+    )
+
+
 # validate_transformation_for_finding()
 #
 # Görevi:
@@ -150,26 +211,29 @@ def validate_transformation_for_finding(
     before_df: pd.DataFrame,
     after_df: pd.DataFrame,
     finding: DataQualityFinding,
-) -> MissingValuesValidationResult | None:
+) -> (
+    MissingValuesValidationResult
+    | DuplicateRowsValidationResult
+    | None
+):
 
-    # Şimdilik sadece missing_values transformation'ını
-    # doğrulamayı destekliyoruz.
-    if finding.issue_type != "missing_values":
-        return None
+    if finding.issue_type == "missing_values":
 
-    # DataQualityFinding modelinde column opsiyoneldir,
-    # çünkü duplicate_rows gibi bazı problemlerin
-    # belirli bir kolonu olmayabilir.
-    #
-    # Ama missing_values problemi için hangi kolondaki
-    # eksik değerleri kontrol edeceğimizi bilmek zorundayız.
-    if finding.column is None:
-        raise ValueError(
-            "Missing values validation için column gerekli."
+        if finding.column is None:
+            raise ValueError(
+                "Missing values validation için column gerekli."
+            )
+
+        return validate_missing_values_dataframes(
+            before_df=before_df,
+            after_df=after_df,
+            column=finding.column,
         )
 
-    return validate_missing_values_dataframes(
-        before_df=before_df,
-        after_df=after_df,
-        column=finding.column,
-    )
+    if finding.issue_type == "duplicate_rows":
+        return validate_duplicate_rows_dataframes(
+            before_df=before_df,
+            after_df=after_df,
+        )
+
+    return None

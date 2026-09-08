@@ -2,6 +2,8 @@
 from backend.app.transformation_validation_service import (
     validate_missing_values_transformation,
     validate_missing_values_dataframes,
+    validate_duplicate_rows_transformation,
+    validate_duplicate_rows_dataframes,
     validate_transformation_for_finding,
 )
 from backend.app.mentor_service import build_learning_evidence_from_validation
@@ -246,11 +248,11 @@ def test_validate_transformation_for_unsupported_finding_returns_none():
     )
 
     finding = DataQualityFinding(
-        issue_type="duplicate_rows",
-        column=None,
+        issue_type="suspicious_values",
+        column="name",
         severity="medium",
-        observation="Tekrar eden satırlar var.",
-        suggested_action="Duplicate satırları inceleyin.",
+        observation="Şüpheli değerler var.",
+        suggested_action="Değerleri inceleyin.",
     )
 
     result = validate_transformation_for_finding(
@@ -299,3 +301,92 @@ def test_build_learning_evidence_from_failed_validation():
         "age kolonundaki null sayısı "
         "3 değerinden 3 değerine değişti."
     )
+
+
+def test_validate_duplicate_rows_transformation_returns_success():
+
+    before_profile = {
+        "duplicate_count": 3
+    }
+
+    after_profile = {
+        "duplicate_count": 1
+    }
+
+    result = validate_duplicate_rows_transformation(
+        before_profile=before_profile,
+        after_profile=after_profile,
+    )
+
+    assert result.before_duplicate_count == 3
+    assert result.after_duplicate_count == 1
+    assert result.success is True
+
+def test_validate_duplicate_rows_transformation_returns_failure():
+
+    before_profile = {
+        "duplicate_count": 3
+    }
+
+    after_profile = {
+        "duplicate_count": 3
+    }
+
+    result = validate_duplicate_rows_transformation(
+        before_profile=before_profile,
+        after_profile=after_profile,
+    )
+
+    assert result.before_duplicate_count == 3
+    assert result.after_duplicate_count == 3
+    assert result.success is False
+
+def test_validate_transformation_for_duplicate_rows_finding():
+
+    before_df = pd.DataFrame(
+        {
+            "name": [
+                "Ali",
+                "Ali",
+                "Ayse",
+                "Ayse",
+            ],
+            "age": [
+                30,
+                30,
+                25,
+                25,
+            ],
+        }
+    )
+
+    after_df = pd.DataFrame(
+        {
+            "name": [
+                "Ali",
+                "Ayse",
+            ],
+            "age": [
+                30,
+                25,
+            ],
+        }
+    )
+
+    finding = DataQualityFinding(
+        issue_type="duplicate_rows",
+        column=None,
+        severity="medium",
+        observation="Dataset içinde duplicate satırlar var.",
+        suggested_action="Duplicate satırları inceleyin.",
+    )
+
+    result = validate_transformation_for_finding(
+        before_df=before_df,
+        after_df=after_df,
+        finding=finding,
+    )
+
+    assert result.before_duplicate_count == 2
+    assert result.after_duplicate_count == 0
+    assert result.success is True

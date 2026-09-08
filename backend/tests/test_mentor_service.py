@@ -7,7 +7,6 @@ from backend.app.mentor_service import (
     generate_mentor_response,
     classify_learning_evidence,
     process_learning_evidence,
-    refresh_skill_status,
     get_skill_for_data_quality_issue,
     get_mentor_decision_for_data_quality_finding,
     get_mentor_response_for_data_quality_finding,
@@ -15,6 +14,7 @@ from backend.app.mentor_service import (
     review_data_quality_attempt,
     generate_data_quality_attempt_response,
     review_data_quality_transformation,
+    build_learning_evidence_from_validation,
 )
 from unittest.mock import patch, MagicMock
 from backend.app.models import (
@@ -22,6 +22,7 @@ from backend.app.models import (
     SkillDetection,
     LearningEvidenceDecision,
     DataQualityFinding,
+    DuplicateRowsValidationResult,
 )
 import backend.app.database as database
 import pytest
@@ -788,4 +789,26 @@ def test_review_data_quality_transformation_records_real_validation_evidence():
             "2 değerinden 1 değerine değişti."
         ),
         session_id=None,
+    )
+
+def test_build_learning_evidence_from_duplicate_validation():
+
+    validation = DuplicateRowsValidationResult(
+        before_duplicate_count=3,
+        after_duplicate_count=1,
+        success=True,
+    )
+
+    evidence = build_learning_evidence_from_validation(
+        validation
+    )
+
+    assert evidence.is_evidence is True
+    assert evidence.evidence_type == "application"
+    assert evidence.success is True
+
+    assert evidence.note == (
+        "Duplicate row sayısı "
+        "3 değerinden "
+        "1 değerine değişti."
     )

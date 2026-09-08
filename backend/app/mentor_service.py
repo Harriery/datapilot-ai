@@ -16,6 +16,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
+    DuplicateRowsValidationResult,
 )
 
 # MentorDecision bizim models.py dosyasında oluşturduğumuz Pydantic modelidir.
@@ -965,18 +966,44 @@ def generate_data_quality_attempt_response(
 # Burada AI kullanılmaz.
 # Çünkü başarı bilgisi before/after gerçek data sonucundan gelir.
 def build_learning_evidence_from_validation(
-    validation: MissingValuesValidationResult,
+    validation: (
+        MissingValuesValidationResult
+        | DuplicateRowsValidationResult
+    ),
 ) -> LearningEvidenceDecision:
+
+    # Missing-values transformation sonucu.
+    if isinstance(
+        validation,
+        MissingValuesValidationResult,
+    ):
+        note = (
+            f"{validation.column} kolonundaki null sayısı "
+            f"{validation.before_null_count} değerinden "
+            f"{validation.after_null_count} değerine değişti."
+        )
+
+    # Duplicate-rows transformation sonucu.
+    elif isinstance(
+        validation,
+        DuplicateRowsValidationResult,
+    ):
+        note = (
+            "Duplicate row sayısı "
+            f"{validation.before_duplicate_count} değerinden "
+            f"{validation.after_duplicate_count} değerine değişti."
+        )
+
+    else:
+        raise ValueError(
+            "Desteklenmeyen transformation validation sonucu."
+        )
 
     return LearningEvidenceDecision(
         is_evidence=True,
         evidence_type="application",
         success=validation.success,
-        note=(
-            f"{validation.column} kolonundaki null sayısı "
-            f"{validation.before_null_count} değerinden "
-            f"{validation.after_null_count} değerine değişti."
-        ),
+        note=note,
     )
 
 # review_data_quality_transformation()
@@ -1040,7 +1067,8 @@ def review_data_quality_transformation(
         finding=finding,
     )
 
-    # Şimdilik yalnızca missing_values validation destekleniyor.
+    # Şimdilik missing_values ve duplicate_rows
+    # transformation validation destekleniyor.
     # Diğer issue type'larda validator None dönebilir.
     if validation is None:
         return None

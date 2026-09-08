@@ -179,6 +179,24 @@ class MissingValuesValidationResult(BaseModel):
     after_null_count: int
     success: bool
 
+
+# DuplicateRowsValidationResult:
+#
+# Duplicate row transformation sonucunu structured olarak tutar.
+#
+# Örnek:
+#
+# transformation öncesi duplicate_count = 4
+# transformation sonrası duplicate_count = 1
+#
+# success = True
+class DuplicateRowsValidationResult(BaseModel):
+    before_duplicate_count: int
+    after_duplicate_count: int
+    success: bool
+
+
+
 # DataQualityTransformationResponse:
 #
 # Junior'ın yaptığı gerçek data transformation doğrulandıktan sonra
@@ -202,7 +220,7 @@ class DataQualityTransformationResponse(BaseModel):
         "comfortable",
     ]
 
-    validation: MissingValuesValidationResult
+    validation: ( MissingValuesValidationResult | DuplicateRowsValidationResult)
     evidence: LearningEvidenceDecision
 
 # DataQualityTransformationRequest:
@@ -223,3 +241,4 @@ class DataQualityTransformationRequest(BaseModel):
     finding: DataQualityFinding
     before_rows: list[dict]
     after_rows: list[dict]
+
