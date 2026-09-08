@@ -478,6 +478,209 @@ Amaç junior'ın çözümü kopyalaması değil, örnekteki mantığı başka bi
 
 ---
 
+## Workspace and Practice Separation
+
+DataPilot iki farklı öğrenme bağlamını birbirinden ayırır:
+
+```text
+WORKSPACE
+Gerçek işi tamamlamaya odaklan
+Minimum interruption
+Minimum sufficient help
+
+PRACTICE
+Eksik skill'leri geliştirmeye odaklan
+Adaptive challenges
+Deeper learning
+```
+
+### Workspace — Work Mode
+
+Workspace gerçek Data Engineering işi için kullanılır.
+
+Junior gerçek bir dataset, transformation veya task üzerinde çalışırken mentorun önceliği işi gereksiz yere yavaşlatmadan junior'ın ilerlemesini sağlamaktır.
+
+Workspace sırasında mentor:
+
+* junior'ın yaptığı işlemleri ve sorularını gözlemler
+* learning evidence toplar
+* skill state'leri günceller
+* gerektiğinde minimum yeterli desteği verir
+* junior geliştikçe assistance level'ı azaltır
+* gerçek transformation sonuçlarını mümkün olduğunda deterministic validation ile kontrol eder
+* junior'ı gereksiz ek sorularla sınamaz
+* mevcut işi ihtiyaç olmadan derse veya uzun bir eğitim oturumuna dönüştürmez
+* zayıf olduğu skill'leri arka planda learner profile içinde işaretler
+
+Temel prensip:
+
+> Do not turn work into a classroom. Learn from the junior's work and move deeper learning to the Practice environment.
+
+Yani gerçek iş sırasında amaç:
+
+```text
+işi yap
+↓
+gerektiğinde yardım al
+↓
+yaptığını doğrula
+↓
+learning evidence oluştur
+↓
+devam et
+```
+
+olmalıdır.
+
+Junior'ın `python_data_structures`, `sql_joins`, `null_analysis` veya başka bir skill'de zorlandığı fark edilirse mentor mevcut task'ı gereksiz yere durdurmaz.
+
+Bu eksiklik Practice alanı için recommendation olarak kaydedilir.
+
+---
+
+### Practice — Learning Mode
+
+Practice alanı gerçek projeden bağımsız veya gerçek projede gözlemlenen eksiklerden türetilen kişisel çalışma alanıdır.
+
+Amaç junior'ın Workspace sırasında tespit edilen zayıf skill'lerini sistematik olarak geliştirmektir.
+
+Örnek:
+
+```text
+Workspace observations
+
+python_data_structures → weak evidence
+sql_joins              → repeated GUIDE support
+null_analysis           → improving
+duplicate_analysis      → mostly independent
+
+↓
+
+Recommended Practice
+
+Python data structures
+SQL JOIN fundamentals
+```
+
+Practice challenge'ları mümkün olduğunca Data Engineering bağlamında hazırlanır.
+
+Örneğin genel bir Python dictionary sorusu yerine:
+
+```text
+Bir records listesindeki eksik city değerlerini bul
+ve eksik kayıt sayısını hesapla.
+```
+
+gibi gerçek çalışma biçimine yakın challenge'lar tercih edilir.
+
+---
+
+## Adaptive Challenge Difficulty
+
+Practice challenge'ları herkese sabit bir Easy → Medium → Hard sırasıyla verilmez.
+
+Zorluk junior'ın learner profile'ına göre adapte edilir.
+
+Kararda kullanılabilecek evidence:
+
+* mevcut skill status
+* son attempt'lerin başarı durumu
+* kullanılan assistance level
+* aynı hatanın tekrar edilip edilmediği
+* junior'ın benzer problemi farklı context'te çözüp çözemediği
+
+Genel başlangıç yaklaşımı:
+
+```text
+new
+→ foundation / easy
+
+learning
+→ easy / medium
+
+practicing
+→ medium
+
+comfortable
+→ medium / hard / realistic task
+```
+
+Ancak difficulty yalnızca skill status'a göre belirlenmez.
+
+Örneğin:
+
+```text
+üst üste başarılı attempt'ler
++
+NONE / NUDGE assistance
+↓
+difficulty artırılabilir
+```
+
+Buna karşılık:
+
+```text
+başarısız attempt
++
+TEACH / DEMONSTRATE ihtiyacı
+↓
+aynı seviyede kal
+veya daha temel challenge ver
+```
+
+Practice sırasında mentor daha öğretici davranabilir ve gerektiğinde ek sorular, açıklamalar ve benzer challenge'lar kullanabilir.
+
+Bu davranış Workspace'ten bilinçli olarak farklıdır.
+
+---
+
+## Learning Review
+
+Workspace sırasında toplanan evidence belirli doğal duraklarda özetlenebilir.
+
+Örneğin çalışma oturumu veya gün sonunda:
+
+```text
+Bugünkü gelişim
+
+Null analysis
+→ improving
+
+Duplicate analysis
+→ mostly independent
+
+Python data structures
+→ needs practice
+
+SQL joins
+→ needs practice
+```
+
+Mentor daha sonra Practice alanında hangi konuların çalışılmasını önerdiğini açıklayabilir.
+
+Bu yapı sayesinde:
+
+```text
+Workspace
+   ↓
+Learning Evidence
+   ↓
+Learner Profile
+   ↓
+Practice Recommendations
+   ↓
+Adaptive Challenges
+   ↓
+New Learning Evidence
+   ↓
+Learner Profile
+```
+
+şeklinde sürekli bir öğrenme döngüsü oluşur.
+
+
+
+---
 # Mentor Decision
 
 ## Mentor Decision Inputs
