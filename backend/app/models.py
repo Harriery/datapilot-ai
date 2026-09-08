@@ -242,3 +242,68 @@ class DataQualityTransformationRequest(BaseModel):
     before_rows: list[dict]
     after_rows: list[dict]
 
+# DataEngineeringTaskStep:
+#
+# Multi-step bir Data Engineering görevinin
+# tek bir adımını temsil eder.
+#
+# Örnek:
+#
+# Step 1
+# ↓
+# age kolonundaki missing values problemini çöz
+#
+# finding:
+# Bu adımda hangi data quality problemiyle
+# ilgilenildiğini söyler.
+#
+# status:
+# Junior bu adıma henüz başlamadı mı,
+# üzerinde çalışıyor mu,
+# yoksa tamamladı mı?
+class DataEngineeringTaskStep(BaseModel):
+    step_number: int
+    title: str
+    finding: DataQualityFinding
+
+    status: Literal[
+        "pending",
+        "active",
+        "completed",
+    ] = "pending"
+
+
+# DataEngineeringTask:
+#
+# Junior'ın üzerinde çalıştığı multi-step
+# Data Engineering görevinin tamamını temsil eder.
+#
+# Örnek:
+#
+# Task
+# ├── Step 1 → missing values
+# ├── Step 2 → duplicate rows
+# └── Step 3 → başka bir data quality problemi
+#
+# steps:
+# Göreve ait bütün adımları tutar.
+#
+# current_step_number:
+# Junior'ın şu anda hangi adım üzerinde çalıştığını belirtir.
+#
+# status:
+# Görev henüz başlamadı mı,
+# devam ediyor mu,
+# yoksa tamamen tamamlandı mı?
+class DataEngineeringTask(BaseModel):
+    task_id: str
+    title: str
+    steps: list[DataEngineeringTaskStep]
+
+    current_step_number: int = 1
+
+    status: Literal[
+        "pending",
+        "active",
+        "completed",
+    ] = "pending"
