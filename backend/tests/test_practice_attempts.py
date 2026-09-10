@@ -7,6 +7,7 @@ from backend.app.models import (
     PracticeAttemptValidation,
     PracticeDiagnosis,
     PracticeMentorDecision,
+    PracticeMentorSupport,
 )
 
 
@@ -95,11 +96,20 @@ def test_save_and_get_practice_attempts(tmp_path):
         needs_micro_check=False,
     )
 
+    mentor_support_1 = PracticeMentorSupport(
+        message="Dictionary key access açıklaması.",
+        micro_check=(
+            "car = {'year': 2020} sözlüğünde "
+            "year değerine nasıl erişirsin?"
+        ),
+    )
+
     saved_1 = database.save_practice_attempt(
         attempt=attempt_1,
         validation=validation_1,
         diagnosis=diagnosis_1,
         mentor_decision=mentor_decision_1,
+        mentor_support=mentor_support_1,
     )
 
     # --------------------------------------------------
@@ -141,6 +151,7 @@ def test_save_and_get_practice_attempts(tmp_path):
 
     assert saved_1.attempt_id != saved_2.attempt_id
 
+
     # --------------------------------------------------
     # LOAD
     # --------------------------------------------------
@@ -177,6 +188,18 @@ def test_save_and_get_practice_attempts(tmp_path):
         == "focus"
     )
 
+    assert first.mentor_support is not None
+
+    assert (
+        first.mentor_support.message
+        == "Dictionary key access açıklaması."
+    )
+    
+    assert (
+        "year değerine"
+        in first.mentor_support.micro_check
+    )
+
     # İkinci attempt başarılıydı.
     assert second.validation.success is True
 
@@ -184,6 +207,36 @@ def test_save_and_get_practice_attempts(tmp_path):
     # kararı üretmedik.
     assert second.diagnosis is None
     assert second.mentor_decision is None
+
+    # --------------------------------------------------
+    # GET SINGLE ATTEMPT BY ID
+    # --------------------------------------------------
+
+    loaded_single = database.get_practice_attempt_by_id(
+        attempt_id=saved_1.attempt_id,
+        learner_id="learner-001",
+    )
+
+    assert loaded_single is not None
+
+    assert (
+        loaded_single.attempt_id
+        == saved_1.attempt_id
+    )
+
+    assert loaded_single.mentor_support is not None
+
+    assert (
+        "year değerine"
+        in loaded_single.mentor_support.micro_check
+    )
+
+    wrong_owner = database.get_practice_attempt_by_id(
+    attempt_id=saved_1.attempt_id,
+    learner_id="another-learner",
+    )
+    
+    assert wrong_owner is None
 
 def test_get_practice_attempts_by_skill_across_challenges(
     tmp_path,

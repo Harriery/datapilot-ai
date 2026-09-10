@@ -759,7 +759,7 @@ def test_review_practice_attempt_returns_review():
     },
     "mentor_support": None,
     }
-    
+
     assert "diagnosis" not in response.json()
     assert "mentor_decision" not in response.json()
 
@@ -922,4 +922,56 @@ def test_update_learner_language():
     mock_update.assert_called_once_with(
         learner_id="demo-learner",
         preferred_language="tr",
+    )
+
+def test_review_practice_micro_check_returns_result():
+
+    fake_result = {
+        "learner_id": "demo-learner",
+        "attempt_id": "attempt-001",
+        "validation": {
+            "success": True,
+            "feedback": "Doğru.",
+        },
+        "next_action": "return_to_challenge",
+        "additional_support": None,
+    }
+
+    with patch(
+        "backend.app.mentor_routes.review_practice_micro_check",
+        return_value=fake_result,
+    ) as mock_review:
+
+        response = client.post(
+            "/mentor/practice/micro-check",
+            json={
+                "learner_id": "demo-learner",
+                "attempt_id": "attempt-001",
+                "answer": "car['year']",
+            },
+        )
+
+    assert response.status_code == 200
+
+    assert response.json() == fake_result
+
+    mock_review.assert_called_once()
+
+    called_request = (
+        mock_review.call_args.kwargs["request"]
+    )
+
+    assert (
+        called_request.learner_id
+        == "demo-learner"
+    )
+
+    assert (
+        called_request.attempt_id
+        == "attempt-001"
+    )
+
+    assert (
+        called_request.answer
+        == "car['year']"
     )

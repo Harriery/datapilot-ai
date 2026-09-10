@@ -319,4 +319,5 @@ def test_review_practice_attempt_failure_uses_diagnosis_and_policy():
         validation=validation,
         diagnosis=diagnosis,
         mentor_decision=mentor_decision,
+        mentor_support=mentor_support,
     )

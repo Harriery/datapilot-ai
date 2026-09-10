@@ -7,11 +7,15 @@ from backend.app.models import (
     PracticeDiagnosis,
     PracticeMentorDecision,
     PracticeMentorSupport,
+    PracticeMicroCheckValidation,
+    PracticeMicroCheckSupport,
 )
 
 from backend.app.practice_ai_service import (
     diagnose_practice_attempt,
     generate_practice_mentor_support,
+    evaluate_practice_micro_check,
+    generate_practice_micro_check_support,
 )
 
 
@@ -211,5 +215,77 @@ def test_generate_practice_mentor_support():
     assert result == fake_support
     assert "key" in result.message
     assert result.micro_check is None
+
+    mock_parse.assert_called_once()
+
+# ==================================================
+# PRACTICE MICRO-CHECK EVALUATION
+# ==================================================
+
+
+def test_evaluate_practice_micro_check():
+
+    fake_validation = PracticeMicroCheckValidation(
+        success=True,
+        feedback="Doğru. Şimdi ana challenge'a geri dön.",
+    )
+
+    fake_response = MagicMock()
+    fake_response.output_parsed = fake_validation
+
+    with patch(
+        "backend.app.practice_ai_service.client.responses.parse",
+        return_value=fake_response,
+    ) as mock_parse:
+
+        result = evaluate_practice_micro_check(
+            question=(
+                "car = {'make': 'Toyota', 'year': 2020}. "
+                "'year' değerine nasıl erişirsin?"
+            ),
+            answer="car['year']",
+            primary_concept_id="dictionary_key_access",
+            preferred_language="tr",
+        )
+
+    assert result.success is True
+
+    assert (
+        result.feedback
+        == "Doğru. Şimdi ana challenge'a geri dön."
+    )
+
+    mock_parse.assert_called_once()
+
+def test_generate_practice_micro_check_support():
+
+    fake_support = PracticeMicroCheckSupport(
+        message=(
+            "Bir dictionary içindeki değere erişirken "
+            "veri yapısının nasıl çalıştığını tekrar düşün."
+        )
+    )
+
+    fake_response = MagicMock()
+    fake_response.output_parsed = fake_support
+
+    with patch(
+        "backend.app.practice_ai_service.client.responses.parse",
+        return_value=fake_response,
+    ) as mock_parse:
+
+        result = generate_practice_micro_check_support(
+            question=(
+                "vehicle sözlüğünde wheels değerine "
+                "nasıl erişirsin?"
+            ),
+            answer="vehicle.wheels",
+            primary_concept_id="dictionary_key_access",
+            micro_check_attempt_number=1,
+            preferred_language="tr",
+        )
+
+    assert result == fake_support
+    assert result.message
 
     mock_parse.assert_called_once()

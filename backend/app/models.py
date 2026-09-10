@@ -627,7 +627,22 @@ class PracticeMentorDecision(BaseModel):
     reason: str
 
     # Küçük bir kontrol sorusu gerekli mi?
-    needs_micro_check: bool = False 
+    needs_micro_check: bool = False
+
+
+# ==================================================
+# PRACTICE MENTOR SUPPORT
+# ==================================================
+#
+# Junior'a gösterilecek mentor mesajını ve
+# varsa küçük kontrol sorusunu tutar.
+#
+# PracticeAttemptRecord'dan ÖNCE tanımlanır,
+# çünkü attempt record içinde de kullanılacak.
+class PracticeMentorSupport(BaseModel):
+    message: str
+    micro_check: str | None = None
+
 
 class PracticeAttemptRecord(BaseModel):
     # DB'deki benzersiz attempt kimliği.
@@ -642,19 +657,20 @@ class PracticeAttemptRecord(BaseModel):
     # Deterministic validation sonucu.
     validation: PracticeAttemptValidation
 
-    # Attempt başarısızsa AI diagnosis burada tutulabilir.
+    # Attempt başarısızsa internal AI diagnosis.
     diagnosis: PracticeDiagnosis | None = None
 
-    # Junior'a hangi seviyede destek verildi?
+    # Backend'in seçtiği mentor yardım kararı.
     mentor_decision: PracticeMentorDecision | None = None
 
-class PracticeMentorSupport(BaseModel):
-    # Junior'a gösterilecek ana mentor mesajı.
-    message: str
+    # Junior'a gerçekten gösterilen mentor mesajı.
+    #
+    # Bunu saklamamızın nedeni:
+    # Daha sonra junior micro-check cevabı gönderdiğinde
+    # hangi soruya cevap verdiğini backend'in bilmesi.
+    mentor_support: PracticeMentorSupport | None = None
 
-    # TEACH / DEMONSTRATE gibi durumlarda
-    # küçük bir kontrol sorusu olabilir.
-    micro_check: str | None = None
+
 class PracticeAttemptReview(BaseModel):
     learner_id: str
     challenge_id: str
@@ -687,6 +703,71 @@ class PracticeAttemptPublicResponse(BaseModel):
     validation: PracticeAttemptValidation
 
     mentor_support: PracticeMentorSupport | None = None
+
+# ==================================================
+# PRACTICE MICRO-CHECK
+# ==================================================
+#
+# Mentor TEACH / DEMONSTRATE desteğinden sonra
+# junior'a küçük bir kontrol sorusu sorabilir.
+#
+# Junior'ın bu soruya verdiği cevap
+# ayrı olarak değerlendirilir.
+
+
+class PracticeMicroCheckRequest(BaseModel):
+    learner_id: str
+
+    # Micro-check hangi practice attempt'ten geldi?
+    attempt_id: str
+
+    # Junior'ın micro-check'e verdiği cevap.
+    answer: str
+
+
+class PracticeMicroCheckValidation(BaseModel):
+    success: bool
+    feedback: str
+
+
+class PracticeMicroCheckSupport(BaseModel):
+    message: str
+
+
+class PracticeMicroCheckResponse(BaseModel):
+    learner_id: str
+    attempt_id: str
+
+    validation: PracticeMicroCheckValidation
+
+    next_action: Literal[
+        "return_to_challenge",
+        "more_support",
+    ]
+
+    # Sadece yanlış micro-check cevabında gelir.
+    # Doğru cevapta None olur.
+    additional_support: PracticeMicroCheckSupport | None = None
+
+# ==================================================
+# PRACTICE MICRO-CHECK ATTEMPT RECORD
+# ==================================================
+#
+# Junior'ın bir micro-check sorusuna verdiği
+# tek bir cevabın DB kaydını temsil eder.
+#
+# Aynı micro-check birden fazla kez cevaplanabilir.
+class PracticeMicroCheckAttemptRecord(BaseModel):
+    micro_check_attempt_id: str
+
+    learner_id: str
+    attempt_id: str
+
+    micro_check_attempt_number: int
+
+    answer: str
+
+    validation: PracticeMicroCheckValidation
 
 class LearnerLanguageUpdateRequest(BaseModel):
     preferred_language: Literal[

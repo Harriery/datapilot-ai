@@ -33,10 +33,14 @@ from backend.app.models import (
     PracticeRecommendationResponse,
     PracticeChallengeResponse,
     PracticeAttemptRequest,
-    PracticeAttemptReview,
     LearnerLanguageUpdateRequest,
     LearnerLanguageResponse,
     PracticeAttemptPublicResponse,
+    PracticeMicroCheckRequest,
+    PracticeMicroCheckResponse,
+)
+from backend.app.practice_micro_check_service import (
+    review_practice_micro_check,
 )
 
 from backend.app.practice_review_service import (
@@ -678,3 +682,57 @@ def update_learner_language(
         learner_id=learner_id,
         preferred_language=request.preferred_language,
     )
+
+# ---------------------------------------------------------
+# REVIEW PRACTICE MICRO-CHECK
+# ---------------------------------------------------------
+#
+# Mentorun sorduğu küçük kontrol sorusuna
+# junior'ın verdiği cevabı değerlendirir.
+#
+# Akış:
+#
+# learner_id + attempt_id + answer
+# ↓
+# ilgili attempt DB'den bulunur
+# ↓
+# micro-check sorusu bulunur
+# ↓
+# primary concept bulunur
+# ↓
+# cevap değerlendirilir
+# ↓
+# doğru  → return_to_challenge
+# yanlış → more_support
+
+
+@router.post(
+    "/practice/micro-check",
+    response_model=PracticeMicroCheckResponse,
+)
+def review_practice_micro_check_route(
+    request: PracticeMicroCheckRequest,
+):
+
+    try:
+        return review_practice_micro_check(
+            request=request
+        )
+
+    except ValueError as exc:
+
+        message = str(exc)
+
+        if (
+            "Practice attempt bulunamadı" in message
+            or "Learner profile bulunamadı" in message
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail=message,
+            )
+
+        raise HTTPException(
+            status_code=400,
+            detail=message,
+        )

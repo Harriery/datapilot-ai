@@ -11,6 +11,8 @@ from backend.app.models import (
     PracticeDiagnosis,
     PracticeMentorDecision,
     PracticeMentorSupport,
+    PracticeMicroCheckValidation,
+    PracticeMicroCheckSupport,
 )
 
 
@@ -385,7 +387,7 @@ LANGUAGE RULES:
 
 - The language choice must not change concept IDs or
   backend terminology.
-  
+
 - Natural-language explanations should follow preferred_language.
 
 - All code examples must use English ASCII variable names and identifiers,
@@ -397,6 +399,207 @@ LANGUAGE RULES:
         input=prompt,
         instructions=instructions,
         text_format=PracticeMentorSupport,
+    )
+
+    return response.output_parsed
+
+# ==================================================
+# PRACTICE MICRO-CHECK EVALUATION
+# ==================================================
+
+
+def evaluate_practice_micro_check(
+    question: str,
+    answer: str,
+    primary_concept_id: str,
+    preferred_language: str = "auto",
+) -> PracticeMicroCheckValidation:
+    """
+    Mentorun sorduğu küçük micro-check sorusuna
+    junior'ın verdiği cevabı değerlendirir.
+
+    Bu fonksiyon original challenge'ı çözmez.
+    Sadece micro-check cevabının hedef kavramı
+    gösterip göstermediğine karar verir.
+    """
+
+    prompt = f"""
+Micro-check question:
+{question}
+
+Learner answer:
+{answer}
+
+Primary concept being checked:
+{primary_concept_id}
+
+Preferred language:
+{preferred_language}
+"""
+
+    instructions = """
+You evaluate a junior Data Engineer's answer
+to a small mentor micro-check.
+
+Your job is ONLY to evaluate the micro-check answer.
+
+Rules:
+
+1. Judge only the micro-check question.
+   Do not evaluate or solve the original challenge.
+
+2. success = true only if the learner's answer
+   demonstrates the primary concept correctly.
+
+3. Accept semantically equivalent answers.
+   Minor formatting differences, whitespace,
+   or quote style should not make a correct answer fail.
+
+4. If the answer is wrong:
+   - give short feedback,
+   - do NOT reveal the correct answer,
+   - do NOT write corrected code,
+   - do NOT provide the solution.
+
+5. If the answer is correct:
+   give brief confirmation only.
+
+6. Keep feedback focused on the single
+   primary concept.
+
+LANGUAGE RULES:
+
+- preferred_language = "tr":
+  feedback must be Turkish.
+
+- preferred_language = "en":
+  feedback must be English.
+
+- preferred_language = "nl":
+  feedback must be Dutch.
+
+- preferred_language = "auto":
+  use the most appropriate language from the context.
+
+Return only PracticeMicroCheckValidation.
+"""
+
+    response = client.responses.parse(
+        model="gpt-5-mini",
+        input=prompt,
+        instructions=instructions,
+        text_format=PracticeMicroCheckValidation,
+    )
+
+    return response.output_parsed
+
+# ==================================================
+# PRACTICE MICRO-CHECK EXTRA SUPPORT
+# ==================================================
+
+
+def generate_practice_micro_check_support(
+    question: str,
+    answer: str,
+    primary_concept_id: str,
+    micro_check_attempt_number: int,
+    preferred_language: str = "auto",
+) -> PracticeMicroCheckSupport:
+    """
+    Yanlış micro-check cevabından sonra
+    hedef kavram için ek destek üretir.
+
+    Original challenge bu fonksiyona verilmez.
+    Böylece çözüm sızıntısı önlenir.
+    """
+
+    prompt = f"""
+Micro-check question:
+{question}
+
+Learner's incorrect answer:
+{answer}
+
+Primary concept:
+{primary_concept_id}
+
+Micro-check attempt number:
+{micro_check_attempt_number}
+
+Preferred language:
+{preferred_language}
+"""
+
+    instructions = """
+You are supporting a junior Data Engineer
+after an incorrect micro-check answer.
+
+Your job is to help with ONLY the primary concept.
+
+IMPORTANT RULES:
+
+1. Do not solve the original challenge.
+   You do not have access to it.
+
+2. Do not give the correct answer to the
+   micro-check question.
+
+3. Do not write a corrected version of the
+   learner's answer.
+
+4. Do not create a new micro-check question.
+   The learner will retry the same question.
+
+5. Keep the support focused on one concept only.
+
+6. If micro_check_attempt_number == 1:
+   give a short conceptual hint.
+
+7. If micro_check_attempt_number >= 2:
+   explain the concept a little more explicitly,
+   but still do not reveal the exact answer.
+
+8. Use a different generic example only if needed.
+   Never reuse the micro-check's exact variables,
+   keys, or values in that example.
+
+9. Teach ONLY the minimum concept required by
+   primary_concept_id.
+
+10. Do not introduce adjacent concepts unless
+    they are themselves the primary concept.
+
+11. For dictionary_key_access specifically:
+    teach only how to retrieve the value of an
+    existing dictionary key.
+
+    Do NOT discuss:
+    - KeyError
+    - missing keys
+    - .get()
+    - default values
+    - checking whether a key exists
+
+12. Do not repeat the learner's exact incorrect
+    expression in the support message.
+
+LANGUAGE:
+
+- tr → Turkish
+- en → English
+- nl → Dutch
+- auto → infer appropriate language
+
+Technical terms and Python syntax may remain English.
+
+Return only PracticeMicroCheckSupport.
+"""
+
+    response = client.responses.parse(
+        model="gpt-5-mini",
+        input=prompt,
+        instructions=instructions,
+        text_format=PracticeMicroCheckSupport,
     )
 
     return response.output_parsed

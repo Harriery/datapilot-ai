@@ -12,6 +12,9 @@ from backend.app.models import (
     PracticeDiagnosis,
     PracticeMentorDecision,
     PracticeAttemptRecord,
+    PracticeMentorSupport,
+    PracticeMicroCheckAttemptRecord,
+    PracticeMicroCheckValidation,
 )
 
 # DATABASE_PATH
@@ -300,6 +303,7 @@ def init_db():
 
             diagnosis_json TEXT,
             mentor_decision_json TEXT,
+            mentor_support_json TEXT,
 
             assistance_level TEXT,
             support_strategy TEXT,
@@ -311,6 +315,46 @@ def init_db():
 
             FOREIGN KEY (challenge_id)
                 REFERENCES practice_challenges(challenge_id)
+        )
+        """
+    )
+
+        # ==================================================
+    # PRACTICE MICRO-CHECK ATTEMPTS
+    # ==================================================
+    #
+    # Junior'ın mentor micro-check sorularına verdiği
+    # cevapları saklar.
+    #
+    # Aynı original practice attempt için birden fazla
+    # micro-check cevabı olabilir.
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS practice_micro_check_attempts (
+            micro_check_attempt_id TEXT PRIMARY KEY,
+
+            learner_id TEXT NOT NULL,
+            attempt_id TEXT NOT NULL,
+
+            micro_check_attempt_number INTEGER NOT NULL,
+
+            answer TEXT NOT NULL,
+
+            success INTEGER NOT NULL,
+            validation_feedback TEXT NOT NULL,
+
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id),
+
+            FOREIGN KEY (attempt_id)
+                REFERENCES practice_attempts(attempt_id),
+
+            UNIQUE (
+                attempt_id,
+                micro_check_attempt_number
+            )
         )
         """
     )
@@ -340,6 +384,13 @@ def init_db():
             """
         )
 
+    if "mentor_support_json" not in practice_attempt_columns:
+        connection.execute(
+            """
+            ALTER TABLE practice_attempts
+            ADD COLUMN mentor_support_json TEXT
+            """
+        )    
 
     connection.commit()
     connection.close()
@@ -1045,12 +1096,16 @@ def save_practice_attempt(
     validation: PracticeAttemptValidation,
     diagnosis: PracticeDiagnosis | None = None,
     mentor_decision: PracticeMentorDecision | None = None,
+    mentor_support: PracticeMentorSupport | None = None,
 ) -> PracticeAttemptRecord:
     """
     Junior'ın practice denemesini DB'ye kaydeder.
 
     attempt_number backend tarafından otomatik hesaplanır.
     attempt_id backend tarafından UUID olarak oluşturulur.
+
+    Mentor support varsa:
+    junior'a gösterilen mesaj ve micro-check de saklanır.
     """
 
     connection = get_connection()
@@ -1079,6 +1134,10 @@ def save_practice_attempt(
 
     attempt_id = str(uuid4())
 
+    # --------------------------------------------------
+    # INTERNAL JSON DATA
+    # --------------------------------------------------
+
     diagnosis_json = (
         diagnosis.model_dump_json()
         if diagnosis is not None
@@ -1088,6 +1147,12 @@ def save_practice_attempt(
     mentor_decision_json = (
         mentor_decision.model_dump_json()
         if mentor_decision is not None
+        else None
+    )
+
+    mentor_support_json = (
+        mentor_support.model_dump_json()
+        if mentor_support is not None
         else None
     )
 
@@ -1103,6 +1168,10 @@ def save_practice_attempt(
         else None
     )
 
+    # --------------------------------------------------
+    # SAVE
+    # --------------------------------------------------
+
     connection.execute(
         """
         INSERT INTO practice_attempts (
@@ -1117,10 +1186,11 @@ def save_practice_attempt(
             validation_feedback,
             diagnosis_json,
             mentor_decision_json,
+            mentor_support_json,
             assistance_level,
             support_strategy
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             attempt_id,
@@ -1134,6 +1204,7 @@ def save_practice_attempt(
             validation.feedback,
             diagnosis_json,
             mentor_decision_json,
+            mentor_support_json,
             assistance_level,
             support_strategy,
         ),
@@ -1149,6 +1220,7 @@ def save_practice_attempt(
         validation=validation,
         diagnosis=diagnosis,
         mentor_decision=mentor_decision,
+        mentor_support=mentor_support,
     )
 
 
@@ -1212,6 +1284,14 @@ def get_practice_attempts(
             else None
         )
 
+        mentor_support = (
+            PracticeMentorSupport.model_validate_json(
+                row["mentor_support_json"]
+            )
+            if row["mentor_support_json"] is not None
+            else None
+        )
+
         record = PracticeAttemptRecord(
             attempt_id=row["attempt_id"],
             attempt_number=row["attempt_number"],
@@ -1219,11 +1299,257 @@ def get_practice_attempts(
             validation=validation,
             diagnosis=diagnosis,
             mentor_decision=mentor_decision,
+            mentor_support=mentor_support,
         )
 
         attempts.append(record)
 
     return attempts
+
+def get_practice_attempt_by_id(
+    attempt_id: str,
+    learner_id: str,
+) -> PracticeAttemptRecord | None:
+    """
+    Belirli learner'a ait tek bir practice attempt'i
+    attempt_id üzerinden getirir.
+
+    learner_id kontrolü sayesinde başka bir learner'ın
+    attempt'i okunamaz.
+    """
+
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM practice_attempts
+        WHERE attempt_id = ?
+        AND learner_id = ?
+        """,
+        (
+            attempt_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    attempt = PracticeAttemptRequest(
+        learner_id=row["learner_id"],
+        challenge_id=row["challenge_id"],
+        answer=row["answer"],
+        execution_output=row["execution_output"],
+        execution_error=row["execution_error"],
+    )
+
+    validation = PracticeAttemptValidation(
+        success=bool(row["success"]),
+        feedback=row["validation_feedback"],
+    )
+
+    diagnosis = (
+        PracticeDiagnosis.model_validate_json(
+            row["diagnosis_json"]
+        )
+        if row["diagnosis_json"] is not None
+        else None
+    )
+
+    mentor_decision = (
+        PracticeMentorDecision.model_validate_json(
+            row["mentor_decision_json"]
+        )
+        if row["mentor_decision_json"] is not None
+        else None
+    )
+
+    mentor_support = (
+        PracticeMentorSupport.model_validate_json(
+            row["mentor_support_json"]
+        )
+        if row["mentor_support_json"] is not None
+        else None
+    )
+
+    return PracticeAttemptRecord(
+        attempt_id=row["attempt_id"],
+        attempt_number=row["attempt_number"],
+        attempt=attempt,
+        validation=validation,
+        diagnosis=diagnosis,
+        mentor_decision=mentor_decision,
+        mentor_support=mentor_support,
+    )
+
+def save_practice_micro_check_attempt(
+    learner_id: str,
+    attempt_id: str,
+    answer: str,
+    validation: PracticeMicroCheckValidation,
+) -> PracticeMicroCheckAttemptRecord:
+    """
+    Junior'ın bir micro-check sorusuna verdiği cevabı kaydeder.
+
+    Aynı original practice attempt için
+    micro_check_attempt_number otomatik artar.
+    """
+
+    connection = get_connection()
+
+    # --------------------------------------------------
+    # 1. ATTEMPT BU LEARNER'A MI AİT?
+    # --------------------------------------------------
+
+    owner_row = connection.execute(
+        """
+        SELECT attempt_id
+        FROM practice_attempts
+        WHERE attempt_id = ?
+        AND learner_id = ?
+        """,
+        (
+            attempt_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    if owner_row is None:
+        connection.close()
+
+        raise ValueError(
+            "Practice attempt bulunamadı."
+        )
+
+    # --------------------------------------------------
+    # 2. KAÇINCI MICRO-CHECK CEVABI?
+    # --------------------------------------------------
+
+    row = connection.execute(
+        """
+        SELECT MAX(
+            micro_check_attempt_number
+        ) AS max_attempt_number
+        FROM practice_micro_check_attempts
+        WHERE attempt_id = ?
+        """,
+        (attempt_id,),
+    ).fetchone()
+
+    previous_attempt_number = (
+        row["max_attempt_number"]
+        if row["max_attempt_number"] is not None
+        else 0
+    )
+
+    micro_check_attempt_number = (
+        previous_attempt_number + 1
+    )
+
+    micro_check_attempt_id = str(uuid4())
+
+    # --------------------------------------------------
+    # 3. SAVE
+    # --------------------------------------------------
+
+    connection.execute(
+        """
+        INSERT INTO practice_micro_check_attempts (
+            micro_check_attempt_id,
+            learner_id,
+            attempt_id,
+            micro_check_attempt_number,
+            answer,
+            success,
+            validation_feedback
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            micro_check_attempt_id,
+            learner_id,
+            attempt_id,
+            micro_check_attempt_number,
+            answer,
+            int(validation.success),
+            validation.feedback,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+    return PracticeMicroCheckAttemptRecord(
+        micro_check_attempt_id=(
+            micro_check_attempt_id
+        ),
+        learner_id=learner_id,
+        attempt_id=attempt_id,
+        micro_check_attempt_number=(
+            micro_check_attempt_number
+        ),
+        answer=answer,
+        validation=validation,
+    )
+
+def get_practice_micro_check_attempts(
+    learner_id: str,
+    attempt_id: str,
+) -> list[PracticeMicroCheckAttemptRecord]:
+    """
+    Belirli bir original practice attempt'e ait
+    tüm micro-check cevaplarını sırasıyla getirir.
+
+    learner_id kontrolü başka learner'ın
+    kayıtlarının okunmasını engeller.
+    """
+
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM practice_micro_check_attempts
+        WHERE learner_id = ?
+        AND attempt_id = ?
+        ORDER BY micro_check_attempt_number ASC
+        """,
+        (
+            learner_id,
+            attempt_id,
+        ),
+    ).fetchall()
+
+    connection.close()
+
+    records = []
+
+    for row in rows:
+
+        validation = PracticeMicroCheckValidation(
+            success=bool(row["success"]),
+            feedback=row["validation_feedback"],
+        )
+
+        records.append(
+            PracticeMicroCheckAttemptRecord(
+                micro_check_attempt_id=(
+                    row["micro_check_attempt_id"]
+                ),
+                learner_id=row["learner_id"],
+                attempt_id=row["attempt_id"],
+                micro_check_attempt_number=(
+                    row["micro_check_attempt_number"]
+                ),
+                answer=row["answer"],
+                validation=validation,
+            )
+        )
+
+    return records
 
 def get_practice_attempts_by_skill(
     learner_id: str,

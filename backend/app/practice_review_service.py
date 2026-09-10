@@ -180,6 +180,7 @@ def review_practice_attempt(
         validation=validation,
         diagnosis=diagnosis,
         mentor_decision=mentor_decision,
+        mentor_support=mentor_support,
     )
 
     # --------------------------------------------------
