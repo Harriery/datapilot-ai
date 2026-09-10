@@ -25,14 +25,19 @@ from backend.app.models import (
     DataQualityAttemptResponse,
     DataQualityTransformationRequest,
     DataQualityTransformationResponse,
+    DataEngineeringTaskTransformationRequest,
+    DataEngineeringTaskTransformationResponse,
+    DataEngineeringTask,
+    DataEngineeringTaskCreateRequest,
 )
 from backend.app.mentor_service import (
     get_mentor_response_for_data_quality_finding,
     review_data_quality_attempt,
     review_data_quality_transformation,
+    review_data_engineering_task_transformation,
 )
 import pandas as pd
-
+import backend.app.database as database
 # Bu router içindeki bütün endpoint'ler /mentor ile başlayacak.
 #
 # Örneğin aşağıda:
@@ -267,3 +272,138 @@ def mentor_data_quality_transformation(
         )
 
     return result
+
+# ---------------------------------------------------------
+# MULTI-STEP DATA ENGINEERING TASK TRANSFORMATION ENDPOINT
+# ---------------------------------------------------------
+#
+# Junior'ın multi-step task içindeki mevcut step için
+# yaptığı transformation'ı değerlendirir.
+#
+# Akış:
+#
+# learner + task + before_rows + after_rows
+# ↓
+# JSON rows → pandas DataFrame
+# ↓
+# current task step bulunur
+# ↓
+# transformation review
+# ↓
+# validation
+# ↓
+# learning evidence
+# ↓
+# skill status update
+# ↓
+# success ise task sonraki step'e ilerler
+#
+@router.post(
+    "/task/transformation",
+    response_model=DataEngineeringTaskTransformationResponse,
+)
+@router.post(
+    "/task/transformation",
+    response_model=DataEngineeringTaskTransformationResponse,
+)
+def mentor_task_transformation(
+    request: DataEngineeringTaskTransformationRequest,
+):
+
+    # Task state artık request içinde taşınmıyor.
+    # Backend task_id + learner_id kullanarak
+    # güncel task durumunu veritabanından yükler.
+    task = database.get_data_engineering_task(
+        task_id=request.task_id,
+        learner_id=request.learner_id,
+    )
+
+    if task is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Data Engineering task bulunamadı.",
+        )
+
+    before_df = pd.DataFrame(request.before_rows)
+    after_df = pd.DataFrame(request.after_rows)
+
+    try:
+        result = review_data_engineering_task_transformation(
+            learner_id=request.learner_id,
+            task=task,
+            before_df=before_df,
+            after_df=after_df,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    return result
+
+# ---------------------------------------------------------
+# CREATE DATA ENGINEERING TASK ENDPOINT
+# ---------------------------------------------------------
+#
+# Yeni bir multi-step task'ı ilk kez DB'ye kaydeder.
+#
+# Bu işlem sadece task başlangıcında yapılır.
+#
+# Sonraki transformation request'lerinde artık
+# bütün task gönderilmez; sadece task_id gönderilir.
+@router.post(
+    "/task",
+    response_model=DataEngineeringTask,
+)
+def create_data_engineering_task(
+    request: DataEngineeringTaskCreateRequest,
+):
+
+    # Task'ın bağlanacağı learner gerçekten var mı?
+    learner_profile = database.get_learner_profile_by_id(
+        request.learner_id
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    # Başlangıç task state'ini DB'ye kaydet.
+    database.save_data_engineering_task(
+        learner_id=request.learner_id,
+        task=request.task,
+    )
+
+    return request.task
+
+# ---------------------------------------------------------
+# GET DATA ENGINEERING TASK ENDPOINT
+# ---------------------------------------------------------
+#
+# Junior daha sonra uygulamaya geri geldiğinde
+# task'ın en son kaydedilmiş durumunu DB'den getirir.
+@router.get(
+    "/task/{task_id}",
+    response_model=DataEngineeringTask,
+)
+def get_data_engineering_task(
+    task_id: str,
+    learner_id: str,
+):
+
+    task = database.get_data_engineering_task(
+        task_id=task_id,
+        learner_id=learner_id,
+    )
+
+    if task is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Data Engineering task bulunamadı.",
+        )
+
+    return task

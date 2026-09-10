@@ -15,6 +15,7 @@ from backend.app.mentor_service import (
     generate_data_quality_attempt_response,
     review_data_quality_transformation,
     build_learning_evidence_from_validation,
+    review_data_engineering_task_transformation,
 )
 from unittest.mock import patch, MagicMock
 from backend.app.models import (
@@ -23,6 +24,10 @@ from backend.app.models import (
     LearningEvidenceDecision,
     DataQualityFinding,
     DuplicateRowsValidationResult,
+    MissingValuesValidationResult,
+    DataQualityTransformationResponse,
+    DataEngineeringTask,
+    DataEngineeringTaskStep,
 )
 import backend.app.database as database
 import pytest
@@ -812,3 +817,189 @@ def test_build_learning_evidence_from_duplicate_validation():
         "3 değerinden "
         "1 değerine değişti."
     )
+
+def test_review_data_engineering_task_transformation_advances_task():
+
+    first_finding = DataQualityFinding(
+        issue_type="missing_values",
+        column="age",
+        severity="medium",
+        observation="age kolonunda eksik değer var.",
+        suggested_action="Eksik değerleri inceleyin.",
+    )
+
+    second_finding = DataQualityFinding(
+        issue_type="duplicate_rows",
+        column=None,
+        severity="medium",
+        observation="Duplicate satırlar var.",
+        suggested_action="Duplicate satırları inceleyin.",
+    )
+
+    first_step = DataEngineeringTaskStep(
+        step_number=1,
+        title="Missing values problemini çöz",
+        finding=first_finding,
+        status="active",
+    )
+
+    second_step = DataEngineeringTaskStep(
+        step_number=2,
+        title="Duplicate rows problemini çöz",
+        finding=second_finding,
+        status="pending",
+    )
+
+    task = DataEngineeringTask(
+        task_id="task-001",
+        title="Dataset problemlerini çöz",
+        steps=[
+            first_step,
+            second_step,
+        ],
+        current_step_number=1,
+        status="active",
+    )
+
+    before_df = pd.DataFrame(
+        {
+            "age": [20, None, None],
+        }
+    )
+
+    after_df = pd.DataFrame(
+        {
+            "age": [20, 25, None],
+        }
+    )
+
+    fake_review = DataQualityTransformationResponse(
+        skill_name="null_analysis",
+        skill_status="practicing",
+        validation=MissingValuesValidationResult(
+            column="age",
+            before_null_count=2,
+            after_null_count=1,
+            success=True,
+        ),
+        evidence=LearningEvidenceDecision(
+            is_evidence=True,
+            evidence_type="application",
+            success=True,
+            note="Null sayısı azaldı.",
+        ),
+    )
+
+    with patch(
+        "backend.app.mentor_service.review_data_quality_transformation",
+        return_value=fake_review,
+    ), patch(
+        "backend.app.mentor_service.database.save_data_engineering_task",
+    ) as mock_save:
+        result = review_data_engineering_task_transformation(
+            learner_id="learner-001",
+            task=task,
+            before_df=before_df,
+            after_df=after_df,
+        )
+
+    assert result.skill_name == "null_analysis"
+    assert result.skill_status == "practicing"
+
+    assert result.validation.success is True
+    assert result.evidence.success is True
+
+    assert result.task.steps[0].status == "completed"
+    assert result.task.steps[1].status == "active"
+    assert result.task.current_step_number == 2
+    assert result.task.status == "active"
+    mock_save.assert_called_once()
+
+    save_arguments = mock_save.call_args.kwargs
+
+    assert save_arguments["learner_id"] == "learner-001"
+    assert save_arguments["task"] is result.task
+
+
+def test_review_data_engineering_task_transformation_keeps_same_step_on_failure():
+
+    finding = DataQualityFinding(
+        issue_type="missing_values",
+        column="age",
+        severity="medium",
+        observation="age kolonunda eksik değer var.",
+        suggested_action="Eksik değerleri inceleyin.",
+    )
+
+    step = DataEngineeringTaskStep(
+        step_number=1,
+        title="Missing values problemini çöz",
+        finding=finding,
+        status="active",
+    )
+
+    task = DataEngineeringTask(
+        task_id="task-001",
+        title="Dataset problemlerini çöz",
+        steps=[step],
+        current_step_number=1,
+        status="active",
+    )
+
+    before_df = pd.DataFrame(
+        {
+            "age": [20, None, None],
+        }
+    )
+
+    after_df = pd.DataFrame(
+        {
+            "age": [20, None, None],
+        }
+    )
+
+    fake_review = DataQualityTransformationResponse(
+        skill_name="null_analysis",
+        skill_status="learning",
+        validation=MissingValuesValidationResult(
+            column="age",
+            before_null_count=2,
+            after_null_count=2,
+            success=False,
+        ),
+        evidence=LearningEvidenceDecision(
+            is_evidence=True,
+            evidence_type="application",
+            success=False,
+            note="Null sayısı değişmedi.",
+        ),
+    )
+
+    with patch(
+        "backend.app.mentor_service.review_data_quality_transformation",
+        return_value=fake_review,
+    ), patch(
+        "backend.app.mentor_service.database.save_data_engineering_task",
+    ) as mock_save:
+        result = review_data_engineering_task_transformation(
+            learner_id="learner-001",
+            task=task,
+            before_df=before_df,
+            after_df=after_df,
+        )
+
+    assert result.skill_name == "null_analysis"
+    assert result.skill_status == "learning"
+
+    assert result.validation.success is False
+    assert result.evidence.success is False
+
+    assert result.task.steps[0].status == "active"
+    assert result.task.current_step_number == 1
+    assert result.task.status == "active"
+    mock_save.assert_called_once()
+
+    save_arguments = mock_save.call_args.kwargs
+    
+    assert save_arguments["learner_id"] == "learner-001"
+    assert save_arguments["task"] is result.task

@@ -9,6 +9,9 @@ from backend.app.models import (
     DataQualityNextStep,
     MissingValuesValidationResult,
     DataQualityTransformationResponse,
+    DuplicateRowsValidationResult,
+    DataEngineeringTask,
+    DataEngineeringTaskTransformationResponse,
 )
 import backend.app.database as database
 import os
@@ -16,7 +19,11 @@ import pandas as pd
 from dotenv import load_dotenv
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
-    DuplicateRowsValidationResult,
+)
+
+from backend.app.task_service import (
+    get_current_task_step,
+    apply_validation_result_to_task,
 )
 
 # MentorDecision bizim models.py dosyasında oluşturduğumuz Pydantic modelidir.
@@ -1101,4 +1108,76 @@ def review_data_quality_transformation(
         skill_status=skill_status,
         validation=validation,
         evidence=evidence,
+    )
+
+# review_data_engineering_task_transformation()
+#
+# Phase 2 transformation validation + learner evidence sistemi ile
+# Phase 3 multi-step task sistemini birbirine bağlar.
+#
+# Akış:
+#
+# task
+# ↓
+# current step
+# ↓
+# finding
+# ↓
+# transformation review
+# ↓
+# validation + evidence + skill update
+# ↓
+# success ise task sonraki step'e ilerler
+def review_data_engineering_task_transformation(
+    learner_id: str,
+    task: DataEngineeringTask,
+    before_df: pd.DataFrame,
+    after_df: pd.DataFrame,
+) -> DataEngineeringTaskTransformationResponse:
+
+    # Junior'ın şu anda hangi step üzerinde olduğunu bul.
+    current_step = get_current_task_step(task)
+
+    if current_step is None:
+        raise ValueError("Current task step bulunamadı.")
+
+    # Mevcut step'in finding'i üzerinden:
+    #
+    # - gerçek transformation validate edilir
+    # - learning evidence oluşturulur
+    # - evidence DB'ye kaydedilir
+    # - skill status güncellenir
+    transformation_review = review_data_quality_transformation(
+        learner_id=learner_id,
+        finding=current_step.finding,
+        before_df=before_df,
+        after_df=after_df,
+    )
+
+    if transformation_review is None:
+        raise ValueError(
+            "Bu task step için transformation review desteklenmiyor."
+        )
+
+    # Validation başarılıysa task ilerler.
+    # Başarısızsa mevcut step aktif kalır.
+    updated_task = apply_validation_result_to_task(
+        task=task,
+        validation=transformation_review.validation,
+    )
+    # Task'ın güncel durumunu kalıcı olarak sakla.
+    #
+    # Success = True ise ilerlemiş hali,
+    # Success = False ise aynı step'te kalan hali kaydedilir.
+    database.save_data_engineering_task(
+        learner_id=learner_id,
+        task=updated_task,
+    )
+
+    return DataEngineeringTaskTransformationResponse(
+        task=updated_task,
+        skill_name=transformation_review.skill_name,
+        skill_status=transformation_review.skill_status,
+        validation=transformation_review.validation,
+        evidence=transformation_review.evidence,
     )

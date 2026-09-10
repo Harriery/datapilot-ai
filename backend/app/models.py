@@ -307,3 +307,58 @@ class DataEngineeringTask(BaseModel):
         "active",
         "completed",
     ] = "pending"
+
+
+#"Junior ne yaptı?" , "Doğru yaptı mı?" ,"Hangi skill gelişti?", "Task şimdi hangi step'te?"
+# DataEngineeringTaskTransformationResponse:
+#
+# Bir task step'i üzerinde yapılan gerçek transformation sonrası
+# hem learner gelişimini hem de task'ın yeni durumunu birlikte döndürür.
+class DataEngineeringTaskTransformationResponse(BaseModel):
+    task: DataEngineeringTask
+
+    skill_name: str
+
+    skill_status: Literal[
+        "new",
+        "learning",
+        "practicing",
+        "comfortable",
+    ]
+
+    validation: (
+        MissingValuesValidationResult
+        | DuplicateRowsValidationResult
+    )
+
+    evidence: LearningEvidenceDecision
+
+
+# DataEngineeringTaskTransformationRequest:
+#
+# Junior'ın multi-step task içindeki mevcut step için
+# yaptığı gerçek transformation'ı API'ye gönderir.
+#
+# task:
+# Junior'ın mevcut task durumu.
+#
+# before_rows / after_rows:
+# Transformation öncesi ve sonrası gerçek data.
+class DataEngineeringTaskTransformationRequest(BaseModel):
+    learner_id: str
+    task_id: str
+    before_rows: list[dict]
+    after_rows: list[dict]
+
+# DataEngineeringTaskCreateRequest:
+#
+# Yeni bir multi-step task ilk kez oluşturulurken kullanılır.
+#
+# learner_id:
+# Task hangi junior'a ait?
+#
+# task:
+# Başlangıçtaki DataEngineeringTask yapısı.
+class DataEngineeringTaskCreateRequest(BaseModel):
+    learner_id: str
+    task: DataEngineeringTask

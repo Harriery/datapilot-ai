@@ -3,6 +3,8 @@ from pathlib import Path
 import json
 
 
+from backend.app.models import DataEngineeringTask
+
 # DATABASE_PATH
 # ↓
 # Veritabanı dosyasının yerini belirler
@@ -161,6 +163,36 @@ def init_db():
     )
     """
     )
+
+        # ==================================================
+    # DATA ENGINEERING TASKS
+    # ==================================================
+    #
+    # Junior'ın multi-step task durumunu saklar.
+    #
+    # task_json:
+    # DataEngineeringTask modelinin tamamını JSON olarak tutar.
+    #
+    # Böylece junior daha sonra geri geldiğinde
+    # hangi step'te kaldığını tekrar okuyabiliriz.
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS data_engineering_tasks (
+            task_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL,
+            task_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id)
+        )
+        """
+    )
+
+
+
     connection.commit()
     connection.close()
     
@@ -667,4 +699,83 @@ def update_skill_status(
     connection.close()
 
         
-    
+    # ==================================================
+# DATA ENGINEERING TASK İŞLEMLERİ
+# ==================================================
+
+def save_data_engineering_task(
+    learner_id: str,
+    task,
+):
+    """
+    DataEngineeringTask'in mevcut durumunu veritabanına kaydeder.
+
+    Task daha önce yoksa oluşturur.
+    Aynı task_id zaten varsa mevcut kaydı günceller.
+    """
+
+    connection = get_connection()
+
+    # Pydantic modelini JSON metnine çeviriyoruz.
+    task_json = task.model_dump_json()
+
+    connection.execute(
+        """
+        INSERT INTO data_engineering_tasks (
+            task_id,
+            learner_id,
+            task_json,
+            status
+        )
+        VALUES (?, ?, ?, ?)
+
+        ON CONFLICT(task_id)
+        DO UPDATE SET
+            learner_id = excluded.learner_id,
+            task_json = excluded.task_json,
+            status = excluded.status,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            task.task_id,
+            learner_id,
+            task_json,
+            task.status,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+def get_data_engineering_task(
+    task_id: str,
+    learner_id: str,
+):
+    """
+    Belirli bir learner'a ait task kaydını bulur
+    ve tekrar DataEngineeringTask modeline dönüştürür.
+    """
+
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT task_json
+        FROM data_engineering_tasks
+        WHERE task_id = ?
+        AND learner_id = ?
+        """,
+        (
+            task_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    return DataEngineeringTask.model_validate_json(
+        row["task_json"]
+    )
