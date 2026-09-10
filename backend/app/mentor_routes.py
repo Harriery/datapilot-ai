@@ -30,6 +30,19 @@ from backend.app.models import (
     DataEngineeringTask,
     DataEngineeringTaskCreateRequest,
     LearnerProgressResponse,
+    PracticeRecommendationResponse,
+    PracticeChallengeResponse,
+    PracticeAttemptRequest,
+    PracticeAttemptReview,
+)
+
+from backend.app.practice_review_service import (
+    review_practice_attempt,
+)
+
+from backend.app.practice_service import (
+    get_practice_recommendation,
+    create_practice_challenge,
 )
 from backend.app.progress_service import (
     get_learner_progress,
@@ -451,3 +464,173 @@ def get_progress(
     return get_learner_progress(
         learner_id=learner_id
     )
+
+# ---------------------------------------------------------
+# PRACTICE RECOMMENDATION ENDPOINT
+# ---------------------------------------------------------
+#
+# Learner progress verisine bakarak
+# junior için sıradaki practice hedefini döndürür.
+#
+# Akış:
+#
+# learner_id
+# ↓
+# learner var mı?
+# ↓
+# progress
+# ↓
+# practice priority
+# ↓
+# recommended skill + difficulty
+
+
+@router.get(
+    "/practice/recommendation/{learner_id}",
+    response_model=PracticeRecommendationResponse,
+)
+def get_practice_recommendation_route(
+    learner_id: str,
+):
+
+    learner_profile = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return get_practice_recommendation(
+        learner_id=learner_id
+    )
+
+# ---------------------------------------------------------
+# CREATE PRACTICE CHALLENGE ENDPOINT
+# ---------------------------------------------------------
+#
+# Learner progress ve practice recommendation üzerinden
+# junior için yeni bir challenge oluşturur.
+#
+# Akış:
+#
+# learner_id
+# ↓
+# learner var mı?
+# ↓
+# practice recommendation
+# ↓
+# skill + difficulty
+# ↓
+# PracticeChallenge
+
+
+@router.post(
+    "/practice/challenge/{learner_id}",
+    response_model=PracticeChallengeResponse,
+)
+def create_practice_challenge_route(
+    learner_id: str,
+):
+
+    learner_profile = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return create_practice_challenge(
+            learner_id=learner_id
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+# ---------------------------------------------------------
+# REVIEW PRACTICE ATTEMPT ENDPOINT
+# ---------------------------------------------------------
+#
+# Junior'ın challenge için yaptığı denemeyi işler.
+#
+# Akış:
+#
+# PracticeAttemptRequest
+# ↓
+# learner kontrolü
+# ↓
+# challenge kontrolü
+# ↓
+# deterministic validation
+# ↓
+# başarısızsa AI diagnosis
+# ↓
+# adaptive assistance policy
+# ↓
+# mentor support
+# ↓
+# attempt DB'ye kaydedilir
+# ↓
+# PracticeAttemptReview
+
+
+@router.post(
+    "/practice/attempt",
+    response_model=PracticeAttemptReview,
+)
+def review_practice_attempt_route(
+    attempt: PracticeAttemptRequest,
+):
+
+    # --------------------------------------------------
+    # LEARNER VAR MI?
+    # --------------------------------------------------
+
+    learner_profile = database.get_learner_profile_by_id(
+        attempt.learner_id
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    # --------------------------------------------------
+    # CHALLENGE VAR MI VE BU LEARNER'A MI AİT?
+    # --------------------------------------------------
+
+    challenge_record = database.get_practice_challenge(
+        challenge_id=attempt.challenge_id,
+        learner_id=attempt.learner_id,
+    )
+
+    if challenge_record is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Practice challenge bulunamadı.",
+        )
+
+    # --------------------------------------------------
+    # ATTEMPT REVIEW
+    # --------------------------------------------------
+
+    try:
+        return review_practice_attempt(
+            attempt=attempt
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )

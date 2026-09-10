@@ -426,3 +426,245 @@ class LearnerProgressResponse(BaseModel):
     skills: list[LearnerSkillProgress]
 
 
+# ==================================================
+# PRACTICE SYSTEM
+# ==================================================
+
+# PracticeRecommendation:
+#
+# Progress sisteminin sonucuna göre
+# junior'ın hangi skill üzerinde practice yapmasının
+# daha faydalı olduğunu temsil eder.
+class PracticeRecommendation(BaseModel):
+    skill_name: str
+
+    priority: Literal[
+        "high",
+        "medium",
+        "low",
+    ]
+
+    difficulty: Literal[
+        "foundation",
+        "easy",
+        "medium",
+        "hard",
+    ]
+
+    reason: str
+
+
+# PracticeRecommendationResponse:
+#
+# Bir learner için önerilen sıradaki practice hedefini döndürür.
+#
+# recommendation = None olabilir.
+# Örneğin bütün skill'ler comfortable ise
+# şu anda zorunlu bir practice önerisi olmayabilir.
+class PracticeRecommendationResponse(BaseModel):
+    learner_id: str
+    recommendation: PracticeRecommendation | None
+
+
+# ==================================================
+# PRACTICE CHALLENGE
+# ==================================================
+
+# PracticeChallenge:
+#
+# Junior'ın Practice alanında çözeceği
+# tek bir challenge'ı temsil eder.
+#
+# Challenge henüz execution veya validation yapmaz.
+# Sadece junior'ın önüne çıkacak görevin yapısını tanımlar.
+class PracticeChallenge(BaseModel):
+    challenge_id: str
+
+    skill_name: str
+
+    difficulty: Literal[
+        "foundation",
+        "easy",
+        "medium",
+        "hard",
+    ]
+
+    challenge_type: Literal[
+        "code",
+        "debug",
+        "output_prediction",
+        "sql",
+        "data_investigation",
+        "transformation",
+        "validation",
+        "explain",
+    ]
+
+    title: str
+
+    instructions: str
+
+    starter_code: str | None = None
+
+# PracticeChallengeRecord:
+#
+# Backend'in challenge'ı validate edebilmesi için
+# public challenge bilgisi ile birlikte
+# kullanıcıya gösterilmeyecek validation bilgisini tutar.
+class PracticeChallengeRecord(BaseModel):
+    challenge: PracticeChallenge
+
+    expected_outcome: str 
+
+
+# PracticeChallengeResponse:
+#
+# Bir learner için oluşturulmuş challenge'ı API'ye döndürür.
+class PracticeChallengeResponse(BaseModel):
+    learner_id: str
+    challenge: PracticeChallenge
+
+
+class PracticeAttemptRequest(BaseModel):
+    learner_id: str
+    challenge_id: str
+
+    # Junior'ın yazdığı cevap veya kod.
+    answer: str
+
+    # Kod frontend'de çalıştırıldıysa oluşan çıktı.
+    execution_output: str | None = None
+
+    # Kod çalışırken hata oluştuysa hata mesajı.
+    execution_error: str | None = None
+
+
+class PracticeAttemptValidation(BaseModel):
+    success: bool
+
+    # Backend'in deterministik olarak belirleyebildiği
+    # kısa teknik sonuç.
+    feedback: str
+
+
+class PracticeAttemptResponse(BaseModel):
+    learner_id: str
+    challenge_id: str
+
+    validation: PracticeAttemptValidation
+
+class PracticeDiagnosis(BaseModel):
+
+    # Junior'ın doğru kullandığı kavramların
+    # backend tarafından takip edilen sabit ID'leri.
+    understood_concept_ids: list[
+        Literal[
+            "iteration",
+            "conditional_logic",
+            "none_check",
+            "dictionary_key_access",
+            "counting_matches",
+            "output_result",
+        ]
+    ] = []
+
+    # Junior'ın eksik/zayıf olduğu kavramların
+    # backend tarafından takip edilen sabit ID'leri.
+    missing_concept_ids: list[
+        Literal[
+            "iteration",
+            "conditional_logic",
+            "none_check",
+            "dictionary_key_access",
+            "counting_matches",
+            "output_result",
+        ]
+    ] = []
+
+    # Bu attempt'te ÖNCE ele alınması gereken tek ana problem.
+    primary_missing_concept_id: Literal[
+        "iteration",
+        "conditional_logic",
+        "none_check",
+        "dictionary_key_access",
+        "counting_matches",
+        "output_result",
+    ] | None = None
+
+    # AI'nin insan tarafından okunabilir açıklamaları.
+    understands: list[str]
+
+    missing_concepts: list[str]
+
+    misconception: str | None = None
+
+    needs_concept_teaching: bool = False
+
+    confidence: Literal[
+        "low",
+        "medium",
+        "high",
+    ] = "medium"
+
+
+class PracticeMentorDecision(BaseModel):
+    assistance_level: Literal[
+        "NONE",
+        "NUDGE",
+        "GUIDE",
+        "TEACH",
+        "DEMONSTRATE",
+    ]
+
+    support_strategy: Literal[
+        "feedback",
+        "recall",
+        "focus",
+        "concept_explanation",
+        "worked_example",
+    ]
+
+    reason: str
+
+    # Küçük bir kontrol sorusu gerekli mi?
+    needs_micro_check: bool = False 
+
+class PracticeAttemptRecord(BaseModel):
+    # DB'deki benzersiz attempt kimliği.
+    attempt_id: str
+
+    # Aynı challenge için kaçıncı deneme?
+    attempt_number: int
+
+    # Junior'ın gönderdiği cevap/kod.
+    attempt: PracticeAttemptRequest
+
+    # Deterministic validation sonucu.
+    validation: PracticeAttemptValidation
+
+    # Attempt başarısızsa AI diagnosis burada tutulabilir.
+    diagnosis: PracticeDiagnosis | None = None
+
+    # Junior'a hangi seviyede destek verildi?
+    mentor_decision: PracticeMentorDecision | None = None
+
+class PracticeMentorSupport(BaseModel):
+    # Junior'a gösterilecek ana mentor mesajı.
+    message: str
+
+    # TEACH / DEMONSTRATE gibi durumlarda
+    # küçük bir kontrol sorusu olabilir.
+    micro_check: str | None = None
+class PracticeAttemptReview(BaseModel):
+    learner_id: str
+    challenge_id: str
+
+    attempt_id: str
+    attempt_number: int
+
+    validation: PracticeAttemptValidation
+
+    diagnosis: PracticeDiagnosis | None = None
+    mentor_decision: PracticeMentorDecision | None = None
+    mentor_support: PracticeMentorSupport | None = None
+

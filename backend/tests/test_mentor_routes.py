@@ -548,3 +548,335 @@ def test_get_progress_returns_404_for_missing_learner():
     )
 
     mock_get_progress.assert_not_called()
+
+def test_get_practice_recommendation_returns_recommendation():
+
+    fake_recommendation = {
+        "learner_id": "demo-learner",
+        "recommendation": {
+            "skill_name": "python_data_structures",
+            "priority": "medium",
+            "difficulty": "easy",
+            "reason": (
+                "python_data_structures skill'i "
+                "learning seviyesinde ve "
+                "practice priority medium."
+            ),
+        },
+    }
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value={"learner_id": "demo-learner"},
+    ) as mock_get_profile, patch(
+        "backend.app.mentor_routes.get_practice_recommendation",
+        return_value=fake_recommendation,
+    ) as mock_get_recommendation:
+
+        response = client.get(
+            "/mentor/practice/recommendation/demo-learner"
+        )
+
+    assert response.status_code == 200
+    assert response.json() == fake_recommendation
+
+    mock_get_profile.assert_called_once_with(
+        "demo-learner"
+    )
+
+    mock_get_recommendation.assert_called_once_with(
+        learner_id="demo-learner"
+    )
+
+def test_get_practice_recommendation_returns_404_for_missing_learner():
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value=None,
+    ) as mock_get_profile, patch(
+        "backend.app.mentor_routes.get_practice_recommendation",
+    ) as mock_get_recommendation:
+
+        response = client.get(
+            "/mentor/practice/recommendation/missing-learner"
+        )
+
+    assert response.status_code == 404
+
+    assert response.json() == {
+        "detail": "Learner profile bulunamadı."
+    }
+
+    mock_get_profile.assert_called_once_with(
+        "missing-learner"
+    )
+
+    mock_get_recommendation.assert_not_called()
+
+
+def test_create_practice_challenge_returns_challenge():
+
+    fake_challenge = {
+        "learner_id": "demo-learner",
+        "challenge": {
+            "challenge_id": "challenge-001",
+            "skill_name": "python_data_structures",
+            "difficulty": "easy",
+            "challenge_type": "code",
+            "title": "Eksik city değerlerini bul",
+            "instructions": (
+                "Aşağıdaki records listesinde city değeri "
+                "eksik olan kayıtların sayısını hesapla."
+            ),
+            "starter_code": "records = []",
+            
+        },
+    }
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value={"learner_id": "demo-learner"},
+    ) as mock_get_profile, patch(
+        "backend.app.mentor_routes.create_practice_challenge",
+        return_value=fake_challenge,
+    ) as mock_create_challenge:
+
+        response = client.post(
+            "/mentor/practice/challenge/demo-learner"
+        )
+
+    assert response.status_code == 200
+    assert response.json() == fake_challenge
+
+    mock_get_profile.assert_called_once_with(
+        "demo-learner"
+    )
+
+    mock_create_challenge.assert_called_once_with(
+        learner_id="demo-learner"
+    )
+
+def test_create_practice_challenge_returns_404_for_missing_learner():
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value=None,
+    ) as mock_get_profile, patch(
+        "backend.app.mentor_routes.create_practice_challenge",
+    ) as mock_create_challenge:
+
+        response = client.post(
+            "/mentor/practice/challenge/missing-learner"
+        )
+
+    assert response.status_code == 404
+
+    assert response.json() == {
+        "detail": "Learner profile bulunamadı."
+    }
+
+    mock_get_profile.assert_called_once_with(
+        "missing-learner"
+    )
+
+    mock_create_challenge.assert_not_called()
+
+
+def test_create_practice_challenge_returns_400_when_no_recommendation():
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value={"learner_id": "demo-learner"},
+    ), patch(
+        "backend.app.mentor_routes.create_practice_challenge",
+        side_effect=ValueError(
+            "Bu learner için şu anda practice recommendation yok."
+        ),
+    ):
+
+        response = client.post(
+            "/mentor/practice/challenge/demo-learner"
+        )
+
+    assert response.status_code == 400
+
+    assert response.json() == {
+        "detail": (
+            "Bu learner için şu anda "
+            "practice recommendation yok."
+        )
+    }
+
+def test_review_practice_attempt_returns_review():
+
+    fake_review = {
+        "learner_id": "demo-learner",
+        "challenge_id": "challenge-001",
+        "attempt_id": "attempt-001",
+        "attempt_number": 1,
+        "validation": {
+            "success": True,
+            "feedback": "Challenge başarıyla tamamlandı.",
+        },
+        "diagnosis": None,
+        "mentor_decision": None,
+        "mentor_support": None,
+    }
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value={
+            "learner_id": "demo-learner",
+        },
+    ) as mock_get_profile, patch(
+        "backend.app.mentor_routes.database.get_practice_challenge",
+        return_value=object(),
+    ) as mock_get_challenge, patch(
+        "backend.app.mentor_routes.review_practice_attempt",
+        return_value=fake_review,
+    ) as mock_review:
+
+        response = client.post(
+            "/mentor/practice/attempt",
+            json={
+                "learner_id": "demo-learner",
+                "challenge_id": "challenge-001",
+                "answer": "print(2)",
+                "execution_output": "2",
+                "execution_error": None,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == fake_review
+
+    mock_get_profile.assert_called_once_with(
+        "demo-learner"
+    )
+
+    mock_get_challenge.assert_called_once_with(
+        challenge_id="challenge-001",
+        learner_id="demo-learner",
+    )
+
+    mock_review.assert_called_once()
+
+    called_attempt = (
+        mock_review.call_args.kwargs["attempt"]
+    )
+
+    assert called_attempt.learner_id == "demo-learner"
+    assert called_attempt.challenge_id == "challenge-001"
+    assert called_attempt.execution_output == "2"
+
+def test_review_practice_attempt_returns_404_for_missing_learner():
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value=None,
+    ) as mock_get_profile, patch(
+        "backend.app.mentor_routes.database.get_practice_challenge",
+    ) as mock_get_challenge, patch(
+        "backend.app.mentor_routes.review_practice_attempt",
+    ) as mock_review:
+
+        response = client.post(
+            "/mentor/practice/attempt",
+            json={
+                "learner_id": "missing-learner",
+                "challenge_id": "challenge-001",
+                "answer": "print(2)",
+                "execution_output": "2",
+                "execution_error": None,
+            },
+        )
+
+    assert response.status_code == 404
+
+    assert response.json() == {
+        "detail": "Learner profile bulunamadı."
+    }
+
+    mock_get_profile.assert_called_once_with(
+        "missing-learner"
+    )
+
+    mock_get_challenge.assert_not_called()
+    mock_review.assert_not_called()
+
+
+def test_review_practice_attempt_returns_404_for_missing_challenge():
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value={
+            "learner_id": "demo-learner",
+        },
+    ), patch(
+        "backend.app.mentor_routes.database.get_practice_challenge",
+        return_value=None,
+    ) as mock_get_challenge, patch(
+        "backend.app.mentor_routes.review_practice_attempt",
+    ) as mock_review:
+
+        response = client.post(
+            "/mentor/practice/attempt",
+            json={
+                "learner_id": "demo-learner",
+                "challenge_id": "missing-challenge",
+                "answer": "print(2)",
+                "execution_output": "2",
+                "execution_error": None,
+            },
+        )
+
+    assert response.status_code == 404
+
+    assert response.json() == {
+        "detail": "Practice challenge bulunamadı."
+    }
+
+    mock_get_challenge.assert_called_once_with(
+        challenge_id="missing-challenge",
+        learner_id="demo-learner",
+    )
+
+    mock_review.assert_not_called()
+
+
+def test_review_practice_attempt_returns_400_for_service_error():
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value={
+            "learner_id": "demo-learner",
+        },
+    ), patch(
+        "backend.app.mentor_routes.database.get_practice_challenge",
+        return_value=object(),
+    ), patch(
+        "backend.app.mentor_routes.review_practice_attempt",
+        side_effect=ValueError(
+            "Bu challenge türü için validation henüz desteklenmiyor."
+        ),
+    ):
+
+        response = client.post(
+            "/mentor/practice/attempt",
+            json={
+                "learner_id": "demo-learner",
+                "challenge_id": "challenge-001",
+                "answer": "test",
+                "execution_output": None,
+                "execution_error": None,
+            },
+        )
+
+    assert response.status_code == 400
+
+    assert response.json() == {
+        "detail": (
+            "Bu challenge türü için validation "
+            "henüz desteklenmiyor."
+        )
+    }

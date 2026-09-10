@@ -1,9 +1,18 @@
 import sqlite3
 from pathlib import Path
 import json
+from uuid import uuid4
 
-
-from backend.app.models import DataEngineeringTask
+from backend.app.models import (
+    DataEngineeringTask,
+    PracticeChallenge,
+    PracticeChallengeRecord,
+    PracticeAttemptRequest,
+    PracticeAttemptValidation,
+    PracticeDiagnosis,
+    PracticeMentorDecision,
+    PracticeAttemptRecord,
+)
 
 # DATABASE_PATH
 # ↓
@@ -191,6 +200,115 @@ def init_db():
         """
     )
 
+    
+    # ==================================================
+    # PRACTICE CHALLENGES
+    # ==================================================
+    #
+    # Practice sırasında oluşturulan challenge'ları saklar.
+    #
+    # public_challenge_json:
+    # Junior'ın görebileceği challenge.
+    #
+    # expected_outcome:
+    # Validation için backend'de kalır.
+    # Frontend'e gönderilmez.
+    connection.execute(
+    """
+    CREATE TABLE IF NOT EXISTS practice_challenges (
+        challenge_id TEXT PRIMARY KEY,
+        learner_id TEXT NOT NULL,
+        skill_name TEXT NOT NULL,
+        difficulty TEXT NOT NULL,
+        challenge_type TEXT NOT NULL,
+
+        public_challenge_json TEXT NOT NULL,
+        expected_outcome TEXT NOT NULL,
+
+        status TEXT NOT NULL DEFAULT 'active',
+
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (learner_id)
+            REFERENCES learner_profiles(learner_id)
+    )
+    """
+    )
+
+    # ==================================================
+    # PRACTICE ATTEMPTS
+    # ==================================================
+    #
+    # Junior'ın bir practice challenge için yaptığı
+    # her denemeyi saklar.
+    #
+    # Bu geçmiş daha sonra adaptive mentor tarafından
+    # kullanılacak:
+    #
+    # - Kaçıncı deneme?
+    # - Daha önce aynı skill'de başarılı olmuş mu?
+    # - Aynı hatayı tekrar ediyor mu?
+    # - Ne kadar yardım gerekiyordu?
+    #
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS practice_attempts (
+            attempt_id TEXT PRIMARY KEY,
+
+            learner_id TEXT NOT NULL,
+            challenge_id TEXT NOT NULL,
+
+            attempt_number INTEGER NOT NULL,
+
+            answer TEXT NOT NULL,
+            execution_output TEXT,
+            execution_error TEXT,
+
+            success INTEGER NOT NULL,
+            validation_feedback TEXT NOT NULL,
+
+            diagnosis_json TEXT,
+            mentor_decision_json TEXT,
+
+            assistance_level TEXT,
+            support_strategy TEXT,
+
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id),
+
+            FOREIGN KEY (challenge_id)
+                REFERENCES practice_challenges(challenge_id)
+        )
+        """
+    )
+
+    # --------------------------------------------------
+    # PRACTICE ATTEMPTS SCHEMA MIGRATION
+    # --------------------------------------------------
+    #
+    # practice_attempts tablosu daha önce oluşturulmuşsa
+    # CREATE TABLE IF NOT EXISTS yeni kolon eklemez.
+    #
+    # Bu nedenle mentor_decision_json kolonu eksikse
+    # mevcut tabloya güvenli şekilde ekliyoruz.
+
+    practice_attempt_columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(practice_attempts)"
+        ).fetchall()
+    }
+
+    if "mentor_decision_json" not in practice_attempt_columns:
+        connection.execute(
+            """
+            ALTER TABLE practice_attempts
+            ADD COLUMN mentor_decision_json TEXT
+            """
+        )
 
 
     connection.commit()
@@ -744,6 +862,7 @@ def save_data_engineering_task(
         ),
     )
 
+
     connection.commit()
     connection.close()
 
@@ -779,3 +898,366 @@ def get_data_engineering_task(
     return DataEngineeringTask.model_validate_json(
         row["task_json"]
     )
+
+# ==================================================
+# PRACTICE CHALLENGE İŞLEMLERİ
+# ==================================================
+
+
+def save_practice_challenge(
+    learner_id: str,
+    record: PracticeChallengeRecord,
+):
+    """
+    Oluşturulan practice challenge'ı DB'ye kaydeder.
+
+    Public challenge junior'a gösterilebilir.
+    expected_outcome ise sadece backend validation için saklanır.
+    """
+
+    connection = get_connection()
+
+    challenge = record.challenge
+
+    public_challenge_json = challenge.model_dump_json()
+
+    connection.execute(
+        """
+        INSERT INTO practice_challenges (
+            challenge_id,
+            learner_id,
+            skill_name,
+            difficulty,
+            challenge_type,
+            public_challenge_json,
+            expected_outcome,
+            status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            challenge.challenge_id,
+            learner_id,
+            challenge.skill_name,
+            challenge.difficulty,
+            challenge.challenge_type,
+            public_challenge_json,
+            record.expected_outcome,
+            "active",
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def get_practice_challenge(
+    challenge_id: str,
+    learner_id: str,
+) -> PracticeChallengeRecord | None:
+    """
+    Belirli learner'a ait practice challenge'ı DB'den getirir.
+
+    Public challenge JSON tekrar PracticeChallenge modeline çevrilir.
+    Internal expected_outcome ile birlikte PracticeChallengeRecord döner.
+    """
+
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT
+            public_challenge_json,
+            expected_outcome
+        FROM practice_challenges
+        WHERE challenge_id = ?
+        AND learner_id = ?
+        """,
+        (
+            challenge_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    challenge = PracticeChallenge.model_validate_json(
+        row["public_challenge_json"]
+    )
+
+    return PracticeChallengeRecord(
+        challenge=challenge,
+        expected_outcome=row["expected_outcome"],
+    )
+
+# ==================================================
+# PRACTICE ATTEMPT İŞLEMLERİ
+# ==================================================
+
+
+def save_practice_attempt(
+    attempt: PracticeAttemptRequest,
+    validation: PracticeAttemptValidation,
+    diagnosis: PracticeDiagnosis | None = None,
+    mentor_decision: PracticeMentorDecision | None = None,
+) -> PracticeAttemptRecord:
+    """
+    Junior'ın practice denemesini DB'ye kaydeder.
+
+    attempt_number backend tarafından otomatik hesaplanır.
+    attempt_id backend tarafından UUID olarak oluşturulur.
+    """
+
+    connection = get_connection()
+
+    # Aynı challenge için daha önce kaç attempt yapılmış?
+    row = connection.execute(
+        """
+        SELECT MAX(attempt_number) AS max_attempt_number
+        FROM practice_attempts
+        WHERE learner_id = ?
+        AND challenge_id = ?
+        """,
+        (
+            attempt.learner_id,
+            attempt.challenge_id,
+        ),
+    ).fetchone()
+
+    previous_attempt_number = (
+        row["max_attempt_number"]
+        if row["max_attempt_number"] is not None
+        else 0
+    )
+
+    attempt_number = previous_attempt_number + 1
+
+    attempt_id = str(uuid4())
+
+    diagnosis_json = (
+        diagnosis.model_dump_json()
+        if diagnosis is not None
+        else None
+    )
+
+    mentor_decision_json = (
+        mentor_decision.model_dump_json()
+        if mentor_decision is not None
+        else None
+    )
+
+    assistance_level = (
+        mentor_decision.assistance_level
+        if mentor_decision is not None
+        else None
+    )
+
+    support_strategy = (
+        mentor_decision.support_strategy
+        if mentor_decision is not None
+        else None
+    )
+
+    connection.execute(
+        """
+        INSERT INTO practice_attempts (
+            attempt_id,
+            learner_id,
+            challenge_id,
+            attempt_number,
+            answer,
+            execution_output,
+            execution_error,
+            success,
+            validation_feedback,
+            diagnosis_json,
+            mentor_decision_json,
+            assistance_level,
+            support_strategy
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            attempt_id,
+            attempt.learner_id,
+            attempt.challenge_id,
+            attempt_number,
+            attempt.answer,
+            attempt.execution_output,
+            attempt.execution_error,
+            int(validation.success),
+            validation.feedback,
+            diagnosis_json,
+            mentor_decision_json,
+            assistance_level,
+            support_strategy,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+    return PracticeAttemptRecord(
+        attempt_id=attempt_id,
+        attempt_number=attempt_number,
+        attempt=attempt,
+        validation=validation,
+        diagnosis=diagnosis,
+        mentor_decision=mentor_decision,
+    )
+
+
+def get_practice_attempts(
+    learner_id: str,
+    challenge_id: str,
+) -> list[PracticeAttemptRecord]:
+    """
+    Belirli learner'ın belirli challenge için yaptığı
+    bütün attempt'leri eski → yeni sırasıyla getirir.
+    """
+
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM practice_attempts
+        WHERE learner_id = ?
+        AND challenge_id = ?
+        ORDER BY attempt_number ASC
+        """,
+        (
+            learner_id,
+            challenge_id,
+        ),
+    ).fetchall()
+
+    connection.close()
+
+    attempts = []
+
+    for row in rows:
+
+        attempt = PracticeAttemptRequest(
+            learner_id=row["learner_id"],
+            challenge_id=row["challenge_id"],
+            answer=row["answer"],
+            execution_output=row["execution_output"],
+            execution_error=row["execution_error"],
+        )
+
+        validation = PracticeAttemptValidation(
+            success=bool(row["success"]),
+            feedback=row["validation_feedback"],
+        )
+
+        diagnosis = (
+            PracticeDiagnosis.model_validate_json(
+                row["diagnosis_json"]
+            )
+            if row["diagnosis_json"] is not None
+            else None
+        )
+
+        mentor_decision = (
+            PracticeMentorDecision.model_validate_json(
+                row["mentor_decision_json"]
+            )
+            if row["mentor_decision_json"] is not None
+            else None
+        )
+
+        record = PracticeAttemptRecord(
+            attempt_id=row["attempt_id"],
+            attempt_number=row["attempt_number"],
+            attempt=attempt,
+            validation=validation,
+            diagnosis=diagnosis,
+            mentor_decision=mentor_decision,
+        )
+
+        attempts.append(record)
+
+    return attempts
+
+def get_practice_attempts_by_skill(
+    learner_id: str,
+    skill_name: str,
+) -> list[PracticeAttemptRecord]:
+    """
+    Belirli learner'ın belirli bir skill için yaptığı
+    bütün practice attempt'lerini eski → yeni sırasıyla getirir.
+
+    Aynı challenge ile sınırlı değildir.
+    Farklı challenge'lar içindeki aynı skill geçmişini de toplar.
+    """
+
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT
+            pa.*
+        FROM practice_attempts AS pa
+        JOIN practice_challenges AS pc
+            ON pa.challenge_id = pc.challenge_id
+        WHERE pa.learner_id = ?
+        AND pc.skill_name = ?
+        ORDER BY pa.created_at ASC, pa.attempt_number ASC
+        """,
+        (
+            learner_id,
+            skill_name,
+        ),
+    ).fetchall()
+
+    connection.close()
+
+    attempts = []
+
+    for row in rows:
+
+        attempt = PracticeAttemptRequest(
+            learner_id=row["learner_id"],
+            challenge_id=row["challenge_id"],
+            answer=row["answer"],
+            execution_output=row["execution_output"],
+            execution_error=row["execution_error"],
+        )
+
+        validation = PracticeAttemptValidation(
+            success=bool(row["success"]),
+            feedback=row["validation_feedback"],
+        )
+
+        diagnosis = (
+            PracticeDiagnosis.model_validate_json(
+                row["diagnosis_json"]
+            )
+            if row["diagnosis_json"] is not None
+            else None
+        )
+
+        mentor_decision = (
+            PracticeMentorDecision.model_validate_json(
+                row["mentor_decision_json"]
+            )
+            if row["mentor_decision_json"] is not None
+            else None
+        )
+
+        attempts.append(
+            PracticeAttemptRecord(
+                attempt_id=row["attempt_id"],
+                attempt_number=row["attempt_number"],
+                attempt=attempt,
+                validation=validation,
+                diagnosis=diagnosis,
+                mentor_decision=mentor_decision,
+            )
+        )
+
+    return attempts

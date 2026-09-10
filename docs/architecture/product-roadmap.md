@@ -279,7 +279,7 @@ independence_trend   → improving
 practice_priority    → low
 
 ---
-
+```
 ### Phase 5 — Adaptive Practice & Challenges
 
 Detaylı Practice mimarisi için:
