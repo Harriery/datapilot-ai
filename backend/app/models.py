@@ -362,3 +362,67 @@ class DataEngineeringTaskTransformationRequest(BaseModel):
 class DataEngineeringTaskCreateRequest(BaseModel):
     learner_id: str
     task: DataEngineeringTask
+
+# ==================================================
+# LEARNER PROGRESS
+# ==================================================
+
+# LearnerSkillProgress:
+#
+# Junior'ın tek bir skill'deki mevcut gelişim özetini temsil eder.
+#
+# Örnek:
+#
+# null_analysis
+# status = practicing
+# attempts = 6
+# successful_attempts = 5
+# success_rate = 0.83
+# last_assistance_level = NUDGE
+class LearnerSkillProgress(BaseModel):
+    skill_name: str
+
+    status: Literal[
+        "new",
+        "learning",
+        "practicing",
+        "comfortable",
+    ]
+
+    attempts: int
+    successful_attempts: int
+
+    success_rate: float
+
+    last_assistance_level: Literal[
+        "NONE",
+        "NUDGE",
+        "GUIDE",
+        "TEACH",
+        "DEMONSTRATE",
+    ] | None = None
+
+    independence_trend: Literal[
+        "improving",
+        "stable",
+        "declining",
+        "insufficient_data",
+    ] = "insufficient_data"
+
+    practice_priority: Literal[
+        "high",
+        "medium",
+        "low",
+        "none",
+    ] = "none"
+
+
+# LearnerProgressResponse:
+#
+# Bir junior'ın bütün takip edilen skill'lerdeki
+# gelişim özetini API'ye döndürmek için kullanılır.
+class LearnerProgressResponse(BaseModel):
+    learner_id: str
+    skills: list[LearnerSkillProgress]
+
+

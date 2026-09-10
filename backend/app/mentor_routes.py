@@ -29,7 +29,12 @@ from backend.app.models import (
     DataEngineeringTaskTransformationResponse,
     DataEngineeringTask,
     DataEngineeringTaskCreateRequest,
+    LearnerProgressResponse,
 )
+from backend.app.progress_service import (
+    get_learner_progress,
+)
+
 from backend.app.mentor_service import (
     get_mentor_response_for_data_quality_finding,
     review_data_quality_attempt,
@@ -404,3 +409,45 @@ def get_data_engineering_task(
         )
 
     return task
+
+# ---------------------------------------------------------
+# LEARNER PROGRESS ENDPOINT
+# ---------------------------------------------------------
+#
+# Junior'ın bütün takip edilen skill'lerdeki
+# mevcut gelişim özetini döndürür.
+#
+# Akış:
+#
+# learner_id
+# ↓
+# learner gerçekten var mı?
+# ↓
+# skill states + learning evidence
+# ↓
+# progress_service
+# ↓
+# LearnerProgressResponse
+
+
+@router.get(
+    "/progress/{learner_id}",
+    response_model=LearnerProgressResponse,
+)
+def get_progress(
+    learner_id: str,
+):
+
+    learner_profile = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return get_learner_progress(
+        learner_id=learner_id
+    )

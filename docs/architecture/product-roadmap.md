@@ -213,7 +213,7 @@ success / failure
 
 ### Phase 3 — Multi-Step Data Engineering Tasks
 
-**Status: In Progress**
+**Status: Completed**
 
 Amaç gerçek bir Data Engineering problemini tek cevap yerine sıralı task step'leri olarak yönetmektir.
 
@@ -253,18 +253,30 @@ Sonraki çalışmalar:
 
 ### Phase 4 — Learner Progress / Profile
 
-Junior'ın farklı skill'lerdeki gelişimini görünür hale getirmek.
+**Status: Completed**
+
+Junior'ın farklı skill'lerdeki gelişimini görünür hale getirir.
+
+Progress modeli şu sinyalleri birlikte kullanır:
+
+- skill status
+- attempts
+- successful attempts
+- success rate
+- last assistance level
+- independence trend
+- practice priority
 
 Örnek:
 
 ```text
-null_analysis       → practicing
-duplicate_analysis  → comfortable
-python_data_structures → learning
-sql_joins           → learning
-```
-
-Workspace ve Practice aynı learner profile'ını kullanacaktır.
+null_analysis
+status               → practicing
+attempts             → 3
+success_rate         → 1.0
+last_assistance      → NUDGE
+independence_trend   → improving
+practice_priority    → low
 
 ---
 

@@ -482,3 +482,69 @@ def test_get_data_engineering_task_returns_saved_task():
         task_id="task-001",
         learner_id="demo-learner",
     )
+
+def test_get_progress_returns_learner_progress():
+
+    fake_progress = {
+        "learner_id": "demo-learner",
+        "skills": [
+            {
+                "skill_name": "null_analysis",
+                "status": "practicing",
+                "attempts": 6,
+                "successful_attempts": 5,
+                "success_rate": 0.83,
+                "last_assistance_level": "NUDGE",
+                "independence_trend": "improving",
+                "practice_priority": "low",
+            }
+        ],
+    }
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value={"learner_id": "demo-learner"},
+    ) as mock_get_profile, patch(
+        "backend.app.mentor_routes.get_learner_progress",
+        return_value=fake_progress,
+    ) as mock_get_progress:
+
+        response = client.get(
+            "/mentor/progress/demo-learner"
+        )
+
+    assert response.status_code == 200
+    assert response.json() == fake_progress
+
+    mock_get_profile.assert_called_once_with(
+        "demo-learner"
+    )
+
+    mock_get_progress.assert_called_once_with(
+        learner_id="demo-learner"
+    )
+
+def test_get_progress_returns_404_for_missing_learner():
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value=None,
+    ) as mock_get_profile, patch(
+        "backend.app.mentor_routes.get_learner_progress",
+    ) as mock_get_progress:
+
+        response = client.get(
+            "/mentor/progress/missing-learner"
+        )
+
+    assert response.status_code == 404
+
+    assert response.json() == {
+        "detail": "Learner profile bulunamadı."
+    }
+
+    mock_get_profile.assert_called_once_with(
+        "missing-learner"
+    )
+
+    mock_get_progress.assert_not_called()
