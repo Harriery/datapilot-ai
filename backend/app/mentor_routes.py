@@ -298,10 +298,7 @@ def mentor_data_quality_transformation(
 # ↓
 # success ise task sonraki step'e ilerler
 #
-@router.post(
-    "/task/transformation",
-    response_model=DataEngineeringTaskTransformationResponse,
-)
+
 @router.post(
     "/task/transformation",
     response_model=DataEngineeringTaskTransformationResponse,
