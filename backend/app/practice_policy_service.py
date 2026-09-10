@@ -5,32 +5,46 @@ from backend.app.models import (
 )
 
 
+
 def choose_practice_mentor_decision(
     skill_status: str,
     diagnosis: PracticeDiagnosis,
     previous_attempts: list[PracticeAttemptRecord],
+    current_challenge_id: str,
 ) -> PracticeMentorDecision:
     """
     Junior'ın mevcut diagnosis'ı ve geçmiş practice attempt'lerine
     göre ne kadar ve nasıl yardım verilmesi gerektiğine karar verir.
 
-    Aynı kavramı takip etmek için natural-language açıklamalar değil,
-    stable concept ID kullanılır.
+    İki farklı geçmiş kullanılır:
+
+    1. Same challenge history
+       → yardım escalation için
+
+    2. Cross-challenge skill history
+       → recall / geçmiş öğrenme sinyali için
     """
 
     current_primary_gap = (
         diagnosis.primary_missing_concept_id
     )
 
-    # --------------------------------------------------
-    # AYNI ANA KAVRAMDA DAHA ÖNCE TAKILDI MI?
-    # --------------------------------------------------
+    # ==================================================
+    # 1. AYNI CHALLENGE İÇİNDE AYNI PROBLEM TEKRARLADI MI?
+    # ==================================================
 
-    same_gap_attempts = []
+    same_challenge_gap_attempts = []
 
     if current_primary_gap is not None:
 
         for previous_attempt in previous_attempts:
+
+            # Başka challenge'lar escalation yapmamalı.
+            if (
+                previous_attempt.attempt.challenge_id
+                != current_challenge_id
+            ):
+                continue
 
             previous_diagnosis = (
                 previous_attempt.diagnosis
@@ -43,28 +57,34 @@ def choose_practice_mentor_decision(
                 previous_diagnosis.primary_missing_concept_id
                 == current_primary_gap
             ):
-                same_gap_attempts.append(
+                same_challenge_gap_attempts.append(
                     previous_attempt
                 )
 
-    # --------------------------------------------------
-    # BU SKILL'DE DAHA ÖNCE BAŞARILI OLDU MU?
-    # --------------------------------------------------
+    # ==================================================
+    # 2. BAŞKA CHALLENGE'LARDA BU SKILL'DE BAŞARILI MIYDI?
+    # ==================================================
 
-    previous_success_count = sum(
+    cross_challenge_success_count = sum(
         1
         for attempt in previous_attempts
-        if attempt.validation.success
+        if (
+            attempt.attempt.challenge_id
+            != current_challenge_id
+            and attempt.validation.success
+        )
     )
 
-    # --------------------------------------------------
-    # AYNI PROBLEM TEKRAR EDİYOR
-    # → DESTEĞİ KADEMELİ ARTIR
-    # --------------------------------------------------
+    # ==================================================
+    # 3. AYNI CHALLENGE'DA AYNI BLOCKER TEKRAR EDİYOR
+    # → ESCALATE
+    # ==================================================
 
-    if same_gap_attempts:
+    if same_challenge_gap_attempts:
 
-        last_attempt = same_gap_attempts[-1]
+        last_attempt = (
+            same_challenge_gap_attempts[-1]
+        )
 
         previous_decision = (
             last_attempt.mentor_decision
@@ -85,8 +105,9 @@ def choose_practice_mentor_decision(
                     support_strategy="focus",
                     reason=(
                         f"Junior {current_primary_gap} "
-                        "kavramında tekrar zorlandı ve "
-                        "hafif destek yeterli olmadı."
+                        "kavramında aynı challenge içinde "
+                        "tekrar zorlandı. Hafif destek "
+                        "yeterli olmadı."
                     ),
                     needs_micro_check=False,
                 )
@@ -99,8 +120,9 @@ def choose_practice_mentor_decision(
                     ),
                     reason=(
                         f"Junior {current_primary_gap} "
-                        "kavramında GUIDE desteğinden "
-                        "sonra tekrar zorlandı."
+                        "kavramında aynı challenge içinde "
+                        "GUIDE desteğinden sonra "
+                        "tekrar zorlandı."
                     ),
                     needs_micro_check=True,
                 )
@@ -114,8 +136,9 @@ def choose_practice_mentor_decision(
                     support_strategy="worked_example",
                     reason=(
                         f"Junior {current_primary_gap} "
-                        "kavramında öğretim desteğinden "
-                        "sonra hâlâ zorlanıyor."
+                        "kavramında aynı challenge içinde "
+                        "öğretim desteğinden sonra "
+                        "hâlâ zorlanıyor."
                     ),
                     needs_micro_check=True,
                 )
@@ -125,34 +148,36 @@ def choose_practice_mentor_decision(
             support_strategy="focus",
             reason=(
                 f"Junior {current_primary_gap} "
-                "kavramında daha önce de zorlanmış."
+                "kavramında aynı challenge içinde "
+                "daha önce de zorlanmış."
             ),
             needs_micro_check=False,
         )
 
-    # --------------------------------------------------
-    # DAHA ÖNCE YAPABİLİYORDU
-    # → ÖNCE RECALL
-    # --------------------------------------------------
+    # ==================================================
+    # 4. YENİ CHALLENGE AMA SKILL GEÇMİŞTE BAŞARILI
+    # → RECALL
+    # ==================================================
 
     if (
-        previous_success_count > 0
+        cross_challenge_success_count > 0
         and skill_status != "new"
     ):
         return PracticeMentorDecision(
             assistance_level="NUDGE",
             support_strategy="recall",
             reason=(
-                "Junior bu skill'de daha önce başarılı oldu. "
+                "Junior bu skill'i başka challenge'larda "
+                "daha önce başarıyla kullandı. "
                 "Önce hafif bir hatırlatma yeterli olabilir."
             ),
             needs_micro_check=False,
         )
 
-    # --------------------------------------------------
-    # KAVRAM YENİ / EKSİK
+    # ==================================================
+    # 5. YENİ / EKSİK KAVRAM
     # → TEACH
-    # --------------------------------------------------
+    # ==================================================
 
     if diagnosis.needs_concept_teaching:
         return PracticeMentorDecision(
@@ -165,9 +190,9 @@ def choose_practice_mentor_decision(
             needs_micro_check=True,
         )
 
-    # --------------------------------------------------
-    # DEFAULT
-    # --------------------------------------------------
+    # ==================================================
+    # 6. DEFAULT
+    # ==================================================
 
     return PracticeMentorDecision(
         assistance_level="GUIDE",

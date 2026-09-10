@@ -668,3 +668,41 @@ class PracticeAttemptReview(BaseModel):
     mentor_decision: PracticeMentorDecision | None = None
     mentor_support: PracticeMentorSupport | None = None
 
+# ==================================================
+# PUBLIC PRACTICE ATTEMPT RESPONSE
+# ==================================================
+#
+# Junior'a / frontend'e sadece gerekli bilgiler gösterilir.
+#
+# diagnosis ve mentor_decision backend-internal kalır.
+# Böylece AI diagnosis içindeki çözüm ipuçları
+# public API response'a sızmaz.
+class PracticeAttemptPublicResponse(BaseModel):
+    learner_id: str
+    challenge_id: str
+
+    attempt_id: str
+    attempt_number: int
+
+    validation: PracticeAttemptValidation
+
+    mentor_support: PracticeMentorSupport | None = None
+
+class LearnerLanguageUpdateRequest(BaseModel):
+    preferred_language: Literal[
+        "auto",
+        "tr",
+        "en",
+        "nl",
+    ]
+
+
+class LearnerLanguageResponse(BaseModel):
+    learner_id: str
+
+    preferred_language: Literal[
+        "auto",
+        "tr",
+        "en",
+        "nl",
+    ]

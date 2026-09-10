@@ -34,6 +34,9 @@ from backend.app.models import (
     PracticeChallengeResponse,
     PracticeAttemptRequest,
     PracticeAttemptReview,
+    LearnerLanguageUpdateRequest,
+    LearnerLanguageResponse,
+    PracticeAttemptPublicResponse,
 )
 
 from backend.app.practice_review_service import (
@@ -585,7 +588,7 @@ def create_practice_challenge_route(
 
 @router.post(
     "/practice/attempt",
-    response_model=PracticeAttemptReview,
+    response_model=PracticeAttemptPublicResponse,
 )
 def review_practice_attempt_route(
     attempt: PracticeAttemptRequest,
@@ -634,3 +637,44 @@ def review_practice_attempt_route(
             status_code=400,
             detail=str(exc),
         )
+
+# ---------------------------------------------------------
+# UPDATE LEARNER LANGUAGE
+# ---------------------------------------------------------
+#
+# Frontend'de kullanıcı mentor dilini seçebilir:
+#
+# auto → kullanıcının diline göre
+# tr   → Türkçe
+# en   → English
+# nl   → Nederlands
+
+
+@router.patch(
+    "/profile/{learner_id}/language",
+    response_model=LearnerLanguageResponse,
+)
+def update_learner_language(
+    learner_id: str,
+    request: LearnerLanguageUpdateRequest,
+):
+
+    learner_profile = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    database.update_learner_preferred_language(
+        learner_id=learner_id,
+        preferred_language=request.preferred_language,
+    )
+
+    return LearnerLanguageResponse(
+        learner_id=learner_id,
+        preferred_language=request.preferred_language,
+    )

@@ -748,7 +748,20 @@ def test_review_practice_attempt_returns_review():
         )
 
     assert response.status_code == 200
-    assert response.json() == fake_review
+    assert response.json() == {
+    "learner_id": "demo-learner",
+    "challenge_id": "challenge-001",
+    "attempt_id": "attempt-001",
+    "attempt_number": 1,
+    "validation": {
+        "success": True,
+        "feedback": "Challenge başarıyla tamamlandı.",
+    },
+    "mentor_support": None,
+    }
+    
+    assert "diagnosis" not in response.json()
+    assert "mentor_decision" not in response.json()
 
     mock_get_profile.assert_called_once_with(
         "demo-learner"
@@ -880,3 +893,33 @@ def test_review_practice_attempt_returns_400_for_service_error():
             "henüz desteklenmiyor."
         )
     }
+
+def test_update_learner_language():
+
+    with patch(
+        "backend.app.mentor_routes.database.get_learner_profile_by_id",
+        return_value={
+            "learner_id": "demo-learner",
+        },
+    ), patch(
+        "backend.app.mentor_routes.database.update_learner_preferred_language",
+    ) as mock_update:
+
+        response = client.patch(
+            "/mentor/profile/demo-learner/language",
+            json={
+                "preferred_language": "tr",
+            },
+        )
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "learner_id": "demo-learner",
+        "preferred_language": "tr",
+    }
+
+    mock_update.assert_called_once_with(
+        learner_id="demo-learner",
+        preferred_language="tr",
+    )

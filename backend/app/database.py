@@ -116,21 +116,51 @@ def init_db():
     # Embedding listesini önce JSON metnine çevirip saklayacağız; okurken tekrar listeye çevireceğiz.
      
     connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS learner_profiles(
-            learner_id TEXT PRIMARY KEY,
-            answer_length TEXT NOT NULL,
-            learning_style TEXT NOT NULL,
-            code_support TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-              )
+    """
+    CREATE TABLE IF NOT EXISTS learner_profiles(
+        learner_id TEXT PRIMARY KEY,
+        answer_length TEXT NOT NULL,
+        learning_style TEXT NOT NULL,
+        code_support TEXT NOT NULL,
 
-        """
+        preferred_language TEXT NOT NULL DEFAULT 'auto',
+
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
+    """
+    )
+    
+    # ==================================================
+# LEARNER PROFILE SCHEMA MIGRATION
+# ==================================================
+#
+# Eski database dosyalarında preferred_language
+# kolonu bulunmayabilir.
+#
+# auto:
+# Kullanıcının yazdığı dile göre mentor cevap verir.
+#
+# tr / en / nl:
+# Kullanıcı belirli bir dili sabit olarak seçebilir.
 
+    learner_profile_columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(learner_profiles)"
+        ).fetchall()
+    }
 
-  
+    if "preferred_language" not in learner_profile_columns:
+        connection.execute(
+            """
+            ALTER TABLE learner_profiles
+            ADD COLUMN preferred_language TEXT
+            NOT NULL DEFAULT 'auto'
+            """
+        )
+
+    
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS skill_states(
@@ -581,21 +611,33 @@ def get_chunks_by_document(document_id: int):
 
 
 def insert_learner_profile(
-        learner_id: str,
-        answer_length: str,
-        learning_style: str,
-        code_support:str
-        ):
+    learner_id: str,
+    answer_length: str,
+    learning_style: str,
+    code_support: str,
+    preferred_language: str = "auto",
+):
     connection = get_connection()
+
     connection.execute(
         """
-            INSERT INTO learner_profiles(learner_id, answer_length, learning_style, code_support)
-            VALUES (?,?,?,?)
+        INSERT INTO learner_profiles(
+            learner_id,
+            answer_length,
+            learning_style,
+            code_support,
+            preferred_language
+        )
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (learner_id, answer_length, learning_style, code_support)
-
+        (
+            learner_id,
+            answer_length,
+            learning_style,
+            code_support,
+            preferred_language,
+        ),
     )
-
 
     connection.commit()
     connection.close()
@@ -1261,3 +1303,44 @@ def get_practice_attempts_by_skill(
         )
 
     return attempts
+
+def update_learner_preferred_language(
+    learner_id: str,
+    preferred_language: str,
+) -> None:
+
+    allowed_languages = {
+        "auto",
+        "tr",
+        "en",
+        "nl",
+    }
+
+    if preferred_language not in allowed_languages:
+        raise ValueError(
+            "Desteklenmeyen preferred_language."
+        )
+
+    connection = get_connection()
+
+    cursor = connection.execute(
+        """
+        UPDATE learner_profiles
+        SET
+            preferred_language = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE learner_id = ?
+        """,
+        (
+            preferred_language,
+            learner_id,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+    if cursor.rowcount == 0:
+        raise ValueError(
+            "Learner profile bulunamadı."
+        )

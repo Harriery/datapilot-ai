@@ -12,15 +12,9 @@ from backend.app.practice_policy_service import (
 
 
 # ==================================================
-# RECALL
+# YENİ CHALLENGE + GEÇMİŞTE BAŞARI
+# → NUDGE + RECALL
 # ==================================================
-#
-# Junior bu skill'de daha önce başarılı olmuşsa
-# ama şimdi tekrar takıldıysa:
-#
-# hemen TEACH verme
-# ↓
-# önce NUDGE + recall
 
 
 def test_previous_success_uses_recall_support():
@@ -73,6 +67,7 @@ def test_previous_success_uses_recall_support():
         previous_attempts=[
             previous_attempt,
         ],
+        current_challenge_id="current-challenge",
     )
 
     assert decision.assistance_level == "NUDGE"
@@ -81,6 +76,7 @@ def test_previous_success_uses_recall_support():
 
 
 # ==================================================
+# AYNI CHALLENGE
 # NUDGE → GUIDE
 # ==================================================
 
@@ -156,6 +152,7 @@ def test_previous_nudge_escalates_to_guide():
         previous_attempts=[
             previous_attempt,
         ],
+        current_challenge_id="challenge-001",
     )
 
     assert decision.assistance_level == "GUIDE"
@@ -164,6 +161,7 @@ def test_previous_nudge_escalates_to_guide():
 
 
 # ==================================================
+# AYNI CHALLENGE
 # GUIDE → TEACH
 # ==================================================
 
@@ -239,6 +237,7 @@ def test_previous_guide_escalates_to_teach():
         previous_attempts=[
             previous_attempt,
         ],
+        current_challenge_id="challenge-001",
     )
 
     assert decision.assistance_level == "TEACH"
@@ -252,6 +251,7 @@ def test_previous_guide_escalates_to_teach():
 
 
 # ==================================================
+# AYNI CHALLENGE
 # TEACH → DEMONSTRATE
 # ==================================================
 
@@ -327,6 +327,7 @@ def test_previous_teach_escalates_to_demonstrate():
         previous_attempts=[
             previous_attempt,
         ],
+        current_challenge_id="challenge-001",
     )
 
     assert decision.assistance_level == "DEMONSTRATE"

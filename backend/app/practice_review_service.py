@@ -126,6 +126,8 @@ def review_practice_attempt(
     else:
         skill_status = skill_state["status"]
 
+    
+
     # --------------------------------------------------
     # 7. ADAPTIVE ASSISTANCE POLICY
     # --------------------------------------------------
@@ -134,8 +136,26 @@ def review_practice_attempt(
         skill_status=skill_status,
         diagnosis=diagnosis,
         previous_attempts=previous_attempts,
+        current_challenge_id=attempt.challenge_id,
     )
 
+        # --------------------------------------------------
+    # LEARNER LANGUAGE
+    # --------------------------------------------------
+
+    learner_profile = database.get_learner_profile_by_id(
+        attempt.learner_id
+    )
+
+    if learner_profile is None:
+        raise ValueError(
+            "Learner profile bulunamadı."
+        )
+
+    preferred_language = (
+        learner_profile["preferred_language"]
+        or "auto"
+    )
     # --------------------------------------------------
 # . JUNIOR'A GÖSTERİLECEK MENTOR DESTEĞİ
 # --------------------------------------------------
@@ -148,6 +168,7 @@ def review_practice_attempt(
         attempt=attempt,
         diagnosis=diagnosis,
         mentor_decision=mentor_decision,
+        preferred_language=preferred_language,
     )
 
     # --------------------------------------------------

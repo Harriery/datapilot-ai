@@ -113,3 +113,33 @@ def test_get_practice_challenge_returns_none_for_wrong_learner(
     )
 
     assert loaded_record is None
+
+def test_update_learner_preferred_language(
+    tmp_path,
+):
+
+    database.DATABASE_PATH = tmp_path / "test.db"
+    database.init_db()
+
+    database.insert_learner_profile(
+        learner_id="learner-001",
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+    )
+
+    database.update_learner_preferred_language(
+        learner_id="learner-001",
+        preferred_language="tr",
+    )
+
+    profile = database.get_learner_profile_by_id(
+        "learner-001"
+    )
+
+    assert profile is not None
+
+    assert (
+        profile["preferred_language"]
+        == "tr"
+    )

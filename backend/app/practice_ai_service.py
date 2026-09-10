@@ -168,6 +168,7 @@ def generate_practice_mentor_support(
     attempt: PracticeAttemptRequest,
     diagnosis: PracticeDiagnosis,
     mentor_decision: PracticeMentorDecision,
+    preferred_language: str = "auto",
 ) -> PracticeMentorSupport:
     """
     Backend tarafından seçilmiş assistance level ve support strategy
@@ -201,21 +202,18 @@ def generate_practice_mentor_support(
     )
 
     prompt = f"""
-Practice Challenge:
-{challenge_text}
+    Primary concept to address:
+    {diagnosis.primary_missing_concept_id}
 
-Junior Attempt:
-{attempt_text}
+    Concepts already demonstrated:
+    {diagnosis.understood_concept_ids}
 
-Diagnosis:
-{diagnosis_text}
+    Backend Mentor Decision:
+    {decision_text}
 
-Backend Mentor Decision:
-{decision_text}
-
-Primary concept to address:
-{diagnosis.primary_missing_concept_id}
-"""
+    Preferred language:
+    {preferred_language}
+    """
 
     instructions = """
 You are an adaptive mentor for a junior Data Engineer.
@@ -294,6 +292,21 @@ FOCUS RULES:
 - Do not teach future steps before the learner reaches them.
 - One mentor response should address one learning blocker only.
 - Keep the response focused and short.
+- Teach the smallest concept necessary to resolve the
+  primary_missing_concept_id.
+
+- Do not introduce related techniques unless they are required
+  by the primary concept.
+
+- For dictionary_key_access:
+  teach only how to retrieve the value of an EXISTING dictionary key.
+
+- Do not introduce dict.get(), key existence checks, KeyError handling,
+  default values, or the "in" operator unless the diagnosis specifically
+  identifies one of those as the primary problem.
+
+- A micro-check for dictionary_key_access must use an existing key
+  and ask only how to access its value.
 
 Example:
 
@@ -350,6 +363,33 @@ STRICT SOLUTION-PROTECTION RULES:
   in the original challenge should be replaced or changed.
 
 Return only PracticeMentorSupport.
+
+
+LANGUAGE RULES:
+
+- preferred_language = "tr":
+  Respond in Turkish.
+
+- preferred_language = "en":
+  Respond in English.
+
+- preferred_language = "nl":
+  Respond in Dutch.
+
+- preferred_language = "auto":
+  Infer the most appropriate language from the challenge
+  and learner context.
+
+- Keep programming keywords, Python syntax, SQL syntax,
+  variable names, and code in their original technical form.
+
+- The language choice must not change concept IDs or
+  backend terminology.
+  
+- Natural-language explanations should follow preferred_language.
+
+- All code examples must use English ASCII variable names and identifiers,
+  even when the explanation language is Turkish or Dutch.
 """
 
     response = client.responses.parse(

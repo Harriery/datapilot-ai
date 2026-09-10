@@ -150,6 +150,15 @@ def test_review_practice_attempt_failure_uses_diagnosis_and_policy():
     )
 
     diagnosis = PracticeDiagnosis(
+        understood_concept_ids=[
+            "iteration",
+        ],
+        missing_concept_ids=[
+            "dictionary_key_access",
+        ],
+        primary_missing_concept_id=(
+            "dictionary_key_access"
+        ),
         understands=[
             "iteration",
         ],
@@ -212,6 +221,12 @@ def test_review_practice_attempt_failure_uses_diagnosis_and_policy():
             "status": "learning"
         },
     ), patch(
+        "backend.app.practice_review_service.database.get_learner_profile_by_id",
+        return_value={
+            "learner_id": "learner-001",
+            "preferred_language": "tr",
+        },
+    ) as mock_get_profile, patch(
         "backend.app.practice_review_service.choose_practice_mentor_decision",
         return_value=mentor_decision,
     ) as mock_policy, patch(
@@ -229,8 +244,8 @@ def test_review_practice_attempt_failure_uses_diagnosis_and_policy():
     assert result.validation.success is False
 
     assert (
-        "dictionary key access"
-        in result.diagnosis.missing_concepts
+        result.diagnosis.primary_missing_concept_id
+        == "dictionary_key_access"
     )
 
     assert (
@@ -243,42 +258,62 @@ def test_review_practice_attempt_failure_uses_diagnosis_and_policy():
         == "concept_explanation"
     )
 
-    # Junior'ın göreceği gerçek destek.
     assert result.mentor_support == mentor_support
 
-    assert "key" in result.mentor_support.message
+    # --------------------------------------------------
+    # AI DIAGNOSIS
+    # --------------------------------------------------
 
-    assert result.mentor_support.micro_check is not None
-
-    # AI diagnosis çalıştı mı?
     mock_diagnose.assert_called_once_with(
         challenge=challenge,
         attempt=attempt,
         validation=validation,
     )
 
-    # Aynı skill'in geçmişi getirildi mi?
+    # --------------------------------------------------
+    # SKILL HISTORY
+    # --------------------------------------------------
+
     mock_history.assert_called_once_with(
         learner_id="learner-001",
         skill_name="python_data_structures",
     )
 
-    # Adaptive policy çalıştı mı?
-    mock_policy.assert_called_once_with(
-        skill_status="learning",
-        diagnosis=diagnosis,
-        previous_attempts=[],
+    # --------------------------------------------------
+    # LEARNER LANGUAGE
+    # --------------------------------------------------
+
+    mock_get_profile.assert_called_once_with(
+        "learner-001"
     )
 
-    # Backend'in kararına göre gerçek mentor mesajı üretildi mi?
+    # --------------------------------------------------
+    # ADAPTIVE POLICY
+    # --------------------------------------------------
+
+    mock_policy.assert_called_once_with(
+    skill_status="learning",
+    diagnosis=diagnosis,
+    previous_attempts=[],
+    current_challenge_id="challenge-001",
+    )
+
+    # --------------------------------------------------
+    # MENTOR SUPPORT
+    # --------------------------------------------------
+
     mock_support.assert_called_once_with(
         challenge=challenge,
         attempt=attempt,
         diagnosis=diagnosis,
         mentor_decision=mentor_decision,
+        preferred_language="tr",
     )
 
-    # Attempt tüm diagnosis ve decision bilgileriyle kaydedildi mi?
+    # --------------------------------------------------
+    # DATABASE SAVE
+    # --------------------------------------------------
+
     mock_save.assert_called_once_with(
         attempt=attempt,
         validation=validation,
