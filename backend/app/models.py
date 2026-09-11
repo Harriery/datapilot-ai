@@ -506,15 +506,44 @@ class PracticeChallenge(BaseModel):
 
     starter_code: str | None = None
 
+# ==================================================
+# PRACTICE VALIDATION SPEC
+# ==================================================
+#
+# Backend'in challenge sonucunu nasıl kontrol edeceğini
+# makine tarafından anlaşılır şekilde tanımlar.
+#
+# Örnek:
+#
+# validation_type = "exact_output"
+# expected_output = "2"
+class PracticeValidationSpec(BaseModel):
+    validation_type: Literal[
+        "exact_output",
+        "null_count_reduction",
+        "duplicate_count_reduction",
+    ]
+
+    expected_output: str | None = None
+    column: str | None = None
+
+
 # PracticeChallengeRecord:
 #
-# Backend'in challenge'ı validate edebilmesi için
-# public challenge bilgisi ile birlikte
-# kullanıcıya gösterilmeyecek validation bilgisini tutar.
+# Public challenge + backend'e özel validation bilgisi.
+#
+# validation_spec:
+# Yeni structured validation sistemi.
+#
+# expected_outcome:
+# Eski kayıtlarla uyumluluk için şimdilik tutuluyor.
+# Birazdan tamamen kaldıracağız.
 class PracticeChallengeRecord(BaseModel):
     challenge: PracticeChallenge
 
-    expected_outcome: str 
+    validation_spec: PracticeValidationSpec | None = None
+
+    expected_outcome: str | None = None
 
 
 # PracticeChallengeResponse:

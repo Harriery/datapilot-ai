@@ -10,6 +10,7 @@ from backend.app.models import (
     PracticeAttemptValidation,
     PracticeAttemptReview,
     PracticeMentorSupport,
+    PracticeValidationSpec,
     )
 import pytest
 from pydantic import ValidationError
@@ -302,3 +303,14 @@ def test_practice_mentor_support():
 
     assert "key" in support.message
     assert support.micro_check is None
+
+def test_practice_validation_spec_exact_output():
+
+    spec = PracticeValidationSpec(
+        validation_type="exact_output",
+        expected_output="2",
+    )
+
+    assert spec.validation_type == "exact_output"
+    assert spec.expected_output == "2"
+    assert spec.column is None

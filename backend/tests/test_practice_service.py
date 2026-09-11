@@ -8,14 +8,19 @@ from backend.app.models import (
     PracticeAttemptRequest,
     PracticeChallengeRecord,
     PracticeChallenge,
+    PracticeValidationSpec,
+    
 )
 import pytest
+
+import backend.app.database as database
 
 from backend.app.practice_service import (
     get_practice_difficulty,
     get_practice_recommendation,
     create_practice_challenge,
     validate_practice_attempt,
+    get_python_data_structure_variant,
 )
 
 def test_get_practice_difficulty_for_new_skill():
@@ -206,6 +211,10 @@ def test_create_practice_challenge_for_python_data_structures():
         "backend.app.practice_service.get_practice_recommendation",
         return_value=fake_recommendation,
     ), patch(
+        "backend.app.practice_service."
+        "database.get_practice_challenge_count_by_skill",
+        return_value=0,
+    ), patch(
         "backend.app.practice_service.database.save_practice_challenge",
     ) as mock_save:
 
@@ -364,6 +373,10 @@ def test_validate_practice_attempt_returns_success():
     record = PracticeChallengeRecord(
         challenge=challenge,
         expected_outcome="Sonuç 2 olmalı.",
+        validation_spec=PracticeValidationSpec(
+            validation_type="exact_output",
+            expected_output="2",
+        ),
     )
 
     attempt = PracticeAttemptRequest(
@@ -413,6 +426,10 @@ def test_validate_practice_attempt_returns_failure_for_wrong_output():
     record = PracticeChallengeRecord(
         challenge=challenge,
         expected_outcome="Sonuç 2 olmalı.",
+        validation_spec=PracticeValidationSpec(
+            validation_type="exact_output",
+            expected_output="2",
+        ),
     )
 
     attempt = PracticeAttemptRequest(
@@ -436,7 +453,6 @@ def test_validate_practice_attempt_returns_failure_for_wrong_output():
     assert result.feedback == (
         "Kod çalıştı ancak beklenen sonuç elde edilmedi."
     )
-
 
 def test_validate_practice_attempt_returns_failure_for_execution_error():
 
@@ -506,3 +522,176 @@ def test_validate_practice_attempt_raises_error_when_challenge_not_found():
             validate_practice_attempt(
                 attempt=attempt
             )
+
+def test_validate_practice_attempt_uses_validation_spec_expected_output():
+
+    challenge = PracticeChallenge(
+        challenge_id="challenge-003",
+        skill_name="python_data_structures",
+        difficulty="easy",
+        challenge_type="code",
+        title="Test challenge",
+        instructions="Sonucu yazdır.",
+        starter_code=None,
+    )
+
+    record = PracticeChallengeRecord(
+        challenge=challenge,
+        expected_outcome="Sonuç 3 olmalı.",
+        validation_spec=PracticeValidationSpec(
+            validation_type="exact_output",
+            expected_output="3",
+        ),
+    )
+
+    attempt = PracticeAttemptRequest(
+        learner_id="learner-001",
+        challenge_id="challenge-003",
+        answer="print(3)",
+        execution_output="3",
+        execution_error=None,
+    )
+
+    with patch(
+        "backend.app.practice_service.database.get_practice_challenge",
+        return_value=record,
+    ):
+
+        result = validate_practice_attempt(
+            attempt=attempt
+        )
+
+    assert result.success is True
+
+def test_python_data_structure_variants_are_different():
+
+    first = get_python_data_structure_variant(0)
+    second = get_python_data_structure_variant(1)
+    third = get_python_data_structure_variant(2)
+
+    assert first["title"] != second["title"]
+    assert second["title"] != third["title"]
+
+    assert first["expected_output"] == "2"
+    assert second["expected_output"] == "3"
+
+
+def test_python_data_structure_variants_cycle():
+
+    first = get_python_data_structure_variant(0)
+    repeated = get_python_data_structure_variant(3)
+
+    assert repeated == first
+
+def test_create_practice_challenge_uses_next_variant():
+
+    fake_recommendation = PracticeRecommendationResponse(
+        learner_id="learner-001",
+        recommendation=PracticeRecommendation(
+            skill_name="python_data_structures",
+            priority="medium",
+            difficulty="easy",
+            reason="Practice gerekli.",
+        ),
+    )
+
+    with patch(
+        "backend.app.practice_service.get_practice_recommendation",
+        return_value=fake_recommendation,
+    ), patch(
+        "backend.app.practice_service."
+        "database.get_practice_challenge_count_by_skill",
+        return_value=1,
+    ), patch(
+        "backend.app.practice_service.database.save_practice_challenge",
+    ) as mock_save:
+
+        result = create_practice_challenge(
+            learner_id="learner-001"
+        )
+
+    assert result.challenge.title == (
+        "Aktif kullanıcıları say"
+    )
+
+    record = mock_save.call_args.kwargs["record"]
+
+    assert (
+        record.validation_spec.expected_output
+        == "3"
+    )
+
+def test_create_practice_challenge_cycles_variants_with_real_db(
+    tmp_path,
+):
+
+    database.DATABASE_PATH = (
+        tmp_path / "practice_variants.db"
+    )
+
+    database.init_db()
+
+    database.insert_learner_profile(
+        learner_id="learner-001",
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+    )
+
+    fake_recommendation = PracticeRecommendationResponse(
+        learner_id="learner-001",
+        recommendation=PracticeRecommendation(
+            skill_name="python_data_structures",
+            priority="medium",
+            difficulty="easy",
+            reason="Practice gerekli.",
+        ),
+    )
+
+    with patch(
+        "backend.app.practice_service."
+        "get_practice_recommendation",
+        return_value=fake_recommendation,
+    ):
+
+        first = create_practice_challenge(
+            learner_id="learner-001"
+        )
+
+        second = create_practice_challenge(
+            learner_id="learner-001"
+        )
+
+    # İlk challenge ilk variant.
+    assert first.challenge.title == (
+        "Eksik city değerlerini bul"
+    )
+
+    # İkinci challenge otomatik olarak
+    # ikinci variant olmalı.
+    assert second.challenge.title == (
+        "Aktif kullanıcıları say"
+    )
+
+    assert (
+        first.challenge.challenge_id
+        != second.challenge.challenge_id
+    )
+
+    second_record = database.get_practice_challenge(
+        challenge_id=second.challenge.challenge_id,
+        learner_id="learner-001",
+    )
+
+    assert second_record is not None
+    assert second_record.validation_spec is not None
+
+    assert (
+        second_record.validation_spec.validation_type
+        == "exact_output"
+    )
+
+    assert (
+        second_record.validation_spec.expected_output
+        == "3"
+    )

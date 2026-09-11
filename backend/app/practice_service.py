@@ -6,6 +6,7 @@ from backend.app.models import (
     PracticeChallengeRecord,
     PracticeAttemptRequest,
     PracticeAttemptValidation,
+    PracticeValidationSpec,
 )
 import backend.app.database as database
 from uuid import uuid4
@@ -40,6 +41,74 @@ PRIORITY_SCORE = {
     "none": 0,
 }
 
+
+PYTHON_DATA_STRUCTURE_VARIANTS = [
+    {
+        "title": "Eksik city değerlerini bul",
+        "instructions": (
+            "Aşağıdaki records listesinde city değeri "
+            "eksik olan kayıtların sayısını hesapla ve "
+            "sonucu print ile ekrana yazdır."
+        ),
+        "starter_code": (
+            "records = [\n"
+            "    {'name': 'Ali', 'city': 'Den Haag'},\n"
+            "    {'name': 'Ayse', 'city': None},\n"
+            "    {'name': 'Mehmet', 'city': 'Utrecht'},\n"
+            "    {'name': 'Zeynep', 'city': None},\n"
+            "]\n"
+        ),
+        "expected_output": "2",
+    },
+    {
+        "title": "Aktif kullanıcıları say",
+        "instructions": (
+            "Aşağıdaki users listesinde active değeri "
+            "True olan kullanıcıların sayısını hesapla ve "
+            "sonucu print ile ekrana yazdır."
+        ),
+        "starter_code": (
+            "users = [\n"
+            "    {'name': 'Sara', 'active': True},\n"
+            "    {'name': 'Tom', 'active': False},\n"
+            "    {'name': 'Lina', 'active': True},\n"
+            "    {'name': 'Sam', 'active': True},\n"
+            "]\n"
+        ),
+        "expected_output": "3",
+    },
+    {
+        "title": "Yüksek skorları say",
+        "instructions": (
+            "Aşağıdaki results listesinde score değeri "
+            "70 veya daha yüksek olan kayıtların sayısını "
+            "hesapla ve sonucu print ile ekrana yazdır."
+        ),
+        "starter_code": (
+            "results = [\n"
+            "    {'name': 'A', 'score': 55},\n"
+            "    {'name': 'B', 'score': 72},\n"
+            "    {'name': 'C', 'score': 91},\n"
+            "    {'name': 'D', 'score': 64},\n"
+            "]\n"
+        ),
+        "expected_output": "2",
+    },
+]
+
+
+def get_python_data_structure_variant(
+    variant_index: int,
+) -> dict:
+    """
+    Variant index büyüse bile mevcut template'ler
+    arasında güvenli şekilde döner.
+    """
+
+    return PYTHON_DATA_STRUCTURE_VARIANTS[
+        variant_index
+        % len(PYTHON_DATA_STRUCTURE_VARIANTS)
+    ]
 
 def get_practice_difficulty(
     skill_status: str,
@@ -131,36 +200,41 @@ def create_practice_challenge(
     skill_name = recommendation.skill_name
     difficulty = recommendation.difficulty
 
-    # --------------------------------------------------
+       # --------------------------------------------------
     # PYTHON DATA STRUCTURES
     # --------------------------------------------------
     if skill_name == "python_data_structures":
+
+        challenge_count = (
+            database.get_practice_challenge_count_by_skill(
+                learner_id=learner_id,
+                skill_name=skill_name,
+            )
+        )
+
+        variant = get_python_data_structure_variant(
+            challenge_count
+        )
 
         challenge = PracticeChallenge(
             challenge_id=str(uuid4()),
             skill_name=skill_name,
             difficulty=difficulty,
             challenge_type="code",
-            title="Eksik city değerlerini bul",
-            instructions=(
-                "Aşağıdaki records listesinde city değeri "
-                "eksik olan kayıtların sayısını hesapla ve "
-                "sonucu print ile ekrana yazdır."
-            ),
-            starter_code=(
-                "records = [\n"
-                "    {'name': 'Ali', 'city': 'Den Haag'},\n"
-                "    {'name': 'Ayse', 'city': None},\n"
-                "    {'name': 'Mehmet', 'city': 'Utrecht'},\n"
-                "    {'name': 'Zeynep', 'city': None},\n"
-                "]\n"
-            ),
+            title=variant["title"],
+            instructions=variant["instructions"],
+            starter_code=variant["starter_code"],
         )
 
         expected_outcome = (
-            "Eksik city değeri olan kayıtların sayısı 2 olmalı."
+            f"Beklenen çıktı: "
+            f"{variant['expected_output']}"
         )
 
+        validation_spec = PracticeValidationSpec(
+            validation_type="exact_output",
+            expected_output=variant["expected_output"],
+        )
     # --------------------------------------------------
     # NULL ANALYSIS
     # --------------------------------------------------
@@ -182,6 +256,10 @@ def create_practice_challenge(
         expected_outcome = (
             "Eksik age değerleri analiz edilmeli ve "
             "transformation sonrası null sayısı azaltılmalı."
+        )
+        validation_spec = PracticeValidationSpec(
+            validation_type="null_count_reduction",
+            column="age",
         )
 
     # --------------------------------------------------
@@ -206,6 +284,10 @@ def create_practice_challenge(
             "Transformation sonrası duplicate row sayısı azalmalı."
         )
 
+        validation_spec = PracticeValidationSpec(
+            validation_type="duplicate_count_reduction",
+        )
+
     # --------------------------------------------------
     # FALLBACK
     # --------------------------------------------------
@@ -228,10 +310,13 @@ def create_practice_challenge(
             "Junior çözüm mantığını kendi cümleleriyle açıklamalı."
         )
 
+        validation_spec = None
+
     # Public challenge + backend'e özel validation bilgisi.
     record = PracticeChallengeRecord(
         challenge=challenge,
         expected_outcome=expected_outcome,
+        validation_spec=validation_spec,
     )
 
     # Challenge artık challenge_id ile daha sonra
@@ -293,29 +378,59 @@ def validate_practice_attempt(
     # Backend junior'ın yazdığı kodu çalıştırmaz.
     # Kod ileride frontend'de Pyodide ile çalıştırılacak.
     # Backend yalnızca oluşan sonucu doğrular.
-    if (
-        challenge.skill_name == "python_data_structures"
-        and challenge.challenge_type == "code"
-    ):
+       # --------------------------------------------------
+    # EXACT OUTPUT VALIDATION
+    # --------------------------------------------------
+    #
+    # Artık burada "2" gibi challenge'a özel
+    # sabit bir değer yok.
+    #
+    # Beklenen sonuç challenge oluşturulurken
+    # validation_spec içine kaydedilir.
+
+    validation_spec = record.validation_spec
+
+    if validation_spec is None:
+        raise ValueError(
+            "Practice challenge validation spec bulunamadı."
+        )
+
+    if validation_spec.validation_type == "exact_output":
+
+        if validation_spec.expected_output is None:
+            raise ValueError(
+                "Exact output validation için "
+                "expected_output bulunamadı."
+            )
+
         output = (
             attempt.execution_output or ""
         ).strip()
 
-        success = output == "2"
+        expected_output = (
+            validation_spec.expected_output.strip()
+        )
+
+        success = (
+            output == expected_output
+        )
 
         if success:
             return PracticeAttemptValidation(
                 success=True,
-                feedback="Challenge başarıyla tamamlandı.",
+                feedback=(
+                    "Challenge başarıyla tamamlandı."
+                ),
             )
 
         return PracticeAttemptValidation(
             success=False,
             feedback=(
-                "Kod çalıştı ancak beklenen sonuç elde edilmedi."
+                "Kod çalıştı ancak beklenen "
+                "sonuç elde edilmedi."
             ),
         )
 
     raise ValueError(
-        "Bu challenge türü için validation henüz desteklenmiyor."
+        "Bu validation türü henüz desteklenmiyor."
     )

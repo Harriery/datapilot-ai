@@ -15,6 +15,7 @@ from backend.app.models import (
     PracticeMentorSupport,
     PracticeMicroCheckAttemptRecord,
     PracticeMicroCheckValidation,
+    PracticeValidationSpec,
 )
 
 # DATABASE_PATH
@@ -257,6 +258,7 @@ def init_db():
 
         public_challenge_json TEXT NOT NULL,
         expected_outcome TEXT NOT NULL,
+        validation_spec_json TEXT,
 
         status TEXT NOT NULL DEFAULT 'active',
 
@@ -358,6 +360,26 @@ def init_db():
         )
         """
     )
+
+      # --------------------------------------------------
+    # PRACTICE CHALLENGES SCHEMA MIGRATION
+    # --------------------------------------------------
+
+    practice_challenge_columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(practice_challenges)"
+        ).fetchall()
+    }
+
+    if "validation_spec_json" not in practice_challenge_columns:
+        connection.execute(
+            """
+            ALTER TABLE practice_challenges
+            ADD COLUMN validation_spec_json TEXT
+            """
+        )
+
 
     # --------------------------------------------------
     # PRACTICE ATTEMPTS SCHEMA MIGRATION
@@ -1005,14 +1027,22 @@ def save_practice_challenge(
     Oluşturulan practice challenge'ı DB'ye kaydeder.
 
     Public challenge junior'a gösterilebilir.
-    expected_outcome ise sadece backend validation için saklanır.
+    Validation bilgileri sadece backend için saklanır.
     """
 
     connection = get_connection()
 
     challenge = record.challenge
 
-    public_challenge_json = challenge.model_dump_json()
+    public_challenge_json = (
+        challenge.model_dump_json()
+    )
+
+    validation_spec_json = (
+        record.validation_spec.model_dump_json()
+        if record.validation_spec is not None
+        else None
+    )
 
     connection.execute(
         """
@@ -1024,9 +1054,10 @@ def save_practice_challenge(
             challenge_type,
             public_challenge_json,
             expected_outcome,
+            validation_spec_json,
             status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             challenge.challenge_id,
@@ -1035,25 +1066,18 @@ def save_practice_challenge(
             challenge.difficulty,
             challenge.challenge_type,
             public_challenge_json,
-            record.expected_outcome,
+            record.expected_outcome or "",
+            validation_spec_json,
             "active",
         ),
     )
 
     connection.commit()
     connection.close()
-
-
 def get_practice_challenge(
     challenge_id: str,
     learner_id: str,
 ) -> PracticeChallengeRecord | None:
-    """
-    Belirli learner'a ait practice challenge'ı DB'den getirir.
-
-    Public challenge JSON tekrar PracticeChallenge modeline çevrilir.
-    Internal expected_outcome ile birlikte PracticeChallengeRecord döner.
-    """
 
     connection = get_connection()
 
@@ -1061,7 +1085,8 @@ def get_practice_challenge(
         """
         SELECT
             public_challenge_json,
-            expected_outcome
+            expected_outcome,
+            validation_spec_json
         FROM practice_challenges
         WHERE challenge_id = ?
         AND learner_id = ?
@@ -1077,14 +1102,55 @@ def get_practice_challenge(
     if row is None:
         return None
 
-    challenge = PracticeChallenge.model_validate_json(
-        row["public_challenge_json"]
+    challenge = (
+        PracticeChallenge.model_validate_json(
+            row["public_challenge_json"]
+        )
+    )
+
+    validation_spec = (
+        PracticeValidationSpec.model_validate_json(
+            row["validation_spec_json"]
+        )
+        if row["validation_spec_json"] is not None
+        else None
     )
 
     return PracticeChallengeRecord(
         challenge=challenge,
         expected_outcome=row["expected_outcome"],
+        validation_spec=validation_spec,
     )
+
+
+def get_practice_challenge_count_by_skill(
+    learner_id: str,
+    skill_name: str,
+) -> int:
+    """
+    Belirli learner + skill için daha önce
+    kaç practice challenge oluşturulduğunu döndürür.
+    """
+
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT COUNT(*) AS challenge_count
+        FROM practice_challenges
+        WHERE learner_id = ?
+        AND skill_name = ?
+        """,
+        (
+            learner_id,
+            skill_name,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    return row["challenge_count"]
+
 
 # ==================================================
 # PRACTICE ATTEMPT İŞLEMLERİ
