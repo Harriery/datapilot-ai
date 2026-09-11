@@ -629,6 +629,7 @@ def test_create_practice_challenge_returns_challenge():
                 "eksik olan kayıtların sayısını hesapla."
             ),
             "starter_code": "records = []",
+            "input_rows": None,
             
         },
     }

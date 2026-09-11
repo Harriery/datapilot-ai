@@ -505,6 +505,9 @@ class PracticeChallenge(BaseModel):
     instructions: str
 
     starter_code: str | None = None
+    # Transformation challenge'larında junior'a
+    # verilecek başlangıç datası.
+    input_rows: list[dict] | None = None
 
 # ==================================================
 # PRACTICE VALIDATION SPEC
@@ -566,6 +569,10 @@ class PracticeAttemptRequest(BaseModel):
 
     # Kod çalışırken hata oluştuysa hata mesajı.
     execution_error: str | None = None
+
+    # Transformation challenge sonucunda junior'ın
+    # ürettiği yeni dataset.
+    result_rows: list[dict] | None = None
 
 
 class PracticeAttemptValidation(BaseModel):

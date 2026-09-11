@@ -1,113 +1,135 @@
-DataPilot AI nedir?
+# DataPilot AI — Kaldığımız Yer
 
-DataPilot AI'ın amacı basit bir “AI'a soru sor, cevap versin” uygulaması değil.
+Son güncelleme: 12 Eylül 2026
 
-Asıl fikir:
+---
 
-Junior Data Engineer gerçek Data Engineering görevleri üzerinde çalışırken, DataPilot onun seviyesini takip eder ve sadece ihtiyaç duyduğu kadar yardım eder.
+# 1. DataPilot AI nedir?
 
-Yani sistem iki parçadan oluşuyor:
+DataPilot AI basit bir:
 
+> "AI'a soru sor → cevap al"
+
+uygulaması değildir.
+
+Projenin ana fikri:
+
+> Junior Data Engineer gerçek görevler üzerinde çalışırken, sistem onun hangi becerilerde ne kadar bağımsız olduğunu takip eder ve sadece ihtiyaç duyduğu kadar yardım eder.
+
+Ana ürün prensibi:
+
+**AI junior'ın işini onun yerine yapmamalı. Junior'ın işi zamanla kendi başına yapabilmesini sağlamalı.**
+
+Sistem iki ana parçadan oluşuyor:
+
+```text
 Data Engineering Workflow
 +
 Adaptive Mentor
+```
 
-Bunlar birleşince ürünün farkı ortaya çıkıyor.
+Normal chatbot yaklaşımı:
 
-Normal ChatGPT yaklaşımı:
-
+```text
 Junior soru sorar
 ↓
-AI cevabı verir
+AI cevap verir
 ↓
 biter
+```
 
 DataPilot yaklaşımı:
 
-Junior gerçek bir görev yapar
+```text
+Junior gerçek görev yapar
 ↓
-DataPilot problemi tespit eder
+DataPilot problemi tanır
 ↓
-Junior'ın o konudaki geçmişini bilir
+İlgili skill'i belirler
 ↓
-Ne kadar yardıma ihtiyacı olduğunu belirler
+Junior'ın o skill'deki geçmişine bakar
+↓
+Ne kadar yardım gerektiğini belirler
 ↓
 Minimum gerekli yardımı verir
 ↓
 Junior kendisi dener
 ↓
-DataPilot denemeyi değerlendirir
+Attempt deterministik / AI destekli değerlendirilir
 ↓
-Öğrenme evidence'ı kaydedilir
+Learning evidence kaydedilir
 ↓
-Skill seviyesi değişir
+Skill progress güncellenir
 ↓
-Bir sonraki yardım buna göre adapte olur
+Bir sonraki görev ve yardım buna göre adapte olur
+```
 
-Bu, projenin ana fikri.
+---
 
-1. Şu ana kadar yaptığımız temel backend
+# 2. Kullanılan teknoloji
 
-Backend:
+Backend tarafında şu anda:
 
-FastAPI
-Python
-SQLite
-OpenAI API
-Pydantic
-Pandas
-Embeddings / RAG
-Pytest
+- FastAPI
+- Python
+- Pydantic
+- SQLite
+- Pandas
+- OpenAI API
+- Embeddings / RAG
+- Pytest
 
-kullanıyor.
+kullanılıyor.
 
-Başlangıçta çok daha basit bir sistemdi:
+Frontend henüz başlamadı.
 
+---
+
+# 3. İlk backend
+
+Proje başlangıçta basit bir yapıdaydı:
+
+```text
 POST /chat
 ↓
 OpenAI
 ↓
 reply
+```
 
-Sonra bunu adım adım gerçek bir uygulamaya dönüştürdük.
+Daha sonra session, RAG, data profiling, adaptive mentor, progress ve practice sistemleri eklenerek gerçek bir ürün mimarisine dönüştürüldü.
 
-2. Session ve konuşma geçmişi
+---
 
-Kullanıcıların konuşmalarını session üzerinden saklıyoruz.
+# 4. Session ve konuşma geçmişi
+
+Kullanıcının konuşmaları session altında saklanabiliyor.
 
 Kabaca:
 
+```text
 session
 ↓
 messages
 ↓
-user message
-assistant message
-user message
-assistant message
+user
+assistant
+user
+assistant
+```
 
-Mentor artık sadece son cümleye bakmak zorunda değil.
+Böylece mentor yalnızca son mesaja bakmak yerine konuşmanın bağlamını kullanabiliyor.
 
-Örneğin:
+---
 
-Junior:
-"dict nasıl oluşturuluyordu?"
+# 5. Document / RAG sistemi
 
-Mentor:
-küçük yönlendirme verir
-
-Junior:
-"şöyle mi? x = {'a': 1}"
-
-İkinci mesaj tek başına değerlendirilmek yerine önceki konuşmayla birlikte anlaşılabiliyor.
-
-3. Document / RAG sistemi
-
-TXT/PDF gibi belgeleri yükleyebiliyoruz.
+TXT / PDF gibi belgeler sisteme yüklenebiliyor.
 
 Akış:
 
-Document upload
+```text
+document
 ↓
 text extraction
 ↓
@@ -119,36 +141,30 @@ SQLite
 ↓
 semantic search
 ↓
-en alakalı chunk'lar
+relevant chunks
 ↓
-AI cevabı
+AI response
+```
 
-Yani kullanıcı yüklediği doküman hakkında soru sorabiliyor.
+Bu bölümde:
 
-Bu bölüm bize:
+- chunking
+- embeddings
+- vector similarity
+- retrieval
+- RAG
 
-embeddings
-chunking
-vector similarity
-retrieval
-RAG
+mantıkları projeye eklendi.
 
-mantığını projeye ekledi.
+---
 
-4. CSV / Data Engineering workflow
+# 6. CSV / Data Engineering workflow
 
-Sonra projeyi asıl hedefimiz olan Data Engineering tarafına çevirdik.
+Kullanıcı CSV yüklediğinde Pandas ile dataset profile çıkarılıyor.
 
-Kullanıcı CSV yüklüyor:
+Örnek bilgiler:
 
-CSV
-↓
-Pandas DataFrame
-↓
-profiling
-
-Profil şu tip bilgiler çıkarıyor:
-
+```text
 row_count
 column_count
 columns
@@ -158,39 +174,45 @@ duplicate_count
 sample_rows
 numeric_columns
 numeric_summary
+```
 
-Örneğin:
+Örnek:
 
+```text
 name,age,city
 Ali,30,Den Haag
 Ayse,,Rotterdam
 Ali,30,Den Haag
 Mehmet,999,Utrecht
+```
 
-DataPilot artık “bu dosya hakkında genel yorum” yapmak yerine önce somut profil çıkarıyor.
+DataPilot dataset hakkında rastgele yorum yapmak yerine önce gerçek veriyi profilliyor.
 
-5. Structured Data Quality Analysis
+---
 
-Burada önemli bir mimari değişiklik yaptık.
+# 7. Structured Data Quality Analysis
 
-AI'nın rastgele uzun metin üretmesini istemedik.
+AI'nın yalnızca uzun bir metin üretmesi yerine structured modeller kullanıyoruz.
 
-Onun yerine:
+Temel model:
 
+```text
 DataQualityFinding
+```
 
-oluşturduk.
+Alanları:
 
-Her problem şu yapıda:
-
+```text
 issue_type
 column
 severity
 observation
 suggested_action
+```
 
-Örneğin:
+Örnek:
 
+```json
 {
   "issue_type": "missing_values",
   "column": "age",
@@ -198,187 +220,35 @@ suggested_action
   "observation": "age sütununda eksik değer var.",
   "suggested_action": "Eksik değerin nedenini inceleyin."
 }
+```
 
-Bir CSV için:
+Bir dataset içinde birden fazla finding olabilir:
 
-DataQualityAnalysis
+```text
+duplicate_rows
+missing_values
+suspicious_values
+data_type_issue
+schema_issue
+```
 
-içinde birden fazla finding geliyor.
+Böylece backend AI çıktısını programatik olarak kullanabiliyor.
 
-Örneğin:
+---
 
-Finding 1
-→ duplicate_rows
+# 8. Deterministic finding → skill mapping
 
-Finding 2
-→ suspicious_values / age
+AI'nın her seferinde:
 
-Finding 3
-→ missing_values / age
+> "Bu finding hangi skill?"
 
-Finding 4
-→ missing_values / city
+diye tahmin yapmasına izin vermiyoruz.
 
-Bu önemli çünkü backend artık AI cevabını programatik olarak kullanabiliyor.
+Backend deterministic mapping kullanıyor.
 
-6. Adaptive Mentor sistemi
+Örnek:
 
-Projenin en önemli kısmı burası.
-
-Mentor şu skill'leri takip ediyor.
-
-Örneğin:
-
-python_functions
-debugging
-pandas_dataframe
-data_types
-null_analysis
-duplicate_analysis
-schema_analysis
-numeric_analysis
-sql_basics
-sql_joins
-etl_elt
-pipeline_concepts
-data_modeling
-testing
-git_workflow
-...
-
-Her junior için her skill'in bir durumu olabilir:
-
-new
-learning
-practicing
-comfortable
-
-Mesela:
-
-learner: demo-learner
-skill: null_analysis
-status: learning
-attempts: 2
-successful_attempts: 1
-7. Mentor assistance seviyeleri
-
-Mentor herkese aynı şekilde yardım etmiyor.
-
-Beş seviyemiz var:
-
-NONE
-NUDGE
-GUIDE
-TEACH
-DEMONSTRATE
-
-Mantıkları:
-
-NONE
-→ Junior zaten yapabiliyor.
-→ kısa review
-
-NUDGE
-→ küçük ipucu
-
-GUIDE
-→ sadece bir sonraki küçük adım
-
-TEACH
-→ kavramı kısa öğret
-
-DEMONSTRATE
-→ gerçekten takılmışsa çalışan küçük örnek
-
-En önemli prensip:
-
-minimum sufficient help
-
-Yani junior'a yapılabilecek en büyük cevabı değil, ilerlemesini sağlayacak en küçük yeterli yardımı vermeye çalışıyoruz.
-
-8. Mentor kararı nasıl oluşuyor?
-
-Mentor şuna bakıyor:
-
-Learner Profile
-+
-Skill State
-+
-Previous Learning Evidence
-+
-Current Task / Message
-↓
-MentorDecision
-
-Örneğin:
-
-skill_name = null_analysis
-assistance_level = GUIDE
-
-Sonra GUIDE davranışı uygulanıyor.
-
-9. Learning Evidence sistemi
-
-Mentor sadece yardım etmiyor.
-
-Junior'ın gerçekten ne öğrendiğini de takip ediyor.
-
-Bir junior mesajı:
-
-application
-explanation
-debugging
-validation
-
-gibi evidence olabilir.
-
-Ayrıca:
-
-success = True
-
-veya:
-
-success = False
-
-olabiliyor.
-
-Gerçek evidence ise DB'ye kaydediliyor.
-
-Sonra:
-
-attempts
-successful_attempts
-
-güncelleniyor.
-
-Şu an kullandığımız kaba MVP kuralı:
-
-0 attempt
-→ new
-
-1-2
-→ learning
-
-3+
-→ practicing
-
-5+ ve %80+ başarı
-→ comfortable
-
-Bu ileride daha sofistike olabilir ama MVP için yeterli.
-
-10. Data Quality ile Mentor'u bağladık
-
-Burada önemli bir tasarım kararı aldık.
-
-AI'nın tekrar:
-
-“Bu finding hangi skill?”
-
-diye tahmin yapmasını istemedik.
-
-Backend deterministic mapping kullanıyor:
-
+```text
 missing_values
 → null_analysis
 
@@ -393,439 +263,1487 @@ data_type_issue
 
 schema_issue
 → schema_analysis
+```
 
-Bu daha güvenilir.
+Prensip:
 
-Örneğin:
+> Deterministik yapılabilecek işi AI'ya bırakma.
 
-finding.issue_type = missing_values
-↓
+---
+
+# 9. Adaptive Mentor
+
+Mentor junior'ın becerilerini skill bazında takip ediyor.
+
+Örnek skill'ler:
+
+```text
+python_data_structures
+python_functions
+debugging
+pandas_dataframe
+
 null_analysis
-↓
-learner'ın null_analysis geçmişi
-↓
-MentorDecision
-↓
-GUIDE
-11. /mentor/data-quality
+duplicate_analysis
+schema_analysis
+numeric_analysis
 
-Bu endpoint ile structured finding'i adaptif mentora gönderiyoruz.
+sql_basics
+sql_joins
+
+etl_elt
+pipeline_concepts
+data_modeling
+testing
+git_workflow
+```
+
+Bu skill catalog gelecekte genişletilecek.
+
+---
+
+# 10. Skill durumları
+
+Bir junior için her skill şu statülerden birinde olabilir:
+
+```text
+new
+learning
+practicing
+comfortable
+```
+
+MVP kuralımız:
+
+```text
+0 attempt
+→ new
+
+1–2 attempts
+→ learning
+
+3+ attempts
+→ practicing
+
+5+ attempts
+ve success rate >= %80
+→ comfortable
+```
+
+Bu ileride daha gelişmiş bir mastery modeliyle değiştirilebilir.
+
+---
+
+# 11. Mentor assistance seviyeleri
+
+Mentor herkese aynı miktarda yardım vermiyor.
+
+Beş assistance seviyesi var:
+
+```text
+NONE
+NUDGE
+GUIDE
+TEACH
+DEMONSTRATE
+```
+
+Mantıkları:
+
+```text
+NONE
+→ Junior bağımsız ilerleyebilir.
+
+NUDGE
+→ Küçük ipucu.
+
+GUIDE
+→ Bir sonraki küçük adımı göster.
+
+TEACH
+→ Kavramı kısa şekilde öğret.
+
+DEMONSTRATE
+→ Junior gerçekten takılmışsa küçük çalışan örnek göster.
+```
+
+Ana prensip:
+
+**minimum sufficient help**
+
+Yani mümkün olan en büyük cevabı değil, junior'ın devam etmesini sağlayacak en küçük yeterli yardımı veriyoruz.
+
+---
+
+# 12. Learning Evidence
+
+Junior'ın yaptığı her şey doğrudan progress sayılmıyor.
+
+Gerçek öğrenme kanıtlarını:
+
+```text
+application
+explanation
+debugging
+validation
+```
+
+gibi evidence türleriyle kaydediyoruz.
+
+Evidence:
+
+```text
+success = True
+```
+
+veya:
+
+```text
+success = False
+```
+
+olabilir.
+
+Gerçek learning evidence kaydedildiğinde:
+
+```text
+attempts
+successful_attempts
+skill status
+```
+
+güncelleniyor.
+
+---
+
+# 13. Deterministic Transformation Validation
+
+Bu bölüm tamamlandı.
+
+Amaç:
+
+Junior bir transformation yaptığında sadece:
+
+> "Kod mantıklı görünüyor."
+
+dememek.
+
+Gerçek dataset sonucunu kontrol etmek.
+
+Örnek:
+
+```text
+BEFORE
+age null_count = 3
+
+Junior transformation
+
+AFTER
+age null_count = 1
+
+1 < 3
+→ success = True
+```
+
+Mevcut validation'lar:
+
+```text
+validate_missing_values_transformation()
+validate_missing_values_dataframes()
+
+validate_duplicate_rows_transformation()
+validate_duplicate_rows_dataframes()
+```
+
+Ayrıca finding'e göre doğru validator'ı seçen orchestration da mevcut.
+
+---
+
+# 14. Multi-Step Data Engineering Tasks
+
+Junior'a tek mesajlık görev yerine çok adımlı Data Engineering task verilebiliyor.
+
+Örnek:
+
+```text
+Task
+├─ Step 1: missing values
+├─ Step 2: duplicate rows
+└─ Step 3: başka quality problemi
+```
+
+Step durumları:
+
+```text
+pending
+active
+completed
+```
+
+Bir step başarıyla tamamlandığında bir sonraki step aktif hale geliyor.
+
+Bu yapı gerçek Data Engineering workflow'una daha yakın bir deneyim sağlıyor.
+
+---
+
+# 15. Learner Progress API
+
+Junior'ın skill bazlı gelişimi artık API üzerinden görülebiliyor.
+
+Örnek bilgiler:
+
+```text
+skill_name
+status
+attempts
+successful_attempts
+success_rate
+last_assistance_level
+independence_trend
+practice_priority
+```
+
+Örnek:
+
+```json
+{
+  "skill_name": "python_data_structures",
+  "status": "practicing",
+  "attempts": 3,
+  "successful_attempts": 3,
+  "success_rate": 1.0,
+  "last_assistance_level": "NONE",
+  "independence_trend": "improving",
+  "practice_priority": "low"
+}
+```
+
+---
+
+# 16. Independence Trend
+
+Sadece doğru / yanlış sonucuna bakmıyoruz.
+
+Junior'ın ne kadar yardımla başardığını da takip ediyoruz.
+
+Assistance independence score:
+
+```text
+DEMONSTRATE = 0
+TEACH       = 1
+GUIDE       = 2
+NUDGE       = 3
+NONE        = 4
+```
+
+Böylece:
+
+```text
+TEACH → GUIDE → NUDGE → NONE
+```
+
+gibi bir gelişim:
+
+```text
+independence_trend = improving
+```
+
+olarak değerlendirilebiliyor.
+
+Önemli semantik:
+
+Practice attempt evidence'ında kullanılan assistance level, attempt'ten SONRA verilen yardım değil, attempt'ten ÖNCE junior'ın sahip olduğu destek seviyesidir.
+
+Bu şekilde independence ölçümü nedensel olarak doğru kalır.
+
+---
+
+# 17. Practice Recommendation
+
+Progress sisteminin üstüne adaptive practice recommendation sistemi kuruldu.
 
 Akış:
 
-DataQualityFinding
+```text
+learner progress
 ↓
-skill mapping
+practice priority
 ↓
-learner state
+en önemli skill
 ↓
-MentorDecision
+difficulty
 ↓
-mentor response
+practice recommendation
+```
 
-Swagger'da bunu gerçek olarak test ettik.
+Difficulty:
 
-İlk başta mentor gereksiz:
+```text
+new
+→ foundation
 
-ETL
-raw data
-pipeline
-source
-metadata
+learning
+→ easy
 
-gibi şeyler uyduruyordu.
+practicing
+→ medium
 
-Prompt ve mimariyi düzelterek bunu kontrol altına aldık.
+comfortable
+→ hard
+```
 
-12. Bugün yaptığımız en önemli yeni parça: Junior Attempt
+Practice priority genel olarak:
 
-Burada ürün bir seviye daha ileri gitti.
+```text
+new
+→ high
 
-Eskiden:
+learning
+→ high / medium
 
-DataPilot:
-"age kolonundaki eksikliği incele."
+practicing
+→ medium / low
 
-ve akış bitiyordu.
+comfortable
+→ none
+```
 
-Şimdi:
+Success rate ve independence trend de karara etki ediyor.
 
-DataPilot:
-"age kolonundaki eksikliği incele."
+---
 
-Junior:
-"Önce df['age'].isna().sum() ile kaç eksik olduğunu kontrol ederim."
+# 18. Practice Challenge
 
-Artık sistem bunu değerlendirebiliyor.
+Recommendation'a göre junior için gerçek challenge oluşturulabiliyor.
 
-Yeni akış:
+Challenge modelinde:
 
-finding
+```text
+challenge_id
+skill_name
+difficulty
+challenge_type
+title
+instructions
+starter_code
+input_rows
+```
+
+bulunuyor.
+
+Challenge type örnekleri:
+
+```text
+code
+debug
+output_prediction
+sql
+data_investigation
+transformation
+validation
+explain
+```
+
+---
+
+# 19. Public challenge / private validation ayrımı
+
+Junior'a validation cevabını göstermiyoruz.
+
+İç yapıda:
+
+```text
+PracticeChallengeRecord
+```
+
+şunları tutuyor:
+
+```text
+public challenge
++
+validation_spec
++
+legacy expected_outcome
+```
+
+API junior'a yalnızca public challenge döndürüyor.
+
+Bu şekilde doğru cevap backend tarafında kalıyor.
+
+---
+
+# 20. Structured Practice Validation
+
+Practice challenge validation sistemi artık structured hale getirildi.
+
+Model:
+
+```text
+PracticeValidationSpec
+```
+
+Şu validation tiplerini destekliyor:
+
+```text
+exact_output
+null_count_reduction
+duplicate_count_reduction
+```
+
+Örnek:
+
+```json
+{
+  "validation_type": "exact_output",
+  "expected_output": "3"
+}
+```
+
+Bu sayede validator artık şöyle sabit kod kullanmıyor:
+
+```python
+output == "2"
+```
+
+Onun yerine:
+
+```text
+challenge
 ↓
-mentor guidance
+validation_spec
 ↓
-JUNIOR ATTEMPT
+expected_output
 ↓
-attempt evaluation
+deterministic validation
+```
+
+çalışıyor.
+
+---
+
+# 21. Challenge Variation
+
+Demo için `python_data_structures` skill'inde kontrollü challenge variation sistemi var.
+
+Şu anda 3 varyant mevcut:
+
+```text
+1. Eksik city değerlerini bul
+2. Aktif kullanıcıları say
+3. Yüksek skorları say
+```
+
+Bunlar aynı temel skill'i farklı veri ve koşullarla ölçüyor.
+
+Örneğin:
+
+```text
+iteration
+dictionary access
+conditional logic
+counting
+output
+```
+
+Sistem learner + skill için daha önce kaç challenge oluşturulduğuna bakıyor.
+
+```text
+count = 0
+→ variant 1
+
+count = 1
+→ variant 2
+
+count = 2
+→ variant 3
+
+count = 3
+→ variant 1
+```
+
+Demo için bu yeterli.
+
+Gelecekte:
+
+- daha fazla template
+- difficulty'ye göre farklı template
+- farklı dataset
+- farklı kolon
+- farklı threshold
+- SQL variation
+- Data Engineering scenario variation
+
+eklenecek.
+
+Ama Phase 5 demo scope'unda mevcut yapı yeterli kabul edildi.
+
+---
+
+# 22. Transformation Practice Challenge
+
+Practice sistemi yalnızca kod çıktısı kontrol etmiyor.
+
+Transformation challenge'larda challenge:
+
+```text
+input_rows
+```
+
+gönderiyor.
+
+Junior transformation yaptıktan sonra:
+
+```text
+result_rows
+```
+
+gönderiyor.
+
+Akış:
+
+```text
+challenge.input_rows
+↓
+junior transformation
+↓
+attempt.result_rows
+↓
+backend before / after karşılaştırması
+↓
+deterministic validation
+```
+
+Junior'ın `before_rows` göndermesine izin vermiyoruz.
+
+Başlangıç dataset'i backend'in challenge kaydından geliyor.
+
+Bu önemli çünkü learner başlangıç datasını değiştirerek validator'ı kandıramıyor.
+
+---
+
+# 23. Null Count Reduction Practice Validation
+
+`null_analysis` practice challenge artık gerçek dataset üzerinden çalışıyor.
+
+Örnek:
+
+```text
+INPUT:
+
+Ali    30
+Ayse   None
+Mehmet None
+```
+
+Junior transformation:
+
+```text
+Ali    30
+Ayse   25
+Mehmet None
+```
+
+Backend:
+
+```text
+before null_count = 2
+after null_count  = 1
+
+1 < 2
+→ success = True
+```
+
+Validation type:
+
+```text
+null_count_reduction
+```
+
+---
+
+# 24. Duplicate Count Reduction Practice Validation
+
+`duplicate_analysis` practice challenge da gerçek dataset üzerinden çalışıyor.
+
+Örnek input:
+
+```text
+1 | Ali  | Den Haag
+2 | Ayse | Rotterdam
+2 | Ayse | Rotterdam
+```
+
+Junior output:
+
+```text
+1 | Ali  | Den Haag
+2 | Ayse | Rotterdam
+```
+
+Backend:
+
+```text
+before duplicate_count = 1
+after duplicate_count  = 0
+
+0 < 1
+→ success = True
+```
+
+Validation type:
+
+```text
+duplicate_count_reduction
+```
+
+---
+
+# 25. Practice Attempt
+
+Junior challenge için attempt gönderebiliyor.
+
+PracticeAttemptRequest içinde:
+
+```text
+learner_id
+challenge_id
+answer
+execution_output
+execution_error
+result_rows
+```
+
+bulunuyor.
+
+Code challenge:
+
+```text
+frontend çalıştırır
+↓
+execution_output backend'e gelir
+↓
+backend expected_output ile karşılaştırır
+```
+
+Transformation challenge:
+
+```text
+result_rows gelir
+↓
+input_rows ile karşılaştırılır
+↓
+dataset gerçekten iyileşti mi?
+```
+
+Backend V1'de arbitrary learner Python kodunu çalıştırmıyor.
+
+Frontend aşamasında Python execution için Pyodide düşünülüyor.
+
+---
+
+# 26. Practice Attempt → Learning Evidence → Progress
+
+Bu bağlantı tamamlandı.
+
+Practice attempt sonucu:
+
+```text
+validation.success
+```
+
+learning evidence'ın success değerini belirliyor.
+
+AI burada yeniden:
+
+> "Bu gerçekten başarılı mı?"
+
+diye karar vermiyor.
+
+Deterministik validator'ın sonucu source of truth.
+
+Challenge type → evidence mapping örnekleri:
+
+```text
+code
+sql
+transformation
+→ application
+
+debug
+→ debugging
+
+output_prediction
+explain
+→ explanation
+
+validation
+data_investigation
+→ validation
+```
+
+---
+
+# 27. Adaptive Practice Mentor
+
+Attempt başarısız olduğunda sistem junior'ın geçmiş attempt'lerine göre mentor support üretebiliyor.
+
+Örneğin:
+
+```text
+ilk hata
+→ küçük yardım
+
+tekrar hata
+→ daha güçlü yardım
+```
+
+Mentor support seviyeleri yine:
+
+```text
+NUDGE
+GUIDE
+TEACH
+DEMONSTRATE
+```
+
+mantığına bağlı.
+
+---
+
+# 28. Persistent Micro-Check
+
+Practice mentor desteğine micro-check sistemi eklendi.
+
+Amaç:
+
+Junior'a doğrudan çözümü vermek yerine çok küçük bir kontrol sorusu ile eksik kavramı anlamasını sağlamak.
+
+Örnek:
+
+```text
+"Bu dictionary içinden year değerine nasıl erişirsin?"
+```
+
+Junior cevap verir.
+
+Micro-check sonucu DB'ye kaydedilir.
+
+Tekrar yanlış cevap verilirse sistem daha fazla destek verebilir.
+
+Doğru cevap:
+
+```text
+return_to_challenge
+```
+
+ile ana challenge'a dönülmesini sağlar.
+
+Önemli:
+
+Micro-check'i doğru cevaplamak ana challenge'ı otomatik olarak başarılı yapmaz.
+
+---
+
+# 29. Practice Result → Adaptive Recommendation
+
+Phase 5'in en önemli sonuçlarından biri budur.
+
+Canlı Swagger testinde gerçek olarak doğrulandı.
+
+Başlangıç:
+
+```text
+python_data_structures
+
+status = learning
+attempts = 2
+successes = 2
+priority = medium
+```
+
+Recommendation:
+
+```text
+python_data_structures
+difficulty = easy
+```
+
+Junior bir challenge daha başarıyla tamamladı.
+
+Sonuç:
+
+```text
+attempts = 3
+successes = 3
+status = practicing
+priority = low
+independence_trend = improving
+```
+
+Sistem tekrar recommendation üretti.
+
+Bu kez:
+
+```text
+duplicate_analysis
+```
+
+seçildi çünkü:
+
+```text
+duplicate_analysis
+status = learning
+priority = medium
+```
+
+Yani gerçek adaptive loop çalıştı:
+
+```text
+practice
 ↓
 learning evidence
 ↓
-skill state update
+progress update
 ↓
-mentor next step
-
-Bu, projenin ana learning loop'unu ciddi anlamda tamamlıyor.
-
-13. evaluate_data_quality_attempt()
-
-Bu fonksiyon junior'ın denemesine bakıyor.
-
-Örneğin:
-
-df["age"].isna().sum()
-
-AI şuna benzer structured karar veriyor:
-
-{
-  "is_evidence": true,
-  "evidence_type": "validation",
-  "success": true,
-  "note": "..."
-}
-
-Yani:
-
-Bu gerçekten bir attempt mi?
+skill priority change
 ↓
-Evet
+next skill selection
+```
 
-Ne tür?
+---
+
+# 30. Swagger'da doğrulanan gerçek Phase 5 akışı
+
+Gerçek API smoke test yapıldı.
+
+İlk recommendation:
+
+```text
+python_data_structures
+priority = medium
+difficulty = easy
+```
+
+Challenge:
+
+```text
+Aktif kullanıcıları say
+expected output = 3
+```
+
+Attempt:
+
+```text
+execution_output = 3
+```
+
+Sonuç:
+
+```text
+success = true
+mentor_support = null
+```
+
+Progress:
+
+```text
+python_data_structures
+attempts = 2
+successes = 2
+status = learning
+```
+
+Bir sonraki challenge:
+
+```text
+Yüksek skorları say
+expected output = 2
+```
+
+Başarılı attempt sonrası:
+
+```text
+attempts = 3
+successes = 3
+status = practicing
+priority = low
+```
+
+Yeni recommendation:
+
+```text
+duplicate_analysis
+priority = medium
+difficulty = easy
+```
+
+Duplicate transformation challenge:
+
+```text
+3 rows
 ↓
+duplicate kaldırıldı
+↓
+2 rows
+```
+
+Validation sonucu:
+
+```text
+Transformation başarılı:
+duplicate row sayısı azaltıldı.
+```
+
+Bu smoke test ile adaptive practice loop uçtan uca doğrulandı.
+
+---
+
+# 31. Test durumu
+
+Son full regression:
+
+```text
+177 passed
+```
+
+Önemli test alanları:
+
+```text
+models
+database
+practice_service
+practice_challenges
+practice_review_service
+practice_progress_integration
+transformation_validation_service
+mentor_routes
+micro-check
+progress
+mentor policy
+```
+
+Şu anda bilinen test failure yok.
+
+---
+
+# 32. Phase durumu
+
+## Phase 1 — Adaptive Data Quality Mentor
+
+```text
+✅ COMPLETE
+```
+
+Tamamlananlar:
+
+```text
+structured findings
+finding → skill mapping
+adaptive assistance
+junior attempt
+learning evidence
+controlled next step
+```
+
+---
+
+## Phase 2 — Deterministic Transformation Validation
+
+```text
+✅ COMPLETE
+```
+
+Tamamlananlar:
+
+```text
+before / after profile
+missing values validation
+duplicate validation
+real dataframe validation
+deterministic success
+```
+
+---
+
+## Phase 3 — Multi-Step Data Engineering Tasks
+
+```text
+✅ COMPLETE
+```
+
+Tamamlananlar:
+
+```text
+task model
+steps
+active / pending / completed
+task persistence
+step transition
+transformation validation integration
+```
+
+---
+
+## Phase 4 — Learner Progress / Profile
+
+```text
+✅ MVP COMPLETE
+```
+
+Tamamlananlar:
+
+```text
+skill status
+attempt count
+success rate
+last assistance
+independence trend
+practice priority
+progress API
+```
+
+---
+
+## Phase 5 — Adaptive Practice & Challenges
+
+```text
+✅ COMPLETE FOR MVP / DEMO
+```
+
+Tamamlananlar:
+
+```text
+practice recommendation
+difficulty selection
+practice challenge
+challenge persistence
+structured validation spec
+exact output validation
+null count reduction
+duplicate count reduction
+challenge variation
+attempt persistence
+AI diagnosis
+adaptive mentor support
+language-aware support
+persistent micro-check
+practice → evidence
+practice → progress
+progress → next recommendation
+real API smoke test
+```
+
+Demo scope için mevcut challenge variation sayısı bilinçli olarak küçük tutuldu.
+
+Gelecekte skill catalog ve challenge bank genişletilecek.
+
+---
+
+# 33. Şu anda ürünün yapabildiği şey
+
+DataPilot artık şu gerçek loop'u çalıştırabiliyor:
+
+```text
+Junior profile
+↓
+skill progress
+↓
+practice recommendation
+↓
+appropriate difficulty
+↓
+challenge
+↓
+junior attempt
+↓
+deterministic validation
+↓
+gerekirse adaptive mentor support
+↓
+learning evidence
+↓
+progress update
+↓
+independence tracking
+↓
+practice priority update
+↓
+next challenge / next skill
+```
+
+Bu projenin ana ürün fikrinin backend tarafında çalışan MVP'sidir.
+
+---
+
+# 34. Bir sonraki büyük aşama
+
+## PHASE 6 — FRONTEND
+
+Şimdi backend'e yeni büyük feature eklemek yerine ürünü kullanılabilir hale getireceğiz.
+
+Planlanan frontend stack:
+
+```text
+React
+Tailwind
+```
+
+Muhtemel execution araçları:
+
+```text
+Python
+→ Pyodide
+
+SQL
+→ DuckDB-Wasm
+
+Code editor
+→ Monaco Editor
+
+Terminal / output
+→ browser output panel / xterm-benzeri alan
+```
+
+Backend learner'ın arbitrary Python kodunu çalıştırmayacak.
+
+Kod execution mümkün olduğunca browser sandbox tarafında olacak.
+
+---
+
+# 35. İlk frontend hedefi
+
+İlk frontend MVP'de bütün backend özelliklerini bir anda göstermek istemiyoruz.
+
+Önce ana learning loop görünür hale getirilecek.
+
+İlk ekranlarda yaklaşık:
+
+```text
+Dashboard
+↓
+Current Recommendation
+↓
+Practice Challenge
+↓
+Code / Transformation Workspace
+↓
+Run
+↓
+Submit
+↓
+Validation Result
+↓
+Mentor Support
+↓
+Progress
+```
+
+olmalı.
+
+---
+
+# 36. Frontend için ürün prensibi
+
+Workspace junior'ın gerçek işi yaptığı yer olacak.
+
+Burada mentor:
+
+```text
+minimum sufficient help
+```
+
+vermeli.
+
+Derin öğretim / uzun ders mantığı workspace'i boğmamalı.
+
+İleride ayrı bir:
+
+```text
+Learning / Practice environment
+```
+
+ile daha derin çalışma yapılabilir.
+
+Ana workspace:
+
+```text
+task
+code/data
+run
 validation
+next small mentor action
+```
 
-Doğru mu?
-↓
-Evet
-14. review_data_quality_attempt()
+odaklı olmalı.
 
-Bu fonksiyon yeni workflow'un orchestration kısmı.
+---
 
-Yani bütün parçaları birbirine bağlıyor:
+# 37. Gelecekte genişleteceğimiz skill sistemi
 
-finding
-↓
-skill_name
-↓
-mentor_decision
-↓
-evaluate attempt
-↓
-record evidence
-↓
-refresh skill status
-↓
-mentor feedback
-↓
-API response
+Şu anda demo için sınırlı skill ve challenge template kullanıyoruz.
 
-Bu çok önemli bir servis fonksiyonu.
+Gelecekte skill catalog yaklaşık şu domain'lere ayrılmalı:
 
-15. /mentor/data-quality/attempt
+```text
+Python
+├─ data_structures
+├─ loops_conditions
+├─ functions
+├─ error_handling
+├─ file_json_csv
+└─ data_transformation
 
-Junior'ın denemesini gönderebildiğimiz endpoint.
+SQL
+├─ select_filter
+├─ joins
+├─ group_by_aggregation
+├─ null_handling
+├─ cte_subquery
+├─ window_functions
+└─ deduplication
 
-Request:
-
-{
-  "learner_id": "demo-learner",
-  "finding": {...},
-  "attempt": "Önce df['age'].isna().sum() ile..."
-}
-
-Son gerçek Swagger sonucumuz:
-
-{
-  "mentor_response": "Evet, bu doğru bir adım. Eksik age değerlerinin bulunduğu örnek satırları inceleyin.",
-  "skill_name": "null_analysis",
-  "skill_status": "learning",
-  "evidence": {
-    "is_evidence": true,
-    "evidence_type": "validation",
-    "success": true
-  }
-}
-
-Bu tam olarak ürünün yapmak istediğimiz davranışına yaklaştı:
-
-Junior'ın yaptığını tanı
-↓
-doğruysa doğrula
-↓
-sadece bir sonraki küçük adımı ver
-16. Neden DataQualityNextStep yaptık?
-
-Burada çok önemli bir AI engineering dersi çıktı.
-
-Önce AI'ya:
-
-“Kısa cevap ver, tek adım ver.”
-
-dedik.
-
-Ama yine:
-
-ETL kontrol et
-raw data bak
-pipeline loglarına bak
-şunu yap
-bunu yap
-kod:
-...
-
-gibi cevaplar verdi.
-
-Sonra structured output denedik.
-
-Ama:
-
-structured output
-≠
-kontrollü içerik
-
-olduğunu gördük.
-
-Sonunda responsibility'yi böldük:
-
-Backend:
-"Evet, bu doğru bir adım."
-
-AI:
-sadece next_step
-
-Yani AI'nın kontrol etmesine gerek olmayan şeyi AI'ya bırakmıyoruz.
-
-Bu aslında çok iyi bir ürün/mimari prensibi:
-
-Deterministik olabilecek şeyi backend yönetir; reasoning gereken şeyi AI yapar.
-
-Şu an nerede kaldık?
-
-Yerel kodumuzda yaklaşık şu durumdayız:
-
-CSV profiling                     ✅
-Structured data quality findings  ✅
-Adaptive mentor                   ✅
-Skill state                       ✅
-Learning evidence                 ✅
-Finding → skill mapping           ✅
-Finding → mentor                  ✅
-Junior attempt                    ✅
-Attempt evaluation                ✅
-Skill state update                ✅
-Controlled next-step feedback     ✅ / yeni
-
-Ama son yaptığımız attempt geliştirmeleri henüz final hale getirilmedi.
-
-GitHub son durumda attempt öncesindeki mentor bağlantısını içeriyor; bugünkü yerel değişiklikleri henüz pushlamadık.
-
-Bir sonraki oturumda ilk yapacağımız şey
-
-Yeni feature'a hemen başlamayacağız.
-
-Önce bugünkü bölümü sağlamlaştıracağız:
-
-1. Debug kodu kalmış mı kontrol
-2. Kullanılmayan DataQualityAttemptFeedback varsa temizle
-3. generate_data_quality_attempt_response için gerçek unit test
-4. route/service testleri
-5. full pytest
-6. Swagger final smoke test
-7. commit
-8. push
-
-Son full suite daha önce:
-
-60 passed
-
-idi.
-
-Daha sonraki değişikliklerde mentor_service testleri:
-
-19 passed
-
-oldu.
-
-Ama en son response-control değişikliğinden sonra final full suite'i henüz tekrar çalıştırmadık. Bir sonraki sefer bunu yapacağız.
-
-Sonra ne yapacağız?
-
-Bundan sonraki roadmap'i bence şu sırayla yürütmeliyiz:
-
-PHASE 1 — mevcut attempt workflow'u kapat
-        ↓
-PHASE 2 — transformation validation
-        ↓
-PHASE 3 — multi-step data task
-        ↓
-PHASE 4 — learner progress/profile API
-        ↓
-PHASE 5 — frontend
-        ↓
-PHASE 6 — portfolio/demo polish
-Phase 2 — Transformation Validation
-
-Şu anda junior:
-
-df["age"].isna().sum()
-
-gibi yaklaşım/kod öneriyor ve AI değerlendiriyor.
-
-Ama ileride gerçekten bir dönüşüm yaptığında:
-
-df["age"] = ...
-
-DataPilot sadece:
-
-“Kod iyi görünüyor.”
-
-dememeli.
-
-Gerçek veriyi yeniden profile edip:
-
-Önce:
-null_count = 10
-
-Junior transformation yaptı
-
-Sonra:
-null_count = 0
-
-gibi veri sonucunu doğrulamalı.
-
-Bu çok daha güçlü olacak:
-
-Junior code
-↓
-execute / validate
-↓
-before profile
-vs
-after profile
-↓
-gerçek başarı
-
-Burada DataPilot gerçekten Data Engineering tool haline gelir.
-
-Phase 3 — Gerçek görev döngüsü
-
-Sonra tek bir finding yerine task kavramı getirebiliriz.
-
-Mesela:
-
-Task:
-Clean customer dataset
-
-Altında:
-
-1. Missing values
-2. Duplicates
-3. Suspicious values
-4. Data types
-
-Junior bunları tek tek çözebilir.
-
-DataPilot:
-
-task progress
-skill evidence
-mentor guidance
-validation
-
-birlikte takip eder.
-
-Phase 4 — Learner Progress
-
-Şu anda veriyi DB'ye kaydediyoruz ama kullanıcıya güzel bir şekilde göstermiyoruz.
-
-Sonra endpoint'ler:
-
-GET /learners/{id}/skills
-GET /learners/{id}/progress
-GET /learners/{id}/evidence
-
-gibi olabilir.
-
-Örneğin:
-
-Null Analysis
-████████░░ practicing
-
-SQL Joins
-██████░░░░ learning
-
-Data Types
-██████████ comfortable
-
-Bu, “adaptive” kısmının gözle görünür hale gelmesini sağlar.
-
-Phase 5 — Frontend
-
-Backend yeterince oturduktan sonra frontend.
-
-Ekran kabaca:
-
-┌─────────────────────────────┐
-│ DataPilot AI                │
-├─────────────────────────────┤
-│ Upload CSV                  │
-├─────────────────────────────┤
-│ Data Quality Findings       │
-│                             │
-│ ⚠ Missing values - age     │
-│ ⚠ Duplicate rows           │
-│ ⚠ Suspicious value - age   │
-├─────────────────────────────┤
-│ Mentor                      │
-│                             │
-│ "Önce age kolonundaki..."   │
-│                             │
-│ Your attempt:               │
-│ [____________________]      │
-│ [Submit]                    │
-├─────────────────────────────┤
-│ Skill: null_analysis        │
-│ Status: learning            │
-└─────────────────────────────┘
-
-Böyle olunca portfolio demosu çok daha anlaşılır hale gelir.
-
-En sonunda ürünün anlatımı
-
-Projeyi iş görüşmesinde yaklaşık şöyle anlatabileceksin:
-
-DataPilot AI is an adaptive mentoring platform for junior Data Engineers. It combines real data engineering workflows with learner-state tracking. The system profiles datasets, detects structured data-quality issues, maps those issues to engineering competencies, and selects the minimum level of assistance based on the learner's profile, skill state and previous evidence. Instead of solving the task automatically, it lets the junior attempt the solution, evaluates that attempt, stores learning evidence, updates proficiency and provides the next appropriate step.
-
-Bu noktaya geldiğimizde proje “OpenAI API kullandım” projesi olmaktan çıkıyor.
-
-Asıl gösterdiği şeyler:
-
-Backend architecture
 Data Engineering
-AI orchestration
-Structured outputs
-RAG
-State management
-Adaptive systems
-Database design
-Testing
-Prompt engineering
-AI reliability
-Product thinking
+├─ data_quality
+├─ schema_types
+├─ transformation
+├─ etl_elt
+├─ incremental_load
+├─ batch_streaming
+├─ medallion_architecture
+└─ validation_testing
+```
 
-Ve bundan sonra her yeni feature için şu soruyu soracağız:
+Her skill aynı öneme sahip olmayacak.
 
-Bu feature junior'ın gerçek Data Engineering işi yapmasını ve zamanla daha bağımsız hale gelmesini sağlıyor mu?
+Örneğin junior Data Engineer için:
 
-Cevap hayırsa muhtemelen gereksiz feature'dır.
+```text
+SQL joins
+group by
+data quality
+null handling
+transformations
+```
 
-Bir sonraki oturumda da yeni bir şeye atlamadan önce bugünkü local değişiklikleri test edip pushlayarak başlayacağız.
+daha yüksek ağırlıkta olabilir.
+
+---
+
+# 38. Gelecekte challenge difficulty
+
+Her skill için farklı difficulty seviyesi olacak:
+
+```text
+foundation
+easy
+medium
+hard
+```
+
+Örneğin SQL JOIN:
+
+```text
+foundation
+→ INNER JOIN ne yapar?
+
+easy
+→ iki tabloyu birleştir
+
+medium
+→ JOIN + WHERE + GROUP BY
+
+hard
+→ üç tablo + NULL + aggregation + business rule
+```
+
+Selection ileride:
+
+```text
+skill importance
++
+learner progress
++
+recent mistakes
++
+assistance dependency
++
+previous challenges
+↓
+skill
+↓
+difficulty
+↓
+challenge type
+↓
+variant
+```
+
+şeklinde gelişecek.
+
+---
+
+# 39. Demo sonrası challenge variation geliştirmesi
+
+Şu anda 3 Python variant var.
+
+Demo sonrası:
+
+```text
+template
++
+dataset variation
++
+threshold variation
++
+column variation
++
+difficulty
+```
+
+kullanarak daha fazla kombinasyon üretilebilir.
+
+Ama tamamen random üretim yerine mümkün olduğunca:
+
+```text
+controlled
+deterministic
+testable
+```
+
+template sistemi tercih edilmeli.
+
+Bu sayede:
+
+```text
+AI randomness
+```
+
+yerine:
+
+```text
+predictable validation
+```
+
+korunur.
+
+---
+
+# 40. Teknik borç / daha sonra yapılabilecek cleanup
+
+Şu anda `PracticeChallengeRecord` içinde:
+
+```text
+validation_spec
+```
+
+yanında eski:
+
+```text
+expected_outcome
+```
+
+alanı backward compatibility için tutuluyor.
+
+DB'deki eski `expected_outcome` kolonu da NOT NULL olduğu için Phase 5 sırasında kaldırılmadı.
+
+Şimdilik problem değildir.
+
+Frontend ve demo tamamlandıktan sonra migration ile temizlenebilir.
+
+---
+
+# 41. Şu anda yapmamamız gerekenler
+
+Phase 6'ya geçerken şu anda backend'i gereksiz büyütmemeliyiz.
+
+Özellikle hemen:
+
+```text
+50 challenge template
+tam skill ontology
+çok gelişmiş mastery algorithm
+production auth
+cloud deployment
+complex admin panel
+```
+
+eklememeliyiz.
+
+Öncelik:
+
+> Çalışan adaptive backend'i kullanıcı tarafından görülebilen bir ürüne dönüştürmek.
+
+---
+
+# 42. Bir sonraki oturumda başlayacağımız yer
+
+İlk iş:
+
+```text
+PHASE 6 — FRONTEND
+```
+
+Başlangıç sırası:
+
+```text
+1. Frontend klasör yapısı
+2. React app
+3. Backend bağlantısı
+4. Basit dashboard
+5. Practice recommendation gösterimi
+6. Challenge ekranı
+7. Run / Submit akışı
+8. Validation sonucu
+9. Mentor support
+10. Progress paneli
+```
+
+İlk amaç güzel tasarım değil.
+
+İlk amaç:
+
+```text
+Backend'deki gerçek adaptive loop'u
+tarayıcı üzerinden kullanılabilir hale getirmek.
+```
+
+---
+
+# 43. Mevcut checkpoint özeti
+
+Şu anda DataPilot AI backend:
+
+```text
+CSV profiling                    ✅
+Structured data quality          ✅
+Adaptive mentor                  ✅
+Learning evidence                ✅
+Transformation validation        ✅
+Multi-step tasks                 ✅
+Learner progress                 ✅
+Independence tracking            ✅
+Practice recommendation          ✅
+Difficulty adaptation            ✅
+Challenge generation             ✅
+Challenge persistence            ✅
+Challenge variation              ✅
+Structured validation            ✅
+Exact output validation          ✅
+Null reduction validation        ✅
+Duplicate reduction validation   ✅
+Practice attempt persistence     ✅
+Adaptive mentor support          ✅
+Persistent micro-check           ✅
+Practice → progress              ✅
+Progress → new recommendation    ✅
+Swagger end-to-end smoke test    ✅
+Full test suite                  ✅ 177 passed
+```
+
+Sonuç:
+
+**Phase 5 backend MVP tamamlandı.**
+
+Sıradaki aşama:
+
+# Phase 6 — Frontend 🚀

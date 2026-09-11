@@ -11,6 +11,7 @@ from backend.app.models import (
     PracticeAttemptReview,
     PracticeMentorSupport,
     PracticeValidationSpec,
+    PracticeChallenge
     )
 import pytest
 from pydantic import ValidationError
@@ -314,3 +315,46 @@ def test_practice_validation_spec_exact_output():
     assert spec.validation_type == "exact_output"
     assert spec.expected_output == "2"
     assert spec.column is None
+
+def test_practice_transformation_challenge_data_flow():
+
+    challenge = PracticeChallenge(
+        challenge_id="challenge-001",
+        skill_name="null_analysis",
+        difficulty="easy",
+        challenge_type="transformation",
+        title="Eksik age değerlerini düzelt",
+        instructions="Null değerleri azalt.",
+        input_rows=[
+            {
+                "name": "Ali",
+                "age": 30,
+            },
+            {
+                "name": "Ayse",
+                "age": None,
+            },
+        ],
+    )
+
+    attempt = PracticeAttemptRequest(
+        learner_id="learner-001",
+        challenge_id="challenge-001",
+        answer="Eksik age değerini doldurdum.",
+        result_rows=[
+            {
+                "name": "Ali",
+                "age": 30,
+            },
+            {
+                "name": "Ayse",
+                "age": 25,
+            },
+        ],
+    )
+
+    assert challenge.input_rows is not None
+    assert challenge.input_rows[1]["age"] is None
+
+    assert attempt.result_rows is not None
+    assert attempt.result_rows[1]["age"] == 25

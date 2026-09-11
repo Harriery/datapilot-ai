@@ -695,3 +695,190 @@ def test_create_practice_challenge_cycles_variants_with_real_db(
         second_record.validation_spec.expected_output
         == "3"
     )
+
+def test_validate_null_reduction_returns_success():
+
+    challenge = PracticeChallenge(
+        challenge_id="null-001",
+        skill_name="null_analysis",
+        difficulty="easy",
+        challenge_type="transformation",
+        title="Null test",
+        instructions="Null değerleri azalt.",
+        input_rows=[
+            {"name": "Ali", "age": 30},
+            {"name": "Ayse", "age": None},
+            {"name": "Mehmet", "age": None},
+        ],
+    )
+
+    record = PracticeChallengeRecord(
+        challenge=challenge,
+        validation_spec=PracticeValidationSpec(
+            validation_type="null_count_reduction",
+            column="age",
+        ),
+    )
+
+    attempt = PracticeAttemptRequest(
+        learner_id="learner-001",
+        challenge_id="null-001",
+        answer="Eksik age değerlerinden birini doldurdum.",
+        result_rows=[
+            {"name": "Ali", "age": 30},
+            {"name": "Ayse", "age": 25},
+            {"name": "Mehmet", "age": None},
+        ],
+    )
+
+    with patch(
+        "backend.app.practice_service."
+        "database.get_practice_challenge",
+        return_value=record,
+    ):
+
+        result = validate_practice_attempt(
+            attempt=attempt
+        )
+
+    assert result.success is True
+
+
+def test_validate_null_reduction_returns_failure_when_nulls_do_not_change():
+
+    challenge = PracticeChallenge(
+        challenge_id="null-002",
+        skill_name="null_analysis",
+        difficulty="easy",
+        challenge_type="transformation",
+        title="Null test",
+        instructions="Null değerleri azalt.",
+        input_rows=[
+            {"name": "Ali", "age": 30},
+            {"name": "Ayse", "age": None},
+            {"name": "Mehmet", "age": None},
+        ],
+    )
+
+    record = PracticeChallengeRecord(
+        challenge=challenge,
+        validation_spec=PracticeValidationSpec(
+            validation_type="null_count_reduction",
+            column="age",
+        ),
+    )
+
+    attempt = PracticeAttemptRequest(
+        learner_id="learner-001",
+        challenge_id="null-002",
+        answer="Transformation yaptım.",
+        result_rows=[
+            {"name": "Ali", "age": 30},
+            {"name": "Ayse", "age": None},
+            {"name": "Mehmet", "age": None},
+        ],
+    )
+
+    with patch(
+        "backend.app.practice_service."
+        "database.get_practice_challenge",
+        return_value=record,
+    ):
+
+        result = validate_practice_attempt(
+            attempt=attempt
+        )
+
+    assert result.success is False
+
+def test_validate_duplicate_reduction_returns_success():
+
+    challenge = PracticeChallenge(
+        challenge_id="duplicate-001",
+        skill_name="duplicate_analysis",
+        difficulty="easy",
+        challenge_type="transformation",
+        title="Duplicate test",
+        instructions="Duplicate kayıtları azalt.",
+        input_rows=[
+            {"id": 1, "name": "Ali"},
+            {"id": 2, "name": "Ayse"},
+            {"id": 2, "name": "Ayse"},
+        ],
+    )
+
+    record = PracticeChallengeRecord(
+        challenge=challenge,
+        validation_spec=PracticeValidationSpec(
+            validation_type="duplicate_count_reduction",
+        ),
+    )
+
+    attempt = PracticeAttemptRequest(
+        learner_id="learner-001",
+        challenge_id="duplicate-001",
+        answer="Duplicate kaydı kaldırdım.",
+        result_rows=[
+            {"id": 1, "name": "Ali"},
+            {"id": 2, "name": "Ayse"},
+        ],
+    )
+
+    with patch(
+        "backend.app.practice_service."
+        "database.get_practice_challenge",
+        return_value=record,
+    ):
+
+        result = validate_practice_attempt(
+            attempt=attempt
+        )
+
+    assert result.success is True
+
+
+def test_validate_duplicate_reduction_returns_failure_when_duplicates_remain():
+
+    challenge = PracticeChallenge(
+        challenge_id="duplicate-002",
+        skill_name="duplicate_analysis",
+        difficulty="easy",
+        challenge_type="transformation",
+        title="Duplicate test",
+        instructions="Duplicate kayıtları azalt.",
+        input_rows=[
+            {"id": 1, "name": "Ali"},
+            {"id": 2, "name": "Ayse"},
+            {"id": 2, "name": "Ayse"},
+        ],
+    )
+
+    record = PracticeChallengeRecord(
+        challenge=challenge,
+        validation_spec=PracticeValidationSpec(
+            validation_type="duplicate_count_reduction",
+        ),
+    )
+
+    attempt = PracticeAttemptRequest(
+        learner_id="learner-001",
+        challenge_id="duplicate-002",
+        answer="Transformation yaptım.",
+        result_rows=[
+            {"id": 1, "name": "Ali"},
+            {"id": 2, "name": "Ayse"},
+            {"id": 2, "name": "Ayse"},
+        ],
+    )
+
+    with patch(
+        "backend.app.practice_service."
+        "database.get_practice_challenge",
+        return_value=record,
+    ):
+
+        result = validate_practice_attempt(
+            attempt=attempt
+        )
+
+    assert result.success is False

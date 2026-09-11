@@ -14,6 +14,13 @@ from backend.app.progress_service import (
     get_learner_progress,
 )
 
+import pandas as pd
+
+from backend.app.transformation_validation_service import (
+    validate_missing_values_dataframes,
+    validate_duplicate_rows_dataframes,
+)
+
 
 # ==================================================
 # PRACTICE RECOMMENDATION SERVICE
@@ -235,10 +242,28 @@ def create_practice_challenge(
             validation_type="exact_output",
             expected_output=variant["expected_output"],
         )
-    # --------------------------------------------------
+       # --------------------------------------------------
     # NULL ANALYSIS
     # --------------------------------------------------
     elif skill_name == "null_analysis":
+
+        input_rows = [
+            {
+                "customer_id": 1,
+                "name": "Ali",
+                "age": 30,
+            },
+            {
+                "customer_id": 2,
+                "name": "Ayse",
+                "age": None,
+            },
+            {
+                "customer_id": 3,
+                "name": "Mehmet",
+                "age": None,
+            },
+        ]
 
         challenge = PracticeChallenge(
             challenge_id=str(uuid4()),
@@ -247,25 +272,46 @@ def create_practice_challenge(
             challenge_type="transformation",
             title="Eksik age değerlerini incele",
             instructions=(
-                "Customer dataset içindeki eksik age değerlerini "
-                "tespit et ve uygun bir transformation uygula."
+                "Customer dataset içindeki eksik age "
+                "değerlerini tespit et ve uygun bir "
+                "transformation uygula."
             ),
             starter_code=None,
+            input_rows=input_rows,
         )
 
         expected_outcome = (
             "Eksik age değerleri analiz edilmeli ve "
             "transformation sonrası null sayısı azaltılmalı."
         )
+
         validation_spec = PracticeValidationSpec(
             validation_type="null_count_reduction",
             column="age",
         )
 
-    # --------------------------------------------------
+        # --------------------------------------------------
     # DUPLICATE ANALYSIS
     # --------------------------------------------------
     elif skill_name == "duplicate_analysis":
+
+        input_rows = [
+            {
+                "customer_id": 1,
+                "name": "Ali",
+                "city": "Den Haag",
+            },
+            {
+                "customer_id": 2,
+                "name": "Ayse",
+                "city": "Rotterdam",
+            },
+            {
+                "customer_id": 2,
+                "name": "Ayse",
+                "city": "Rotterdam",
+            },
+        ]
 
         challenge = PracticeChallenge(
             challenge_id=str(uuid4()),
@@ -274,14 +320,17 @@ def create_practice_challenge(
             challenge_type="transformation",
             title="Duplicate kayıtları temizle",
             instructions=(
-                "Dataset içindeki duplicate customer kayıtlarını "
-                "tespit et ve tekrar eden kayıtları temizle."
+                "Dataset içindeki duplicate customer "
+                "kayıtlarını tespit et ve tekrar eden "
+                "kayıtları temizle."
             ),
             starter_code=None,
+            input_rows=input_rows,
         )
 
         expected_outcome = (
-            "Transformation sonrası duplicate row sayısı azalmalı."
+            "Transformation sonrası duplicate row "
+            "sayısı azalmalı."
         )
 
         validation_spec = PracticeValidationSpec(
@@ -428,6 +477,125 @@ def validate_practice_attempt(
             feedback=(
                 "Kod çalıştı ancak beklenen "
                 "sonuç elde edilmedi."
+            ),
+        )
+
+        # --------------------------------------------------
+    # NULL COUNT REDUCTION
+    # --------------------------------------------------
+
+    if (
+        validation_spec.validation_type
+        == "null_count_reduction"
+    ):
+
+        if validation_spec.column is None:
+            raise ValueError(
+                "Null count validation için column bulunamadı."
+            )
+
+        if challenge.input_rows is None:
+            raise ValueError(
+                "Transformation challenge input_rows bulunamadı."
+            )
+
+        if attempt.result_rows is None:
+            return PracticeAttemptValidation(
+                success=False,
+                feedback=(
+                    "Transformation sonucu gönderilmedi."
+                ),
+            )
+
+        before_df = pd.DataFrame(
+            challenge.input_rows
+        )
+
+        after_df = pd.DataFrame(
+            attempt.result_rows
+        )
+
+        if validation_spec.column not in after_df.columns:
+            return PracticeAttemptValidation(
+                success=False,
+                feedback=(
+                    "Transformation sonucunda gerekli "
+                    "kolon bulunamadı."
+                ),
+            )
+
+        result = validate_missing_values_dataframes(
+            before_df=before_df,
+            after_df=after_df,
+            column=validation_spec.column,
+        )
+
+        if result.success:
+            return PracticeAttemptValidation(
+                success=True,
+                feedback=(
+                    "Transformation başarılı: "
+                    "null sayısı azaltıldı."
+                ),
+            )
+
+        return PracticeAttemptValidation(
+            success=False,
+            feedback=(
+                "Transformation tamamlandı ancak "
+                "null sayısı azalmadı."
+            ),
+        )
+
+        # --------------------------------------------------
+    # DUPLICATE COUNT REDUCTION
+    # --------------------------------------------------
+
+    if (
+        validation_spec.validation_type
+        == "duplicate_count_reduction"
+    ):
+
+        if challenge.input_rows is None:
+            raise ValueError(
+                "Transformation challenge input_rows bulunamadı."
+            )
+
+        if attempt.result_rows is None:
+            return PracticeAttemptValidation(
+                success=False,
+                feedback=(
+                    "Transformation sonucu gönderilmedi."
+                ),
+            )
+
+        before_df = pd.DataFrame(
+            challenge.input_rows
+        )
+
+        after_df = pd.DataFrame(
+            attempt.result_rows
+        )
+
+        result = validate_duplicate_rows_dataframes(
+            before_df=before_df,
+            after_df=after_df,
+        )
+
+        if result.success:
+            return PracticeAttemptValidation(
+                success=True,
+                feedback=(
+                    "Transformation başarılı: "
+                    "duplicate row sayısı azaltıldı."
+                ),
+            )
+
+        return PracticeAttemptValidation(
+            success=False,
+            feedback=(
+                "Transformation tamamlandı ancak "
+                "duplicate row sayısı azalmadı."
             ),
         )
 
