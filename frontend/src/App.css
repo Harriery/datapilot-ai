@@ -723,3 +723,16 @@
     width: 100%;
   }
 }
+.result-table {
+  margin-top: 14px;
+}
+
+.validation-message {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #f5f8fc;
+  border: 1px solid #dce5ef;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}

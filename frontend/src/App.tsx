@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./App.css";
+import { runDataFrameTransformation } from "./pythonRunner";
 
 function App() {
   const [showSkills, setShowSkills] = useState(true);
@@ -39,6 +40,51 @@ function App() {
     },
   ]);
 
+  
+  const [pythonRunning, setPythonRunning] = useState(false);
+  const [transformationCode, setTransformationCode] =
+  useState(`# Inspect age distribution
+age_stats = df["age"].describe()
+
+median_age = df["age"].median()
+
+df["age"] = df["age"].fillna(median_age)`);
+
+  const [resultRows, setResultRows] = useState<
+    Record<string, unknown>[] | null
+  >(null);
+  
+  const [validationMessage, setValidationMessage] =
+  useState<string | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+
+   const inputRows = [
+      {
+        customer_id: 1001,
+        name: "Alice",
+        age: 31,
+        city: "Den Haag",
+      },
+      {
+        customer_id: 1002,
+        name: "Bob",
+        age: null,
+        city: "Rotterdam",
+      },
+      {
+        customer_id: 1003,
+        name: "Carol",
+        age: 28,
+        city: "Utrecht",
+      },
+      {
+        customer_id: 1004,
+        name: "David",
+        age: null,
+        city: "Delft",
+      },
+    ];
 
   async function openWorkspace() {
     try {
@@ -132,44 +178,88 @@ function App() {
 
       const resume = await resumeResponse.json();
 
-      setResumeData(resume);
-      setCurrentView("workspace");
-    } catch (error) {
-      console.error(error);
+        setResumeData(resume);
+        setCurrentView("workspace");
+      } catch (error) {
+        console.error(error);
 
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Workspace açılırken hata oluştu."
-      );
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Workspace açılırken hata oluştu."
+        );
+      }
     }
-  }
 
-  async function completeCurrentStep() {
-    if (!workspaceId || !resumeData) {
-      alert("Workspace henüz hazır değil.");
+  async function submitTransformation() {
+    if (!resultRows) {
+      setValidationMessage(
+        "Önce Run butonuyla transformation sonucunu oluştur."
+      );
       return;
     }
 
+    if (!workspaceId) {
+      setValidationMessage("Workspace henüz hazır değil.");
+      return;
+    }
+
+    setSubmitting(true);
+    setValidationMessage(null);
+
     try {
-      const learnerId = "demo-learner";
+      const validationResponse = await fetch(
+        "http://127.0.0.1:8000/mentor/data-quality/transformation",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            learner_id: "demo-learner",
 
-      const currentFocus =
-        resumeData.checkpoint.current_focus;
+            finding: {
+              issue_type: "missing_values",
+              column: "age",
+              severity: "medium",
+              observation:
+                "age sütununda eksik değerler var.",
+              suggested_action:
+                "Eksik age değerlerini uygun bir stratejiyle ele al.",
+            },
 
-      const updatedCompletedItems = [
-        ...resumeData.checkpoint.completed_items,
-      ];
+            before_rows: inputRows,
+            after_rows: resultRows,
+          }),
+        }
+      );
 
-      if (
-        currentFocus &&
-        !updatedCompletedItems.includes(currentFocus)
-      ) {
-        updatedCompletedItems.push(currentFocus);
+      if (!validationResponse.ok) {
+        const errorData = await validationResponse.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Transformation doğrulanamadı."
+        );
       }
 
+      const validationData =
+        await validationResponse.json();
+
+      if (!validationData.validation.success) {
+        setValidationMessage(
+          `❌ Validation failed. Null count: ${validationData.validation.before_null_count} → ${validationData.validation.after_null_count}`
+        );
+
+        return;
+      }
+
+      setValidationMessage(
+        `✅ Validation passed. Null count: ${validationData.validation.before_null_count} → ${validationData.validation.after_null_count}`
+      );
+
       const checkpointResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/${learnerId}/${workspaceId}/checkpoint`,
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/checkpoint`,
         {
           method: "PUT",
           headers: {
@@ -177,13 +267,17 @@ function App() {
           },
           body: JSON.stringify({
             checkpoint: {
-              completed_items: updatedCompletedItems,
-              current_focus: "Validate transformation",
+              completed_items: [
+                ...(resumeData?.checkpoint.completed_items ?? []),
+                "Resolve missing age values",
+                "Validate transformation",
+              ],
+              current_focus: "Complete task",
               blocked_reason: null,
               last_error: null,
               next_actions: [
-                "Review the transformation result",
-                "Complete the task",
+                "Review your solution",
+                "Complete the workspace",
               ],
             },
           }),
@@ -192,12 +286,12 @@ function App() {
 
       if (!checkpointResponse.ok) {
         throw new Error(
-          "Checkpoint güncellenemedi."
+          "Validation başarılı ama checkpoint kaydedilemedi."
         );
       }
 
       const resumeResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/${learnerId}/${workspaceId}/resume`
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
       );
 
       if (!resumeResponse.ok) {
@@ -213,11 +307,13 @@ function App() {
     } catch (error) {
       console.error(error);
 
-      alert(
+      setValidationMessage(
         error instanceof Error
-          ? error.message
-          : "İlerleme kaydedilirken hata oluştu."
+          ? `❌ ${error.message}`
+          : "❌ Beklenmeyen bir hata oluştu."
       );
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -294,6 +390,32 @@ function App() {
     setMentorLoading(false);
   }
 }
+
+  async function runTransformation() {
+    setPythonRunning(true);
+    setResultRows(null);
+
+   
+
+    try {
+      const result = await runDataFrameTransformation(
+        transformationCode,
+        inputRows
+      );
+
+      setResultRows(result);
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Python kodu çalıştırılamadı."
+      );
+    } finally {
+      setPythonRunning(false);
+    }
+  }
 
 
   return (
@@ -642,16 +764,45 @@ function App() {
                       <td>Delft</td>
                     </tr>
                   </tbody>
+
                 </table>
                 
                 <div className="result-preview">
                   <strong>Result preview</strong>
-                
-                  <p>
-                    Run your transformation to preview
-                    the result.
-                  </p>
+                            
+                  {resultRows === null ? (
+                    <p>
+                      Run your transformation to preview the result.
+                    </p>
+                  ) : (
+                    <table className="data-table result-table">
+                      <thead>
+                        <tr>
+                          <th>customer_id</th>
+                          <th>name</th>
+                          <th>age</th>
+                          <th>city</th>
+                        </tr>
+                      </thead>
+                  
+                      <tbody>
+                        {resultRows.map((row, index) => (
+                          <tr key={index}>
+                            <td>{String(row.customer_id)}</td>
+                            <td>{String(row.name)}</td>
+                            <td>
+                              {row.age == null
+                                ? "NULL"
+                                : String(row.age)}
+                            </td>
+                            <td>{String(row.city)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
+                
               </section>
                 
               <section className="workspace-panel">
@@ -660,27 +811,38 @@ function App() {
                 </div>
                 
                 <textarea
+                
                   className="code-editor"
-                  defaultValue={`# Inspect age distribution
-      age_stats = df["age"].describe()
-                  
-      median_age = df["age"].median()
-                  
-      df["age"] = df["age"].fillna(median_age)`}
+                  value={transformationCode}
+                  onChange={(event) =>
+                    setTransformationCode(event.target.value)
+                  }
                 />
+                
 
                 <div className="workspace-actions">
-                  <button className="run-button">
-                    ▶ Run
+                  <button
+                    className="run-button"
+                    onClick={runTransformation}
+                    disabled={pythonRunning}
+                  >
+                    {pythonRunning ? "Running..." : "▶ Run"}
                   </button>
                   
                   <button
                     className="submit-button"
-                    onClick={completeCurrentStep}
+                    onClick={submitTransformation}
+                    disabled={submitting}
                   >
-                    ✓ Submit
+                    {submitting ? "Validating..." : "✓ Submit"}
                   </button>
                 </div>
+                {validationMessage && (
+                  <div className="validation-message">
+                    {validationMessage}
+                  </div>
+                )}
+
               </section>
             </div>
 
