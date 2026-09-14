@@ -231,9 +231,12 @@ def test_create_practice_challenge_for_python_data_structures():
     assert challenge.challenge_type == "code"
     assert challenge.title == "Eksik city değerlerini bul"
 
-    assert challenge.starter_code is not None
-    assert "records" in challenge.starter_code
-
+    assert challenge.context_code is not None
+    assert "records" in challenge.context_code
+    
+    assert challenge.starter_code == ""
+    assert challenge.options is None
+    
     assert challenge.challenge_id
 
     mock_save.assert_called_once()

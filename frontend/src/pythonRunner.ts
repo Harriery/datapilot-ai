@@ -50,3 +50,29 @@ df.to_json(orient="records")
     pyodide.globals.delete("input_json");
   }
 }
+
+export async function runPythonCode(
+  code: string
+): Promise<string> {
+  const pyodide = await getPyodide();
+
+  pyodide.globals.set("user_code", code);
+
+  try {
+    const result = await pyodide.runPythonAsync(`
+import io
+import contextlib
+
+_stdout = io.StringIO()
+
+with contextlib.redirect_stdout(_stdout):
+    exec(user_code, globals())
+
+_stdout.getvalue()
+`);
+
+    return String(result).trim();
+  } finally {
+    pyodide.globals.delete("user_code");
+  }
+}

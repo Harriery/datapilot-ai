@@ -787,3 +787,57 @@
 .complete-workspace-button:hover {
   background: #1d8c4b;
 }
+
+.practice-code-editor {
+  min-height: 180px;
+  height: 220px;
+  resize: vertical;
+}
+
+.practice-context-section {
+  margin-top: 24px;
+}
+
+.practice-context-code {
+  margin: 10px 0 0;
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: #f6f8fb;
+  border: 1px solid #dfe4ea;
+  color: #273142;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.practice-feedback {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid;
+}
+
+.practice-feedback.success {
+  background: #f2fbf6;
+  border-color: #b9e5ca;
+}
+
+.practice-feedback.failure {
+  background: #fff8f2;
+  border-color: #f0d0b5;
+}
+
+.mentor-practice-feedback {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.micro-check {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 8px;
+}

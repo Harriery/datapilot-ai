@@ -57,7 +57,7 @@ PYTHON_DATA_STRUCTURE_VARIANTS = [
             "eksik olan kayıtların sayısını hesapla ve "
             "sonucu print ile ekrana yazdır."
         ),
-        "starter_code": (
+        "context_code": (
             "records = [\n"
             "    {'name': 'Ali', 'city': 'Den Haag'},\n"
             "    {'name': 'Ayse', 'city': None},\n"
@@ -74,7 +74,7 @@ PYTHON_DATA_STRUCTURE_VARIANTS = [
             "True olan kullanıcıların sayısını hesapla ve "
             "sonucu print ile ekrana yazdır."
         ),
-        "starter_code": (
+        "context_code": (
             "users = [\n"
             "    {'name': 'Sara', 'active': True},\n"
             "    {'name': 'Tom', 'active': False},\n"
@@ -91,7 +91,7 @@ PYTHON_DATA_STRUCTURE_VARIANTS = [
             "70 veya daha yüksek olan kayıtların sayısını "
             "hesapla ve sonucu print ile ekrana yazdır."
         ),
-        "starter_code": (
+        "context_code": (
             "results = [\n"
             "    {'name': 'A', 'score': 55},\n"
             "    {'name': 'B', 'score': 72},\n"
@@ -230,7 +230,12 @@ def create_practice_challenge(
             challenge_type="code",
             title=variant["title"],
             instructions=variant["instructions"],
-            starter_code=variant["starter_code"],
+        
+            # Sistem tarafından verilen read-only data.
+            context_code=variant["context_code"],
+        
+            # Junior'ın kendi çözümünü yazacağı alan.
+            starter_code="",
         )
 
         expected_outcome = (

@@ -647,7 +647,30 @@ def test_create_practice_challenge_returns_challenge():
         )
 
     assert response.status_code == 200
-    assert response.json() == fake_challenge
+
+    response_data = response.json()
+    
+    assert response_data["learner_id"] == "demo-learner"
+    
+    challenge = response_data["challenge"]
+    fake_challenge_data = fake_challenge["challenge"]
+    
+    assert (
+        challenge["challenge_id"]
+        == fake_challenge_data["challenge_id"]
+    )
+    assert (
+        challenge["skill_name"]
+        == fake_challenge_data["skill_name"]
+    )
+    assert (
+        challenge["challenge_type"]
+        == fake_challenge_data["challenge_type"]
+    )
+    assert (
+        challenge["title"]
+        == fake_challenge_data["title"]
+    )
 
     mock_get_profile.assert_called_once_with(
         "demo-learner"

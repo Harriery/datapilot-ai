@@ -574,6 +574,7 @@ class PracticeChallenge(BaseModel):
 
     challenge_type: Literal[
         "code",
+        "multiple_choice",
         "debug",
         "output_prediction",
         "sql",
@@ -586,6 +587,13 @@ class PracticeChallenge(BaseModel):
     title: str
 
     instructions: str
+
+    # Junior'ın değiştirmemesi gereken
+    # soru bağlamı / örnek kod / verilen veri.
+    context_code: str | None = None
+
+    # Çoktan seçmeli challenge için seçenekler.
+    options: list[str] | None = None
 
     starter_code: str | None = None
     # Transformation challenge'larında junior'a
@@ -606,11 +614,13 @@ class PracticeChallenge(BaseModel):
 class PracticeValidationSpec(BaseModel):
     validation_type: Literal[
         "exact_output",
+        "exact_answer",
         "null_count_reduction",
         "duplicate_count_reduction",
     ]
 
     expected_output: str | None = None
+    expected_answer: str | None = None
     column: str | None = None
 
 

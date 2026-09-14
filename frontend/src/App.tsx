@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { runDataFrameTransformation } from "./pythonRunner";
+import {
+  runDataFrameTransformation,
+  runPythonCode,
+} from "./pythonRunner";
+
+
 
 type SkillProgressData = {
   skill_name: string;
@@ -45,11 +50,50 @@ type DashboardWorkspace = {
   };
 };
 
+type PracticeChallengeData = {
+  challenge_id: string;
+  skill_name: string;
+  difficulty: "foundation" | "easy" | "medium" | "hard";
+  challenge_type:
+    | "code"
+    | "debug"
+    | "output_prediction"
+    | "sql"
+    | "data_investigation"
+    | "transformation"
+    | "validation"
+    | "explain";
+  title: string;
+  instructions: string;
+  context_code: string | null;
+  options: string[] | null;
+  starter_code: string | null;
+  input_rows: Record<string, unknown>[] | null;
+};
+
+type PracticeAttemptReviewData = {
+  learner_id: string;
+  challenge_id: string;
+  attempt_id: string;
+  attempt_number: number;
+
+  validation: {
+    success: boolean;
+    feedback: string;
+  };
+
+  mentor_support: {
+    message: string;
+    micro_check: string | null;
+  } | null;
+};
+
+
 function App() {
   const [showSkills, setShowSkills] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentView, setCurrentView] = useState<
-  "dashboard" | "workspace"
+  "dashboard" | "workspace" | "practice"
   >("dashboard");
   const [mentorOpen, setMentorOpen] = useState(false);
   const [mentorInput, setMentorInput] = useState("");
@@ -118,7 +162,35 @@ df["age"] = df["age"].fillna(median_age)`);
   const [dashboardWorkspace, setDashboardWorkspace] =
   useState<DashboardWorkspace | null>(null);
 
-   const inputRows = [
+  const [practiceChallenge, setPracticeChallenge] =
+  useState<PracticeChallengeData | null>(null);
+
+  const [practiceLoading, setPracticeLoading] =
+    useState(false);
+
+  const [practiceError, setPracticeError] =
+    useState<string | null>(null);
+
+
+  const [practiceCode, setPracticeCode] = useState("");
+
+  const [practiceOutput, setPracticeOutput] =
+    useState<string | null>(null);
+
+  const [practiceExecutionError, setPracticeExecutionError] =
+    useState<string | null>(null);
+
+  const [practiceRunning, setPracticeRunning] =
+    useState(false);
+
+  const [practiceSubmitting, setPracticeSubmitting] =
+  useState(false);
+
+  const [practiceReview, setPracticeReview] =
+    useState<PracticeAttemptReviewData | null>(null);
+
+
+  const inputRows = [
       {
         customer_id: 1001,
         name: "Alice",
@@ -224,6 +296,179 @@ df["age"] = df["age"].fillna(median_age)`);
 
     loadDashboardData();
   }, []);  
+
+  async function openPractice() {
+    // Zaten bir challenge yüklenmişse
+    // yeni challenge oluşturma, sadece Practice ekranını aç.
+    if (practiceChallenge) {
+      setCurrentView("practice");
+      return;
+    }
+
+    setPracticeLoading(true);
+    setPracticeError(null);
+
+    try {
+      const learnerId = "demo-learner";
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/mentor/practice/challenge/${learnerId}`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Practice challenge oluşturulamadı."
+        );
+      }
+
+      const data = await response.json();
+
+      setPracticeChallenge(data.challenge);
+
+      setPracticeCode(
+        data.challenge.starter_code ?? ""
+      );
+
+      setPracticeOutput(null);
+      setPracticeExecutionError(null);
+
+      setCurrentView("practice");
+    } catch (error) {
+      console.error(error);
+
+      setPracticeError(
+        error instanceof Error
+          ? error.message
+          : "Practice challenge yüklenemedi."
+      );
+    } finally {
+      setPracticeLoading(false);
+    }
+  }
+
+  async function runPracticeCode() {
+    if (!practiceCode.trim()) {
+      setPracticeExecutionError(
+        "Önce Python kodunu yaz."
+      );
+      return;
+    }
+
+    setPracticeRunning(true);
+    setPracticeOutput(null);
+    setPracticeExecutionError(null);
+    setPracticeReview(null);
+
+    try {
+      const executableCode = [
+        practiceChallenge?.context_code ?? "",
+        practiceCode,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const output =
+        await runPythonCode(executableCode);
+
+      setPracticeOutput(
+        output || "Program finished with no output."
+      );
+    } catch (error) {
+      console.error(error);
+
+      const fullMessage =
+        error instanceof Error
+          ? error.message
+          : "Python kodu çalıştırılamadı.";
+
+      const lines = fullMessage
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      setPracticeExecutionError(
+        lines.at(-1) ??
+          "Python kodu çalıştırılamadı."
+      );
+    } finally {
+      setPracticeRunning(false);
+    }
+  }
+
+  async function submitPracticeAnswer() {
+    if (!practiceChallenge) {
+      return;
+    }
+
+    if (
+      practiceOutput === null &&
+      practiceExecutionError === null
+    ) {
+      return;
+    }
+
+    setPracticeSubmitting(true);
+    setPracticeReview(null);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/mentor/practice/attempt",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            learner_id: "demo-learner",
+            challenge_id:
+              practiceChallenge.challenge_id,
+
+            answer: practiceCode,
+
+            execution_output:
+              practiceExecutionError === null
+                ? practiceOutput
+                : null,
+
+            execution_error:
+              practiceExecutionError,
+
+            result_rows: null,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Practice cevabı değerlendirilemedi."
+        );
+      }
+
+      const data: PracticeAttemptReviewData =
+        await response.json();
+
+      setPracticeReview(data);
+    } catch (error) {
+      console.error(error);
+
+      setPracticeExecutionError(
+        error instanceof Error
+          ? error.message
+          : "Practice cevabı gönderilemedi."
+      );
+    } finally {
+      setPracticeSubmitting(false);
+    }
+  }
 
 
   async function openWorkspace() {
@@ -690,9 +935,16 @@ df["age"] = df["age"].fillna(median_age)`);
             <span className="nav-label">Dashboard</span>
           </button>
 
-          <button className="nav-item">
+          <button
+            className="nav-item"
+            onClick={openPractice}
+            disabled={practiceLoading}
+          >
             <span className="nav-icon">◉</span>
-            <span className="nav-label">Practice</span>
+
+            <span className="nav-label">
+              {practiceLoading ? "Loading..." : "Practice"}
+            </span>
           </button>
 
           <button className="nav-item">
@@ -959,6 +1211,184 @@ df["age"] = df["age"].fillna(median_age)`);
               )}
             </section>
           </>
+                ) : currentView === "practice" ? (
+          <section className="workspace-page">
+            <div className="workspace-header">
+              <div>
+                <button
+                  className="back-button"
+                  onClick={() =>
+                    setCurrentView("dashboard")
+                  }
+                >
+                  ← Dashboard
+                </button>
+
+                <h2>Practice</h2>
+
+                <p>
+                  Adaptive challenge based on your
+                  learning progress.
+                </p>
+              </div>
+            </div>
+
+            {practiceError ? (
+              <div className="python-error">
+                <strong>Practice error</strong>
+                <p>{practiceError}</p>
+              </div>
+            ) : practiceChallenge ? (
+              <div className="card">
+                <div className="card-heading">
+                  <h3>
+                    {practiceChallenge.title}
+                  </h3>
+
+                  <span className="status-badge">
+                    {practiceChallenge.difficulty}
+                  </span>
+                </div>
+
+                <p className="skill-name">
+                  {practiceChallenge.skill_name}
+                </p>
+
+                <p>
+                  {practiceChallenge.instructions}
+                </p>
+
+                <div className="badge-row">
+                  <span className="priority-badge">
+                    {practiceChallenge.challenge_type}
+                  </span>
+                </div>
+
+                {practiceChallenge.context_code && (
+                  <div className="practice-context-section">
+                    <div className="panel-title">
+                      Given data
+                    </div>
+
+                    <pre className="practice-context-code">
+                      {practiceChallenge.context_code}
+                    </pre>
+                  </div>
+                )}
+
+                <div className="practice-editor-section">
+                  <div className="panel-title">
+                    Your solution
+                  </div>
+
+                  <textarea
+                    className="code-editor practice-code-editor"
+                    value={practiceCode}
+                    onChange={(event) => {
+                      setPracticeCode(event.target.value);
+                      setPracticeOutput(null);
+                      setPracticeExecutionError(null);
+                    }}
+                  />
+
+                  <div className="workspace-actions">
+                    <button
+                      className="run-button"
+                      onClick={runPracticeCode}
+                      disabled={practiceRunning}
+                    >
+                      {practiceRunning
+                        ? "Running..."
+                        : "▶ Run"}
+                    </button>
+                      
+                    <button
+                      className="submit-button"
+                      onClick={submitPracticeAnswer}
+                      disabled={
+                        practiceSubmitting ||
+                        (
+                          practiceOutput === null &&
+                          practiceExecutionError === null
+                        )
+                      }
+                    >
+                      {practiceSubmitting
+                        ? "Checking..."
+                        : "✓ Submit answer"}
+                    </button>
+                  </div>
+                      
+                  <div className="result-preview">
+                    <strong>Output</strong>
+                      
+                    {practiceExecutionError ? (
+                      <div className="python-error">
+                        <strong>Python error</strong>
+                        <pre>
+                          {practiceExecutionError}
+                        </pre>
+                      </div>
+                    ) : practiceOutput !== null ? (
+                      <pre>{practiceOutput}</pre>
+                    ) : (
+                      <p className="muted">
+                        Run your code to see the output.
+                      </p>
+                    )}
+                  </div>
+                  
+                  {practiceReview && (
+                    <div
+                      className={
+                        practiceReview.validation.success
+                          ? "practice-feedback success"
+                          : "practice-feedback failure"
+                      }
+                    >
+                      <strong>
+                        {practiceReview.validation.success
+                          ? "✓ Correct"
+                          : "Not quite yet"}
+                      </strong>
+                        
+                      <p>
+                        {practiceReview.validation.feedback}
+                      </p>
+                        
+                      {practiceReview.mentor_support && (
+                        <div className="mentor-practice-feedback">
+                          <strong>Mentor</strong>
+                      
+                          <p>
+                            {practiceReview.mentor_support.message}
+                          </p>
+                      
+                          {practiceReview.mentor_support.micro_check && (
+                            <div className="micro-check">
+                              <strong>Quick check</strong>
+                          
+                              <p>
+                                {
+                                  practiceReview.mentor_support
+                                    .micro_check
+                                }
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            ) : (
+              <p className="muted">
+                No challenge loaded.
+              </p>
+            )}
+          </section>
         ) : (
           <section className="workspace-page">
             <div className="workspace-header">
