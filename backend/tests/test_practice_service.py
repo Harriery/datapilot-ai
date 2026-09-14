@@ -9,6 +9,7 @@ from backend.app.models import (
     PracticeChallengeRecord,
     PracticeChallenge,
     PracticeValidationSpec,
+    PracticeSupportSpec,
     
 )
 import pytest
@@ -21,6 +22,7 @@ from backend.app.practice_service import (
     create_practice_challenge,
     validate_practice_attempt,
     get_python_data_structure_variant,
+    get_next_practice_hint,
 )
 
 def test_get_practice_difficulty_for_new_skill():
@@ -233,10 +235,10 @@ def test_create_practice_challenge_for_python_data_structures():
 
     assert challenge.context_code is not None
     assert "records" in challenge.context_code
-    
+
     assert challenge.starter_code == ""
     assert challenge.options is None
-    
+
     assert challenge.challenge_id
 
     mock_save.assert_called_once()
@@ -885,3 +887,111 @@ def test_validate_duplicate_reduction_returns_failure_when_duplicates_remain():
         )
 
     assert result.success is False
+
+def test_get_next_practice_hint_returns_first_hint():
+    challenge = PracticeChallenge(
+        challenge_id="challenge-hint-001",
+        skill_name="python_data_structures",
+        difficulty="easy",
+        challenge_type="code",
+        title="Test challenge",
+        instructions="Test instructions",
+        context_code="records = []",
+        starter_code="",
+    )
+
+    record = PracticeChallengeRecord(
+        challenge=challenge,
+        support_spec=PracticeSupportSpec(
+            hints=[
+                "İlk küçük ipucu.",
+                "İkinci daha açık ipucu.",
+                "Üçüncü güçlü ipucu.",
+            ],
+            solution="print(2)",
+        ),
+    )
+
+    with patch(
+        "backend.app.practice_service."
+        "database.get_practice_challenge",
+        return_value=record,
+    ), patch(
+        "backend.app.practice_service."
+        "database.get_practice_hint_level",
+        return_value=0,
+    ), patch(
+        "backend.app.practice_service."
+        "database.update_practice_hint_level",
+    ) as mock_update:
+
+        result = get_next_practice_hint(
+            learner_id="learner-001",
+            challenge_id="challenge-hint-001",
+        )
+
+    assert result.hint == "İlk küçük ipucu."
+    assert result.hint_number == 1
+    assert result.total_hints == 3
+    assert result.assistance_level == "NUDGE"
+    assert result.solution_available is False
+
+    mock_update.assert_called_once_with(
+        challenge_id="challenge-hint-001",
+        learner_id="learner-001",
+        hint_level=1,
+    )
+
+
+def test_get_next_practice_hint_makes_solution_available_after_all_hints():
+    challenge = PracticeChallenge(
+        challenge_id="challenge-hint-002",
+        skill_name="python_data_structures",
+        difficulty="easy",
+        challenge_type="code",
+        title="Test challenge",
+        instructions="Test instructions",
+        context_code="records = []",
+        starter_code="",
+    )
+
+    record = PracticeChallengeRecord(
+        challenge=challenge,
+        support_spec=PracticeSupportSpec(
+            hints=[
+                "Hint 1",
+                "Hint 2",
+                "Hint 3",
+            ],
+            solution="print(2)",
+        ),
+    )
+
+    with patch(
+        "backend.app.practice_service."
+        "database.get_practice_challenge",
+        return_value=record,
+    ), patch(
+        "backend.app.practice_service."
+        "database.get_practice_hint_level",
+        return_value=2,
+    ), patch(
+        "backend.app.practice_service."
+        "database.update_practice_hint_level",
+    ) as mock_update:
+
+        result = get_next_practice_hint(
+            learner_id="learner-001",
+            challenge_id="challenge-hint-002",
+        )
+
+    assert result.hint == "Hint 3"
+    assert result.hint_number == 3
+    assert result.assistance_level == "TEACH"
+    assert result.solution_available is True
+
+    mock_update.assert_called_once_with(
+        challenge_id="challenge-hint-002",
+        learner_id="learner-001",
+        hint_level=3,
+    )

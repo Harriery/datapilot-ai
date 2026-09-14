@@ -16,6 +16,7 @@ from backend.app.models import (
     PracticeMicroCheckAttemptRecord,
     PracticeMicroCheckValidation,
     PracticeValidationSpec,
+    PracticeSupportSpec,
     Workspace,
 )
 
@@ -288,6 +289,10 @@ def init_db():
         public_challenge_json TEXT NOT NULL,
         expected_outcome TEXT NOT NULL,
         validation_spec_json TEXT,
+        support_spec_json TEXT,
+
+        hint_level INTEGER NOT NULL DEFAULT 0,
+        solution_shown INTEGER NOT NULL DEFAULT 0,
 
         status TEXT NOT NULL DEFAULT 'active',
 
@@ -299,6 +304,41 @@ def init_db():
     )
     """
     )
+
+    # Mevcut SQLite veritabanında tablo daha önce
+    # oluşturulmuşsa CREATE TABLE yeni kolonu eklemez.
+    # Bu nedenle support_spec_json kolonunu gerektiğinde
+    # küçük bir migration ile ekliyoruz.
+    practice_challenge_columns = {
+        row[1]
+        for row in connection.execute(
+            "PRAGMA table_info(practice_challenges)"
+        ).fetchall()
+    }
+
+    if "support_spec_json" not in practice_challenge_columns:
+        connection.execute(
+            """
+            ALTER TABLE practice_challenges
+            ADD COLUMN support_spec_json TEXT
+            """
+        )
+
+    if "hint_level" not in practice_challenge_columns:
+        connection.execute(
+            """
+            ALTER TABLE practice_challenges
+            ADD COLUMN hint_level INTEGER NOT NULL DEFAULT 0
+            """
+        )
+
+    if "solution_shown" not in practice_challenge_columns:
+        connection.execute(
+            """
+            ALTER TABLE practice_challenges
+            ADD COLUMN solution_shown INTEGER NOT NULL DEFAULT 0
+            """
+        )
 
     # ==================================================
     # PRACTICE ATTEMPTS
@@ -1181,6 +1221,12 @@ def save_practice_challenge(
         else None
     )
 
+    support_spec_json = (
+        record.support_spec.model_dump_json()
+        if record.support_spec is not None
+        else None
+    )
+
     connection.execute(
         """
         INSERT INTO practice_challenges (
@@ -1192,9 +1238,10 @@ def save_practice_challenge(
             public_challenge_json,
             expected_outcome,
             validation_spec_json,
+            support_spec_json,
             status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             challenge.challenge_id,
@@ -1205,6 +1252,7 @@ def save_practice_challenge(
             public_challenge_json,
             record.expected_outcome or "",
             validation_spec_json,
+            support_spec_json,
             "active",
         ),
     )
@@ -1223,7 +1271,8 @@ def get_practice_challenge(
         SELECT
             public_challenge_json,
             expected_outcome,
-            validation_spec_json
+            validation_spec_json,
+            support_spec_json
         FROM practice_challenges
         WHERE challenge_id = ?
         AND learner_id = ?
@@ -1253,10 +1302,19 @@ def get_practice_challenge(
         else None
     )
 
+    support_spec = (
+        PracticeSupportSpec.model_validate_json(
+            row["support_spec_json"]
+        )
+        if row["support_spec_json"] is not None
+        else None
+    )
+
     return PracticeChallengeRecord(
         challenge=challenge,
         expected_outcome=row["expected_outcome"],
         validation_spec=validation_spec,
+        support_spec=support_spec,
     )
 
 
@@ -1873,3 +1931,107 @@ def update_learner_preferred_language(
         raise ValueError(
             "Learner profile bulunamadı."
         )
+
+def get_practice_hint_level(
+    challenge_id: str,
+    learner_id: str,
+) -> int:
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT hint_level
+        FROM practice_challenges
+        WHERE challenge_id = ?
+        AND learner_id = ?
+        """,
+        (
+            challenge_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return 0
+
+    return int(row["hint_level"])
+
+
+def update_practice_hint_level(
+    challenge_id: str,
+    learner_id: str,
+    hint_level: int,
+) -> None:
+    connection = get_connection()
+
+    connection.execute(
+        """
+        UPDATE practice_challenges
+        SET
+            hint_level = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE challenge_id = ?
+        AND learner_id = ?
+        """,
+        (
+            hint_level,
+            challenge_id,
+            learner_id,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+def mark_practice_solution_shown(
+    challenge_id: str,
+    learner_id: str,
+) -> None:
+    connection = get_connection()
+
+    connection.execute(
+        """
+        UPDATE practice_challenges
+        SET
+            solution_shown = 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE challenge_id = ?
+        AND learner_id = ?
+        """,
+        (
+            challenge_id,
+            learner_id,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def was_practice_solution_shown(
+    challenge_id: str,
+    learner_id: str,
+) -> bool:
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT solution_shown
+        FROM practice_challenges
+        WHERE challenge_id = ?
+        AND learner_id = ?
+        """,
+        (
+            challenge_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return False
+
+    return bool(row["solution_shown"])

@@ -623,6 +623,37 @@ class PracticeValidationSpec(BaseModel):
     expected_answer: str | None = None
     column: str | None = None
 
+class PracticeSupportSpec(BaseModel):
+    # Küçükten büyüğe ilerleyen hazır ipuçları.
+    # Frontend'e challenge oluşturulurken gönderilmez.
+    hints: list[str] = Field(default_factory=list)
+
+    # Junior yeterince denedikten sonra
+    # gösterilebilecek örnek tam çözüm.
+    solution: str | None = None
+
+class PracticeHintRequest(BaseModel):
+    learner_id: str
+    challenge_id: str
+
+
+class PracticeHintResponse(BaseModel):
+    challenge_id: str
+
+    hint: str | None
+
+    hint_number: int
+
+    total_hints: int
+
+    assistance_level: Literal[
+        "NUDGE",
+        "GUIDE",
+        "TEACH",
+    ] | None = None
+
+    solution_available: bool = False
+
 
 # PracticeChallengeRecord:
 #
@@ -638,6 +669,10 @@ class PracticeChallengeRecord(BaseModel):
     challenge: PracticeChallenge
 
     validation_spec: PracticeValidationSpec | None = None
+
+    # Backend'e özel yardım bilgileri.
+    # Public PracticeChallenge içinde bulunmaz.
+    support_spec: PracticeSupportSpec | None = None
 
     expected_outcome: str | None = None
 
@@ -956,3 +991,15 @@ class WorkspaceResumeResponse(BaseModel):
     # alanında doğrudan gösterebilmesi için.
     next_action: str | None = None
 
+class PracticeSolutionRequest(BaseModel):
+    learner_id: str
+    challenge_id: str
+
+
+class PracticeSolutionResponse(BaseModel):
+    challenge_id: str
+    solution: str
+
+    assistance_level: Literal[
+        "DEMONSTRATE",
+    ] = "DEMONSTRATE"

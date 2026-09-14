@@ -649,12 +649,12 @@ def test_create_practice_challenge_returns_challenge():
     assert response.status_code == 200
 
     response_data = response.json()
-    
+
     assert response_data["learner_id"] == "demo-learner"
-    
+
     challenge = response_data["challenge"]
     fake_challenge_data = fake_challenge["challenge"]
-    
+
     assert (
         challenge["challenge_id"]
         == fake_challenge_data["challenge_id"]
@@ -998,4 +998,94 @@ def test_review_practice_micro_check_returns_result():
     assert (
         called_request.answer
         == "car['year']"
+    )
+
+def test_practice_hint_route_returns_next_hint(
+    
+):
+    fake_hint_response = {
+        "challenge_id": "challenge-hint-001",
+        "hint": "Her kaydın score değerini kontrol et.",
+        "hint_number": 1,
+        "total_hints": 3,
+        "assistance_level": "NUDGE",
+        "solution_available": False,
+    }
+
+    with patch(
+        "backend.app.mentor_routes."
+        "database.get_learner_profile_by_id",
+        return_value={"learner_id": "demo-learner"},
+    ), patch(
+        "backend.app.mentor_routes."
+        "get_next_practice_hint",
+        return_value=fake_hint_response,
+    ) as mock_get_hint:
+
+        response = client.post(
+            "/mentor/practice/hint",
+            json={
+                "learner_id": "demo-learner",
+                "challenge_id": "challenge-hint-001",
+            },
+        )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["challenge_id"] == "challenge-hint-001"
+    assert data["hint"] == (
+        "Her kaydın score değerini kontrol et."
+    )
+    assert data["hint_number"] == 1
+    assert data["total_hints"] == 3
+    assert data["assistance_level"] == "NUDGE"
+    assert data["solution_available"] is False
+
+    mock_get_hint.assert_called_once_with(
+        learner_id="demo-learner",
+        challenge_id="challenge-hint-001",
+    )
+
+def test_practice_solution_route_returns_solution():
+    fake_solution_response = {
+        "challenge_id": "challenge-solution-001",
+        "solution": "print(2)",
+        "assistance_level": "DEMONSTRATE",
+    }
+
+    with patch(
+        "backend.app.mentor_routes."
+        "database.get_learner_profile_by_id",
+        return_value={"learner_id": "demo-learner"},
+    ), patch(
+        "backend.app.mentor_routes."
+        "get_practice_solution",
+        return_value=fake_solution_response,
+    ) as mock_get_solution:
+
+        response = client.post(
+            "/mentor/practice/solution",
+            json={
+                "learner_id": "demo-learner",
+                "challenge_id": "challenge-solution-001",
+            },
+        )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["challenge_id"] == (
+        "challenge-solution-001"
+    )
+    assert data["solution"] == "print(2)"
+    assert data["assistance_level"] == (
+        "DEMONSTRATE"
+    )
+
+    mock_get_solution.assert_called_once_with(
+        learner_id="demo-learner",
+        challenge_id="challenge-solution-001",
     )

@@ -7,6 +7,9 @@ from backend.app.models import (
     PracticeAttemptRequest,
     PracticeAttemptValidation,
     PracticeValidationSpec,
+    PracticeSupportSpec,
+    PracticeHintResponse,
+    PracticeSolutionResponse,
 )
 import backend.app.database as database
 from uuid import uuid4
@@ -66,6 +69,30 @@ PYTHON_DATA_STRUCTURE_VARIANTS = [
             "]\n"
         ),
         "expected_output": "2",
+        "hints": [
+            (
+                "Her kaydın city değerini tek tek "
+                "kontrol etmeyi düşün."
+            ),
+            (
+                "city değeri None olan kayıtları "
+                "sayman gerekiyor."
+            ),
+            (
+                "Bir count değişkeni, for döngüsü ve "
+                "if record['city'] is None koşulunu "
+                "kullanabilirsin."
+            ),
+        ],
+        "solution": (
+            "count = 0\n"
+            "\n"
+            "for record in records:\n"
+            "    if record['city'] is None:\n"
+            "        count += 1\n"
+            "\n"
+            "print(count)\n"
+        ),
     },
     {
         "title": "Aktif kullanıcıları say",
@@ -83,6 +110,30 @@ PYTHON_DATA_STRUCTURE_VARIANTS = [
             "]\n"
         ),
         "expected_output": "3",
+        "hints": [
+            (
+                "Her kullanıcının active değerini "
+                "kontrol etmeyi düşün."
+            ),
+            (
+                "Sadece active değeri True olan "
+                "kullanıcıları saymalısın."
+            ),
+            (
+                "Bir count değişkeni, for döngüsü ve "
+                "if user['active'] koşulunu "
+                "kullanabilirsin."
+            ),
+        ],
+        "solution": (
+            "count = 0\n"
+            "\n"
+            "for user in users:\n"
+            "    if user['active']:\n"
+            "        count += 1\n"
+            "\n"
+            "print(count)\n"
+        ),
     },
     {
         "title": "Yüksek skorları say",
@@ -100,6 +151,30 @@ PYTHON_DATA_STRUCTURE_VARIANTS = [
             "]\n"
         ),
         "expected_output": "2",
+        "hints": [
+            (
+                "Her kaydın score değerini "
+                "kontrol etmeyi düşün."
+            ),
+            (
+                "score değeri 70 veya daha yüksek "
+                "olan kayıtları saymalısın."
+            ),
+            (
+                "Bir count değişkeni, for döngüsü ve "
+                "if result['score'] >= 70 koşulunu "
+                "kullanabilirsin."
+            ),
+        ],
+        "solution": (
+            "count = 0\n"
+            "\n"
+            "for result in results:\n"
+            "    if result['score'] >= 70:\n"
+            "        count += 1\n"
+            "\n"
+            "print(count)\n"
+        ),
     },
 ]
 
@@ -206,6 +281,9 @@ def create_practice_challenge(
 
     skill_name = recommendation.skill_name
     difficulty = recommendation.difficulty
+    # Her challenge'ın support sistemi olmak zorunda değil.
+    # Destek tanımlanan challenge'larda aşağıda dolduracağız.
+    support_spec = None
 
        # --------------------------------------------------
     # PYTHON DATA STRUCTURES
@@ -230,10 +308,10 @@ def create_practice_challenge(
             challenge_type="code",
             title=variant["title"],
             instructions=variant["instructions"],
-        
+
             # Sistem tarafından verilen read-only data.
             context_code=variant["context_code"],
-        
+
             # Junior'ın kendi çözümünü yazacağı alan.
             starter_code="",
         )
@@ -246,6 +324,11 @@ def create_practice_challenge(
         validation_spec = PracticeValidationSpec(
             validation_type="exact_output",
             expected_output=variant["expected_output"],
+        )
+
+        support_spec = PracticeSupportSpec(
+            hints=variant["hints"],
+            solution=variant["solution"],
         )
        # --------------------------------------------------
     # NULL ANALYSIS
@@ -371,6 +454,7 @@ def create_practice_challenge(
         challenge=challenge,
         expected_outcome=expected_outcome,
         validation_spec=validation_spec,
+        support_spec=support_spec,
     )
 
     # Challenge artık challenge_id ile daha sonra
@@ -606,4 +690,150 @@ def validate_practice_attempt(
 
     raise ValueError(
         "Bu validation türü henüz desteklenmiyor."
+    )
+
+def get_next_practice_hint(
+    learner_id: str,
+    challenge_id: str,
+) -> PracticeHintResponse:
+    """
+    Junior için sıradaki practice hint'ini döndürür.
+
+    Hint'ler sırayla açılır:
+    1 -> NUDGE
+    2 -> GUIDE
+    3 -> TEACH
+
+    Bütün hint'ler kullanıldıktan sonra
+    solution_available = True olur.
+
+    Bu fonksiyon OpenAI kullanmaz.
+    """
+
+    record = database.get_practice_challenge(
+        challenge_id=challenge_id,
+        learner_id=learner_id,
+    )
+
+    if record is None:
+        raise ValueError("Practice challenge bulunamadı.")
+
+    support_spec = record.support_spec
+
+    if support_spec is None or not support_spec.hints:
+        return PracticeHintResponse(
+            challenge_id=challenge_id,
+            hint=None,
+            hint_number=0,
+            total_hints=0,
+            assistance_level=None,
+            solution_available=False,
+        )
+
+    current_hint_level = database.get_practice_hint_level(
+        challenge_id=challenge_id,
+        learner_id=learner_id,
+    )
+
+    total_hints = len(support_spec.hints)
+
+    # Bütün hint'ler daha önce açılmış.
+    if current_hint_level >= total_hints:
+        return PracticeHintResponse(
+            challenge_id=challenge_id,
+            hint=None,
+            hint_number=current_hint_level,
+            total_hints=total_hints,
+            assistance_level=None,
+            solution_available=(
+                support_spec.solution is not None
+            ),
+        )
+
+    next_hint_number = current_hint_level + 1
+
+    hint = support_spec.hints[current_hint_level]
+
+    assistance_levels = {
+        1: "NUDGE",
+        2: "GUIDE",
+        3: "TEACH",
+    }
+
+    assistance_level = assistance_levels.get(
+        next_hint_number,
+        "TEACH",
+    )
+
+    database.update_practice_hint_level(
+        challenge_id=challenge_id,
+        learner_id=learner_id,
+        hint_level=next_hint_number,
+    )
+
+    return PracticeHintResponse(
+        challenge_id=challenge_id,
+        hint=hint,
+        hint_number=next_hint_number,
+        total_hints=total_hints,
+        assistance_level=assistance_level,
+        solution_available=(
+            next_hint_number >= total_hints
+            and support_spec.solution is not None
+        ),
+    )
+
+def get_practice_solution(
+    learner_id: str,
+    challenge_id: str,
+) -> PracticeSolutionResponse:
+    """
+    Full solution yalnızca bütün hint'ler
+    açıldıktan sonra gösterilir.
+
+    Solution gösterildiğinde learner artık
+    bu challenge'ı bağımsız çözmüş sayılmaz.
+    """
+
+    record = database.get_practice_challenge(
+        challenge_id=challenge_id,
+        learner_id=learner_id,
+    )
+
+    if record is None:
+        raise ValueError("Practice challenge bulunamadı.")
+
+    support_spec = record.support_spec
+
+    if (
+        support_spec is None
+        or support_spec.solution is None
+    ):
+        raise ValueError(
+            "Bu challenge için çözüm bulunamadı."
+        )
+
+    current_hint_level = (
+        database.get_practice_hint_level(
+            challenge_id=challenge_id,
+            learner_id=learner_id,
+        )
+    )
+
+    total_hints = len(support_spec.hints)
+
+    if current_hint_level < total_hints:
+        raise PermissionError(
+            "Tam çözüm henüz kullanılamıyor."
+        )
+
+    database.mark_practice_solution_shown(
+        challenge_id=challenge_id,
+        learner_id=learner_id,
+    )
+
+    return PracticeSolutionResponse(
+        challenge_id=challenge_id,
+        solution=support_spec.solution,
+        assistance_level="DEMONSTRATE",
     )

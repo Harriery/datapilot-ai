@@ -38,6 +38,10 @@ from backend.app.models import (
     PracticeAttemptPublicResponse,
     PracticeMicroCheckRequest,
     PracticeMicroCheckResponse,
+    PracticeHintRequest,
+    PracticeHintResponse,
+    PracticeSolutionRequest,
+    PracticeSolutionResponse,
 )
 from backend.app.practice_micro_check_service import (
     review_practice_micro_check,
@@ -50,6 +54,8 @@ from backend.app.practice_review_service import (
 from backend.app.practice_service import (
     get_practice_recommendation,
     create_practice_challenge,
+    get_next_practice_hint,
+    get_practice_solution,
 )
 from backend.app.progress_service import (
     get_learner_progress,
@@ -562,6 +568,91 @@ def create_practice_challenge_route(
             status_code=400,
             detail=str(exc),
         )
+
+# ---------------------------------------------------------
+# PRACTICE HINT ENDPOINT
+# ---------------------------------------------------------
+#
+# Junior challenge sırasında yardım istediğinde
+# sıradaki deterministik hint'i döndürür.
+#
+# Bütün hint'ler bir anda frontend'e gönderilmez.
+# Backend yalnızca sıradaki izin verilen hint'i açar.
+#
+# Bu endpoint OpenAI kullanmaz.
+@router.post(
+    "/practice/hint",
+    response_model=PracticeHintResponse,
+)
+def get_practice_hint_route(
+    request: PracticeHintRequest,
+):
+    learner_profile = database.get_learner_profile_by_id(
+        request.learner_id
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return get_next_practice_hint(
+            learner_id=request.learner_id,
+            challenge_id=request.challenge_id,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+# ---------------------------------------------------------
+# PRACTICE SOLUTION ENDPOINT
+# ---------------------------------------------------------
+#
+# Junior bütün hint'leri kullandıktan sonra
+# tam çözümü özellikle isterse döndürülür.
+#
+# Solution kullanımı DEMONSTRATE seviyesidir.
+@router.post(
+    "/practice/solution",
+    response_model=PracticeSolutionResponse,
+)
+def get_practice_solution_route(
+    request: PracticeSolutionRequest,
+):
+    learner_profile = database.get_learner_profile_by_id(
+        request.learner_id
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return get_practice_solution(
+            learner_id=request.learner_id,
+            challenge_id=request.challenge_id,
+        )
+
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail=str(exc),
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+
 
 # ---------------------------------------------------------
 # REVIEW PRACTICE ATTEMPT ENDPOINT

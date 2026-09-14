@@ -88,6 +88,25 @@ type PracticeAttemptReviewData = {
   } | null;
 };
 
+type PracticeHintData = {
+  challenge_id: string;
+  hint: string | null;
+  hint_number: number;
+  total_hints: number;
+  assistance_level:
+    | "NUDGE"
+    | "GUIDE"
+    | "TEACH"
+    | null;
+  solution_available: boolean;
+};
+
+type PracticeSolutionData = {
+  challenge_id: string;
+  solution: string;
+  assistance_level: "DEMONSTRATE";
+};
+
 
 function App() {
   const [showSkills, setShowSkills] = useState(true);
@@ -189,6 +208,23 @@ df["age"] = df["age"].fillna(median_age)`);
   const [practiceReview, setPracticeReview] =
     useState<PracticeAttemptReviewData | null>(null);
 
+  const [practiceHint, setPracticeHint] =
+  useState<PracticeHintData | null>(null);
+
+  const [practiceHintLoading, setPracticeHintLoading] =
+    useState(false);
+
+  const [practiceHintError, setPracticeHintError] =
+    useState<string | null>(null);
+
+  const [practiceSolution, setPracticeSolution] =
+  useState<PracticeSolutionData | null>(null);
+
+  const [practiceSolutionLoading, setPracticeSolutionLoading] =
+    useState(false);
+
+  const [practiceSolutionError, setPracticeSolutionError] =
+    useState<string | null>(null);
 
   const inputRows = [
       {
@@ -337,6 +373,8 @@ df["age"] = df["age"].fillna(median_age)`);
 
       setPracticeOutput(null);
       setPracticeExecutionError(null);
+      setPracticeHint(null);
+      setPracticeHintError(null);
 
       setCurrentView("practice");
     } catch (error) {
@@ -470,6 +508,105 @@ df["age"] = df["age"].fillna(median_age)`);
     }
   }
 
+  async function requestPracticeHint() {
+    if (!practiceChallenge) {
+      return;
+    }
+
+    setPracticeHintLoading(true);
+    setPracticeHintError(null);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/mentor/practice/hint",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            learner_id: "demo-learner",
+            challenge_id:
+              practiceChallenge.challenge_id,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Hint alınamadı."
+        );
+      }
+
+      const data: PracticeHintData =
+        await response.json();
+
+      setPracticeHint(data);
+    } catch (error) {
+      console.error(error);
+
+      setPracticeHintError(
+        error instanceof Error
+          ? error.message
+          : "Hint alınamadı."
+      );
+    } finally {
+      setPracticeHintLoading(false);
+    }
+  }
+
+  async function requestPracticeSolution() {
+    if (!practiceChallenge) {
+      return;
+    }
+
+    setPracticeSolutionLoading(true);
+    setPracticeSolutionError(null);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/mentor/practice/solution",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            learner_id: "demo-learner",
+            challenge_id:
+              practiceChallenge.challenge_id,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Solution alınamadı."
+        );
+      }
+
+      const data: PracticeSolutionData =
+        await response.json();
+
+      setPracticeSolution(data);
+    } catch (error) {
+      console.error(error);
+
+      setPracticeSolutionError(
+        error instanceof Error
+          ? error.message
+          : "Solution alınamadı."
+      );
+    } finally {
+      setPracticeSolutionLoading(false);
+    }
+  }
 
   async function openWorkspace() {
     try {
@@ -1303,6 +1440,21 @@ df["age"] = df["age"].fillna(median_age)`);
                     </button>
                       
                     <button
+                      className="hint-button"
+                      onClick={requestPracticeHint}
+                      disabled={
+                        practiceHintLoading ||
+                        practiceHint?.solution_available === true
+                      }
+                    >
+                      {practiceHintLoading
+                        ? "Loading hint..."
+                        : practiceHint?.solution_available
+                          ? "Hints completed"
+                          : "💡 Hint"}
+                    </button>
+
+                    <button
                       className="submit-button"
                       onClick={submitPracticeAnswer}
                       disabled={
@@ -1318,7 +1470,70 @@ df["age"] = df["age"].fillna(median_age)`);
                         : "✓ Submit answer"}
                     </button>
                   </div>
-                      
+
+                  {practiceHint && practiceHint.hint && (
+                    <div className="practice-hint">
+                      <strong>
+                        Hint {practiceHint.hint_number}
+                        {" / "}
+                        {practiceHint.total_hints}
+                      </strong>
+                                    
+                      <p>{practiceHint.hint}</p>
+                                    
+                      {practiceHint.assistance_level && (
+                        <span className="practice-hint-level">
+                          Support: {practiceHint.assistance_level}
+                        </span>
+                      )}
+                  
+                      {practiceHint.solution_available && (
+                        <div className="solution-available">
+                          <button
+                            className="solution-button"
+                            onClick={requestPracticeSolution}
+                            disabled={
+                              practiceSolutionLoading ||
+                              practiceSolution !== null
+                            }
+                          >
+                            {practiceSolutionLoading
+                              ? "Loading solution..."
+                              : practiceSolution
+                                ? "Solution shown"
+                                : "👁 Show solution"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {practiceSolution && (
+                    <div className="practice-solution">
+                      <strong>Example solution</strong>
+                  
+                      <pre>
+                        {practiceSolution.solution}
+                      </pre>
+                  
+                      <span className="practice-solution-level">
+                        Support: {practiceSolution.assistance_level}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {practiceSolutionError && (
+                    <div className="practice-hint-error">
+                      {practiceSolutionError}
+                    </div>
+                  )}
+
+                  {practiceHintError && (
+                    <div className="practice-hint-error">
+                      {practiceHintError}
+                    </div>
+                  )}
+
                   <div className="result-preview">
                     <strong>Output</strong>
                       
