@@ -1,6 +1,49 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import { runDataFrameTransformation } from "./pythonRunner";
+
+type SkillProgressData = {
+  skill_name: string;
+  status: "new" | "learning" | "practicing" | "comfortable";
+  attempts: number;
+  successful_attempts: number;
+  success_rate: number;
+  last_assistance_level:
+    | "NONE"
+    | "NUDGE"
+    | "GUIDE"
+    | "TEACH"
+    | "DEMONSTRATE"
+    | null;
+  independence_trend:
+    | "improving"
+    | "stable"
+    | "declining"
+    | "insufficient_data";
+  practice_priority: "high" | "medium" | "low" | "none";
+};
+
+type PracticeRecommendationData = {
+  skill_name: string;
+  priority: "high" | "medium" | "low";
+  difficulty: "foundation" | "easy" | "medium" | "hard";
+  reason: string;
+};
+
+type DashboardWorkspace = {
+  workspace_id: string;
+  title: string;
+  status: "active" | "paused" | "completed";
+  mentor_session_id: string | null;
+
+  checkpoint: {
+    completed_items: string[];
+    current_focus: string | null;
+    blocked_reason: string | null;
+    last_error: string | null;
+    next_actions: string[];
+  };
+};
 
 function App() {
   const [showSkills, setShowSkills] = useState(true);
@@ -62,6 +105,19 @@ df["age"] = df["age"].fillna(median_age)`);
   null
   );
 
+  const [skillProgress, setSkillProgress] = useState<
+  SkillProgressData[]
+  >([]);
+
+  const [practiceRecommendation, setPracticeRecommendation] =
+  useState<PracticeRecommendationData | null>(null);
+
+  const [dashboardLoading, setDashboardLoading] =
+  useState(true);
+
+  const [dashboardWorkspace, setDashboardWorkspace] =
+  useState<DashboardWorkspace | null>(null);
+
    const inputRows = [
       {
         customer_id: 1001,
@@ -88,6 +144,87 @@ df["age"] = df["age"].fillna(median_age)`);
         city: "Delft",
       },
     ];
+
+  
+  useEffect(() => {
+    async function loadDashboardData() {
+      try {
+        const learnerId = "demo-learner";
+
+        const [
+          progressResponse,
+          recommendationResponse,
+          workspaceResponse,
+        ] = await Promise.all([
+          fetch(
+            `http://127.0.0.1:8000/mentor/progress/${learnerId}`
+          ),
+          fetch(
+            `http://127.0.0.1:8000/mentor/practice/recommendation/${learnerId}`
+          ),
+          fetch(
+            `http://127.0.0.1:8000/workspaces/${learnerId}`
+          ),
+        ]);
+
+        if (!progressResponse.ok) {
+          throw new Error(
+            "Progress bilgisi alınamadı."
+          );
+        }
+
+        if (!recommendationResponse.ok) {
+          throw new Error(
+            "Practice recommendation alınamadı."
+          );
+        }
+        
+        if (!workspaceResponse.ok) {
+          throw new Error(
+            "Workspace bilgisi alınamadı."
+          );
+        }
+
+        const progressData =
+          await progressResponse.json();
+
+        const recommendationData =
+          await recommendationResponse.json();
+
+        const workspaceData: DashboardWorkspace[] =
+          await workspaceResponse.json();
+
+        setSkillProgress(progressData.skills);
+
+        setPracticeRecommendation(
+          recommendationData.recommendation
+        );
+
+        const customerWorkspace =
+          workspaceData.find(
+            (workspace) =>
+              workspace.title === "Customer Data Quality"
+          ) ?? null;
+        
+        setDashboardWorkspace(customerWorkspace);
+
+
+        setDashboardWorkspace(
+          customerWorkspace ?? null
+        );
+      } catch (error) {
+        console.error(
+          "Dashboard yüklenemedi:",
+          error
+        );
+      } finally {
+        setDashboardLoading(false);
+      }
+    }
+
+    loadDashboardData();
+  }, []);  
+
 
   async function openWorkspace() {
     try {
@@ -169,7 +306,12 @@ df["age"] = df["age"].fillna(median_age)`);
         if (!checkpointResponse.ok) {
           throw new Error("İlk checkpoint kaydedilemedi.");
         }
+        const completedWorkspace =
+          await checkpointResponse.json();
+
+        setDashboardWorkspace(completedWorkspace);
       }
+
 
       const resumeResponse = await fetch(
         `http://127.0.0.1:8000/workspaces/${learnerId}/${workspace.workspace_id}/resume`
@@ -307,6 +449,18 @@ df["age"] = df["age"].fillna(median_age)`);
         await resumeResponse.json();
 
       setResumeData(updatedResume);
+
+      setDashboardWorkspace((previous) => {
+        if (!previous) {
+          return previous;
+        }
+      
+        return {
+          ...previous,
+          status: updatedResume.status,
+          checkpoint: updatedResume.checkpoint,
+        };
+      });
     } catch (error) {
       console.error(error);
 
@@ -583,107 +737,168 @@ df["age"] = df["age"].fillna(median_age)`);
               <article className="card continue-card">
                 <div className="card-heading">
                   <h3>Continue where you left off</h3>
-        
+                      
                   <span className="status-badge">
-                    In progress
+                    {dashboardWorkspace?.status ?? "Loading"}
                   </span>
                 </div>
-        
-                <h4>Customer Data Quality</h4>
-        
-                <p className="muted">
-                  Last worked: Yesterday
-                </p>
-        
-                <div className="workspace-status">
-                  <p>
-                    <strong>Current:</strong>{" "}
-                    Missing values / age
+                      
+                <h4>
+                  {dashboardWorkspace?.title ??
+                    "Customer Data Quality"}
+                </h4>
+                  
+                {dashboardLoading ? (
+                  <p className="muted">
+                    Loading workspace...
                   </p>
-        
-                  <p className="warning">
-                    ⚠ Blocked: choose an imputation strategy
+                ) : dashboardWorkspace ? (
+                  <>
+                    <div className="workspace-status">
+                      {dashboardWorkspace.status === "completed" ? (
+                        <p>
+                          ✓ Workspace completed
+                        </p>
+                      ) : (
+                        <>
+                          <p>
+                            <strong>Current:</strong>{" "}
+                            {dashboardWorkspace.checkpoint.current_focus ??
+                              "No current focus"}
+                          </p>
+                            
+                          {dashboardWorkspace.checkpoint.blocked_reason && (
+                            <p className="warning">
+                              ⚠{" "}
+                              {
+                                dashboardWorkspace.checkpoint
+                                  .blocked_reason
+                              }
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    
+                    {dashboardWorkspace.status !== "completed" && (
+                      <button
+                        className="primary-button"
+                        onClick={openWorkspace}
+                      >
+                        Resume workspace →
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <p className="muted">
+                    No workspace found.
                   </p>
-                </div>
-        
-                <button
-                  className="primary-button"
-                  onClick={openWorkspace}
-                >
-                  Resume workspace →
-                </button>
+                )}
               </article>
                 
               <article className="card recommendation-card">
                 <h3>Current Recommendation</h3>
+
+                {dashboardLoading ? (
+                  <p className="muted">
+                    Loading recommendation...
+                  </p>
+                ) : practiceRecommendation ? (
+                  <>
+                    <p className="skill-name">
+                      {practiceRecommendation.skill_name}
+                    </p>
                 
-                <p className="skill-name">
-                  duplicate_analysis
-                </p>
+                    <div className="badge-row">
+                      <span className="priority-badge">
+                        {practiceRecommendation.priority} priority
+                      </span>
                 
-                <div className="badge-row">
-                  <span className="priority-badge">
-                    Medium priority
-                  </span>
+                      <span className="difficulty-badge">
+                        {practiceRecommendation.difficulty}
+                      </span>
+                    </div>
                 
-                  <span className="difficulty-badge">
-                    Easy
-                  </span>
-                </div>
-                
-                <p className="muted">
-                  More practice will help you become more
-                  independent with this skill.
-                </p>
+                    <p className="muted">
+                      {practiceRecommendation.reason}
+                    </p>
+                  </>
+                ) : (
+                  <p className="muted">
+                    No practice recommendation right now.
+                  </p>
+                )}
               </article>
                 
               <article className="card learning-path-card">
                 <h3>Today’s path</h3>
+
+                {dashboardLoading ? (
+                  <p className="muted">
+                    Loading path...
+                  </p>
+                ) : !dashboardWorkspace ? (
+                  <p className="muted">
+                    No active workspace.
+                  </p>
+                ) : dashboardWorkspace.status === "completed" ? (
+                  <div className="path-item completed">
+                    <span>✓</span>
                 
-                <div className="path-item completed">
-                  <span>✓</span>
-                
-                  <div>
-                    <strong>Resume workspace</strong>
-                    <p>Open your current work context.</p>
+                    <div>
+                      <strong>Workspace completed</strong>
+                      <p>
+                        {dashboardWorkspace.title} is finished.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="path-item completed">
+                      <span>✓</span>
                 
-                <div className="path-item current">
-                  <span>●</span>
-                
-                  <div>
-                    <strong>Resolve age nulls</strong>
-                    <p>This is your current focus.</p>
-                  </div>
-                </div>
-                
-                <div className="path-item">
-                  <span>○</span>
-                
-                  <div>
-                    <strong>
-                      Validate transformation
-                    </strong>
-                
-                    <p>
-                      Check whether the result is correct.
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="path-item">
-                  <span>○</span>
-                
-                  <div>
-                    <strong>Review progress</strong>
-                
-                    <p>
-                      Update your learning evidence.
-                    </p>
-                  </div>
-                </div>
-              </article>
+                      <div>
+                        <strong>
+                          {dashboardWorkspace.checkpoint.completed_items.at(-1) ??
+                            "Workspace started"}
+                        </strong>
+                          
+                        <p>Last completed step.</p>
+                      </div>
+                    </div>
+                          
+                    <div className="path-item current">
+                      <span>●</span>
+                          
+                      <div>
+                        <strong>
+                          {dashboardWorkspace.checkpoint.current_focus ??
+                            "No current focus"}
+                        </strong>
+                          
+                        <p>This is your current focus.</p>
+                      </div>
+                    </div>
+                          
+                    {dashboardWorkspace.checkpoint.next_actions.map(
+                      (action, index) => (
+                        <div
+                          className="path-item"
+                          key={`${action}-${index}`}
+                        >
+                          <span>○</span>
+                      
+                          <div>
+                            <strong>{action}</strong>
+                      
+                            <p>Next recommended step.</p>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </>
+                )}
+              </article>      
                 
               {showSkills ? (
                 <article className="card skill-card">
@@ -699,24 +914,31 @@ df["age"] = df["age"].fillna(median_age)`);
                       ×
                     </button>
                   </div>
-                    
-                  <SkillProgress
-                    name="python_data_structures"
-                    status="Practicing"
-                    progress={72}
-                  />
 
-                  <SkillProgress
-                    name="null_analysis"
-                    status="Practicing"
-                    progress={58}
-                  />
+                  {dashboardLoading ? (
+                    <p className="muted">
+                      Loading skills...
+                    </p>
+                  ) : skillProgress.length === 0 ? (
+                    <p className="muted">
+                      No skill progress yet.
+                    </p>
+                  ) : (
+                    skillProgress.map((skill) => (
+                      <SkillProgress
+                        key={skill.skill_name}
+                        name={skill.skill_name}
+                        status={
+                          skill.status.charAt(0).toUpperCase() +
+                          skill.status.slice(1)
+                        }
+                        progress={Math.round(
+                          skill.success_rate * 100
+                        )}
+                      />
+                    ))
+                  )}  
 
-                  <SkillProgress
-                    name="duplicate_analysis"
-                    status="Learning"
-                    progress={42}
-                  />
                 </article>
               ) : (
                 <article className="card collapsed-skill-card">
@@ -754,7 +976,11 @@ df["age"] = df["age"].fillna(median_age)`);
                 
                 <p>
                   Focus Workspace ·{" "}
-                  {resumeData?.checkpoint.current_focus ?? "Loading..."}
+                  {resumeData
+                    ? resumeData.status === "completed"
+                      ? "Completed"
+                      : resumeData.checkpoint.current_focus ?? "No current focus"
+                    : "Loading..."}
                 </p>
               </div>
                 
