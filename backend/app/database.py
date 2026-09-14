@@ -16,6 +16,7 @@ from backend.app.models import (
     PracticeMicroCheckAttemptRecord,
     PracticeMicroCheckValidation,
     PracticeValidationSpec,
+    Workspace,
 )
 
 # DATABASE_PATH
@@ -224,6 +225,34 @@ def init_db():
             task_id TEXT PRIMARY KEY,
             learner_id TEXT NOT NULL,
             task_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id)
+        )
+        """
+    )
+
+    # ==================================================
+    # WORKSPACES
+    # ==================================================
+    #
+    # Junior'ın farklı iş / proje bağlamlarını
+    # birbirinden ayırmak için kullanılır.
+    #
+    # workspace_json:
+    # Workspace modelinin tamamını JSON olarak saklar.
+    #
+    # Böylece checkpoint yapısı ileride genişlese bile
+    # her alan için ayrı DB kolonu eklememiz gerekmez.
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS workspaces (
+            workspace_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL,
+            workspace_json TEXT NOT NULL,
             status TEXT NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -1014,6 +1043,114 @@ def get_data_engineering_task(
         row["task_json"]
     )
 
+
+# ==================================================
+# WORKSPACE İŞLEMLERİ
+# ==================================================
+
+
+def save_workspace(
+    workspace: Workspace,
+):
+    """
+    Workspace'in mevcut durumunu veritabanına kaydeder.
+
+    Aynı workspace_id zaten varsa mevcut kayıt güncellenir.
+    """
+
+    connection = get_connection()
+
+    workspace_json = workspace.model_dump_json()
+
+    connection.execute(
+        """
+        INSERT INTO workspaces (
+            workspace_id,
+            learner_id,
+            workspace_json,
+            status
+        )
+        VALUES (?, ?, ?, ?)
+
+        ON CONFLICT(workspace_id)
+        DO UPDATE SET
+            learner_id = excluded.learner_id,
+            workspace_json = excluded.workspace_json,
+            status = excluded.status,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            workspace.workspace_id,
+            workspace.learner_id,
+            workspace_json,
+            workspace.status,
+        ),
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def get_workspace(
+    workspace_id: str,
+    learner_id: str,
+) -> Workspace | None:
+    """
+    Belirli bir learner'a ait workspace'i getirir.
+    """
+
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT workspace_json
+        FROM workspaces
+        WHERE workspace_id = ?
+        AND learner_id = ?
+        """,
+        (
+            workspace_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    return Workspace.model_validate_json(
+        row["workspace_json"]
+    )
+
+
+def get_workspaces_by_learner(
+    learner_id: str,
+) -> list[Workspace]:
+    """
+    Junior'a ait bütün workspace'leri getirir.
+    """
+
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT workspace_json
+        FROM workspaces
+        WHERE learner_id = ?
+        ORDER BY updated_at DESC
+        """,
+        (learner_id,),
+    ).fetchall()
+
+    connection.close()
+
+    return [
+        Workspace.model_validate_json(
+            row["workspace_json"]
+        )
+        for row in rows
+    ]
 # ==================================================
 # PRACTICE CHALLENGE İŞLEMLERİ
 # ==================================================

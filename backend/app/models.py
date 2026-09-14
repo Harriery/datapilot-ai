@@ -22,6 +22,10 @@ class ChatRequest(BaseModel):
     # Gönderilmezse /chat session_id'yi learner_id olarak kullanacak.
     learner_id: str | None = None
 
+    # Mesaj belirli bir workspace içinden geliyorsa
+    # frontend workspace_id'yi de gönderir.
+    workspace_id: str | None = None
+
 
 
 class ChatResponse(BaseModel):      #/chat endpoint’inin başarılı cevabında
@@ -362,6 +366,85 @@ class DataEngineeringTaskTransformationRequest(BaseModel):
 class DataEngineeringTaskCreateRequest(BaseModel):
     learner_id: str
     task: DataEngineeringTask
+
+
+# ==================================================
+# WORKSPACE
+# ==================================================
+#
+# Workspace:
+# Junior'ın belirli bir iş / proje bağlamını temsil eder.
+#
+# Amaç:
+# Farklı çalışmaların birbirine karışmasını önlemek.
+#
+# Global learner progress workspace'ler arasında ortak olabilir.
+# Ancak:
+#
+# - task
+# - kaldığı yer
+# - hata
+# - sonraki adımlar
+# - mentor konuşması
+#
+# workspace'e özel kalır.
+
+
+class WorkspaceCheckpoint(BaseModel):
+    # Junior'ın bu workspace içinde tamamladığı
+    # önemli adımlar.
+    completed_items: list[str] = Field(
+        default_factory=list
+    )
+
+    # Junior şu anda tam olarak ne üzerinde çalışıyor?
+    current_focus: str | None = None
+
+    # İlerlemeyi engelleyen bir problem varsa.
+    blocked_reason: str | None = None
+
+    # Son teknik hata.
+    last_error: str | None = None
+
+    # Junior geri geldiğinde önerilecek
+    # sıradaki küçük adımlar.
+    next_actions: list[str] = Field(
+        default_factory=list
+    )
+
+
+class Workspace(BaseModel):
+    workspace_id: str
+    learner_id: str
+
+    title: str
+
+    workspace_type: Literal[
+        "data_engineering",
+        "practice",
+        "general",
+    ]
+
+    status: Literal[
+        "active",
+        "paused",
+        "completed",
+    ] = "active"
+
+    # Workspace bir Data Engineering task'ına
+    # bağlıysa task id burada tutulabilir.
+    current_task_id: str | None = None
+
+    # Bu workspace'e ait mentor konuşmasının
+    # session id'si.
+    #
+    # Böylece başka workspace'in sohbetiyle
+    # karışmaz.
+    mentor_session_id: str | None = None
+
+    checkpoint: WorkspaceCheckpoint = Field(
+        default_factory=WorkspaceCheckpoint
+    )
 
 # ==================================================
 # LEARNER PROGRESS
@@ -823,3 +906,36 @@ class LearnerLanguageResponse(BaseModel):
         "en",
         "nl",
     ]
+
+
+class WorkspaceCreateRequest(BaseModel):
+    learner_id: str
+    title: str
+
+    workspace_type: Literal[
+        "data_engineering",
+        "practice",
+        "general",
+    ]
+
+    current_task_id: str | None = None
+
+class WorkspaceCheckpointUpdateRequest(BaseModel):
+    checkpoint: WorkspaceCheckpoint
+
+
+class WorkspaceResumeResponse(BaseModel):
+    workspace_id: str
+    title: str
+
+    status: Literal[
+        "active",
+        "paused",
+        "completed",
+    ]
+
+    checkpoint: WorkspaceCheckpoint
+
+    # Frontend'in "Şimdi ne yapmalıyım?"
+    # alanında doğrudan gösterebilmesi için.
+    next_action: str | None = None

@@ -123,3 +123,151 @@ def test_chat_returns_500_when_openai_fails():
     ## Hata sonrası kullanıcı mesajının history.pop() ile silindiğini kontrol eder.
     session_response = client.get(f"/sessions/{session_id}")
     assert session_response.json()["history"] == []
+
+def test_chat_passes_workspace_context_to_mentor():
+    database.insert_learner_profile(
+        learner_id="learner-001",
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+    )
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Customer Data Quality",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace = create_response.json()
+
+    workspace_id = workspace["workspace_id"]
+    mentor_session_id = workspace["mentor_session_id"]
+
+    checkpoint_response = client.put(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/checkpoint"
+        ),
+        json={
+            "checkpoint": {
+                "completed_items": [
+                    "Duplicate kayıtlar temizlendi."
+                ],
+                "current_focus": (
+                    "age kolonundaki null değerler"
+                ),
+                "blocked_reason": None,
+                "last_error": (
+                    "Null sayısı azalmadı."
+                ),
+                "next_actions": [
+                    "age dağılımını incele"
+                ],
+            }
+        },
+    )
+
+    assert checkpoint_response.status_code == 200
+
+    with patch(
+        "backend.app.chat_routes."
+        "get_mentor_response_from_message",
+        return_value="Mentor cevabı",
+    ) as mock_mentor:
+
+        response = client.post(
+            "/chat",
+            json={
+                "session_id": mentor_session_id,
+                "learner_id": "learner-001",
+                "workspace_id": workspace_id,
+                "message": (
+                    "Tam olarak nereyi diyorsun?"
+                ),
+            },
+        )
+
+    assert response.status_code == 200
+
+    call_kwargs = (
+        mock_mentor.call_args.kwargs
+    )
+
+    workspace_context = (
+        call_kwargs["workspace_context"]
+    )
+
+    assert (
+        workspace_context["workspace_id"]
+        == workspace_id
+    )
+
+    assert (
+        workspace_context["title"]
+        == "Customer Data Quality"
+    )
+
+    assert (
+        workspace_context[
+            "checkpoint"
+        ]["current_focus"]
+        == "age kolonundaki null değerler"
+    )
+
+    assert (
+        workspace_context[
+            "checkpoint"
+        ]["last_error"]
+        == "Null sayısı azalmadı."
+    )
+
+
+def test_chat_rejects_session_from_another_workspace():
+    database.insert_learner_profile(
+        learner_id="learner-001",
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+    )
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Customer Data Quality",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    other_session_response = client.post(
+        "/sessions"
+    )
+
+    other_session_id = (
+        other_session_response.json()["session_id"]
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "session_id": other_session_id,
+            "learner_id": "learner-001",
+            "workspace_id": workspace_id,
+            "message": "Merhaba",
+        },
+    )
+
+    assert response.status_code == 400
+
+    assert response.json()["detail"] == (
+        "Session bu workspace'e ait değil."
+    )

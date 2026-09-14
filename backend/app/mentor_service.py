@@ -339,6 +339,7 @@ def generate_mentor_response(
     mentor_decision: MentorDecision,  # AI'nin MentorDecision modeline göre ürettiği karar
     current_message: str,
     conversation_history: list[dict] | None = None,
+    workspace_context: dict | None = None,
 ):
     # mentor_decision bir Pydantic modelidir.
     # .assistance_level ile örn. "GUIDE" değerini alıyoruz.
@@ -364,15 +365,23 @@ def generate_mentor_response(
     indent=2,
     )
 
+    workspace_context_text = json.dumps(
+    workspace_context or {},
+    ensure_ascii=False,
+    indent=2,
+    )
+
     #BU MESAJDA hangi yardım seviyesinde davranacağıni belirliyoruz.
     prompt = f"""
-         Learner Profile:
+        Learner Profile:
         {learner_profile_text}
+
+        Current Workspace:
+        {workspace_context_text}
 
         Previous Conversation:
         {conversation_history_text}
 
-    
         Mentor Guideline:
         {guideline}
 
@@ -418,6 +427,7 @@ def get_mentor_response_from_message(
     current_message: str,
     session_id: str | None = None,
     conversation_history: list[dict] | None = None,
+    workspace_context: dict | None = None,
 ) -> str | None:
     """
     Adaptive mentor sisteminin ana end-to-end servis akışı.
@@ -454,6 +464,7 @@ def get_mentor_response_from_message(
         mentor_decision=mentor_decision,
         current_message=current_message,
         conversation_history=conversation_history,
+        workspace_context=workspace_context,
     )
 
     # Junior'ın mevcut mesajı gerçek evidence içeriyorsa kaydet.

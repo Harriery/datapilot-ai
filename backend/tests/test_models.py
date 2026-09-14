@@ -11,7 +11,9 @@ from backend.app.models import (
     PracticeAttemptReview,
     PracticeMentorSupport,
     PracticeValidationSpec,
-    PracticeChallenge
+    PracticeChallenge,
+    Workspace,
+    WorkspaceCheckpoint,
     )
 import pytest
 from pydantic import ValidationError
@@ -358,3 +360,58 @@ def test_practice_transformation_challenge_data_flow():
 
     assert attempt.result_rows is not None
     assert attempt.result_rows[1]["age"] == 25
+
+def test_workspace_keeps_its_own_checkpoint():
+    checkpoint = WorkspaceCheckpoint(
+        completed_items=[
+            "Duplicate kayıtlar temizlendi.",
+            "Duplicate validation başarılı.",
+        ],
+        current_focus="age kolonundaki null değerler",
+        blocked_reason=(
+            "Hangi imputation yönteminin "
+            "kullanılacağı henüz seçilmedi."
+        ),
+        last_error=(
+            "Transformation null sayısını azaltmadı."
+        ),
+        next_actions=[
+            "age dağılımını incele",
+            "uygun transformation seç",
+            "sonucu validate et",
+        ],
+    )
+
+    workspace = Workspace(
+        workspace_id="workspace-001",
+        learner_id="learner-001",
+        title="Customer Data Quality",
+        workspace_type="data_engineering",
+        current_task_id="task-001",
+        mentor_session_id="session-001",
+        checkpoint=checkpoint,
+    )
+
+    assert workspace.workspace_id == "workspace-001"
+    assert workspace.learner_id == "learner-001"
+
+    assert workspace.status == "active"
+
+    assert (
+        workspace.checkpoint.current_focus
+        == "age kolonundaki null değerler"
+    )
+
+    assert len(
+        workspace.checkpoint.completed_items
+    ) == 2
+
+    assert (
+        workspace.checkpoint.next_actions[0]
+        == "age dağılımını incele"
+    )
+
+    assert (
+        workspace.mentor_session_id
+        == "session-001"
+    )

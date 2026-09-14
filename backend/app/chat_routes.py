@@ -29,6 +29,8 @@ from backend.app.mentor_service import (
     get_mentor_response_from_message,
 )
 
+import json
+
 
 router = APIRouter()
 MAX_HISTORY_MESSAGES = 10 
@@ -59,6 +61,46 @@ def chat(request: ChatRequest):
         )
 
     learner_id = request.learner_id or request.session_id
+
+    workspace_context = None
+
+    if request.workspace_id is not None:
+        workspace = database.get_workspace(
+            workspace_id=request.workspace_id,
+            learner_id=learner_id,
+        )
+
+        if workspace is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Workspace bulunamadı.",
+            )
+
+        # Bir workspace'in mentor konuşması başka
+        # workspace'in session'ıyla karışmamalı.
+        if (
+            workspace.mentor_session_id
+            != request.session_id
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Session bu workspace'e ait değil."
+                ),
+            )
+
+        workspace_context = {
+            "workspace_id": workspace.workspace_id,
+            "title": workspace.title,
+            "workspace_type": workspace.workspace_type,
+            "status": workspace.status,
+            "current_task_id": (
+                workspace.current_task_id
+            ),
+            "checkpoint": (
+                workspace.checkpoint.model_dump()
+            ),
+        }
 
     learner_profile = database.get_learner_profile_by_id(
     learner_id
@@ -95,19 +137,31 @@ def chat(request: ChatRequest):
             current_message=message,
             session_id=request.session_id,
             conversation_history=previous_history,
+            workspace_context=workspace_context,
         )
 
-        # Mesaj katalogdaki bir learning skill ile ilgili değilse
-        # mevcut normal chat davranışına geri dön.
+        # Mesaj adaptive mentor tarafından ele alınmadıysa
+        # normal chat davranışına geri dön.
         if reply is None:
+            fallback_instructions = SYSTEM_PROMPT
+
+            if workspace_context is not None:
+                fallback_instructions += (
+                    "\n\nCurrent Workspace Context:\n"
+                    + json.dumps(
+                        workspace_context,
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                )
+
             response = client.responses.create(
                 model="gpt-5-mini",
-                instructions=SYSTEM_PROMPT,
+                instructions=fallback_instructions,
                 input=history,
             )
 
             reply = response.output_text
-
     # OpenAI cevap veremezse son eklenen user mesajını veritabanından siler.
     except AuthenticationError:
         delete_last_message(request.session_id)
