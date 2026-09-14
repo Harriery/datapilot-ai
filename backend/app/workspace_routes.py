@@ -9,6 +9,7 @@ from backend.app.models import (
     WorkspaceCreateRequest,
     WorkspaceCheckpointUpdateRequest,
     WorkspaceResumeResponse,
+    WorkspaceStatusUpdateRequest,
 )
 
 
@@ -162,3 +163,31 @@ def resume_workspace(
         checkpoint=workspace.checkpoint,
         next_action=next_action,
     )
+
+@router.put(
+    "/workspaces/{learner_id}/{workspace_id}/status",
+    response_model=Workspace,
+)
+def update_workspace_status(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceStatusUpdateRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    workspace.status = request.status
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace

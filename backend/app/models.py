@@ -923,6 +923,12 @@ class WorkspaceCreateRequest(BaseModel):
 class WorkspaceCheckpointUpdateRequest(BaseModel):
     checkpoint: WorkspaceCheckpoint
 
+class WorkspaceStatusUpdateRequest(BaseModel):
+    status: Literal[
+        "active",
+        "paused",
+        "completed",
+    ]
 
 class WorkspaceResumeResponse(BaseModel):
     workspace_id: str
@@ -939,3 +945,4 @@ class WorkspaceResumeResponse(BaseModel):
     # Frontend'in "Şimdi ne yapmalıyım?"
     # alanında doğrudan gösterebilmesi için.
     next_action: str | None = None
+

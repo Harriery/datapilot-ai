@@ -271,3 +271,45 @@ def test_resume_workspace_returns_checkpoint(
         body["next_action"]
         == "age dağılımını incele"
     )
+
+def test_update_workspace_status_to_completed(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Customer Data Quality",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    response = client.put(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/status"
+        ),
+        json={
+            "status": "completed",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["status"] == "completed"
+
+    stored_workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert stored_workspace is not None
+    assert stored_workspace.status == "completed"

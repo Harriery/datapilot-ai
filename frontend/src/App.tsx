@@ -58,6 +58,9 @@ df["age"] = df["age"].fillna(median_age)`);
   useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
+  const [pythonError, setPythonError] = useState<string | null>(
+  null
+  );
 
    const inputRows = [
       {
@@ -317,6 +320,81 @@ df["age"] = df["age"].fillna(median_age)`);
     }
   }
 
+  async function completeWorkspace() {
+    if (!workspaceId || !resumeData) {
+      return;
+    }
+
+    try {
+      const learnerId = "demo-learner";
+
+      const statusResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/${learnerId}/${workspaceId}/status`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: "completed",
+          }),
+        }
+      );
+
+      if (!statusResponse.ok) {
+        throw new Error(
+          "Workspace tamamlanamadı."
+        );
+      }
+
+      const checkpointResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/${learnerId}/${workspaceId}/checkpoint`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            checkpoint: {
+              completed_items: [
+                ...resumeData.checkpoint.completed_items,
+                "Complete task",
+              ],
+              current_focus: null,
+              blocked_reason: null,
+              last_error: null,
+              next_actions: [],
+            },
+          }),
+        }
+      );
+
+      if (!checkpointResponse.ok) {
+        throw new Error(
+          "Final checkpoint kaydedilemedi."
+        );
+      }
+
+      const resumeResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/${learnerId}/${workspaceId}/resume`
+      );
+
+      const updatedResume =
+        await resumeResponse.json();
+
+      setResumeData(updatedResume);
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Workspace tamamlanırken hata oluştu."
+      );
+    }
+  }
+
+
   async function sendMentorMessage() {
   const message = mentorInput.trim();
 
@@ -394,8 +472,8 @@ df["age"] = df["age"].fillna(median_age)`);
   async function runTransformation() {
     setPythonRunning(true);
     setResultRows(null);
-
-   
+    setPythonError(null);
+    setValidationMessage(null);
 
     try {
       const result = await runDataFrameTransformation(
@@ -407,11 +485,20 @@ df["age"] = df["age"].fillna(median_age)`);
     } catch (error) {
       console.error(error);
 
-      alert(
+      const fullMessage =
         error instanceof Error
           ? error.message
-          : "Python kodu çalıştırılamadı."
-      );
+          : "Python kodu çalıştırılamadı.";
+
+      const lines = fullMessage
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      const shortMessage =
+        lines.at(-1) ?? "Python kodu çalıştırılamadı.";
+
+      setPythonError(shortMessage);
     } finally {
       setPythonRunning(false);
     }
@@ -681,15 +768,20 @@ df["age"] = df["age"].fillna(median_age)`);
                 
             <div className="workspace-path">
               <span className="done-step">
-                ✓ Duplicate cleanup
+                ✓{" "}
+                {resumeData?.checkpoint.completed_items.slice(-1)[0] ??
+                  "No completed step"}
               </span>
                 
               <span className="current-step">
-                ● Current: age nulls
+                ● Current:{" "}
+                {resumeData?.checkpoint.current_focus ??
+                  "No current focus"}
               </span>
                 
               <span>
-                ○ Next: validate
+                ○ Next:{" "}
+                {resumeData?.next_action ?? "No next action"}
               </span>
             </div>
                 
@@ -713,6 +805,17 @@ df["age"] = df["age"].fillna(median_age)`);
                   ⚠ {resumeData.checkpoint.blocked_reason}
                 </p>
               )}
+
+              {resumeData?.checkpoint.current_focus ===
+                "Complete task" && (
+                <button
+                  className="complete-workspace-button"
+                  onClick={completeWorkspace}
+                >
+                  ✓ Complete workspace
+                </button>
+              )}
+
             </div>
                 
             <div className="workspace-grid">
@@ -766,11 +869,16 @@ df["age"] = df["age"].fillna(median_age)`);
                   </tbody>
 
                 </table>
-                
                 <div className="result-preview">
                   <strong>Result preview</strong>
-                            
-                  {resultRows === null ? (
+
+                  {pythonError ? (
+                    <div className="python-error">
+                      <strong>Python error</strong>
+                  
+                      <pre>{pythonError}</pre>
+                    </div>
+                  ) : resultRows === null ? (
                     <p>
                       Run your transformation to preview the result.
                     </p>
@@ -790,11 +898,13 @@ df["age"] = df["age"].fillna(median_age)`);
                           <tr key={index}>
                             <td>{String(row.customer_id)}</td>
                             <td>{String(row.name)}</td>
+                        
                             <td>
                               {row.age == null
                                 ? "NULL"
                                 : String(row.age)}
                             </td>
+                              
                             <td>{String(row.city)}</td>
                           </tr>
                         ))}
@@ -811,12 +921,16 @@ df["age"] = df["age"].fillna(median_age)`);
                 </div>
                 
                 <textarea
-                
                   className="code-editor"
                   value={transformationCode}
-                  onChange={(event) =>
-                    setTransformationCode(event.target.value)
-                  }
+                  onChange={(event) => {
+                    setTransformationCode(event.target.value);
+                  
+                    // Kod değiştiyse eski çalıştırma sonucu artık geçerli değildir.
+                    setResultRows(null);
+                    setPythonError(null);
+                    setValidationMessage(null);
+                  }}
                 />
                 
 
@@ -832,10 +946,11 @@ df["age"] = df["age"].fillna(median_age)`);
                   <button
                     className="submit-button"
                     onClick={submitTransformation}
-                    disabled={submitting}
+                    disabled={submitting || resultRows === null}
                   >
                     {submitting ? "Validating..." : "✓ Submit"}
                   </button>
+
                 </div>
                 {validationMessage && (
                   <div className="validation-message">
