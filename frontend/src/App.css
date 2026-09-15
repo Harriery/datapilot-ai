@@ -940,3 +940,472 @@
   font-weight: 600;
   color: #6f5b12;
 }
+
+/* ==================================================
+   COMPACT PRACTICE LAYOUT
+   ================================================== */
+
+.practice-page {
+  gap: 10px;
+}
+
+.practice-page .workspace-header h2 {
+  margin: 6px 0 2px;
+  font-size: 24px;
+}
+
+.practice-page .workspace-header p {
+  font-size: 13px;
+}
+
+.practice-card {
+  padding: 14px 16px;
+  border-radius: 14px;
+}
+
+.practice-card .card-heading h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.practice-card .status-badge {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.practice-card .skill-name {
+  margin: 8px 0 4px;
+  font-size: 14px;
+}
+
+.practice-card > p:not(.skill-name) {
+  margin: 5px 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.practice-card .badge-row {
+  margin: 8px 0;
+}
+
+.practice-card .priority-badge,
+.practice-card .difficulty-badge {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.practice-context-section {
+  margin-top: 10px;
+}
+
+.practice-card .panel-title {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.practice-context-code {
+  margin: 0;
+  padding: 10px 12px;
+
+  max-height: 130px;
+  overflow: auto;
+
+  font-size: 12px;
+  line-height: 1.45;
+
+  border-radius: 9px;
+}
+
+.practice-editor-section {
+  margin-top: 10px;
+}
+
+.practice-code-editor {
+  min-height: 110px;
+  height: 150px;
+
+  padding: 12px;
+
+  font-size: 13px;
+  line-height: 1.5;
+
+  border-radius: 9px;
+}
+
+.practice-card .workspace-actions {
+  margin-top: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.practice-card .run-button,
+.practice-card .submit-button,
+.practice-card .hint-button {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.practice-hint {
+  margin-top: 10px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.practice-hint p {
+  margin: 5px 0 0;
+}
+
+.practice-hint-level {
+  margin-top: 6px;
+  font-size: 10px;
+}
+
+.solution-available {
+  margin-top: 7px !important;
+}
+
+.solution-button {
+  margin-top: 5px;
+  padding: 7px 11px;
+  font-size: 12px;
+}
+
+.practice-solution {
+  margin-top: 10px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.practice-solution pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+
+  max-height: 150px;
+  overflow: auto;
+
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.practice-solution-level {
+  margin-top: 6px;
+  font-size: 10px;
+}
+
+.practice-card .result-preview {
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+
+.practice-card .result-preview p {
+  margin-top: 5px;
+  font-size: 12px;
+}
+
+.practice-feedback {
+  margin-top: 10px;
+  padding: 11px 13px;
+}
+
+
+/* Küçük laptop ekranları */
+
+@media (max-width: 1400px) {
+  .main-content {
+    padding: 22px;
+  }
+
+  .practice-code-editor {
+    height: 135px;
+  }
+}
+
+
+/* Özellikle düşük ekran yüksekliği */
+
+@media (max-height: 850px) {
+  .practice-page {
+    gap: 7px;
+  }
+
+  .practice-page .workspace-header h2 {
+    font-size: 22px;
+  }
+
+  .practice-context-code {
+    max-height: 105px;
+  }
+
+  .practice-code-editor {
+    min-height: 100px;
+    height: 120px;
+  }
+}
+
+
+@media (max-width: 900px) {
+  .main-content {
+    padding: 16px;
+  }
+
+  .practice-card {
+    padding: 14px;
+  }
+
+  .practice-code-editor {
+    height: 120px;
+  }
+}
+
+/* ==================================================
+   PRACTICE WORKBENCH - TWO COLUMN LAYOUT
+   ================================================== */
+
+.practice-workbench {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 0.9fr)
+    minmax(0, 1.1fr);
+  gap: 14px;
+  align-items: start;
+  margin-top: 10px;
+}
+
+.practice-workbench .practice-context-section,
+.practice-workbench .practice-editor-section {
+  margin-top: 0;
+}
+
+.practice-workbench .practice-context-code {
+  height: 145px;
+  max-height: 145px;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.practice-workbench .practice-code-editor {
+  min-height: 145px;
+  height: 145px;
+  box-sizing: border-box;
+}
+
+.practice-workbench .workspace-actions {
+  margin-top: 8px;
+}
+
+
+/* Dar ekranlarda tekrar alt alta geç */
+
+@media (max-width: 1050px) {
+  .practice-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-workbench .practice-context-code {
+    height: auto;
+    max-height: 120px;
+  }
+
+  .practice-workbench .practice-code-editor {
+    min-height: 120px;
+    height: 140px;
+  }
+}
+
+
+/* ==================================================
+   PRACTICE - COMPACT TWO COLUMN WORKBENCH
+   ================================================== */
+
+.practice-workbench {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 0.9fr)
+    minmax(0, 1.1fr);
+
+  gap: 14px;
+  align-items: start;
+  margin-top: 10px;
+}
+
+.practice-workbench .practice-context-section,
+.practice-workbench .practice-editor-section {
+  margin-top: 0;
+}
+
+.practice-workbench .practice-context-code {
+  height: 145px;
+  max-height: 145px;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.practice-workbench .practice-code-editor {
+  min-height: 145px;
+  height: 145px;
+  box-sizing: border-box;
+}
+
+.practice-workbench .workspace-actions {
+  margin-top: 8px;
+}
+
+
+/* Alt kompakt output/help alanı */
+
+.practice-feedback-panel {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 0.7fr)
+    minmax(0, 1.3fr);
+
+  gap: 10px;
+
+  margin-top: 10px;
+}
+
+.practice-output-panel,
+.practice-support-panel {
+  min-width: 0;
+
+  padding: 10px 12px;
+
+  border: 1px solid #dfe5ec;
+  border-radius: 10px;
+
+  background: #f7f9fc;
+}
+
+.practice-output-panel > strong,
+.practice-support-panel > strong {
+  display: block;
+  margin-bottom: 5px;
+
+  font-size: 13px;
+}
+
+.practice-output-panel .muted,
+.practice-support-panel .muted {
+  margin: 4px 0 0;
+
+  font-size: 12px;
+}
+
+.practice-output-value {
+  margin: 6px 0 0;
+
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+
+  font-size: 13px;
+}
+
+.practice-support-scroll {
+  max-height: 145px;
+  overflow-y: auto;
+}
+
+.practice-support-panel .practice-hint,
+.practice-support-panel .practice-feedback,
+.practice-support-panel .practice-solution {
+  margin-top: 6px;
+  padding: 9px 11px;
+}
+
+.practice-support-panel .practice-hint:first-child,
+.practice-support-panel .practice-feedback:first-child {
+  margin-top: 0;
+}
+
+.practice-support-panel .practice-solution pre {
+  max-height: 90px;
+  overflow: auto;
+}
+
+
+/* Gerçekten dar ekranlarda alt alta geç */
+
+@media (max-width: 900px) {
+  .practice-workbench,
+  .practice-feedback-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Final compact pass for laptop screens */
+
+@media (max-height: 900px) {
+  .practice-page {
+    gap: 4px;
+  }
+
+  .practice-page .workspace-header {
+    margin-bottom: 0;
+  }
+
+  .practice-page .workspace-header h2 {
+    margin: 3px 0 0;
+    font-size: 20px;
+  }
+
+  .practice-page .workspace-header p {
+    display: none;
+  }
+
+  .practice-page .back-button {
+    font-size: 12px;
+  }
+
+  .practice-card {
+    padding: 10px 14px;
+  }
+
+  .practice-card .card-heading h3 {
+    font-size: 17px;
+  }
+
+  .practice-card .skill-name {
+    margin: 4px 0 2px;
+    font-size: 13px;
+  }
+
+  .practice-card > p:not(.skill-name) {
+    margin: 3px 0;
+    font-size: 12px;
+  }
+
+  .practice-card .badge-row {
+    margin: 5px 0;
+  }
+
+  .practice-workbench {
+    margin-top: 6px;
+    gap: 10px;
+  }
+
+  .practice-workbench .practice-context-code,
+  .practice-workbench .practice-code-editor {
+    height: 125px;
+    min-height: 125px;
+    max-height: 125px;
+  }
+
+  .practice-feedback-panel {
+    margin-top: 7px;
+    gap: 8px;
+  }
+
+  .practice-output-panel,
+  .practice-support-panel {
+    padding: 8px 10px;
+  }
+
+  .practice-support-scroll {
+    max-height: 105px;
+  }
+}

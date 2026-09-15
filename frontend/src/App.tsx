@@ -1349,7 +1349,7 @@ df["age"] = df["age"].fillna(median_age)`);
             </section>
           </>
                 ) : currentView === "practice" ? (
-          <section className="workspace-page">
+          <section className="workspace-page practice-page">
             <div className="workspace-header">
               <div>
                 <button
@@ -1376,7 +1376,7 @@ df["age"] = df["age"].fillna(median_age)`);
                 <p>{practiceError}</p>
               </div>
             ) : practiceChallenge ? (
-              <div className="card">
+              <div className="card practice-card">
                 <div className="card-heading">
                   <h3>
                     {practiceChallenge.title}
@@ -1400,113 +1400,221 @@ df["age"] = df["age"].fillna(median_age)`);
                     {practiceChallenge.challenge_type}
                   </span>
                 </div>
-
-                {practiceChallenge.context_code && (
-                  <div className="practice-context-section">
-                    <div className="panel-title">
-                      Given data
-                    </div>
-
-                    <pre className="practice-context-code">
-                      {practiceChallenge.context_code}
-                    </pre>
-                  </div>
-                )}
-
-                <div className="practice-editor-section">
-                  <div className="panel-title">
-                    Your solution
-                  </div>
-
-                  <textarea
-                    className="code-editor practice-code-editor"
-                    value={practiceCode}
-                    onChange={(event) => {
-                      setPracticeCode(event.target.value);
-                      setPracticeOutput(null);
-                      setPracticeExecutionError(null);
-                    }}
-                  />
-
-                  <div className="workspace-actions">
-                    <button
-                      className="run-button"
-                      onClick={runPracticeCode}
-                      disabled={practiceRunning}
-                    >
-                      {practiceRunning
-                        ? "Running..."
-                        : "▶ Run"}
-                    </button>
-                      
-                    <button
-                      className="hint-button"
-                      onClick={requestPracticeHint}
-                      disabled={
-                        practiceHintLoading ||
-                        practiceHint?.solution_available === true
-                      }
-                    >
-                      {practiceHintLoading
-                        ? "Loading hint..."
-                        : practiceHint?.solution_available
-                          ? "Hints completed"
-                          : "💡 Hint"}
-                    </button>
-
-                    <button
-                      className="submit-button"
-                      onClick={submitPracticeAnswer}
-                      disabled={
-                        practiceSubmitting ||
-                        (
-                          practiceOutput === null &&
-                          practiceExecutionError === null
-                        )
-                      }
-                    >
-                      {practiceSubmitting
-                        ? "Checking..."
-                        : "✓ Submit answer"}
-                    </button>
-                  </div>
-
-                  {practiceHint && practiceHint.hint && (
-                    <div className="practice-hint">
-                      <strong>
-                        Hint {practiceHint.hint_number}
-                        {" / "}
-                        {practiceHint.total_hints}
-                      </strong>
-                                    
-                      <p>{practiceHint.hint}</p>
-                                    
-                      {practiceHint.assistance_level && (
-                        <span className="practice-hint-level">
-                          Support: {practiceHint.assistance_level}
-                        </span>
-                      )}
+                
+                <div className="practice-workbench">
+                  {practiceChallenge.context_code && (
+                    <div className="practice-context-section">
+                      <div className="panel-title">
+                        Given data
+                      </div>
                   
-                      {practiceHint.solution_available && (
-                        <div className="solution-available">
-                          <button
-                            className="solution-button"
-                            onClick={requestPracticeSolution}
-                            disabled={
-                              practiceSolutionLoading ||
-                              practiceSolution !== null
-                            }
-                          >
-                            {practiceSolutionLoading
-                              ? "Loading solution..."
-                              : practiceSolution
-                                ? "Solution shown"
-                                : "👁 Show solution"}
-                          </button>
+                      <pre className="practice-context-code">
+                        {practiceChallenge.context_code}
+                      </pre>
+                    </div>
+                  )}
+
+                  <div className="practice-editor-section">
+                    <div className="panel-title">
+                      Your solution
+                    </div>
+                
+                    <textarea
+                      className="code-editor practice-code-editor"
+                      value={practiceCode}
+                      onChange={(event) => {
+                        setPracticeCode(event.target.value);
+                        setPracticeOutput(null);
+                        setPracticeExecutionError(null);
+                      }}
+                    />
+
+                    <div className="workspace-actions">
+                      <button
+                        className="run-button"
+                        onClick={runPracticeCode}
+                        disabled={practiceRunning}
+                      >
+                        {practiceRunning
+                          ? "Running..."
+                          : "▶ Run"}
+                      </button>
+                        
+                      <button
+                        className="hint-button"
+                        onClick={requestPracticeHint}
+                        disabled={
+                          practiceHintLoading ||
+                          practiceHint?.solution_available === true
+                        }
+                      >
+                        {practiceHintLoading
+                          ? "Loading hint..."
+                          : practiceHint?.solution_available
+                            ? "Hints completed"
+                            : "💡 Hint"}
+                      </button>
+                        
+                      <button
+                        className="submit-button"
+                        onClick={submitPracticeAnswer}
+                        disabled={
+                          practiceSubmitting ||
+                          (
+                            practiceOutput === null &&
+                            practiceExecutionError === null
+                          )
+                        }
+                      >
+                        {practiceSubmitting
+                          ? "Checking..."
+                          : "✓ Submit answer"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                        
+                <div className="practice-feedback-panel">
+                  <div className="practice-output-panel">
+                    <strong>Output</strong>
+                        
+                    {practiceExecutionError ? (
+                      <div className="python-error">
+                        <strong>Python error</strong>
+                    
+                        <pre>
+                          {practiceExecutionError}
+                        </pre>
+                      </div>
+                    ) : practiceOutput !== null ? (
+                      <pre className="practice-output-value">
+                        {practiceOutput}
+                      </pre>
+                    ) : (
+                      <p className="muted">
+                        Run your code to see the output.
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="practice-support-panel">
+                    <strong>Help & feedback</strong>
+                  
+                    <div className="practice-support-scroll">
+                      {practiceHint && practiceHint.hint ? (
+                        <div className="practice-hint">
+                          <strong>
+                            Hint {practiceHint.hint_number}
+                            {" / "}
+                            {practiceHint.total_hints}
+                          </strong>
+                      
+                          <p>{practiceHint.hint}</p>
+                      
+                          {practiceHint.assistance_level && (
+                            <span className="practice-hint-level">
+                              Support: {practiceHint.assistance_level}
+                            </span>
+                          )}
+
+                          {practiceHint.solution_available && (
+                            <div className="solution-available">
+                              <button
+                                className="solution-button"
+                                onClick={requestPracticeSolution}
+                                disabled={
+                                  practiceSolutionLoading ||
+                                  practiceSolution !== null
+                                }
+                              >
+                                {practiceSolutionLoading
+                                  ? "Loading solution..."
+                                  : practiceSolution
+                                    ? "Solution shown"
+                                    : "👁 Show solution"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        !practiceReview && (
+                          <p className="muted">
+                            Use Hint if you need support.
+                          </p>
+                        )
+                      )}
+
+                      {practiceSolution && (
+                        <div className="practice-solution">
+                          <strong>Example solution</strong>
+                      
+                          <pre>
+                            {practiceSolution.solution}
+                          </pre>
+                      
+                          <span className="practice-solution-level">
+                            Support: {practiceSolution.assistance_level}
+                          </span>
+                        </div>
+                      )}
+
+                      {practiceSolutionError && (
+                        <div className="practice-hint-error">
+                          {practiceSolutionError}
+                        </div>
+                      )}
+
+                      {practiceHintError && (
+                        <div className="practice-hint-error">
+                          {practiceHintError}
+                        </div>
+                      )}
+
+                      {practiceReview && (
+                        <div
+                          className={
+                            practiceReview.validation.success
+                              ? "practice-feedback success"
+                              : "practice-feedback failure"
+                          }
+                        >
+                          <strong>
+                            {practiceReview.validation.success
+                              ? "✓ Correct"
+                              : "Not quite yet"}
+                          </strong>
+                            
+                          <p>
+                            {practiceReview.validation.feedback}
+                          </p>
+                            
+                          {practiceReview.mentor_support && (
+                            <div className="mentor-practice-feedback">
+                              <strong>Mentor</strong>
+                          
+                              <p>
+                                {practiceReview.mentor_support.message}
+                              </p>
+                          
+                              {practiceReview.mentor_support.micro_check && (
+                                <div className="micro-check">
+                                  <strong>Quick check</strong>
+                              
+                                  <p>
+                                    {
+                                      practiceReview.mentor_support
+                                        .micro_check
+                                    }
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
+                </div>
                   
                   {practiceSolution && (
                     <div className="practice-solution">
@@ -1533,71 +1641,10 @@ df["age"] = df["age"].fillna(median_age)`);
                       {practiceHintError}
                     </div>
                   )}
-
-                  <div className="result-preview">
-                    <strong>Output</strong>
-                      
-                    {practiceExecutionError ? (
-                      <div className="python-error">
-                        <strong>Python error</strong>
-                        <pre>
-                          {practiceExecutionError}
-                        </pre>
-                      </div>
-                    ) : practiceOutput !== null ? (
-                      <pre>{practiceOutput}</pre>
-                    ) : (
-                      <p className="muted">
-                        Run your code to see the output.
-                      </p>
-                    )}
-                  </div>
                   
-                  {practiceReview && (
-                    <div
-                      className={
-                        practiceReview.validation.success
-                          ? "practice-feedback success"
-                          : "practice-feedback failure"
-                      }
-                    >
-                      <strong>
-                        {practiceReview.validation.success
-                          ? "✓ Correct"
-                          : "Not quite yet"}
-                      </strong>
-                        
-                      <p>
-                        {practiceReview.validation.feedback}
-                      </p>
-                        
-                      {practiceReview.mentor_support && (
-                        <div className="mentor-practice-feedback">
-                          <strong>Mentor</strong>
-                      
-                          <p>
-                            {practiceReview.mentor_support.message}
-                          </p>
-                      
-                          {practiceReview.mentor_support.micro_check && (
-                            <div className="micro-check">
-                              <strong>Quick check</strong>
-                          
-                              <p>
-                                {
-                                  practiceReview.mentor_support
-                                    .micro_check
-                                }
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                 </div>
-              </div>
+              
             ) : (
               <p className="muted">
                 No challenge loaded.
