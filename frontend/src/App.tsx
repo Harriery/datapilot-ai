@@ -7,6 +7,15 @@ import {
 
 
 
+import {
+  ArrowLeft,
+  BriefcaseBusiness,
+  Plus,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
+
 type SkillProgressData = {
   skill_name: string;
   status: "new" | "learning" | "practicing" | "comfortable";
@@ -48,6 +57,27 @@ type DashboardWorkspace = {
     last_error: string | null;
     next_actions: string[];
   };
+
+  task_brief: string | null;
+  desired_outcome: string | null;
+
+  usage_context: "work" | "personal";
+
+  data_sensitivity:
+    | "public"
+    | "internal"
+    | "confidential"
+    | "restricted"
+    | "unknown"
+    | null;
+
+  workflow_type:
+    | "auto"
+    | "etl"
+    | "elt"
+    | "data_quality"
+    | "analysis"
+    | "pipeline";
 };
 
 type PracticeChallengeData = {
@@ -112,7 +142,7 @@ function App() {
   const [showSkills, setShowSkills] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentView, setCurrentView] = useState<
-  "dashboard" | "workspace" | "practice"
+  "dashboard" | "workspace" | "practice" | "new-workspace"
   >("dashboard");
   const [mentorOpen, setMentorOpen] = useState(false);
   const [mentorInput, setMentorInput] = useState("");
@@ -178,8 +208,54 @@ df["age"] = df["age"].fillna(median_age)`);
   const [dashboardLoading, setDashboardLoading] =
   useState(true);
 
-  const [dashboardWorkspace, setDashboardWorkspace] =
-  useState<DashboardWorkspace | null>(null);
+  const [
+    dashboardWorkspace,
+    setDashboardWorkspace,
+  ] = useState<DashboardWorkspace | null>(null);
+
+  const [dashboardWorkspaces, setDashboardWorkspaces] =
+  useState<DashboardWorkspace[]>([]);
+
+  const [newWorkspaceTitle, setNewWorkspaceTitle] =
+    useState("");
+
+  const [newWorkspaceTaskBrief, setNewWorkspaceTaskBrief] =
+    useState("");
+
+  const [newWorkspaceOutcome, setNewWorkspaceOutcome] =
+    useState("");
+
+  const [newWorkspaceWorkflow, setNewWorkspaceWorkflow] =
+    useState<
+      | "auto"
+      | "etl"
+      | "elt"
+      | "data_quality"
+      | "analysis"
+      | "pipeline"
+    >("auto");
+
+  const [
+    newWorkspaceUsageContext,
+    setNewWorkspaceUsageContext,
+  ] = useState<"work" | "personal">("work");
+
+  const [
+    newWorkspaceDataSensitivity,
+    setNewWorkspaceDataSensitivity,
+  ] = useState<
+    | "public"
+    | "internal"
+    | "confidential"
+    | "restricted"
+    | "unknown"
+  >("unknown");
+
+  const [workspaceCreating, setWorkspaceCreating] =
+    useState(false);
+
+  const [workspaceCreateError, setWorkspaceCreateError] =
+    useState<string | null>(null);
 
   const [practiceChallenge, setPracticeChallenge] =
   useState<PracticeChallengeData | null>(null);
@@ -308,18 +384,17 @@ df["age"] = df["age"].fillna(median_age)`);
           recommendationData.recommendation
         );
 
-        const customerWorkspace =
+        setDashboardWorkspaces(workspaceData);
+
+        const defaultWorkspace =
           workspaceData.find(
-            (workspace) =>
-              workspace.title === "Customer Data Quality"
-          ) ?? null;
+            (workspace) => workspace.status === "active"
+          ) ??
+          workspaceData[0] ??
+          null;
         
-        setDashboardWorkspace(customerWorkspace);
+        setDashboardWorkspace(defaultWorkspace);
 
-
-        setDashboardWorkspace(
-          customerWorkspace ?? null
-        );
       } catch (error) {
         console.error(
           "Dashboard yüklenemedi:",
@@ -464,6 +539,7 @@ df["age"] = df["age"].fillna(median_age)`);
           },
           body: JSON.stringify({
             learner_id: "demo-learner",
+
             challenge_id:
               practiceChallenge.challenge_id,
 
@@ -608,115 +684,102 @@ df["age"] = df["age"].fillna(median_age)`);
     }
   }
 
-  async function openWorkspace() {
+  async function createNewWorkspace() {
+    const title = newWorkspaceTitle.trim();
+    const taskBrief = newWorkspaceTaskBrief.trim();
+
+    if (!title) {
+      setWorkspaceCreateError(
+        "Workspace name is required."
+      );
+      return;
+    }
+
+    if (!taskBrief) {
+      setWorkspaceCreateError(
+        "Task brief is required."
+      );
+      return;
+    }
+
+    setWorkspaceCreating(true);
+    setWorkspaceCreateError(null);
+
     try {
-      const learnerId = "demo-learner";
+      const response = await fetch(
+        "http://127.0.0.1:8000/workspaces",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            learner_id: "demo-learner",
 
-      const listResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/${learnerId}`
-      );
+            title,
 
-      if (!listResponse.ok) {
-        throw new Error("Workspace listesi alınamadı.");
-      }
+            usage_context:
+              newWorkspaceUsageContext,
 
-      const workspaces = await listResponse.json();
+            data_sensitivity:
+              newWorkspaceUsageContext === "work"
+                ? newWorkspaceDataSensitivity
+                : null,
 
-      let workspace = workspaces.find(
-        (item: { title: string }) =>
-          item.title === "Customer Data Quality"
-      );
+            task_brief: taskBrief,
 
-      let isNewWorkspace = false;
+            desired_outcome:
+              newWorkspaceOutcome.trim() || null,
 
-      if (!workspace) {
-        const createResponse = await fetch(
-          "http://127.0.0.1:8000/workspaces",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              learner_id: learnerId,
-              title: "Customer Data Quality",
-              workspace_type: "data_engineering",
-              current_task_id: null,
-            }),
-          }
-        );
+            workflow_type:
+              newWorkspaceWorkflow,
 
-        if (!createResponse.ok) {
-          throw new Error("Workspace oluşturulamadı.");
+            workspace_type:
+              "data_engineering",
+
+            current_task_id: null,
+          }),
         }
+      );
 
-        workspace = await createResponse.json();
-        isNewWorkspace = true;
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Workspace oluşturulamadı."
+        );
       }
+
+      const workspace = await response.json();
 
       setWorkspaceId(workspace.workspace_id);
       setMentorSessionId(workspace.mentor_session_id);
 
-      if (isNewWorkspace) {
-        const checkpointResponse = await fetch(
-          `http://127.0.0.1:8000/workspaces/${learnerId}/${workspace.workspace_id}/checkpoint`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              checkpoint: {
-                completed_items: [
-                  "Dataset profile",
-                  "Duplicate analysis",
-                  "Duplicate cleanup",
-                ],
-                current_focus: "Resolve missing age values",
-                blocked_reason:
-                  "Imputation strategy has not been selected yet.",
-                last_error: null,
-                next_actions: [
-                  "Choose an imputation strategy",
-                  "Validate the transformation",
-                ],
-              },
-            }),
-          }
-        );
+      setNewWorkspaceTitle("");
+      setNewWorkspaceTaskBrief("");
+      setNewWorkspaceOutcome("");
+      setNewWorkspaceWorkflow("auto");
+      setNewWorkspaceUsageContext("work");
+      setNewWorkspaceDataSensitivity("unknown");
 
-        if (!checkpointResponse.ok) {
-          throw new Error("İlk checkpoint kaydedilemedi.");
-        }
-        const completedWorkspace =
-          await checkpointResponse.json();
+      // Şimdilik yeni workspace oluşturulduktan sonra
+      // Dashboard'a dönüyoruz.
+      // Sonraki adımda workspace listesine ekleyeceğiz.
+      setCurrentView("dashboard");
+    } catch (error) {
+      console.error(error);
 
-        setDashboardWorkspace(completedWorkspace);
-      }
-
-
-      const resumeResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/${learnerId}/${workspace.workspace_id}/resume`
+      setWorkspaceCreateError(
+        error instanceof Error
+          ? error.message
+          : "Workspace oluşturulamadı."
       );
-
-      if (!resumeResponse.ok) {
-        throw new Error("Workspace kaldığı yerden yüklenemedi.");
-      }
-
-      const resume = await resumeResponse.json();
-
-        setResumeData(resume);
-        setCurrentView("workspace");
-      } catch (error) {
-        console.error(error);
-
-        alert(
-          error instanceof Error
-            ? error.message
-            : "Workspace açılırken hata oluştu."
-        );
-      }
+    } finally {
+      setWorkspaceCreating(false);
     }
+  }
+
 
   async function submitTransformation() {
     if (!resultRows) {
@@ -1117,71 +1180,109 @@ df["age"] = df["age"].fillna(median_age)`);
                 </p>
               </div>
         
-              <div className="profile-badge">
-                Junior Data Engineer
+              <div className="dashboard-header-actions">
+                <button
+                  className="primary-button"
+                  onClick={() =>
+                    setCurrentView("new-workspace")
+                  }
+                >
+                  + New Workspace
+                </button>
+                
+                <div className="profile-badge">
+                  Junior Data Engineer
+                </div>
               </div>
             </header>
         
             <section className="dashboard-grid">
+              
               <article className="card continue-card">
                 <div className="card-heading">
-                  <h3>Continue where you left off</h3>
-                      
+                  <div>
+                    <p className="workspace-eyebrow">
+                      WORKSPACES
+                    </p>
+                              
+                    <h3>Your workspaces</h3>
+                  </div>
+                              
                   <span className="status-badge">
-                    {dashboardWorkspace?.status ?? "Loading"}
+                    {
+                      dashboardWorkspaces.filter(
+                        (workspace) =>
+                          workspace.status === "active"
+                      ).length
+                    }{" "}
+                    active
                   </span>
                 </div>
-                      
-                <h4>
-                  {dashboardWorkspace?.title ??
-                    "Customer Data Quality"}
-                </h4>
                   
                 {dashboardLoading ? (
                   <p className="muted">
-                    Loading workspace...
+                    Loading workspaces...
                   </p>
-                ) : dashboardWorkspace ? (
-                  <>
-                    <div className="workspace-status">
-                      {dashboardWorkspace.status === "completed" ? (
-                        <p>
-                          ✓ Workspace completed
-                        </p>
-                      ) : (
-                        <>
-                          <p>
-                            <strong>Current:</strong>{" "}
-                            {dashboardWorkspace.checkpoint.current_focus ??
-                              "No current focus"}
-                          </p>
-                            
-                          {dashboardWorkspace.checkpoint.blocked_reason && (
-                            <p className="warning">
-                              ⚠{" "}
-                              {
-                                dashboardWorkspace.checkpoint
-                                  .blocked_reason
-                              }
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    
-                    {dashboardWorkspace.status !== "completed" && (
-                      <button
-                        className="primary-button"
-                        onClick={openWorkspace}
-                      >
-                        Resume workspace →
-                      </button>
-                    )}
-                  </>
-                ) : (
+                ) : dashboardWorkspaces.length === 0 ? (
                   <p className="muted">
-                    No workspace found.
+                    No workspaces yet.
                   </p>
+                ) : (
+                  <div className="dashboard-workspace-list">
+                    {dashboardWorkspaces.map(
+                      (workspace) => (
+                        <div
+                          className="dashboard-workspace-item"
+                          key={workspace.workspace_id}
+                        >
+                          <div className="dashboard-workspace-main">
+                            <div className="dashboard-workspace-title-row">
+                              <strong>
+                                {workspace.title}
+                              </strong>
+                      
+                              <span
+                                className={
+                                  workspace.status ===
+                                  "completed"
+                                    ? "workspace-list-status completed"
+                                    : "workspace-list-status active"
+                                }
+                              >
+                                {workspace.status}
+                              </span>
+                            </div>
+                              
+                            <p>
+                              {workspace.task_brief ??
+                                "No task brief added yet."}
+                            </p>
+                              
+                            <div className="workspace-list-meta">
+                              <span>
+                                {workspace.usage_context ===
+                                "personal"
+                                  ? "Personal"
+                                  : "Work"}
+                              </span>
+                                
+                              {workspace.data_sensitivity && (
+                                <span>
+                                  {
+                                    workspace.data_sensitivity
+                                  }
+                                </span>
+                              )}
+              
+                              <span>
+                                {workspace.workflow_type}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
                 )}
               </article>
                 
@@ -1348,7 +1449,368 @@ df["age"] = df["age"].fillna(median_age)`);
               )}
             </section>
           </>
-                ) : currentView === "practice" ? (
+                          ) : currentView === "new-workspace" ? (
+            <section className="new-workspace-page">
+              <div className="new-workspace-topbar">
+                <button
+                  className="back-button new-workspace-back"
+                  onClick={() =>
+                    setCurrentView("dashboard")
+                  }
+                >
+                  <ArrowLeft
+                    size={16}
+                    aria-hidden="true"
+                  />
+
+                  Dashboard
+                </button>
+              </div>
+                
+              <header className="new-workspace-header">
+                <div>
+                  <p className="workspace-eyebrow">
+                    WORKSPACE SETUP
+                  </p>
+                
+                  <h2>Create a workspace</h2>
+                
+                  <p>
+                    Define the task you received from
+                    your team. DataPilot will use this
+                    context to guide and review your
+                    work.
+                  </p>
+                </div>
+              </header>
+                
+              <div className="new-workspace-layout">
+                <div className="workspace-create-card">
+                  <div className="workspace-context-row">
+                    <div className="workspace-context-field">
+                      <span className="workspace-form-label">
+                        Workspace type
+                      </span>
+
+                      <div
+                        className="workspace-type-switch"
+                        role="group"
+                        aria-label="Workspace type"
+                      >
+                        <button
+                          type="button"
+                          className={
+                            newWorkspaceUsageContext === "work"
+                              ? "workspace-type-option active"
+                              : "workspace-type-option"
+                          }
+                          onClick={() =>
+                            setNewWorkspaceUsageContext("work")
+                          }
+                        >
+                          <BriefcaseBusiness
+                            size={16}
+                            aria-hidden="true"
+                          />
+
+                          Work
+                        </button>
+                        
+                        <button
+                          type="button"
+                          className={
+                            newWorkspaceUsageContext === "personal"
+                              ? "workspace-type-option active"
+                              : "workspace-type-option"
+                          }
+                          onClick={() =>
+                            setNewWorkspaceUsageContext("personal")
+                          }
+                        >
+                          <UserRound
+                            size={16}
+                            aria-hidden="true"
+                          />
+
+                          Personal
+                        </button>
+                      </div>
+                    </div>
+                        
+                    {newWorkspaceUsageContext === "work" && (
+                      <div className="workspace-context-field">
+                        <label
+                          className="workspace-form-label sensitivity-label"
+                          htmlFor="data-sensitivity"
+                        >
+                          <ShieldCheck
+                            size={15}
+                            aria-hidden="true"
+                          />
+
+                          Data sensitivity
+                        </label>
+                    
+                        <select
+                          id="data-sensitivity"
+                          className="workspace-form-select"
+                          value={newWorkspaceDataSensitivity}
+                          onChange={(event) =>
+                            setNewWorkspaceDataSensitivity(
+                              event.target.value as
+                                | "public"
+                                | "internal"
+                                | "confidential"
+                                | "restricted"
+                                | "unknown"
+                            )
+                          }
+                        >
+                          <option value="unknown">
+                            Not sure yet
+                          </option>
+                        
+                          <option value="public">
+                            Public / non-sensitive
+                          </option>
+                        
+                          <option value="internal">
+                            Internal
+                          </option>
+                        
+                          <option value="confidential">
+                            Confidential
+                          </option>
+                        
+                          <option value="restricted">
+                            Restricted / sensitive
+                          </option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="workspace-form-row">
+                    <div className="workspace-form-section">
+                      <label
+                        className="workspace-form-label"
+                        htmlFor="workspace-name"
+                      >
+                        Workspace name
+                      </label>
+                                  
+                      <input
+                        id="workspace-name"
+                        className="workspace-form-input"
+                        type="text"
+                        placeholder="e.g. Customer Orders Cleanup"
+                        value={newWorkspaceTitle}
+                        onChange={(event) =>
+                          setNewWorkspaceTitle(event.target.value)
+                        }
+                      />
+                  
+                      <p className="workspace-field-help">
+                        Short name for this assignment.
+                      </p>
+                    </div>
+                      
+                    <div className="workspace-form-section">
+                      <label
+                        className="workspace-form-label"
+                        htmlFor="workflow-type"
+                      >
+                        Workflow
+                      </label>
+                      
+                      <select
+                        id="workflow-type"
+                        className="workspace-form-select"
+                        value={newWorkspaceWorkflow}
+                        onChange={(event) =>
+                          setNewWorkspaceWorkflow(
+                            event.target.value as
+                              | "auto"
+                              | "etl"
+                              | "elt"
+                              | "data_quality"
+                              | "analysis"
+                              | "pipeline"
+                          )
+                        }
+                      >
+                        <option value="auto">
+                          Auto - let DataPilot decide
+                        </option>
+                        <option value="etl">ETL</option>
+                        <option value="elt">ELT</option>
+                        <option value="data_quality">
+                          Data Quality
+                        </option>
+                        <option value="analysis">
+                          Data Analysis
+                        </option>
+                        <option value="pipeline">
+                          Pipeline
+                        </option>
+                      </select>
+                      
+                      <p className="workspace-field-help">
+                        Auto is recommended if you are unsure.
+                      </p>
+                    </div>
+                  </div>
+                    
+                  <div className="workspace-form-section">
+                    <label
+                      className="workspace-form-label"
+                      htmlFor="task-brief"
+                    >
+                      {newWorkspaceUsageContext === "work"
+                        ? "Task brief"
+                        : "Goal / project idea"}
+                    </label>
+                    
+                    <textarea
+                      id="task-brief"
+                      className="workspace-form-textarea"
+                      placeholder={
+                        newWorkspaceUsageContext === "work"
+                          ? "What did your team ask you to do?"
+                          : "What do you want to build, analyze or learn?"
+                      }
+                      value={
+                        newWorkspaceTaskBrief
+                      }
+                      onChange={(event) =>
+                        setNewWorkspaceTaskBrief(
+                          event.target.value
+                        )
+                      }
+                    />
+
+                    <p className="workspace-field-help">
+                      Write the task as you received it.
+                      The mentor will use this as the
+                      working context.
+                    </p>
+                  </div>
+                    
+                  <div className="workspace-form-section">
+                    <label
+                      className="workspace-form-label"
+                      htmlFor="desired-outcome"
+                    >
+                      Expected outcome
+                    </label>
+                    
+                    <textarea
+                      id="desired-outcome"
+                      className="workspace-form-textarea small"
+                      placeholder="e.g. A cleaned orders table with validated daily aggregates"
+                      value={
+                        newWorkspaceOutcome
+                      }
+                      onChange={(event) =>
+                        setNewWorkspaceOutcome(
+                          event.target.value
+                        )
+                      }
+                    />
+                  </div>
+                    
+                    
+                  {workspaceCreateError && (
+                    <div className="workspace-form-error">
+                      {workspaceCreateError}
+                    </div>
+                  )}
+
+                  <div className="workspace-form-actions">
+                    <button
+                      className="secondary-button"
+                      onClick={() =>
+                        setCurrentView(
+                          "dashboard"
+                        )
+                      }
+                      disabled={
+                        workspaceCreating
+                      }
+                    >
+                      Cancel
+                    </button>
+                    
+                    <button
+                      className="new-workspace-button"
+                      onClick={
+                        createNewWorkspace
+                      }
+                      disabled={
+                        workspaceCreating
+                      }
+                    >
+                      <Plus
+                        size={17}
+                        aria-hidden="true"
+                      />
+
+                      {workspaceCreating
+                        ? "Creating..."
+                        : "Create Workspace"}
+                    </button>
+                  </div>
+                </div>
+                      
+                <aside className="workspace-mentor-guide">
+                  <div className="mentor-guide-icon">
+                    <Sparkles
+                      size={20}
+                      aria-hidden="true"
+                    />
+                  </div>
+                      
+                  <div>
+                    <span className="mentor-guide-label">
+                      DATAPILOT MENTOR
+                    </span>
+                      
+                    <h3>
+                      Start with the assignment,
+                      not the solution.
+                    </h3>
+                      
+                    <p>
+                      Describe what your team expects.
+                      You do not need to know every
+                      technical step yet.
+                    </p>
+                  </div>
+                      
+                  <div className="mentor-guide-example">
+                    <span>Example task brief</span>
+                      
+                    <p>
+                      Remove duplicate orders, investigate
+                      missing customer IDs and create a
+                      validated daily sales output.
+                    </p>
+                  </div>
+                      
+                  <div className="mentor-guide-next">
+                    <span>Next</span>
+                      
+                    <p>
+                      After creating the workspace,
+                      you will attach the data source
+                      and DataPilot will help build
+                      the execution plan.
+                    </p>
+                  </div>
+                </aside>
+              </div>
+            </section>
+          ) : currentView === "practice" ? (
           <section className="workspace-page practice-page">
             <div className="workspace-header">
               <div>
@@ -1615,32 +2077,7 @@ df["age"] = df["age"].fillna(median_age)`);
                     </div>
                   </div>
                 </div>
-                  
-                  {practiceSolution && (
-                    <div className="practice-solution">
-                      <strong>Example solution</strong>
-                  
-                      <pre>
-                        {practiceSolution.solution}
-                      </pre>
-                  
-                      <span className="practice-solution-level">
-                        Support: {practiceSolution.assistance_level}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {practiceSolutionError && (
-                    <div className="practice-hint-error">
-                      {practiceSolutionError}
-                    </div>
-                  )}
-
-                  {practiceHintError && (
-                    <div className="practice-hint-error">
-                      {practiceHintError}
-                    </div>
-                  )}
+                
                   
 
                 </div>

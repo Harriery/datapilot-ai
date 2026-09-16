@@ -419,6 +419,43 @@ class Workspace(BaseModel):
 
     title: str
 
+    # Workspace gerçek şirket işi için mi,
+    # yoksa kullanıcının bireysel çalışması için mi?
+    usage_context: Literal[
+        "work",
+        "personal",
+    ] = "work"
+
+    # Sadece work workspace'lerde anlamlıdır.
+    # Şimdilik metadata olarak saklanır.
+    # Gerçek security enforcement daha sonra eklenecek.
+    data_sensitivity: Literal[
+        "public",
+        "internal",
+        "confidential",
+        "restricted",
+        "unknown",
+    ] | None = None
+
+    # Junior'a şirket / ekip tarafından verilen
+    # iş tanımı.
+    task_brief: str | None = None
+
+    # İş tamamlandığında beklenen sonuç.
+    desired_outcome: str | None = None
+
+    # Çalışmanın genel veri mühendisliği akışı.
+    # "auto" ise ileride mentor task brief'e göre
+    # uygun workflow'u seçecek.
+    workflow_type: Literal[
+        "auto",
+        "etl",
+        "elt",
+        "data_quality",
+        "analysis",
+        "pipeline",
+    ] = "auto"
+
     workspace_type: Literal[
         "data_engineering",
         "practice",
@@ -957,11 +994,36 @@ class WorkspaceCreateRequest(BaseModel):
     learner_id: str
     title: str
 
+    usage_context: Literal[
+        "work",
+        "personal",
+    ] = "work"
+
+    data_sensitivity: Literal[
+        "public",
+        "internal",
+        "confidential",
+        "restricted",
+        "unknown",
+    ] | None = None
+
+    task_brief: str | None = None
+    desired_outcome: str | None = None
+
+    workflow_type: Literal[
+        "auto",
+        "etl",
+        "elt",
+        "data_quality",
+        "analysis",
+        "pipeline",
+    ] = "auto"
+
     workspace_type: Literal[
         "data_engineering",
         "practice",
         "general",
-    ]
+    ] = "data_engineering"
 
     current_task_id: str | None = None
 
