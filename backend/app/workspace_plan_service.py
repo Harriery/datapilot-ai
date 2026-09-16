@@ -14,6 +14,11 @@ from backend.app.models import (
 )
 
 
+SUPPORTED_TRANSFORMATION_ISSUES = {
+    "missing_values",
+    "duplicate_rows",
+}
+
 load_dotenv()
 
 client = OpenAI(
@@ -29,6 +34,18 @@ def generate_workspace_execution_plan(
     if not findings:
         raise ValueError(
             "Execution plan oluşturmak için finding bulunamadı."
+        )
+    supported_findings = [
+        (index, finding)
+        for index, finding in enumerate(findings)
+        if finding.issue_type
+        in SUPPORTED_TRANSFORMATION_ISSUES
+    ]
+
+    if not supported_findings:
+        raise ValueError(
+            "Bu dataset için şu anda desteklenen "
+            "bir transformation finding bulunamadı."
         )
 
     # Defense in depth:
@@ -50,14 +67,15 @@ def generate_workspace_execution_plan(
         "profile": safe_profile,
         "findings": [
             {
-                "index": index,
+                "index": original_index,
                 "issue_type": finding.issue_type,
                 "column": finding.column,
                 "severity": finding.severity,
                 "observation": finding.observation,
                 "suggested_action": finding.suggested_action,
             }
-            for index, finding in enumerate(findings)
+            for original_index, finding
+            in supported_findings
         ],
     }
 
@@ -69,6 +87,8 @@ def generate_workspace_execution_plan(
             "bir çalışma planı üret. "
             "Veriyi değiştirme ve çözümü uygulama. "
             "Yalnızca verilen findings listesindeki problemleri kullan. "
+            "Bu listedeki her finding backend tarafından "
+            "transformation için desteklenmektedir. "
             "Yeni finding uydurma. "
             "Her step için yalnızca geçerli bir finding_index seç. "
             "Aynı finding'i gereksiz yere tekrar kullanma. "
@@ -100,12 +120,14 @@ def generate_workspace_execution_plan(
     for draft_step in draft.steps:
         finding_index = draft_step.finding_index
 
-        if (
-            finding_index < 0
-            or finding_index >= len(findings)
-        ):
+        supported_indexes = {
+            index
+            for index, _ in supported_findings
+        }
+        
+        if finding_index not in supported_indexes:
             raise ValueError(
-                "AI geçersiz finding index üretti."
+                "AI desteklenmeyen finding index üretti."
             )
 
         if finding_index in used_indexes:

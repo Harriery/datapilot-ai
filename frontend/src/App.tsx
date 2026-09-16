@@ -113,6 +113,11 @@ type WorkspaceDataProfileResponse = {
   };
 };
 
+type WorkspaceWorkingData = {
+  columns: string[];
+  row_count: number;
+  rows: Record<string, unknown>[];
+};
 
 type WorkspaceTask = {
   task_id: string;
@@ -347,6 +352,22 @@ df["age"] = df["age"].fillna(median_age)`);
     setWorkspacePlanError,
   ] = useState<string | null>(null);
 
+  const [
+    workspaceWorkingData,
+    setWorkspaceWorkingData,
+  ] = useState<WorkspaceWorkingData | null>(
+    null
+  );
+
+  const [
+    workspaceWorkingDataLoading,
+    setWorkspaceWorkingDataLoading,
+  ] = useState(false);
+
+  const [
+    workspaceWorkingDataError,
+    setWorkspaceWorkingDataError,
+  ] = useState<string | null>(null);
 
   const [practiceChallenge, setPracticeChallenge] =
   useState<PracticeChallengeData | null>(null);
@@ -785,6 +806,8 @@ async function openSelectedWorkspace(
     setWorkspaceDataError(null);
     setWorkspaceTask(null);
     setWorkspacePlanError(null);
+    setWorkspaceWorkingData(null);
+    setWorkspaceWorkingDataError(null);
 
     // Dashboard'daki kopyaya güvenmek yerine
     // workspace'in en güncel halini backend'den alıyoruz.
@@ -833,7 +856,38 @@ async function openSelectedWorkspace(
         analysis:
           latestWorkspace.dataset_analysis,
       });
+
     }
+
+    if (latestWorkspace.dataset_profile) {
+      setWorkspaceWorkingDataLoading(true);
+
+      try {
+        const workingDataResponse = await fetch(
+          `http://127.0.0.1:8000/workspaces/${learnerId}/${latestWorkspace.workspace_id}/data/working`
+        );
+      
+        if (!workingDataResponse.ok) {
+          throw new Error(
+            "Working dataset yüklenemedi."
+          );
+        }
+      
+        const workingData: WorkspaceWorkingData =
+          await workingDataResponse.json();
+      
+        setWorkspaceWorkingData(workingData);
+      } catch (error) {
+        setWorkspaceWorkingDataError(
+          error instanceof Error
+            ? error.message
+            : "Working dataset yüklenemedi."
+        );
+      } finally {
+        setWorkspaceWorkingDataLoading(false);
+      }
+    }
+
 
     const resumeResponse = await fetch(
       `http://127.0.0.1:8000/workspaces/${learnerId}/${latestWorkspace.workspace_id}/resume`
@@ -1438,45 +1492,84 @@ async function openSelectedWorkspace(
           </div>
         </div>
 
-        <nav className="nav-menu">
-          <button className="nav-item active">
-            <span className="nav-icon">⌂</span>
-            <span className="nav-label">Dashboard</span>
-          </button>
-
+      <nav className="nav-menu">
+        <button
+          className={
+            currentView === "dashboard"
+              ? "nav-item active"
+              : "nav-item"
+          }
+          onClick={() =>
+            setCurrentView("dashboard")
+          }
+        >
+          <span className="nav-icon">⌂</span>
+          <span className="nav-label">
+            Dashboard
+          </span>
+        </button>
+        
+        {currentView === "workspace" && (
           <button
-            className="nav-item"
-            onClick={openPractice}
-            disabled={practiceLoading}
+            className="nav-item active"
+            onClick={() =>
+              setCurrentView("workspace")
+            }
           >
-            <span className="nav-icon">◉</span>
-
+            <span className="nav-icon">◇</span>
             <span className="nav-label">
-              {practiceLoading ? "Loading..." : "Practice"}
+              Workspace
             </span>
           </button>
-
-          <button className="nav-item">
-            <span className="nav-icon">✓</span>
-            <span className="nav-label">Tasks</span>
-          </button>
-
-          <button className="nav-item">
-            <span className="nav-icon">▥</span>
-            <span className="nav-label">Progress</span>
-          </button>
-
-          <button className="nav-item">
-            <span className="nav-icon">▤</span>
-            <span className="nav-label">Documents</span>
-          </button>
-
-          <button className="nav-item">
-            <span className="nav-icon">⚙</span>
-            <span className="nav-label">Settings</span>
-          </button>
-        </nav>
-      </aside>
+        )}
+      
+        <button
+          className={
+            currentView === "practice"
+              ? "nav-item active"
+              : "nav-item"
+          }
+          onClick={openPractice}
+          disabled={practiceLoading}
+        >
+          <span className="nav-icon">◉</span>
+        
+          <span className="nav-label">
+            {practiceLoading
+              ? "Loading..."
+              : "Practice"}
+          </span>
+        </button>
+            
+        <button className="nav-item">
+          <span className="nav-icon">✓</span>
+          <span className="nav-label">
+            Tasks
+          </span>
+        </button>
+            
+        <button className="nav-item">
+          <span className="nav-icon">▥</span>
+          <span className="nav-label">
+            Progress
+          </span>
+        </button>
+            
+        <button className="nav-item">
+          <span className="nav-icon">▤</span>
+          <span className="nav-label">
+            Documents
+          </span>
+        </button>
+            
+        <button className="nav-item">
+          <span className="nav-icon">⚙</span>
+          <span className="nav-label">
+            Settings
+          </span>
+        </button>
+      </nav>    
+    </aside>
 
       <main className="main-content">
         {currentView === "dashboard" ? (
@@ -2126,7 +2219,10 @@ async function openSelectedWorkspace(
                   </div>
                 </aside>
               </div>
+
             </section>
+
+
           ) : currentView === "practice" ? (
           <section className="workspace-page practice-page">
             <div className="workspace-header">
@@ -2891,7 +2987,83 @@ async function openSelectedWorkspace(
                             {workspaceDataError}
                           </div>
                         )}
+
                       </section>
+
+                      {workspaceTask && (
+                        <section className="workspace-overview-card workspace-transform-card">
+                          <div className="workspace-transform-header">
+                            <div>
+                              <span className="workspace-overview-label">
+                                Transform workbench
+                              </span>
+                                            
+                              <h3>
+                                {workspaceTask.steps.find(
+                                  (step) => step.status === "active"
+                                )?.title ?? "No active step"}
+                              </h3>
+                            </div>
+                              
+                            {workspaceWorkingData && (
+                              <span className="workspace-transform-count">
+                                {workspaceWorkingData.row_count} rows
+                              </span>
+                            )}
+                          </div>
+                          
+                          {workspaceWorkingDataLoading ? (
+                            <p className="muted">
+                              Loading working dataset...
+                            </p>
+                          ) : workspaceWorkingDataError ? (
+                            <div className="workspace-form-error">
+                              {workspaceWorkingDataError}
+                            </div>
+                          ) : workspaceWorkingData ? (
+                            <div className="workspace-working-table-wrap">
+                              <table className="workspace-working-table">
+                                <thead>
+                                  <tr>
+                                    {workspaceWorkingData.columns.map(
+                                      (column) => (
+                                        <th key={column}>
+                                          {column}
+                                        </th>
+                                      )
+                                    )}
+                                  </tr>
+                                </thead>
+                                  
+                                <tbody>
+                                  {workspaceWorkingData.rows.map(
+                                    (row, rowIndex) => (
+                                      <tr key={rowIndex}>
+                                        {workspaceWorkingData.columns.map(
+                                          (column) => (
+                                            <td
+                                              key={`${rowIndex}-${column}`}
+                                            >
+                                              {row[column] === null ||
+                                              row[column] === undefined
+                                                ? "—"
+                                                : String(row[column])}
+                                            </td>
+                                          )
+                                        )}
+                                      </tr>
+                                    )
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="muted">
+                              Working dataset is not available.
+                            </p>
+                          )}
+                        </section>
+                      )}
                     </div>
                   </section>
         ) : (
