@@ -13,6 +13,9 @@ from backend.app.models import (
     WorkspaceExecutionPlanRequest,
     WorkspaceExecutionPlanResponse,
     WorkspaceWorkingDataResponse,
+    WorkspaceTransformationRequest,
+    DataEngineeringTaskTransformationResponse,
+    WorkspaceVersionSummary,
 )
 
 import pandas as pd
@@ -29,8 +32,16 @@ from backend.app.workspace_data_service import (
     save_workspace_dataset,
     load_workspace_working_dataframe,
     dataframe_to_records,
+    save_workspace_working_dataframe,
+    create_workspace_version,
+    delete_workspace_version,
+    list_workspace_versions,
+    load_workspace_version,
 )
 
+from backend.app.mentor_service import (
+    review_data_engineering_task_transformation,
+)
 
 router = APIRouter()
 
@@ -159,11 +170,28 @@ def create_workspace_execution_plan(
 
     workspace.current_task_id = task.task_id
 
-    workspace.checkpoint.completed_items = [
-        *workspace.checkpoint.completed_items,
-        "Dataset profile",
-        "Execution plan created",
-    ]
+    completed_items = list(
+        dict.fromkeys(
+            workspace.checkpoint.completed_items
+        )
+    )
+    
+    if "Dataset profile" not in completed_items:
+        completed_items.append(
+            "Dataset profile"
+        )
+    
+    if (
+        "Execution plan created"
+        not in completed_items
+    ):
+        completed_items.append(
+            "Execution plan created"
+        )
+    
+    workspace.checkpoint.completed_items = (
+        completed_items
+    )
 
     workspace.checkpoint.current_focus = (
         task.steps[0].title
@@ -339,6 +367,361 @@ def get_workspace_working_data(
         row_count=len(df),
         rows=dataframe_to_records(df),
     )
+
+
+@router.get(
+    "/workspaces/{learner_id}/{workspace_id}/versions",
+    response_model=list[WorkspaceVersionSummary],
+)
+def get_workspace_versions(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    return list_workspace_versions(
+        workspace_id=workspace_id
+    )
+
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/versions/{version_number}/restore"
+)
+def restore_workspace_version(
+    learner_id: str,
+    workspace_id: str,
+    version_number: int,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    try:
+        (
+            restored_df,
+            restored_task,
+            restored_checkpoint,
+        ) = load_workspace_version(
+            workspace_id=workspace_id,
+            version_number=version_number,
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    except (
+        ValueError,
+        KeyError,
+    ) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    # Önce data'yı geri getir.
+    save_workspace_working_dataframe(
+        workspace_id=workspace_id,
+        df=restored_df,
+    )
+
+    # Sonra task state'ini geri getir.
+    database.save_data_engineering_task(
+        learner_id=learner_id,
+        task=restored_task,
+    )
+
+    # Workspace tekrar snapshot'taki task'a
+    # bağlı kalmalı.
+    workspace.current_task_id = (
+        restored_task.task_id
+    )
+
+    workspace.checkpoint = (
+        restored_checkpoint
+    )
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return {
+        "version_number": version_number,
+        "message": "Workspace version restored.",
+        "task": restored_task,
+        "checkpoint": restored_checkpoint,
+        "working_data": {
+            "columns":
+                restored_df.columns.tolist(),
+            "row_count":
+                len(restored_df),
+            "rows":
+                dataframe_to_records(
+                    restored_df
+                ),
+        },
+    }
+
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/data/transform",
+    response_model=DataEngineeringTaskTransformationResponse,
+)
+def transform_workspace_data(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceTransformationRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.current_task_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Workspace için aktif execution plan bulunamadı.",
+        )
+
+    task = database.get_data_engineering_task(
+        task_id=workspace.current_task_id,
+        learner_id=learner_id,
+    )
+
+    if task is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Execution task bulunamadı.",
+        )
+
+    if task.status == "completed":
+        raise HTTPException(
+            status_code=400,
+            detail="Execution task zaten tamamlanmış.",
+        )
+
+    try:
+        before_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    after_df = pd.DataFrame(
+        request.after_rows
+    )
+
+    if after_df.empty:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Transformation dataset içindeki "
+                "bütün satırları silemez."
+            ),
+        )
+
+    if list(after_df.columns) != list(before_df.columns):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Transformation dataset şemasını "
+                "değiştiremez."
+            ),
+        )
+
+    current_step = next(
+        (
+            step
+            for step in task.steps
+            if step.status == "active"
+        ),
+        None,
+    )
+
+    if current_step is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Aktif task step bulunamadı.",
+        )
+
+
+    # Transformation'dan önceki task ve checkpoint
+    # durumlarını bellekte de saklıyoruz.
+    # Böylece dosya kaydı sırasında hata olursa
+    # workflow state'ini eski haline döndürebiliriz.
+    task_before = task.model_copy(
+        deep=True
+    )
+
+    checkpoint_before = (
+        workspace.checkpoint.model_copy(
+            deep=True
+        )
+    )
+
+    version_number = create_workspace_version(
+        workspace_id=workspace_id,
+        df=before_df,
+        task=task_before,
+        checkpoint=checkpoint_before,
+        label=(
+            f"Before step "
+            f"{current_step.step_number}: "
+            f"{current_step.title}"
+        ),
+    )
+
+    try:
+        result = (
+            review_data_engineering_task_transformation(
+                learner_id=learner_id,
+                task=task,
+                before_df=before_df,
+                after_df=after_df,
+            )
+        )
+
+    except ValueError as exc:
+        delete_workspace_version(
+            workspace_id=workspace_id,
+            version_number=version_number,
+        )
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    if result.validation.success:
+        try:
+            save_workspace_working_dataframe(
+                workspace_id=workspace_id,
+                df=after_df,
+            )
+
+        except OSError as exc:
+            # Task review servisi başarılı validation
+            # sonrası task'ı DB'ye kaydetmiş olabilir.
+            # working.csv yazılamadıysa task state'i
+            # eski haline döndürülür.
+            database.save_data_engineering_task(
+                learner_id=learner_id,
+                task=task_before,
+            )
+
+            workspace.checkpoint = (
+                checkpoint_before
+            )
+
+            database.save_workspace(
+                workspace=workspace
+            )
+
+            delete_workspace_version(
+                workspace_id=workspace_id,
+                version_number=version_number,
+            )
+
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Transformation doğrulandı ancak "
+                    "working dataset kaydedilemedi."
+                ),
+            ) from exc
+
+        if (
+            current_step.title
+            not in workspace.checkpoint.completed_items
+        ):
+            workspace.checkpoint.completed_items.append(
+                current_step.title
+            )
+
+        if result.task.status == "completed":
+            workspace.checkpoint.current_focus = (
+                "Review transformed dataset"
+            )
+
+            workspace.checkpoint.next_actions = [
+                "Review transformation results"
+            ]
+
+        else:
+            active_step = next(
+                (
+                    step
+                    for step in result.task.steps
+                    if step.status == "active"
+                ),
+                None,
+            )
+
+            workspace.checkpoint.current_focus = (
+                active_step.title
+                if active_step
+                else None
+            )
+
+            workspace.checkpoint.next_actions = [
+                step.title
+                for step in result.task.steps
+                if step.status == "pending"
+            ]
+
+        workspace.checkpoint.last_error = None
+
+    else:
+        # Validation başarısızsa hiçbir kalıcı
+        # data/workflow değişikliği olmadığı için
+        # oluşturduğumuz snapshot'a gerek yok.
+        delete_workspace_version(
+            workspace_id=workspace_id,
+            version_number=version_number,
+        )
+
+        workspace.checkpoint.last_error = (
+            "Transformation validation failed."
+        )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return result
+
 
 
 @router.get(

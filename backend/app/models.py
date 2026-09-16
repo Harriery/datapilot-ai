@@ -399,8 +399,14 @@ class WorkspaceWorkingDataResponse(
     row_count: int
     rows: list[dict]
 
+class WorkspaceTransformationRequest(BaseModel):
+    after_rows: list[dict]
 
-
+class WorkspaceVersionSummary(BaseModel):
+    version_number: int
+    label: str
+    created_at: str
+    row_count: int
 
 # DataEngineeringTaskCreateRequest:
 #

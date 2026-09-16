@@ -1,0 +1,52 @@
+{
+  "version_number": 3,
+  "label": "Before step 1: Tekrarlanan satırı inceleyin, hangi kaydın korunacağına karar verin ve veri setinde deduplikasyon uygulayın.",
+  "created_at": "2026-09-16T22:20:35.131512+00:00",
+  "row_count": 5,
+  "task": {
+    "task_id": "f44a99bd-b42e-4212-843c-5cb74c342c41",
+    "title": "Temizleme ve doğrulama planı",
+    "steps": [
+      {
+        "step_number": 1,
+        "title": "Tekrarlanan satırı inceleyin, hangi kaydın korunacağına karar verin ve veri setinde deduplikasyon uygulayın.",
+        "finding": {
+          "issue_type": "duplicate_rows",
+          "column": null,
+          "severity": "medium",
+          "observation": "Veride 5 satır içinde 1 adet tam satır tekrarı tespit edilmiş (duplicate_count=1). Bu tekrarın hata mı yoksa kasıtlı bir tekrar mı olduğu profil verisinden anlaşılamıyor.",
+          "suggested_action": "Tekrarlanan satırın hangi alanlarda aynı olduğunu inceleyin ve kaynağı doğrulayın. Eğer tekrar istenmeyense hangi kayıtın korunacağına karar verip manuel olarak düzeltilmesi veya kaynağa geri bildirim verilmesini önerin."
+        },
+        "status": "active"
+      },
+      {
+        "step_number": 2,
+        "title": "age sütunundaki boşları örüntüye göre analiz edin, uygun imputation veya hariç tutma kararını uygulayın ve sonucu doğrul",
+        "finding": {
+          "issue_type": "missing_values",
+          "column": "age",
+          "severity": "high",
+          "observation": "age sütununda 5 satırdan 2'si boş (40% eksik), numeric_summary de count=3 ile tutarlı olarak eksik veri mevcut. Eksiklerin rastgele mi yoksa belirli bir örüntüye göre mi oluştuğu bilinmiyor.",
+          "suggested_action": "Eksik değerlerin kaynağını ve dağılımını inceleyin (ör. satırlara/diğer kolonlara göre desanlamayı kontrol edin). Alanın zorunlu bir kimlik bilgisi olup olmadığını doğrulayın; gerekirse iş gereksinimine göre manuel inceleme, uygun imputation stratejisi veya bu satırların hariç tutulması seçeneklerini değerlendirin."
+        },
+        "status": "pending"
+      }
+    ],
+    "current_step_number": 1,
+    "status": "active"
+  },
+  "checkpoint": {
+    "completed_items": [
+      "Dataset profile",
+      "Dataset profile",
+      "Dataset profile",
+      "Execution plan created"
+    ],
+    "current_focus": "Tekrarlanan satırı inceleyin, hangi kaydın korunacağına karar verin ve veri setinde deduplikasyon uygulayın.",
+    "blocked_reason": null,
+    "last_error": null,
+    "next_actions": [
+      "age sütunundaki boşları örüntüye göre analiz edin, uygun imputation veya hariç tutma kararını uygulayın ve sonucu doğrul"
+    ]
+  }
+}

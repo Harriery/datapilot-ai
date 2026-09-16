@@ -119,6 +119,13 @@ type WorkspaceWorkingData = {
   rows: Record<string, unknown>[];
 };
 
+type WorkspaceVersionSummary = {
+  version_number: number;
+  label: string;
+  created_at: string;
+  row_count: number;
+};
+
 type WorkspaceTask = {
   task_id: string;
   title: string;
@@ -368,6 +375,22 @@ df["age"] = df["age"].fillna(median_age)`);
     workspaceWorkingDataError,
     setWorkspaceWorkingDataError,
   ] = useState<string | null>(null);
+
+  const [
+    workspaceVersions,
+    setWorkspaceVersions,
+  ] = useState<WorkspaceVersionSummary[]>([]);
+
+  const [
+    workspaceVersionError,
+    setWorkspaceVersionError,
+  ] = useState<string | null>(null);
+
+  const [
+    restoringVersion,
+    setRestoringVersion,
+  ] = useState<number | null>(null);
+
 
   const [practiceChallenge, setPracticeChallenge] =
   useState<PracticeChallengeData | null>(null);
@@ -796,6 +819,36 @@ df["age"] = df["age"].fillna(median_age)`);
     }
   }
 
+async function loadWorkspaceVersions(
+  targetWorkspaceId: string
+) {
+  setWorkspaceVersionError(null);
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${targetWorkspaceId}/versions`
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        "Version history yüklenemedi."
+      );
+    }
+
+    const versions: WorkspaceVersionSummary[] =
+      await response.json();
+
+    setWorkspaceVersions(versions);
+  } catch (error) {
+    setWorkspaceVersionError(
+      error instanceof Error
+        ? error.message
+        : "Version history yüklenemedi."
+    );
+  }
+}
+
+
 async function openSelectedWorkspace(
   workspace: DashboardWorkspace
 ) {
@@ -808,6 +861,14 @@ async function openSelectedWorkspace(
     setWorkspacePlanError(null);
     setWorkspaceWorkingData(null);
     setWorkspaceWorkingDataError(null);
+    setWorkspaceVersions([]);
+    setWorkspaceVersionError(null);
+    setTransformationCode(
+    "# df is already loaded.\n# Write your pandas transformation below.\n"
+    );
+    setResultRows(null);
+    setPythonError(null);
+    setValidationMessage(null);
 
     // Dashboard'daki kopyaya güvenmek yerine
     // workspace'in en güncel halini backend'den alıyoruz.
@@ -877,6 +938,7 @@ async function openSelectedWorkspace(
           await workingDataResponse.json();
       
         setWorkspaceWorkingData(workingData);
+        
       } catch (error) {
         setWorkspaceWorkingDataError(
           error instanceof Error
@@ -888,6 +950,9 @@ async function openSelectedWorkspace(
       }
     }
 
+    await loadWorkspaceVersions(
+      latestWorkspace.workspace_id
+    );
 
     const resumeResponse = await fetch(
       `http://127.0.0.1:8000/workspaces/${learnerId}/${latestWorkspace.workspace_id}/resume`
@@ -1432,16 +1497,31 @@ async function openSelectedWorkspace(
 }
 
   async function runTransformation() {
+    if (!transformationCode.trim()) {
+      setPythonError(
+        "Önce Python transformation kodunu yaz."
+      );
+      return;
+    }
+
+    if (!workspaceWorkingData) {
+      setPythonError(
+        "Working dataset henüz yüklenmedi."
+      );
+      return;
+    }
+
     setPythonRunning(true);
     setResultRows(null);
     setPythonError(null);
     setValidationMessage(null);
 
     try {
-      const result = await runDataFrameTransformation(
-        transformationCode,
-        inputRows
-      );
+      const result =
+        await runDataFrameTransformation(
+          transformationCode,
+          workspaceWorkingData.rows
+        );
 
       setResultRows(result);
     } catch (error) {
@@ -1458,7 +1538,8 @@ async function openSelectedWorkspace(
         .filter(Boolean);
 
       const shortMessage =
-        lines.at(-1) ?? "Python kodu çalıştırılamadı.";
+        lines.at(-1) ??
+        "Python kodu çalıştırılamadı.";
 
       setPythonError(shortMessage);
     } finally {
@@ -1466,6 +1547,247 @@ async function openSelectedWorkspace(
     }
   }
 
+  async function submitWorkspaceTransformation() {
+    if (
+      !workspaceId ||
+      !workspaceTask ||
+      !resultRows
+    ) {
+      setValidationMessage(
+        "Önce transformation kodunu çalıştır."
+      );
+      return;
+    }
+
+    setSubmitting(true);
+    setValidationMessage(null);
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/transform`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            after_rows: resultRows,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Transformation doğrulanamadı."
+        );
+      }
+
+      const data: {
+        task: WorkspaceTask;
+
+        validation: {
+          success: boolean;
+        };
+
+        skill_name: string;
+        skill_status: string;
+      } = await response.json();
+
+      setWorkspaceTask(data.task);
+
+      if (!data.validation.success) {
+        setValidationMessage(
+          "❌ Validation failed. working.csv değiştirilmedi."
+        );
+
+        return;
+      }
+
+      // Validation başarılıysa backend working.csv'yi
+      // zaten güncelledi. Yeni halini tekrar çekiyoruz.
+      const workingDataResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/working`
+      );
+
+      if (!workingDataResponse.ok) {
+        throw new Error(
+          "Transformation kaydedildi fakat güncel dataset yüklenemedi."
+        );
+      }
+
+      const workingData: WorkspaceWorkingData =
+        await workingDataResponse.json();
+
+      setWorkspaceWorkingData(workingData);
+        await loadWorkspaceVersions(
+          workspaceId
+        );
+
+      const resumeResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
+      );
+
+      if (!resumeResponse.ok) {
+        throw new Error(
+          "Transformation kaydedildi fakat workspace durumu yenilenemedi."
+        );
+      }
+
+      const updatedResume =
+        await resumeResponse.json();
+
+      setResumeData(updatedResume);
+
+      setDashboardWorkspace((previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          checkpoint:
+            updatedResume.checkpoint,
+        };
+      });
+
+      setResultRows(null);
+      setPythonError(null);
+
+      setTransformationCode(
+        "# df is already loaded.\n# Write your pandas transformation below.\n"
+      );
+
+      if (data.task.status === "completed") {
+        setValidationMessage(
+          "✅ Transformation validated. Execution plan transformations are complete."
+        );
+      } else {
+        setValidationMessage(
+          "✅ Transformation validated and saved. The next step is now active."
+        );
+      }
+    } catch (error) {
+      console.error(error);
+
+      setValidationMessage(
+        error instanceof Error
+          ? `❌ ${error.message}`
+          : "❌ Beklenmeyen bir hata oluştu."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function restoreWorkspaceVersion(
+    versionNumber: number
+  ) {
+    if (!workspaceId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Version ${versionNumber} geri yüklensin mi?\n\nMevcut working dataset ve task durumu bu checkpoint'e dönecek.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setRestoringVersion(versionNumber);
+    setWorkspaceVersionError(null);
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/versions/${versionNumber}/restore`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Version geri yüklenemedi."
+        );
+      }
+
+      const data: {
+        version_number: number;
+
+        task: WorkspaceTask;
+
+        working_data: WorkspaceWorkingData;
+      } = await response.json();
+
+      setWorkspaceTask(data.task);
+
+      setWorkspaceWorkingData(
+        data.working_data
+      );
+
+      const resumeResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
+      );
+
+      if (!resumeResponse.ok) {
+        throw new Error(
+          "Version restore edildi fakat workspace bilgisi yenilenemedi."
+        );
+      }
+
+      const updatedResume =
+        await resumeResponse.json();
+
+      setResumeData(updatedResume);
+
+      setDashboardWorkspace((previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          current_task_id:
+            data.task.task_id,
+          checkpoint:
+            updatedResume.checkpoint,
+        };
+      });
+
+      setResultRows(null);
+      setPythonError(null);
+
+      setTransformationCode(
+        "# df is already loaded.\n# Write your pandas transformation below.\n"
+      );
+
+      setValidationMessage(
+        `↩ Version ${versionNumber} restored.`
+      );
+
+      await loadWorkspaceVersions(
+        workspaceId
+      );
+    } catch (error) {
+      console.error(error);
+
+      setWorkspaceVersionError(
+        error instanceof Error
+          ? error.message
+          : "Version geri yüklenemedi."
+      );
+    } finally {
+      setRestoringVersion(null);
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -3012,6 +3334,74 @@ async function openSelectedWorkspace(
                             )}
                           </div>
                           
+                          
+                          {workspaceVersions.length > 0 && (
+                            <div className="workspace-version-history">
+                              <div className="workspace-version-history-header">
+                                <span className="workspace-overview-label">
+                                  Version history
+                                </span>
+
+                                <span>
+                                  {workspaceVersions.length} checkpoint
+                                </span>
+                              </div>
+
+                              <div className="workspace-version-list">
+                                {workspaceVersions.map(
+                                  (version) => (
+                                    <div
+                                      className="workspace-version-item"
+                                      key={version.version_number}
+                                    >
+                                      <div>
+                                        <strong>
+                                          v{version.version_number}
+                                        </strong>
+                                  
+                                        <p>
+                                          {version.label}
+                                        </p>
+                                  
+                                        <span>
+                                          {version.row_count} rows ·{" "}
+                                          {new Date(
+                                            version.created_at
+                                          ).toLocaleString()}
+                                        </span>
+                                      </div>
+                                        
+                                      <button
+                                        type="button"
+                                        className="workspace-version-restore"
+                                        disabled={
+                                          restoringVersion !== null
+                                        }
+                                        onClick={() => {
+                                          void restoreWorkspaceVersion(
+                                            version.version_number
+                                          );
+                                        }}
+                                      >
+                                        {restoringVersion ===
+                                        version.version_number
+                                          ? "Restoring..."
+                                          : "↩ Restore"}
+                                      </button>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {workspaceVersionError && (
+                            <div className="workspace-form-error">
+                              {workspaceVersionError}
+                            </div>
+                          )}
+
+
                           {workspaceWorkingDataLoading ? (
                             <p className="muted">
                               Loading working dataset...
@@ -3061,6 +3451,149 @@ async function openSelectedWorkspace(
                             <p className="muted">
                               Working dataset is not available.
                             </p>
+                          )}
+
+                          {workspaceWorkingData && (
+                            <div className="workspace-transform-editor-grid">
+                              <div className="workspace-transform-editor-panel">
+                                <div className="workspace-transform-panel-header">
+                                  <div>
+                                    <span className="workspace-overview-label">
+                                      Python transformation
+                                    </span>
+
+                                    <p>
+                                      Work on <code>df</code>. Your code runs
+                                      locally in the browser.
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <textarea
+                                  className="workspace-transform-editor"
+                                  value={transformationCode}
+                                  spellCheck={false}
+                                  onChange={(event) => {
+                                    setTransformationCode(
+                                      event.target.value
+                                    );
+                                  
+                                    setResultRows(null);
+                                    setPythonError(null);
+                                    setValidationMessage(null);
+                                  }}
+                                />
+
+                                <div className="workspace-transform-actions">
+                                  <button
+                                    type="button"
+                                    className="run-button"
+                                    onClick={() => {
+                                      void runTransformation();
+                                    }}
+                                    disabled={pythonRunning}
+                                  >
+                                    {pythonRunning
+                                      ? "Running..."
+                                      : "▶ Run"}
+                                  </button>
+                                    
+                                  <button
+                                    type="button"
+                                    className="submit-button"
+                                    onClick={() => {
+                                      void submitWorkspaceTransformation();
+                                    }}
+                                    disabled={
+                                      submitting ||
+                                      pythonRunning ||
+                                      resultRows === null
+                                    }
+                                  >
+                                    {submitting
+                                      ? "Validating..."
+                                      : "✓ Submit transformation"}
+                                  </button>
+                                    
+                                  <span>
+                                    Run only previews. Submit validates and,
+                                    if successful, updates working.csv.
+                                  </span>
+                                </div>
+                                    
+                                {validationMessage && (
+                                  <div className="validation-message">
+                                    {validationMessage}
+                                  </div>
+                                )}
+                                    
+                                {pythonError && (
+                                  <div className="python-error">
+                                    <strong>Python error</strong>
+                                    <pre>{pythonError}</pre>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="workspace-transform-result-panel">
+                                <span className="workspace-overview-label">
+                                  Result preview
+                                </span>
+                              
+                                {!resultRows ? (
+                                  <p className="muted">
+                                    Run your code to preview the
+                                    transformed dataset.
+                                  </p>
+                                ) : (
+                                  <>
+                                    <div className="workspace-result-summary">
+                                      <strong>
+                                        {resultRows.length}
+                                      </strong>
+                                      <span>rows after transformation</span>
+                                    </div>
+                                
+                                    <div className="workspace-working-table-wrap">
+                                      <table className="workspace-working-table">
+                                        <thead>
+                                          <tr>
+                                            {workspaceWorkingData.columns.map(
+                                              (column) => (
+                                                <th key={column}>
+                                                  {column}
+                                                </th>
+                                              )
+                                            )}
+                                          </tr>
+                                        </thead>
+                                          
+                                        <tbody>
+                                          {resultRows.map(
+                                            (row, rowIndex) => (
+                                              <tr key={rowIndex}>
+                                                {workspaceWorkingData.columns.map(
+                                                  (column) => (
+                                                    <td
+                                                      key={`${rowIndex}-${column}`}
+                                                    >
+                                                      {row[column] === null ||
+                                                      row[column] === undefined
+                                                        ? "—"
+                                                        : String(row[column])}
+                                                    </td>
+                                                  )
+                                                )}
+                                              </tr>
+                                            )
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           )}
                         </section>
                       )}

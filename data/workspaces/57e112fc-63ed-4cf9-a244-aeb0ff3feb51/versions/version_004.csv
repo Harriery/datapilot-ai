@@ -1,5 +1,5 @@
 customer_id,name,age,city
 1001,Alice,31.0,Den Haag
-1002,Bob,29.5,Rotterdam
+1002,Bob,,Rotterdam
 1003,Carol,28.0,Utrecht
-1004,David,29.5,Delft
+1004,David,,Delft
