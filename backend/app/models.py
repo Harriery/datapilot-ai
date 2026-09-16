@@ -354,6 +354,54 @@ class DataEngineeringTaskTransformationRequest(BaseModel):
     before_rows: list[dict]
     after_rows: list[dict]
 
+
+class WorkspacePlanStepDraft(BaseModel):
+    # AI hangi finding üzerinde çalışılacağını
+    # index ile belirtir.
+    finding_index: int = Field(ge=0)
+
+    # Junior'ın göreceği kısa çalışma adımı.
+    title: str = Field(
+        min_length=1,
+        max_length=120,
+    )
+
+
+class WorkspacePlanDraft(BaseModel):
+    # AI'nın önerdiği genel plan başlığı.
+    title: str = Field(
+        min_length=1,
+        max_length=120,
+    )
+
+    # Sıralanmış çalışma adımları.
+    steps: list[WorkspacePlanStepDraft]
+
+
+class WorkspaceExecutionPlanRequest(BaseModel):
+    # Dataset'in güvenli profiling sonucu.
+    # sample_rows backend tarafında AI'ya
+    # gönderilmeden önce tekrar filtrelenecek.
+    profile: dict
+
+    # Profil analizinden gelen doğrulanmış findings.
+    findings: list[DataQualityFinding]
+
+
+class WorkspaceExecutionPlanResponse(BaseModel):
+    # Oluşturulup DB'ye kaydedilmiş gerçek task.
+    task: DataEngineeringTask
+
+class WorkspaceWorkingDataResponse(
+    BaseModel
+):
+    columns: list[str]
+    row_count: int
+    rows: list[dict]
+
+
+
+
 # DataEngineeringTaskCreateRequest:
 #
 # Yeni bir multi-step task ilk kez oluşturulurken kullanılır.
@@ -455,6 +503,12 @@ class Workspace(BaseModel):
         "analysis",
         "pipeline",
     ] = "auto"
+
+    dataset_filename: str | None = None
+
+    dataset_profile: dict | None = None
+
+    dataset_analysis: DataQualityAnalysis | None = None
 
     workspace_type: Literal[
         "data_engineering",

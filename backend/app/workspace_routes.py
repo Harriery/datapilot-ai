@@ -1,6 +1,6 @@
 import uuid
-
-from fastapi import APIRouter, HTTPException
+from io import BytesIO
+from fastapi import APIRouter, HTTPException, UploadFile
 
 import backend.app.database as database
 
@@ -10,6 +10,25 @@ from backend.app.models import (
     WorkspaceCheckpointUpdateRequest,
     WorkspaceResumeResponse,
     WorkspaceStatusUpdateRequest,
+    WorkspaceExecutionPlanRequest,
+    WorkspaceExecutionPlanResponse,
+    WorkspaceWorkingDataResponse,
+)
+
+import pandas as pd
+
+
+
+from backend.app.data_profile_service import build_data_profile
+from backend.app.data_ai_service import generate_data_recommendations
+from backend.app.workspace_plan_service import (
+    generate_workspace_execution_plan,
+)
+
+from backend.app.workspace_data_service import (
+    save_workspace_dataset,
+    load_workspace_working_dataframe,
+    dataframe_to_records,
 )
 
 
@@ -82,6 +101,243 @@ def list_workspaces(
 
     return database.get_workspaces_by_learner(
         learner_id=learner_id
+    )
+
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/plan",
+    response_model=WorkspaceExecutionPlanResponse,
+)
+def create_workspace_execution_plan(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceExecutionPlanRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    # Aynı workspace için zaten bir task oluşturulduysa
+    # gereksiz yere ikinci bir task üretmeyelim.
+    if workspace.current_task_id is not None:
+        existing_task = (
+            database.get_data_engineering_task(
+                task_id=workspace.current_task_id,
+                learner_id=learner_id,
+            )
+        )
+
+        if existing_task is not None:
+            return WorkspaceExecutionPlanResponse(
+                task=existing_task
+            )
+
+    try:
+        task = generate_workspace_execution_plan(
+            workspace=workspace,
+            profile=request.profile,
+            findings=request.findings,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    database.save_data_engineering_task(
+        learner_id=learner_id,
+        task=task,
+    )
+
+    workspace.current_task_id = task.task_id
+
+    workspace.checkpoint.completed_items = [
+        *workspace.checkpoint.completed_items,
+        "Dataset profile",
+        "Execution plan created",
+    ]
+
+    workspace.checkpoint.current_focus = (
+        task.steps[0].title
+    )
+
+    workspace.checkpoint.blocked_reason = None
+    workspace.checkpoint.last_error = None
+
+    workspace.checkpoint.next_actions = [
+        step.title
+        for step in task.steps[1:]
+    ]
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceExecutionPlanResponse(
+        task=task
+    )
+
+
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/data/profile"
+)
+def profile_workspace_data(
+    learner_id: str,
+    workspace_id: str,
+    file: UploadFile,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if file.content_type != "text/csv":
+        raise HTTPException(
+            status_code=400,
+            detail="Yalnızca CSV dosyası yükleyebilirsiniz.",
+        )
+
+    try:
+        content = file.file.read()
+
+        df = pd.read_csv(
+            BytesIO(content)
+        )
+
+    except pd.errors.EmptyDataError:
+        raise HTTPException(
+            status_code=400,
+            detail="CSV dosyası boş.",
+        )
+
+    except pd.errors.ParserError:
+        raise HTTPException(
+            status_code=400,
+            detail="CSV dosyası geçersiz veya bozuk.",
+        )
+
+    profile = build_data_profile(df)
+
+    analysis = generate_data_recommendations(
+        profile
+    )
+
+    safe_profile = {
+        key: value
+        for key, value in profile.items()
+        if key != "sample_rows"
+    }
+
+    workspace.dataset_filename = file.filename
+    workspace.dataset_profile = safe_profile
+    workspace.dataset_analysis = analysis
+
+    # Yeni dataset yüklendiyse eski execution plan
+    # artık güvenilir olmayabilir.
+    workspace.current_task_id = None
+
+    completed_items = [
+        item
+        for item in workspace.checkpoint.completed_items
+        if item != "Execution plan created"
+    ]
+
+    if "Dataset profile" not in completed_items:
+        completed_items.append("Dataset profile")
+
+    workspace.checkpoint.completed_items = (
+        completed_items
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Review dataset profile and build execution plan"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Build execution plan"
+    ]
+
+    workspace.checkpoint.blocked_reason = None
+    workspace.checkpoint.last_error = None
+
+    save_workspace_dataset(
+        workspace_id=workspace_id,
+        content=content,
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return {
+        "workspace_id": workspace_id,
+        "filename": file.filename,
+        "profile": safe_profile,
+        "analysis": analysis.model_dump(),
+    }
+
+@router.get(
+    "/workspaces/{learner_id}/{workspace_id}/data/working",
+    response_model=WorkspaceWorkingDataResponse,
+)
+def get_workspace_working_data(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    try:
+        df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    # MVP sırasında browser-side workbench için
+    # makul bir sınır koyuyoruz.
+    if len(df) > 5000:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "Bu MVP workbench şu anda "
+                "en fazla 5000 satır destekliyor."
+            ),
+        )
+
+    return WorkspaceWorkingDataResponse(
+        columns=df.columns.tolist(),
+        row_count=len(df),
+        rows=dataframe_to_records(df),
     )
 
 

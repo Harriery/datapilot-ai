@@ -25,17 +25,28 @@ client = OpenAI(api_key=api_key)
 #
 # f-string içindeki {profile_text}
 # yerine gerçek profiling verisi yerleştirilir.
-def build_recommendation_prompt(profile: dict) -> str:
-    profile_text = json.dumps(  # dumps ile metine donusuyor, ve bunu ai metin olarak gorup okuyabiliyor. 
-        profile,
-        ensure_ascii=False, # turkce karakterler varsa onlarin okunabilmesini sagliyor.
+def build_recommendation_prompt(
+    profile: dict,
+) -> str:
+    # AI'ya gerçek satır örneklerini göndermiyoruz.
+    # Profilin istatistiksel / yapısal kısmı yeterli.
+    safe_profile = {
+        key: value
+        for key, value in profile.items()
+        if key != "sample_rows"
+    }
+
+    profile_text = json.dumps(
+        safe_profile,
+        ensure_ascii=False,
         indent=2,
     )
 
     prompt = f"""
     Sen bir Data Engineering asistanısın.
 
-    Aşağıdaki veri profilini incele:
+    Aşağıdaki güvenli veri profilini incele.
+    Ham veri satırları paylaşılmamıştır.
 
     {profile_text}
     """

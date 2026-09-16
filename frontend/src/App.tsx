@@ -48,6 +48,16 @@ type DashboardWorkspace = {
   workspace_id: string;
   title: string;
   status: "active" | "paused" | "completed";
+  current_task_id: string | null;
+  dataset_filename?: string | null;
+
+  dataset_profile?:
+    | WorkspaceDataProfileResponse["profile"]
+    | null;
+
+  dataset_analysis?:
+    | WorkspaceDataProfileResponse["analysis"]
+    | null;
   mentor_session_id: string | null;
 
   checkpoint: {
@@ -78,6 +88,54 @@ type DashboardWorkspace = {
     | "data_quality"
     | "analysis"
     | "pipeline";
+};
+
+type WorkspaceDataProfileResponse = {
+  workspace_id: string;
+  filename: string | null;
+
+  profile: {
+    row_count: number;
+    column_count: number;
+    columns: string[];
+    null_counts: Record<string, number>;
+    duplicate_count: number;
+  };
+
+  analysis: {
+    findings: {
+      issue_type: string;
+      column: string | null;
+      severity: "low" | "medium" | "high";
+      observation: string;
+      suggested_action: string;
+    }[];
+  };
+};
+
+
+type WorkspaceTask = {
+  task_id: string;
+  title: string;
+
+  steps: {
+    step_number: number;
+    title: string;
+
+    finding: {
+      issue_type: string;
+      column: string | null;
+      severity: "low" | "medium" | "high";
+      observation: string;
+      suggested_action: string;
+    };
+
+    status: "pending" | "active" | "completed";
+  }[];
+
+  current_step_number: number;
+
+  status: "pending" | "active" | "completed";
 };
 
 type PracticeChallengeData = {
@@ -256,6 +314,39 @@ df["age"] = df["age"].fillna(median_age)`);
 
   const [workspaceCreateError, setWorkspaceCreateError] =
     useState<string | null>(null);
+
+  const [
+    workspaceDataProfile,
+    setWorkspaceDataProfile,
+  ] = useState<WorkspaceDataProfileResponse | null>(
+    null
+  );
+
+  const [
+    workspaceDataLoading,
+    setWorkspaceDataLoading,
+  ] = useState(false);
+
+  const [
+    workspaceDataError,
+    setWorkspaceDataError,
+  ] = useState<string | null>(null);
+  
+  const [
+    workspaceTask,
+    setWorkspaceTask,
+  ] = useState<WorkspaceTask | null>(null);
+
+  const [
+    workspacePlanLoading,
+    setWorkspacePlanLoading,
+  ] = useState(false);
+
+  const [
+    workspacePlanError,
+    setWorkspacePlanError,
+  ] = useState<string | null>(null);
+
 
   const [practiceChallenge, setPracticeChallenge] =
   useState<PracticeChallengeData | null>(null);
@@ -683,6 +774,224 @@ df["age"] = df["age"].fillna(median_age)`);
       setPracticeSolutionLoading(false);
     }
   }
+
+async function openSelectedWorkspace(
+  workspace: DashboardWorkspace
+) {
+  const learnerId = "demo-learner";
+
+  try {
+    setWorkspaceDataProfile(null);
+    setWorkspaceDataError(null);
+    setWorkspaceTask(null);
+    setWorkspacePlanError(null);
+
+    // Dashboard'daki kopyaya güvenmek yerine
+    // workspace'in en güncel halini backend'den alıyoruz.
+    const workspaceResponse = await fetch(
+      `http://127.0.0.1:8000/workspaces/${learnerId}/${workspace.workspace_id}`
+    );
+
+    if (!workspaceResponse.ok) {
+      throw new Error(
+        "Workspace bilgisi yüklenemedi."
+      );
+    }
+
+    const latestWorkspace: DashboardWorkspace =
+      await workspaceResponse.json();
+
+    setWorkspaceId(
+      latestWorkspace.workspace_id
+    );
+
+    setMentorSessionId(
+      latestWorkspace.mentor_session_id
+    );
+
+    setDashboardWorkspace(
+      latestWorkspace
+    );
+
+    // Persist edilmiş dataset profile varsa
+    // frontend state'ine geri yüklüyoruz.
+    if (
+      latestWorkspace.dataset_profile &&
+      latestWorkspace.dataset_analysis
+    ) {
+      setWorkspaceDataProfile({
+        workspace_id:
+          latestWorkspace.workspace_id,
+
+        filename:
+          latestWorkspace.dataset_filename ??
+          null,
+
+        profile:
+          latestWorkspace.dataset_profile,
+
+        analysis:
+          latestWorkspace.dataset_analysis,
+      });
+    }
+
+    const resumeResponse = await fetch(
+      `http://127.0.0.1:8000/workspaces/${learnerId}/${latestWorkspace.workspace_id}/resume`
+    );
+
+    if (!resumeResponse.ok) {
+      throw new Error(
+        "Workspace resume bilgisi yüklenemedi."
+      );
+    }
+
+    const resume =
+      await resumeResponse.json();
+
+    setResumeData(resume);
+
+    if (latestWorkspace.current_task_id) {
+      const taskResponse = await fetch(
+        `http://127.0.0.1:8000/mentor/task/${latestWorkspace.current_task_id}?learner_id=${learnerId}`
+      );
+
+      if (taskResponse.ok) {
+        const task: WorkspaceTask =
+          await taskResponse.json();
+
+        setWorkspaceTask(task);
+      }
+    }
+
+    setCurrentView("workspace");
+  } catch (error) {
+    console.error(error);
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Workspace açılırken hata oluştu."
+    );
+  }
+}
+
+    async function uploadWorkspaceData(
+    file: File | null
+  ) {
+    if (!file || !workspaceId) {
+      return;
+    }
+
+    setWorkspaceDataLoading(true);
+    setWorkspaceDataError(null);
+
+    try {
+      const formData = new FormData();
+
+      formData.append("file", file);
+
+      const response = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/profile`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Dataset profile oluşturulamadı."
+        );
+      }
+
+      const data: WorkspaceDataProfileResponse =
+        await response.json();
+
+      setWorkspaceDataProfile(data);
+
+      // Backend yeni dataset yüklenince eski planı
+      // geçersiz kılıyor. Frontend de aynı duruma gelsin.
+      setWorkspaceTask(null);
+          
+      const resumeResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
+      );
+      
+      if (resumeResponse.ok) {
+        const resume =
+          await resumeResponse.json();
+      
+        setResumeData(resume);
+      }
+
+    } catch (error) {
+      console.error(error);
+
+      setWorkspaceDataError(
+        error instanceof Error
+          ? error.message
+          : "Dataset yüklenemedi."
+      );
+    } finally {
+      setWorkspaceDataLoading(false);
+    }
+  }
+
+    async function buildWorkspaceExecutionPlan() {
+      if (!workspaceId || !workspaceDataProfile) {
+        return;
+      }
+    
+      setWorkspacePlanLoading(true);
+      setWorkspacePlanError(null);
+    
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/plan`,
+          {
+            method: "POST",
+          
+            headers: {
+              "Content-Type": "application/json",
+            },
+          
+            body: JSON.stringify({
+              profile: workspaceDataProfile.profile,
+              findings:
+                workspaceDataProfile.analysis.findings,
+            }),
+          }
+        );
+      
+        if (!response.ok) {
+          const errorData = await response.json();
+        
+          throw new Error(
+            errorData.detail ||
+              "Execution plan oluşturulamadı."
+          );
+        }
+      
+        const data: {
+          task: WorkspaceTask;
+        } = await response.json();
+      
+        setWorkspaceTask(data.task);
+      } catch (error) {
+        console.error(error);
+      
+        setWorkspacePlanError(
+          error instanceof Error
+            ? error.message
+            : "Execution plan oluşturulamadı."
+        );
+      } finally {
+        setWorkspacePlanLoading(false);
+      }
+    }
 
   async function createNewWorkspace() {
     const title = newWorkspaceTitle.trim();
@@ -1278,6 +1587,14 @@ df["age"] = df["age"].fillna(median_age)`);
                                 {workspace.workflow_type}
                               </span>
                             </div>
+                            <button
+                              className="workspace-open-button"
+                              onClick={() =>
+                                openSelectedWorkspace(workspace)
+                              }
+                            >
+                              Open workspace →
+                            </button>
                           </div>
                         </div>
                       )
@@ -2088,6 +2405,495 @@ df["age"] = df["age"].fillna(median_age)`);
               </p>
             )}
           </section>
+                ) : dashboardWorkspace &&
+                  dashboardWorkspace.title !==
+                    "Customer Data Quality" ? (
+                  <section className="workspace-page workspace-overview-page">
+                    <div className="workspace-overview-topbar">
+                      <button
+                        className="back-button"
+                        onClick={() =>
+                          setCurrentView("dashboard")
+                        }
+                      >
+                        <ArrowLeft
+                          size={16}
+                          aria-hidden="true"
+                        />
+                        Dashboard
+                      </button>
+                    </div>
+                      
+                    <header className="workspace-overview-header">
+                      <div>
+                        <p className="workspace-eyebrow">
+                          WORKSPACE
+                        </p>
+                      
+                        <h2>
+                          {dashboardWorkspace.title}
+                        </h2>
+                      
+                        <div className="workspace-overview-meta">
+                          <span>
+                            {dashboardWorkspace.usage_context ===
+                            "personal"
+                              ? "Personal"
+                              : "Work"}
+                          </span>
+                            
+                          {dashboardWorkspace.data_sensitivity && (
+                            <span>
+                              {
+                                dashboardWorkspace.data_sensitivity
+                              }
+                            </span>
+                          )}
+
+                          <span>
+                            {dashboardWorkspace.workflow_type.replace(
+                              "_",
+                              " "
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                          
+                      <span
+                        className={
+                          dashboardWorkspace.status ===
+                          "completed"
+                            ? "workspace-list-status completed"
+                            : "workspace-list-status active"
+                        }
+                      >
+                        {dashboardWorkspace.status}
+                      </span>
+                    </header>
+                      
+
+                    <div className="workspace-flow">
+                      <div className="workspace-flow-step completed">
+                        <span>✓</span>
+                        <strong>Source</strong>
+                      </div>
+
+                      <div className="workspace-flow-line completed" />
+
+                      <div
+                        className={
+                          workspaceDataProfile
+                            ? "workspace-flow-step completed"
+                            : "workspace-flow-step current"
+                        }
+                      >
+                        <span>
+                          {workspaceDataProfile ? "✓" : "2"}
+                        </span>
+                        <strong>Profile</strong>
+                      </div>
+                      
+                      <div
+                        className={
+                          workspaceDataProfile
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+
+                      <div
+                        className={
+                          workspaceTask
+                            ? "workspace-flow-step completed"
+                            : workspaceDataProfile
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
+                        }
+                      >
+                        <span>
+                          {workspaceTask ? "✓" : "3"}
+                        </span>
+                      
+                        <strong>Plan</strong>
+                      </div>
+                      
+                      <div
+                        className={
+                          workspaceTask
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+                      
+                      <div
+                        className={
+                          workspaceTask
+                            ? "workspace-flow-step current"
+                            : "workspace-flow-step"
+                        }
+                      >
+                        <span>4</span>
+                        <strong>Transform</strong>
+                      </div>
+                      
+                      <div className="workspace-flow-line" />
+                      
+                      <div className="workspace-flow-step">
+                        <span>5</span>
+                        <strong>Validate</strong>
+                      </div>
+                      
+                      <div className="workspace-flow-line" />
+                      
+                      <div className="workspace-flow-step">
+                        <span>6</span>
+                        <strong>Review</strong>
+                      </div>
+                    </div>
+                      
+                    <div className="workspace-overview-grid">
+                      <section className="workspace-overview-card">
+                        <span className="workspace-overview-label">
+                          Task brief
+                        </span>
+                      
+                        <p>
+                          {dashboardWorkspace.task_brief ??
+                            "No task brief added yet."}
+                        </p>
+                      </section>
+                          
+                      <section className="workspace-overview-card">
+                        <span className="workspace-overview-label">
+                          Expected outcome
+                        </span>
+                          
+                        <p>
+                          {dashboardWorkspace.desired_outcome ??
+                            "No expected outcome added yet."}
+                        </p>
+                      </section>
+                          
+                      <section className="workspace-overview-card">
+                        <span className="workspace-overview-label">
+                          Progress
+                        </span>
+                          
+                        <h3>
+                          {resumeData?.checkpoint.current_focus ??
+                            "Ready to start"}
+                        </h3>
+                          
+                        <p>
+                          {resumeData?.checkpoint.completed_items
+                            .length
+                            ? `${resumeData.checkpoint.completed_items.length} step(s) completed.`
+                            : "No work has been completed yet."}
+                        </p>
+                      </section>
+                          
+                      <section className="workspace-overview-card workspace-data-card">
+                        <span className="workspace-overview-label">
+                          Data source
+                        </span>
+
+                        {!workspaceDataProfile ? (
+                          <>
+                            <h3>No data attached yet</h3>
+                        
+                            <p>
+                              Attach the CSV dataset you will work
+                              with. DataPilot will profile the data
+                              before creating the execution plan.
+                            </p>
+                        
+                            <label className="new-workspace-button workspace-upload-label">
+                              <Plus
+                                size={17}
+                                aria-hidden="true"
+                              />
+
+                              {workspaceDataLoading
+                                ? "Profiling..."
+                                : "Attach CSV"}
+
+                              <input
+                                type="file"
+                                accept=".csv,text/csv"
+                                disabled={workspaceDataLoading}
+                                onChange={(event) => {
+                                  const file =
+                                    event.target.files?.[0] ?? null;
+                                
+                                  void uploadWorkspaceData(file);
+                                
+                                  event.currentTarget.value = "";
+                                }}
+                              />
+                            </label>
+                          </>
+                        ) : (
+                          <>
+                            <div className="workspace-dataset-heading">
+                              <div>
+                                <h3>
+                                  {workspaceDataProfile.filename}
+                                </h3>
+                        
+                                <p>
+                                  Dataset profiled successfully.
+                                </p>
+                              </div>
+                        
+                              <label className="workspace-replace-data">
+                                Replace CSV
+                        
+                                <input
+                                  type="file"
+                                  accept=".csv,text/csv"
+                                  disabled={workspaceDataLoading}
+                                  onChange={(event) => {
+                                    const file =
+                                      event.target.files?.[0] ?? null;
+                                  
+                                    void uploadWorkspaceData(file);
+                                  
+                                    event.currentTarget.value = "";
+                                  }}
+                                />
+                              </label>
+                            </div>
+                                
+                            <div className="workspace-profile-layout">
+                              <div className="workspace-profile-summary">
+                                <span className="workspace-overview-label">
+                                  Data profile
+                                </span>
+
+                                <div className="workspace-profile-stats">
+                                  <div>
+                                    <strong>
+                                      {workspaceDataProfile.profile.row_count}
+                                    </strong>
+                                    <span>Rows</span>
+                                  </div>
+
+                                  <div>
+                                    <strong>
+                                      {workspaceDataProfile.profile.column_count}
+                                    </strong>
+                                    <span>Columns</span>
+                                  </div>
+
+                                  <div>
+                                    <strong>
+                                      {Object.values(
+                                        workspaceDataProfile.profile.null_counts
+                                      ).reduce(
+                                        (total, count) => total + count,
+                                        0
+                                      )}
+                                    </strong>
+                                    <span>Missing</span>
+                                  </div>
+                                    
+                                  <div>
+                                    <strong>
+                                      {
+                                        workspaceDataProfile.profile
+                                          .duplicate_count
+                                      }
+                                    </strong>
+                                    <span>Duplicates</span>
+                                  </div>
+                                </div>
+                                    
+                                <div className="workspace-column-list">
+                                  <span className="workspace-overview-label">
+                                    Columns
+                                  </span>
+                                    
+                                  {workspaceDataProfile.profile.columns.map(
+                                    (column) => (
+                                      <div
+                                        className="workspace-column-item"
+                                        key={column}
+                                      >
+                                        <span>{column}</span>
+                                    
+                                        <span>
+                                          {
+                                            workspaceDataProfile.profile
+                                              .null_counts[column]
+                                          }{" "}
+                                          missing
+                                        </span>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                                
+                              <div className="workspace-findings-panel">
+                                <div className="workspace-findings-header">
+                                  <span className="workspace-overview-label">
+                                    Findings
+                                  </span>
+                                
+                                  <span className="workspace-findings-count">
+                                    {
+                                      workspaceDataProfile.analysis.findings
+                                        .length
+                                    }{" "}
+                                    detected
+                                  </span>
+                                </div>
+                                  
+                                <div className="workspace-findings">
+                                  {workspaceDataProfile.analysis.findings.map(
+                                    (finding, index) => (
+                                      <details
+                                        className="workspace-finding"
+                                        key={`${finding.issue_type}-${finding.column}-${index}`}
+                                      >
+                                        <summary>
+                                          <div className="workspace-finding-summary">
+                                            <div>
+                                              <strong>
+                                                {finding.issue_type
+                                                  .replaceAll("_", " ")}
+                                              </strong>
+                                                
+                                              {finding.column && (
+                                                <span>
+                                                  {finding.column}
+                                                </span>
+                                              )}
+                                            </div>
+                                            
+                                            <span
+                                              className={`finding-severity ${finding.severity}`}
+                                            >
+                                              {finding.severity}
+                                            </span>
+                                          </div>
+                                        </summary>
+                                            
+                                        <div className="workspace-finding-details">
+                                          <p>{finding.observation}</p>
+                                            
+                                          <div>
+                                            <strong>
+                                              Suggested action
+                                            </strong>
+                                            
+                                            <p>
+                                              {finding.suggested_action}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </details>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                                
+                            {!workspaceTask ? (
+                              <div className="workspace-profile-next">
+                                <button
+                                  type="button"
+                                  className="new-workspace-button"
+                                  disabled={
+                                    workspacePlanLoading ||
+                                    !workspaceDataProfile
+                                  }
+                                  onClick={() => {
+                                    void buildWorkspaceExecutionPlan();
+                                  }}
+                                >
+                                  {workspacePlanLoading
+                                    ? "Building plan..."
+                                    : "Build execution plan →"}
+                                </button>
+                                  
+                                <span>
+                                  DataPilot will create a guided workflow
+                                  from the dataset profile.
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="workspace-execution-plan">
+                                <div className="workspace-plan-header">
+                                  <div>
+                                    <span className="workspace-overview-label">
+                                      Execution plan
+                                    </span>
+                            
+                                    <h3>{workspaceTask.title}</h3>
+                                  </div>
+                            
+                                  <span className="workspace-list-status active">
+                                    Active
+                                  </span>
+                                </div>
+                            
+                                <div className="workspace-plan-steps">
+                                  {workspaceTask.steps.map((step) => (
+                                    <div
+                                      className={`workspace-plan-step ${step.status}`}
+                                      key={step.step_number}
+                                    >
+                                      <div className="workspace-plan-step-number">
+                                        {step.status === "completed"
+                                          ? "✓"
+                                          : step.step_number}
+                                      </div>
+                                        
+                                      <div className="workspace-plan-step-content">
+                                        <div className="workspace-plan-step-heading">
+                                          <strong>{step.title}</strong>
+                                        
+                                          <span>
+                                            {step.status}
+                                          </span>
+                                        </div>
+                                        
+                                        <p>
+                                          {step.finding.issue_type.replaceAll(
+                                            "_",
+                                            " "
+                                          )}
+
+                                          {step.finding.column
+                                            ? ` · ${step.finding.column}`
+                                            : ""}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {workspacePlanError && (
+                              <div className="workspace-form-error">
+                                {workspacePlanError}
+                              </div>
+                            )}
+                                
+
+                          </>
+                        )}
+
+                        {workspaceDataError && (
+                          <div className="workspace-form-error">
+                            {workspaceDataError}
+                          </div>
+                        )}
+                      </section>
+                    </div>
+                  </section>
         ) : (
           <section className="workspace-page">
             <div className="workspace-header">
