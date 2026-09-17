@@ -424,6 +424,30 @@ df["age"] = df["age"].fillna(median_age)`);
     setWorkspaceValidationError,
   ] = useState<string | null>(null);
 
+  const [
+    workspaceReviewLoading,
+    setWorkspaceReviewLoading,
+  ] = useState(false);
+
+  const [
+    workspaceReviewError,
+    setWorkspaceReviewError,
+  ] = useState<string | null>(null);
+
+  const [
+    workspaceHandoffLoading,
+    setWorkspaceHandoffLoading,
+  ] = useState(false);
+
+  const [
+    workspaceHandoffError,
+    setWorkspaceHandoffError,
+  ] = useState<string | null>(null);
+
+  const [
+    workspaceExportLoading,
+    setWorkspaceExportLoading,
+  ] = useState(false);
 
   const [practiceChallenge, setPracticeChallenge] =
   useState<PracticeChallengeData | null>(null);
@@ -898,6 +922,8 @@ async function openSelectedWorkspace(
     setWorkspaceVersionError(null);
     setWorkspaceValidation(null);
     setWorkspaceValidationError(null);
+    setWorkspaceReviewError(null);
+    setWorkspaceHandoffError(null);
     setTransformationCode(
     "# df is already loaded.\n# Write your pandas transformation below.\n"
     );
@@ -1602,7 +1628,198 @@ async function openSelectedWorkspace(
     }
   }
 
-  
+  async function completeWorkspaceReview() {
+    if (!workspaceId) {
+      setWorkspaceReviewError(
+        "Workspace bulunamadı."
+      );
+      return;
+    }
+
+    setWorkspaceReviewLoading(true);
+    setWorkspaceReviewError(null);
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/review/complete`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Review tamamlanamadı."
+        );
+      }
+
+      await response.json();
+
+      const workspaceResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+      );
+
+      if (!workspaceResponse.ok) {
+        throw new Error(
+          "Review tamamlandı fakat workspace durumu yenilenemedi."
+        );
+      }
+
+      const updatedWorkspace: DashboardWorkspace =
+        await workspaceResponse.json();
+
+      setDashboardWorkspace(
+        updatedWorkspace
+      );
+
+      const resumeResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
+      );
+
+      if (resumeResponse.ok) {
+        const updatedResume =
+          await resumeResponse.json();
+
+        setResumeData(updatedResume);
+      }
+    } catch (error) {
+      setWorkspaceReviewError(
+        error instanceof Error
+          ? error.message
+          : "Review tamamlanamadı."
+      );
+    } finally {
+      setWorkspaceReviewLoading(false);
+    }
+  }
+
+  async function downloadWorkspaceHandoff() {
+  if (!workspaceId) {
+    setWorkspaceHandoffError(
+      "Workspace bulunamadı."
+    );
+    return;
+  }
+
+  setWorkspaceExportLoading(true);
+  setWorkspaceHandoffError(null);
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/handoff/export`
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Final CSV indirilemedi."
+      );
+    }
+
+    const blob = await response.blob();
+
+    const downloadUrl =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = downloadUrl;
+    link.download = "datapilot_final.csv";
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    URL.revokeObjectURL(
+      downloadUrl
+    );
+  } catch (error) {
+    setWorkspaceHandoffError(
+      error instanceof Error
+        ? error.message
+        : "Final CSV indirilemedi."
+    );
+  } finally {
+    setWorkspaceExportLoading(false);
+  }
+}
+
+
+async function completeWorkspaceHandoff() {
+  if (!workspaceId) {
+    setWorkspaceHandoffError(
+      "Workspace bulunamadı."
+    );
+    return;
+  }
+
+  setWorkspaceHandoffLoading(true);
+  setWorkspaceHandoffError(null);
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/handoff/complete`,
+      {
+        method: "POST",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Handoff tamamlanamadı."
+      );
+    }
+
+    const updatedWorkspace: DashboardWorkspace =
+      await response.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map((workspace) =>
+          workspace.workspace_id ===
+          updatedWorkspace.workspace_id
+            ? updatedWorkspace
+            : workspace
+        )
+    );
+
+    const resumeResponse = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
+    );
+
+    if (resumeResponse.ok) {
+      const updatedResume =
+        await resumeResponse.json();
+
+      setResumeData(
+        updatedResume
+      );
+    }
+  } catch (error) {
+    setWorkspaceHandoffError(
+      error instanceof Error
+        ? error.message
+        : "Handoff tamamlanamadı."
+    );
+  } finally {
+    setWorkspaceHandoffLoading(false);
+  }
+}
 
 
   async function runTransformation() {
@@ -1612,44 +1829,36 @@ async function openSelectedWorkspace(
       );
       return;
     }
-
     if (!workspaceWorkingData) {
       setPythonError(
         "Working dataset henüz yüklenmedi."
       );
       return;
     }
-
     setPythonRunning(true);
     setResultRows(null);
     setPythonError(null);
     setValidationMessage(null);
-
     try {
       const result =
         await runDataFrameTransformation(
           transformationCode,
           workspaceWorkingData.rows
         );
-
       setResultRows(result);
     } catch (error) {
       console.error(error);
-
       const fullMessage =
         error instanceof Error
           ? error.message
           : "Python kodu çalıştırılamadı.";
-
       const lines = fullMessage
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean);
-
       const shortMessage =
         lines.at(-1) ??
         "Python kodu çalıştırılamadı.";
-
       setPythonError(shortMessage);
     } finally {
       setPythonRunning(false);
@@ -1736,6 +1945,9 @@ async function openSelectedWorkspace(
         await loadWorkspaceVersions(
           workspaceId
         );
+
+      setWorkspaceValidation(null);
+      setWorkspaceValidationError(null);
 
       const resumeResponse = await fetch(
         `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
@@ -1841,6 +2053,9 @@ async function openSelectedWorkspace(
       setWorkspaceWorkingData(
         data.working_data
       );
+      setWorkspaceValidation(null);
+      setWorkspaceValidationError(null);
+
 
       const resumeResponse = await fetch(
         `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
@@ -1897,6 +2112,16 @@ async function openSelectedWorkspace(
       setRestoringVersion(null);
     }
   }
+
+  const workspaceReviewCompleted =
+    dashboardWorkspace?.checkpoint.completed_items.includes(
+      "Final review completed"
+    ) ?? false;
+    
+  const workspaceHandoffCompleted =
+    dashboardWorkspace?.checkpoint.completed_items.includes(
+      "Handoff completed"
+    ) ?? false;  
 
   return (
     <div className="app-shell">
@@ -3077,7 +3302,7 @@ async function openSelectedWorkspace(
                             : "workspace-flow-line"
                         }
                       />
-                      
+
                       <div
                         className={
                           workspaceValidation?.passed
@@ -3103,17 +3328,51 @@ async function openSelectedWorkspace(
                             : "workspace-flow-line"
                         }
                       />
+
+                      <div
+                        className={
+                          workspaceReviewCompleted
+                            ? "workspace-flow-step completed"
+                            : workspaceValidation?.passed
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
+                        }
+                      >
+                        <span>
+                          {workspaceReviewCompleted
+                            ? "✓"
+                            : "6"}
+                        </span>
+                          
+                        <strong>Review</strong>
+                      </div>
                       
                       <div
                         className={
-                          workspaceValidation?.passed
-                            ? "workspace-flow-step current"
-                            : "workspace-flow-step"
+                          workspaceReviewCompleted
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+
+                      <div
+                        className={
+                          workspaceHandoffCompleted
+                            ? "workspace-flow-step completed"
+                            : workspaceReviewCompleted
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
                         }
                       >
-                        <span>6</span>
-                        <strong>Review</strong>
+                        <span>
+                          {workspaceHandoffCompleted
+                            ? "✓"
+                            : "7"}
+                        </span>
+                          
+                        <strong>Handoff</strong>
                       </div>
+
                     </div>
                       
                     <div className="workspace-overview-grid">
@@ -3868,32 +4127,281 @@ async function openSelectedWorkspace(
                                   )}
                                 </div>
                                 
-                                <div className="workspace-profile-next">
-                                  <button
-                                    type="button"
-                                    className="new-workspace-button"
-                                    disabled={workspaceValidationLoading}
-                                    onClick={() => {
-                                      void runWorkspaceValidation();
-                                    }}
-                                  >
-                                    {workspaceValidationLoading
-                                      ? "Validating..."
-                                      : "Run validation again"}
-                                  </button>
-                                    
-                                  <span>
-                                    {workspaceValidation.passed
-                                      ? "All required checks passed. Ready for review."
-                                      : "Resolve failed checks before review."}
-                                  </span>
-                                </div>
+                                {!workspaceReviewCompleted && (
+                                  <div className="workspace-profile-next">
+                                    <button
+                                      type="button"
+                                      className="new-workspace-button"
+                                      disabled={workspaceValidationLoading}
+                                      onClick={() => {
+                                        void runWorkspaceValidation();
+                                      }}
+                                    >
+                                      {workspaceValidationLoading
+                                        ? "Validating..."
+                                        : "Run validation again"}
+                                    </button>
+                                      
+                                    <span>
+                                      {workspaceValidation.passed
+                                        ? "All required checks passed. Ready for review."
+                                        : "Resolve failed checks before review."}
+                                    </span>
+                                  </div>
+                                )}
                               </>
                             )}
 
                             {workspaceValidationError && (
                               <div className="workspace-form-error">
                                 {workspaceValidationError}
+                              </div>
+                            )}
+                          </section>
+                        )}
+
+                        {workspaceValidation?.passed && (
+                          <section className="workspace-overview-card">
+                            <div className="workspace-plan-header">
+                              <div>
+                                <span className="workspace-overview-label">
+                                  Final review
+                                </span>
+
+                                <h3>
+                                  Review final dataset
+                                </h3>
+
+                                <p>
+                                  Confirm that the transformed dataset,
+                                  validation results and expected outcome
+                                  are ready for handoff.
+                                </p>
+                              </div>
+
+                              {workspaceReviewCompleted && (
+                                <span className="workspace-list-status completed">
+                                  completed
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="workspace-overview-grid">
+                              <div className="workspace-overview-card">
+                                <span className="workspace-overview-label">
+                                  Task brief
+                                </span>
+                            
+                                <p>
+                                  {dashboardWorkspace.task_brief ??
+                                    "No task brief provided."}
+                                </p>
+                              </div>
+                                  
+                              <div className="workspace-overview-card">
+                                <span className="workspace-overview-label">
+                                  Expected outcome
+                                </span>
+                                  
+                                <p>
+                                  {dashboardWorkspace.desired_outcome ??
+                                    "No expected outcome provided."}
+                                </p>
+                              </div>
+                            </div>
+                                  
+                            {workspaceWorkingData && (
+                              <>
+                                <div className="workspace-profile-next">
+                                  <span>
+                                    Final working dataset ·{" "}
+                                    {workspaceWorkingData.row_count} rows
+                                  </span>
+                                </div>
+                            
+                                <div className="workspace-working-table-wrap">
+                                  <table className="workspace-working-table">
+                                    <thead>
+                                      <tr>
+                                        {workspaceWorkingData.columns.map(
+                                          (column) => (
+                                            <th key={column}>
+                                              {column}
+                                            </th>
+                                          )
+                                        )}
+                                      </tr>
+                                    </thead>
+                                      
+                                    <tbody>
+                                      {workspaceWorkingData.rows.map(
+                                        (row, rowIndex) => (
+                                          <tr key={rowIndex}>
+                                            {workspaceWorkingData.columns.map(
+                                              (column) => (
+                                                <td
+                                                  key={`${rowIndex}-${column}`}
+                                                >
+                                                  {row[column] === null ||
+                                                  row[column] === undefined
+                                                    ? "—"
+                                                    : String(row[column])}
+                                                </td>
+                                              )
+                                            )}
+                                          </tr>
+                                        )
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </>
+                            )}
+
+                            <div className="workspace-profile-next">
+                              {!workspaceReviewCompleted ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="new-workspace-button"
+                                    disabled={workspaceReviewLoading}
+                                    onClick={() => {
+                                      void completeWorkspaceReview();
+                                    }}
+                                  >
+                                    {workspaceReviewLoading
+                                      ? "Completing review..."
+                                      : "✓ Complete review"}
+                                  </button>
+                                    
+                                  <span>
+                                    Confirm the final result before
+                                    preparing the handoff.
+                                  </span>
+                                </>
+                              ) : (
+                                <span>
+                                  ✓ Final review completed. Ready to
+                                  prepare the handoff.
+                                </span>
+                              )}
+                            </div>
+                            
+                            {workspaceReviewError && (
+                              <div className="workspace-form-error">
+                                {workspaceReviewError}
+                              </div>
+                            )}
+                          </section>
+                        )}
+                        {workspaceReviewCompleted && (
+                          <section className="workspace-overview-card">
+                            <div className="workspace-plan-header">
+                              <div>
+                                <span className="workspace-overview-label">
+                                  Handoff
+                                </span>
+                        
+                                <h3>
+                                  Prepare final delivery
+                                </h3>
+                        
+                                <p>
+                                  Export the validated working dataset and
+                                  complete the workspace when the result is
+                                  ready to hand off.
+                                </p>
+                              </div>
+                        
+                              {workspaceHandoffCompleted && (
+                                <span className="workspace-list-status completed">
+                                  completed
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="workspace-profile-stats">
+                              <div>
+                                <strong>
+                                  {workspaceWorkingData?.row_count ?? 0}
+                                </strong>
+                                <span>Final rows</span>
+                              </div>
+                            
+                              <div>
+                                <strong>
+                                  {workspaceValidation?.checks.filter(
+                                    (check) =>
+                                      check.status === "passed"
+                                  ).length ?? 0}
+                                </strong>
+                                <span>Checks passed</span>
+                              </div>
+                                
+                              <div>
+                                <strong>
+                                  {workspaceValidation?.passed
+                                    ? "Yes"
+                                    : "No"}
+                                </strong>
+                                <span>Validated</span>
+                              </div>
+                                  
+                              <div>
+                                <strong>
+                                  {workspaceReviewCompleted
+                                    ? "Yes"
+                                    : "No"}
+                                </strong>
+                                <span>Reviewed</span>
+                              </div>
+                            </div>
+                                  
+                            {!workspaceHandoffCompleted ? (
+                              <div className="workspace-profile-next">
+                                <button
+                                  type="button"
+                                  className="new-workspace-button"
+                                  disabled={workspaceExportLoading}
+                                  onClick={() => {
+                                    void downloadWorkspaceHandoff();
+                                  }}
+                                >
+                                  {workspaceExportLoading
+                                    ? "Preparing CSV..."
+                                    : "↓ Download final CSV"}
+                                </button>
+                                  
+                                <button
+                                  type="button"
+                                  className="new-workspace-button"
+                                  disabled={workspaceHandoffLoading}
+                                  onClick={() => {
+                                    void completeWorkspaceHandoff();
+                                  }}
+                                >
+                                  {workspaceHandoffLoading
+                                    ? "Completing..."
+                                    : "✓ Complete handoff"}
+                                </button>
+                                  
+                                <span>
+                                  Downloading does not complete the
+                                  workspace. Complete the handoff only
+                                  when the result is ready for delivery.
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="workspace-profile-next">
+                                <span>
+                                  ✓ Handoff completed. Workspace is complete.
+                                </span>
+                              </div>
+                            )}
+                        
+                            {workspaceHandoffError && (
+                              <div className="workspace-form-error">
+                                {workspaceHandoffError}
                               </div>
                             )}
                           </section>

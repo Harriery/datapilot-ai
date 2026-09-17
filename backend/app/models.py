@@ -430,6 +430,11 @@ class WorkspaceValidationResponse(BaseModel):
         WorkspaceValidationCheck
     ]
 
+class WorkspaceReviewResponse(BaseModel):
+    completed: bool
+    message: str
+    working_row_count: int
+
 # DataEngineeringTaskCreateRequest:
 #
 # Yeni bir multi-step task ilk kez oluşturulurken kullanılır.

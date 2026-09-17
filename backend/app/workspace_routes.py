@@ -1,6 +1,11 @@
 import uuid
 from io import BytesIO
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    UploadFile,
+    Response,
+)
 
 import backend.app.database as database
 
@@ -18,6 +23,7 @@ from backend.app.models import (
     WorkspaceVersionSummary,
     WorkspaceValidationCheck,
     WorkspaceValidationResponse,
+    WorkspaceReviewResponse,
 )
 
 import pandas as pd
@@ -280,6 +286,15 @@ def profile_workspace_data(
     workspace.dataset_analysis = analysis
     workspace.validation_result = None
 
+    workspace.checkpoint.completed_items = [
+        item
+        for item in workspace.checkpoint.completed_items
+        if item not in {
+            "Validation passed",
+            "Final review completed",
+        }
+    ]
+
     # Yeni dataset yüklendiyse eski execution plan
     # artık güvenilir olmayabilir.
     workspace.current_task_id = None
@@ -464,6 +479,15 @@ def restore_workspace_version(
         restored_checkpoint
     )
     workspace.validation_result = None
+
+    workspace.checkpoint.completed_items = [
+        item
+        for item in workspace.checkpoint.completed_items
+        if item not in {
+            "Validation passed",
+            "Final review completed",
+        }
+    ]
 
     workspace.checkpoint.last_error = None
 
@@ -972,6 +996,222 @@ def validate_workspace_result(
     
     return validation_result
 
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/review/complete",
+    response_model=WorkspaceReviewResponse,
+)
+def complete_workspace_review(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.validation_result is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Review tamamlanmadan önce "
+                "final validation çalıştırılmalı."
+            ),
+        )
+
+    if not workspace.validation_result.passed:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Başarısız validation sonucu ile "
+                "review tamamlanamaz."
+            ),
+        )
+
+    try:
+        working_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    if (
+        "Final review completed"
+        not in workspace.checkpoint.completed_items
+    ):
+        workspace.checkpoint.completed_items.append(
+            "Final review completed"
+        )
+
+    workspace.checkpoint.current_focus = (
+        "Prepare handoff"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Prepare final dataset handoff"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceReviewResponse(
+        completed=True,
+        message="Final review completed.",
+        working_row_count=len(working_df),
+    )
+
+
+@router.get(
+    "/workspaces/{learner_id}/{workspace_id}/handoff/export"
+)
+def export_workspace_handoff(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if (
+        "Final review completed"
+        not in workspace.checkpoint.completed_items
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Final dataset export edilmeden önce "
+                "review tamamlanmalı."
+            ),
+        )
+
+    if (
+        workspace.validation_result is None
+        or not workspace.validation_result.passed
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Geçerli başarılı validation sonucu "
+                "bulunamadı."
+            ),
+        )
+
+    try:
+        working_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    csv_content = working_df.to_csv(
+        index=False
+    )
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                'attachment; '
+                'filename="datapilot_final.csv"'
+            )
+        },
+    )
+
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/handoff/complete",
+    response_model=Workspace,
+)
+def complete_workspace_handoff(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if (
+        "Final review completed"
+        not in workspace.checkpoint.completed_items
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Handoff tamamlanmadan önce "
+                "final review tamamlanmalı."
+            ),
+        )
+
+    if (
+        workspace.validation_result is None
+        or not workspace.validation_result.passed
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Handoff için başarılı bir "
+                "validation sonucu gerekli."
+            ),
+        )
+
+    if (
+        "Handoff completed"
+        not in workspace.checkpoint.completed_items
+    ):
+        workspace.checkpoint.completed_items.append(
+            "Handoff completed"
+        )
+
+    workspace.checkpoint.current_focus = (
+        "Workspace completed"
+    )
+
+    workspace.checkpoint.next_actions = []
+
+    workspace.checkpoint.last_error = None
+
+    workspace.status = "completed"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
 
 @router.get(
     "/workspaces/{learner_id}/{workspace_id}",
