@@ -44,6 +44,18 @@ type PracticeRecommendationData = {
   reason: string;
 };
 
+type WorkspaceValidationResult = {
+  passed: boolean;
+  source_row_count: number;
+  working_row_count: number;
+
+  checks: {
+    name: string;
+    status: "passed" | "failed" | "warning";
+    message: string;
+  }[];
+};
+
 type DashboardWorkspace = {
   workspace_id: string;
   title: string;
@@ -59,6 +71,10 @@ type DashboardWorkspace = {
     | WorkspaceDataProfileResponse["analysis"]
     | null;
   mentor_session_id: string | null;
+
+  validation_result?:
+  | WorkspaceValidationResult
+  | null;
 
   checkpoint: {
     completed_items: string[];
@@ -390,6 +406,23 @@ df["age"] = df["age"].fillna(median_age)`);
     restoringVersion,
     setRestoringVersion,
   ] = useState<number | null>(null);
+
+  const [
+    workspaceValidation,
+    setWorkspaceValidation,
+  ] = useState<WorkspaceValidationResult | null>(
+    null
+  );
+
+  const [
+    workspaceValidationLoading,
+    setWorkspaceValidationLoading,
+  ] = useState(false);
+
+  const [
+    workspaceValidationError,
+    setWorkspaceValidationError,
+  ] = useState<string | null>(null);
 
 
   const [practiceChallenge, setPracticeChallenge] =
@@ -863,6 +896,8 @@ async function openSelectedWorkspace(
     setWorkspaceWorkingDataError(null);
     setWorkspaceVersions([]);
     setWorkspaceVersionError(null);
+    setWorkspaceValidation(null);
+    setWorkspaceValidationError(null);
     setTransformationCode(
     "# df is already loaded.\n# Write your pandas transformation below.\n"
     );
@@ -895,6 +930,10 @@ async function openSelectedWorkspace(
 
     setDashboardWorkspace(
       latestWorkspace
+    );
+
+    setWorkspaceValidation(
+      latestWorkspace.validation_result ?? null
     );
 
     // Persist edilmiş dataset profile varsa
@@ -1495,6 +1534,76 @@ async function openSelectedWorkspace(
     setMentorLoading(false);
   }
 }
+
+  async function runWorkspaceValidation() {
+    if (!workspaceId) {
+      setWorkspaceValidationError(
+        "Workspace bulunamadı."
+      );
+      return;
+    }
+
+    setWorkspaceValidationLoading(true);
+    setWorkspaceValidationError(null);
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/validate`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Workspace validation başarısız."
+        );
+      }
+
+      const data: WorkspaceValidationResult =
+        await response.json();
+
+      setWorkspaceValidation(data);
+
+      const workspaceResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+      );
+
+      if (workspaceResponse.ok) {
+        const updatedWorkspace: DashboardWorkspace =
+          await workspaceResponse.json();
+
+        setDashboardWorkspace(
+          updatedWorkspace
+        );
+      }
+
+      const resumeResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
+      );
+
+      if (resumeResponse.ok) {
+        const updatedResume =
+          await resumeResponse.json();
+
+        setResumeData(updatedResume);
+      }
+    } catch (error) {
+      setWorkspaceValidationError(
+        error instanceof Error
+          ? error.message
+          : "Workspace validation başarısız."
+      );
+    } finally {
+      setWorkspaceValidationLoading(false);
+    }
+  }
+
+  
+
 
   async function runTransformation() {
     if (!transformationCode.trim()) {
@@ -2945,25 +3054,63 @@ async function openSelectedWorkspace(
                       
                       <div
                         className={
-                          workspaceTask
+                          workspaceTask?.status === "completed"
+                            ? "workspace-flow-step completed"
+                            : workspaceTask
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
+                        }
+                      >
+                        <span>
+                          {workspaceTask?.status === "completed"
+                            ? "✓"
+                            : "4"}
+                        </span>
+                          
+                        <strong>Transform</strong>
+                      </div>
+                          
+                      <div
+                        className={
+                          workspaceTask?.status === "completed"
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+                      
+                      <div
+                        className={
+                          workspaceValidation?.passed
+                            ? "workspace-flow-step completed"
+                            : workspaceTask?.status === "completed"
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
+                        }
+                      >
+                        <span>
+                          {workspaceValidation?.passed
+                            ? "✓"
+                            : "5"}
+                        </span>
+                          
+                        <strong>Validate</strong>
+                      </div>
+                          
+                      <div
+                        className={
+                          workspaceValidation?.passed
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+                      
+                      <div
+                        className={
+                          workspaceValidation?.passed
                             ? "workspace-flow-step current"
                             : "workspace-flow-step"
                         }
                       >
-                        <span>4</span>
-                        <strong>Transform</strong>
-                      </div>
-                      
-                      <div className="workspace-flow-line" />
-                      
-                      <div className="workspace-flow-step">
-                        <span>5</span>
-                        <strong>Validate</strong>
-                      </div>
-                      
-                      <div className="workspace-flow-line" />
-                      
-                      <div className="workspace-flow-step">
                         <span>6</span>
                         <strong>Review</strong>
                       </div>
@@ -3312,7 +3459,8 @@ async function openSelectedWorkspace(
 
                       </section>
 
-                      {workspaceTask && (
+                      {workspaceTask && 
+                        workspaceTask.status !== "completed" && (
                         <section className="workspace-overview-card workspace-transform-card">
                           <div className="workspace-transform-header">
                             <div>
@@ -3597,6 +3745,160 @@ async function openSelectedWorkspace(
                           )}
                         </section>
                       )}
+
+                      {workspaceTask &&
+                        workspaceTask.status === "completed" && (
+                          <section className="workspace-overview-card">
+                            <div className="workspace-plan-header">
+                              <div>
+                                <span className="workspace-overview-label">
+                                  Final validation
+                                </span>
+                        
+                                <h3>
+                                  Validate transformed dataset
+                                </h3>
+                        
+                                <p>
+                                  Check the final working dataset against
+                                  the source and execution plan.
+                                </p>
+                              </div>
+                        
+                              {workspaceValidation && (
+                                <span
+                                  className={
+                                    workspaceValidation.passed
+                                      ? "workspace-list-status completed"
+                                      : "workspace-list-status active"
+                                  }
+                                >
+                                  {workspaceValidation.passed
+                                    ? "passed"
+                                    : "failed"}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {!workspaceValidation ? (
+                              <div className="workspace-profile-next">
+                                <button
+                                  type="button"
+                                  className="new-workspace-button"
+                                  disabled={workspaceValidationLoading}
+                                  onClick={() => {
+                                    void runWorkspaceValidation();
+                                  }}
+                                >
+                                  {workspaceValidationLoading
+                                    ? "Validating..."
+                                    : "Run final validation →"}
+                                </button>
+                                  
+                                <span>
+                                  DataPilot will run deterministic checks
+                                  on the final working dataset.
+                                </span>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="workspace-profile-stats">
+                                  <div>
+                                    <strong>
+                                      {workspaceValidation.source_row_count}
+                                    </strong>
+                                    <span>Source rows</span>
+                                  </div>
+                            
+                                  <div>
+                                    <strong>
+                                      {workspaceValidation.working_row_count}
+                                    </strong>
+                                    <span>Working rows</span>
+                                  </div>
+                            
+                                  <div>
+                                    <strong>
+                                      {
+                                        workspaceValidation.checks.filter(
+                                          (check) =>
+                                            check.status === "passed"
+                                        ).length
+                                      }
+                                    </strong>
+                                    <span>Checks passed</span>
+                                  </div>
+                                    
+                                  <div>
+                                    <strong>
+                                      {workspaceValidation.checks.length}
+                                    </strong>
+                                    <span>Total checks</span>
+                                  </div>
+                                </div>
+                                    
+                                <div className="workspace-plan-steps">
+                                  {workspaceValidation.checks.map(
+                                    (check, index) => (
+                                      <div
+                                        className={
+                                          check.status === "passed"
+                                            ? "workspace-plan-step completed"
+                                            : "workspace-plan-step active"
+                                        }
+                                        key={`${check.name}-${index}`}
+                                      >
+                                        <div className="workspace-plan-step-number">
+                                          {check.status === "passed"
+                                            ? "✓"
+                                            : "!"}
+                                        </div>
+                                          
+                                        <div>
+                                          <strong>
+                                            {check.name}
+                                          </strong>
+                                          
+                                          <p>
+                                            {check.message}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                                
+                                <div className="workspace-profile-next">
+                                  <button
+                                    type="button"
+                                    className="new-workspace-button"
+                                    disabled={workspaceValidationLoading}
+                                    onClick={() => {
+                                      void runWorkspaceValidation();
+                                    }}
+                                  >
+                                    {workspaceValidationLoading
+                                      ? "Validating..."
+                                      : "Run validation again"}
+                                  </button>
+                                    
+                                  <span>
+                                    {workspaceValidation.passed
+                                      ? "All required checks passed. Ready for review."
+                                      : "Resolve failed checks before review."}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+
+                            {workspaceValidationError && (
+                              <div className="workspace-form-error">
+                                {workspaceValidationError}
+                              </div>
+                            )}
+                          </section>
+                        )}
+
                     </div>
                   </section>
         ) : (

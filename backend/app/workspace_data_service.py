@@ -86,6 +86,24 @@ def load_workspace_working_dataframe(
         working_path
     )
 
+def load_workspace_source_dataframe(
+    workspace_id: str,
+) -> pd.DataFrame:
+    source_path = (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+        / "source.csv"
+    )
+
+    if not source_path.exists():
+        raise FileNotFoundError(
+            "Workspace source datası bulunamadı."
+        )
+
+    return pd.read_csv(
+        source_path
+    )
 
 def dataframe_to_records(
     df: pd.DataFrame,

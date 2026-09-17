@@ -408,6 +408,28 @@ class WorkspaceVersionSummary(BaseModel):
     created_at: str
     row_count: int
 
+class WorkspaceValidationCheck(BaseModel):
+    name: str
+
+    status: Literal[
+        "passed",
+        "failed",
+        "warning",
+    ]
+
+    message: str
+
+
+class WorkspaceValidationResponse(BaseModel):
+    passed: bool
+
+    source_row_count: int
+    working_row_count: int
+
+    checks: list[
+        WorkspaceValidationCheck
+    ]
+
 # DataEngineeringTaskCreateRequest:
 #
 # Yeni bir multi-step task ilk kez oluşturulurken kullanılır.
@@ -515,6 +537,8 @@ class Workspace(BaseModel):
     dataset_profile: dict | None = None
 
     dataset_analysis: DataQualityAnalysis | None = None
+
+    validation_result: WorkspaceValidationResponse | None = None
 
     workspace_type: Literal[
         "data_engineering",

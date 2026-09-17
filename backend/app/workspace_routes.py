@@ -16,6 +16,8 @@ from backend.app.models import (
     WorkspaceTransformationRequest,
     DataEngineeringTaskTransformationResponse,
     WorkspaceVersionSummary,
+    WorkspaceValidationCheck,
+    WorkspaceValidationResponse,
 )
 
 import pandas as pd
@@ -37,6 +39,8 @@ from backend.app.workspace_data_service import (
     delete_workspace_version,
     list_workspace_versions,
     load_workspace_version,
+    load_workspace_source_dataframe,
+
 )
 
 from backend.app.mentor_service import (
@@ -274,6 +278,7 @@ def profile_workspace_data(
     workspace.dataset_filename = file.filename
     workspace.dataset_profile = safe_profile
     workspace.dataset_analysis = analysis
+    workspace.validation_result = None
 
     # Yeni dataset yüklendiyse eski execution plan
     # artık güvenilir olmayabilir.
@@ -458,6 +463,7 @@ def restore_workspace_version(
     workspace.checkpoint = (
         restored_checkpoint
     )
+    workspace.validation_result = None
 
     workspace.checkpoint.last_error = None
 
@@ -630,6 +636,7 @@ def transform_workspace_data(
                 workspace_id=workspace_id,
                 df=after_df,
             )
+            workspace.validation_result = None
 
         except OSError as exc:
             # Task review servisi başarılı validation
@@ -722,6 +729,248 @@ def transform_workspace_data(
 
     return result
 
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/validate",
+    response_model=WorkspaceValidationResponse,
+)
+def validate_workspace_result(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.current_task_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Execution plan bulunamadı.",
+        )
+
+    task = database.get_data_engineering_task(
+        task_id=workspace.current_task_id,
+        learner_id=learner_id,
+    )
+
+    if task is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Execution task bulunamadı.",
+        )
+
+    if task.status != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Validation başlamadan önce "
+                "transformation adımları tamamlanmalı."
+            ),
+        )
+
+    try:
+        source_df = (
+            load_workspace_source_dataframe(
+                workspace_id
+            )
+        )
+
+        working_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    source_profile = build_data_profile(
+        source_df
+    )
+
+    working_profile = build_data_profile(
+        working_df
+    )
+
+    checks: list[
+        WorkspaceValidationCheck
+    ] = []
+
+    rows_exist = len(working_df) > 0
+
+    checks.append(
+        WorkspaceValidationCheck(
+            name="Dataset integrity",
+            status=(
+                "passed"
+                if rows_exist
+                else "failed"
+            ),
+            message=(
+                f"Working dataset contains "
+                f"{len(working_df)} rows."
+            ),
+        )
+    )
+
+    schema_preserved = (
+        source_df.columns.tolist()
+        ==
+        working_df.columns.tolist()
+    )
+
+    checks.append(
+        WorkspaceValidationCheck(
+            name="Schema preserved",
+            status=(
+                "passed"
+                if schema_preserved
+                else "failed"
+            ),
+            message=(
+                "Working dataset columns match "
+                "the original source."
+                if schema_preserved
+                else
+                "Working dataset columns differ "
+                "from the original source."
+            ),
+        )
+    )
+
+    for step in task.steps:
+        finding = step.finding
+
+        if (
+            finding.issue_type
+            == "duplicate_rows"
+        ):
+            duplicate_count = (
+                working_profile[
+                    "duplicate_count"
+                ]
+            )
+
+            success = (
+                duplicate_count == 0
+            )
+
+            checks.append(
+                WorkspaceValidationCheck(
+                    name="Duplicate rows",
+                    status=(
+                        "passed"
+                        if success
+                        else "failed"
+                    ),
+                    message=(
+                        f"{duplicate_count} "
+                        "duplicate rows remain."
+                    ),
+                )
+            )
+
+        elif (
+            finding.issue_type
+            == "missing_values"
+            and finding.column
+        ):
+            missing_count = (
+                working_profile[
+                    "null_counts"
+                ].get(
+                    finding.column,
+                    0,
+                )
+            )
+
+            success = (
+                missing_count == 0
+            )
+
+            checks.append(
+                WorkspaceValidationCheck(
+                    name=(
+                        f"Missing values · "
+                        f"{finding.column}"
+                    ),
+                    status=(
+                        "passed"
+                        if success
+                        else "failed"
+                    ),
+                    message=(
+                        f"{missing_count} missing "
+                        f"values remain in "
+                        f"{finding.column}."
+                    ),
+                )
+            )
+
+    passed = all(
+        check.status != "failed"
+        for check in checks
+    )
+
+    if passed:
+        if (
+            "Validation passed"
+            not in
+            workspace.checkpoint.completed_items
+        ):
+            workspace.checkpoint.completed_items.append(
+                "Validation passed"
+            )
+
+        workspace.checkpoint.current_focus = (
+            "Review transformed dataset"
+        )
+
+        workspace.checkpoint.next_actions = [
+            "Review final dataset and changes"
+        ]
+
+        workspace.checkpoint.last_error = None
+
+    else:
+        workspace.checkpoint.current_focus = (
+            "Resolve validation failures"
+        )
+
+        workspace.checkpoint.last_error = (
+            "Final validation failed."
+        )
+
+    validation_result = WorkspaceValidationResponse(
+        passed=passed,
+        source_row_count=(
+            source_profile["row_count"]
+        ),
+        working_row_count=(
+            working_profile["row_count"]
+        ),
+        checks=checks,
+    )
+    
+    workspace.validation_result = (
+        validation_result
+    )
+    
+    database.save_workspace(
+        workspace=workspace
+    )
+    
+    return validation_result
 
 
 @router.get(
