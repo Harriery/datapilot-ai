@@ -371,11 +371,8 @@ function App() {
   const [currentView, setCurrentView] = useState<
   "dashboard" | "workspace" | "practice" | "new-workspace"
   >("dashboard");
-  const [mentorOpen, setMentorOpen] = useState(false);
-  const [mentorInput, setMentorInput] = useState("");
-  const [mentorSessionId, setMentorSessionId] = useState<string | null>(
-    null
-  );
+ 
+
   const [workspaceId, setWorkspaceId] = useState<string | null>(
   null
   );
@@ -391,17 +388,9 @@ function App() {
     };
     next_action: string | null;
   } | null>(null);
-  const [mentorLoading, setMentorLoading] = useState(false);
 
-  const [mentorMessages, setMentorMessages] = useState<
-    { role: "user" | "mentor"; content: string }[]
-  >([
-    {
-      role: "mentor",
-      content:
-        "I can help you with your current task. Ask me about the code, task, or error.",
-    },
-  ]);
+
+
 
   
   const [pythonRunning, setPythonRunning] = useState(false);
@@ -645,32 +634,7 @@ df["age"] = df["age"].fillna(median_age)`);
   const [practiceSolutionError, setPracticeSolutionError] =
     useState<string | null>(null);
 
-  const inputRows = [
-      {
-        customer_id: 1001,
-        name: "Alice",
-        age: 31,
-        city: "Den Haag",
-      },
-      {
-        customer_id: 1002,
-        name: "Bob",
-        age: null,
-        city: "Rotterdam",
-      },
-      {
-        customer_id: 1003,
-        name: "Carol",
-        age: 28,
-        city: "Utrecht",
-      },
-      {
-        customer_id: 1004,
-        name: "David",
-        age: null,
-        city: "Delft",
-      },
-    ];
+
 
   
   useEffect(() => {
@@ -1101,9 +1065,7 @@ async function openSelectedWorkspace(
       latestWorkspace.workspace_id
     );
 
-    setMentorSessionId(
-      latestWorkspace.mentor_session_id
-    );
+ 
 
     setDashboardWorkspace(
       latestWorkspace
@@ -1210,7 +1172,7 @@ async function openSelectedWorkspace(
   }
 }
 
-    async function uploadWorkspaceData(
+async function uploadWorkspaceData(
     file: File | null
   ) {
     if (!file || !workspaceId) {
@@ -1275,7 +1237,7 @@ async function openSelectedWorkspace(
     }
   }
 
-    async function buildWorkspaceExecutionPlan() {
+async function buildWorkspaceExecutionPlan() {
       if (!workspaceId || !workspaceDataProfile) {
         return;
       }
@@ -1328,7 +1290,7 @@ async function openSelectedWorkspace(
       }
     }
 
-  async function createNewWorkspace() {
+async function createNewWorkspace() {
     const title = newWorkspaceTitle.trim();
     const taskBrief = newWorkspaceTaskBrief.trim();
 
@@ -1398,7 +1360,7 @@ async function openSelectedWorkspace(
       const workspace = await response.json();
 
       setWorkspaceId(workspace.workspace_id);
-      setMentorSessionId(workspace.mentor_session_id);
+      
 
       setNewWorkspaceTitle("");
       setNewWorkspaceTaskBrief("");
@@ -1424,295 +1386,7 @@ async function openSelectedWorkspace(
     }
   }
 
-
-  async function submitTransformation() {
-    if (!resultRows) {
-      setValidationMessage(
-        "Önce Run butonuyla transformation sonucunu oluştur."
-      );
-      return;
-    }
-
-    if (!workspaceId) {
-      setValidationMessage("Workspace henüz hazır değil.");
-      return;
-    }
-
-    setSubmitting(true);
-    setValidationMessage(null);
-
-    try {
-      const validationResponse = await fetch(
-        "http://127.0.0.1:8000/mentor/data-quality/transformation",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            learner_id: "demo-learner",
-
-            finding: {
-              issue_type: "missing_values",
-              column: "age",
-              severity: "medium",
-              observation:
-                "age sütununda eksik değerler var.",
-              suggested_action:
-                "Eksik age değerlerini uygun bir stratejiyle ele al.",
-            },
-
-            before_rows: inputRows,
-            after_rows: resultRows,
-          }),
-        }
-      );
-
-      if (!validationResponse.ok) {
-        const errorData = await validationResponse.json();
-
-        throw new Error(
-          errorData.detail ||
-            "Transformation doğrulanamadı."
-        );
-      }
-
-      const validationData =
-        await validationResponse.json();
-
-      if (!validationData.validation.success) {
-        setValidationMessage(
-          `❌ Validation failed. Null count: ${validationData.validation.before_null_count} → ${validationData.validation.after_null_count}`
-        );
-
-        return;
-      }
-
-      setValidationMessage(
-        `✅ Validation passed. Null count: ${validationData.validation.before_null_count} → ${validationData.validation.after_null_count}`
-      );
-
-      const checkpointResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/checkpoint`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            checkpoint: {
-              completed_items: [
-                ...(resumeData?.checkpoint.completed_items ?? []),
-                "Resolve missing age values",
-                "Validate transformation",
-              ],
-              current_focus: "Complete task",
-              blocked_reason: null,
-              last_error: null,
-              next_actions: [
-                "Review your solution",
-                "Complete the workspace",
-              ],
-            },
-          }),
-        }
-      );
-
-      if (!checkpointResponse.ok) {
-        throw new Error(
-          "Validation başarılı ama checkpoint kaydedilemedi."
-        );
-      }
-
-      const resumeResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
-      );
-
-      if (!resumeResponse.ok) {
-        throw new Error(
-          "Güncel workspace bilgisi alınamadı."
-        );
-      }
-
-      const updatedResume =
-        await resumeResponse.json();
-
-      setResumeData(updatedResume);
-
-      setDashboardWorkspace((previous) => {
-        if (!previous) {
-          return previous;
-        }
-      
-        return {
-          ...previous,
-          status: updatedResume.status,
-          checkpoint: updatedResume.checkpoint,
-        };
-      });
-    } catch (error) {
-      console.error(error);
-
-      setValidationMessage(
-        error instanceof Error
-          ? `❌ ${error.message}`
-          : "❌ Beklenmeyen bir hata oluştu."
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function completeWorkspace() {
-    if (!workspaceId || !resumeData) {
-      return;
-    }
-
-    try {
-      const learnerId = "demo-learner";
-
-      const statusResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/${learnerId}/${workspaceId}/status`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            status: "completed",
-          }),
-        }
-      );
-
-      if (!statusResponse.ok) {
-        throw new Error(
-          "Workspace tamamlanamadı."
-        );
-      }
-
-      const checkpointResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/${learnerId}/${workspaceId}/checkpoint`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            checkpoint: {
-              completed_items: [
-                ...resumeData.checkpoint.completed_items,
-                "Complete task",
-              ],
-              current_focus: null,
-              blocked_reason: null,
-              last_error: null,
-              next_actions: [],
-            },
-          }),
-        }
-      );
-
-      if (!checkpointResponse.ok) {
-        throw new Error(
-          "Final checkpoint kaydedilemedi."
-        );
-      }
-
-      const resumeResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/${learnerId}/${workspaceId}/resume`
-      );
-
-      const updatedResume =
-        await resumeResponse.json();
-
-      setResumeData(updatedResume);
-    } catch (error) {
-      console.error(error);
-
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Workspace tamamlanırken hata oluştu."
-      );
-    }
-  }
-
-
-  async function sendMentorMessage() {
-  const message = mentorInput.trim();
-
-  if (!message || mentorLoading) {
-    return;
-  }
-
-  setMentorMessages((previous) => [
-    ...previous,
-    {
-      role: "user",
-      content: message,
-    },
-  ]);
-
-  setMentorInput("");
-  setMentorLoading(true);
-
-  try {
-    if (!mentorSessionId || !workspaceId) {
-      throw new Error("Workspace henüz hazır değil.");
-    }
-
-    const chatResponse = await fetch(
-      "http://127.0.0.1:8000/chat",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          session_id: mentorSessionId,
-          learner_id: "demo-learner",
-          workspace_id: workspaceId,
-          message: message,
-        }),
-      }
-    );
-
-    if (!chatResponse.ok) {
-      const errorData = await chatResponse.json();
-
-      throw new Error(
-        errorData.detail || "Mentor cevabı alınamadı."
-      );
-    }
-
-    const chatData = await chatResponse.json();
-
-    setMentorMessages((previous) => [
-      ...previous,
-      {
-        role: "mentor",
-        content: chatData.reply,
-      },
-    ]);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "Beklenmeyen bir hata oluştu.";
-
-    setMentorMessages((previous) => [
-      ...previous,
-      {
-        role: "mentor",
-        content: `Error: ${errorMessage}`,
-      },
-    ]);
-  } finally {
-    setMentorLoading(false);
-  }
-}
-
-  async function runWorkspaceValidation() {
+async function runWorkspaceValidation() {
     if (!workspaceId) {
       setWorkspaceValidationError(
         "Workspace bulunamadı."
@@ -1779,7 +1453,7 @@ async function openSelectedWorkspace(
     }
   }
 
-  async function completeWorkspaceReview() {
+async function completeWorkspaceReview() {
     if (!workspaceId) {
       setWorkspaceReviewError(
         "Workspace bulunamadı."
@@ -1847,7 +1521,7 @@ async function openSelectedWorkspace(
     }
   }
 
-  async function downloadWorkspaceHandoff() {
+async function downloadWorkspaceHandoff() {
   if (!workspaceId) {
     setWorkspaceHandoffError(
       "Workspace bulunamadı."
@@ -1973,7 +1647,7 @@ async function completeWorkspaceHandoff() {
 }
 
 
-  async function runTransformation() {
+async function runTransformation() {
     if (!transformationCode.trim()) {
       setPythonError(
         "Önce Python transformation kodunu yaz."
@@ -2016,7 +1690,7 @@ async function completeWorkspaceHandoff() {
     }
   }
 
-  async function submitWorkspaceTransformation() {
+async function submitWorkspaceTransformation() {
     if (
       !workspaceId ||
       !workspaceTask ||
@@ -2156,7 +1830,7 @@ async function completeWorkspaceHandoff() {
     }
   }
 
-  async function restoreWorkspaceVersion(
+async function restoreWorkspaceVersion(
     versionNumber: number
   ) {
     if (!workspaceId) {
@@ -3333,9 +3007,7 @@ async function completeWorkspaceHandoff() {
               </p>
             )}
           </section>
-                ) : dashboardWorkspace &&
-                  dashboardWorkspace.title !==
-                    "Customer Data Quality" ? (
+                ) : dashboardWorkspace ? (
                   <section className="workspace-page workspace-overview-page">
                     <div className="workspace-sticky-shell">
                       <div className="workspace-overview-topbar">
@@ -4655,317 +4327,15 @@ async function completeWorkspaceHandoff() {
 
                     </div>
                   </section>
-        ) : (
-          <section className="workspace-page">
-            <div className="workspace-header">
-              <div>
-                <button
-                  className="back-button"
-                  onClick={() =>
-                    setCurrentView("dashboard")
-                  }
-                >
-                  ← Dashboard
-                </button>
-                
-                <h2>Customer Data Quality</h2>
-                
-                <p>
-                  Focus Workspace ·{" "}
-                  {resumeData
-                    ? resumeData.status === "completed"
-                      ? "Completed"
-                      : resumeData.checkpoint.current_focus ?? "No current focus"
-                    : "Loading..."}
-                </p>
-              </div>
-                
-              <button
-                className="mentor-button"
-                onClick={() => setMentorOpen(true)}
-              >
-                Ask Mentor
-              </button>
-            </div>
-                
-            <div className="workspace-path">
-              <span className="done-step">
-                ✓{" "}
-                {resumeData?.checkpoint.completed_items.slice(-1)[0] ??
-                  "No completed step"}
-              </span>
-                
-              <span className="current-step">
-                ● Current:{" "}
-                {resumeData?.checkpoint.current_focus ??
-                  "No current focus"}
-              </span>
-                
-              <span>
-                ○ Next:{" "}
-                {resumeData?.next_action ?? "No next action"}
-              </span>
-            </div>
-                
-            <div className="current-task">
-              <strong>Current focus</strong>
-
-              <p>
-                {resumeData?.checkpoint.current_focus ??
-                  "No current focus."}
-              </p>
-                
-              {resumeData?.next_action && (
-                <p>
-                  <strong>Next:</strong>{" "}
-                  {resumeData.next_action}
-                </p>
-              )}
-
-              {resumeData?.checkpoint.blocked_reason && (
-                <p className="warning">
-                  ⚠ {resumeData.checkpoint.blocked_reason}
-                </p>
-              )}
-
-              {resumeData?.checkpoint.current_focus ===
-                "Complete task" && (
-                <button
-                  className="complete-workspace-button"
-                  onClick={completeWorkspace}
-                >
-                  ✓ Complete workspace
-                </button>
-              )}
-
-            </div>
-                
-            <div className="workspace-grid">
-              <section className="workspace-panel">
-                <div className="panel-title">
-                  Input Dataset
-                </div>
-                
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>customer_id</th>
-                      <th>name</th>
-                      <th>age</th>
-                      <th>city</th>
-                    </tr>
-                  </thead>
-                
-                  <tbody>
-                    <tr>
-                      <td>1001</td>
-                      <td>Alice</td>
-                      <td>31</td>
-                      <td>Den Haag</td>
-                    </tr>
-                
-                    <tr>
-                      <td>1002</td>
-                      <td>Bob</td>
-                      <td className="missing-cell">
-                        NULL
-                      </td>
-                      <td>Rotterdam</td>
-                    </tr>
-                
-                    <tr>
-                      <td>1003</td>
-                      <td>Carol</td>
-                      <td>28</td>
-                      <td>Utrecht</td>
-                    </tr>
-                
-                    <tr>
-                      <td>1004</td>
-                      <td>David</td>
-                      <td className="missing-cell">
-                        NULL
-                      </td>
-                      <td>Delft</td>
-                    </tr>
-                  </tbody>
-
-                </table>
-                <div className="result-preview">
-                  <strong>Result preview</strong>
-
-                  {pythonError ? (
-                    <div className="python-error">
-                      <strong>Python error</strong>
-                  
-                      <pre>{pythonError}</pre>
-                    </div>
-                  ) : resultRows === null ? (
-                    <p>
-                      Run your transformation to preview the result.
-                    </p>
-                  ) : (
-                    <table className="data-table result-table">
-                      <thead>
-                        <tr>
-                          <th>customer_id</th>
-                          <th>name</th>
-                          <th>age</th>
-                          <th>city</th>
-                        </tr>
-                      </thead>
-                  
-                      <tbody>
-                        {resultRows.map((row, index) => (
-                          <tr key={index}>
-                            <td>{String(row.customer_id)}</td>
-                            <td>{String(row.name)}</td>
-                        
-                            <td>
-                              {row.age == null
-                                ? "NULL"
-                                : String(row.age)}
-                            </td>
-                              
-                            <td>{String(row.city)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-                
-              </section>
-                
-              <section className="workspace-panel">
-                <div className="panel-title">
-                  Your Code / Transformation
-                </div>
-                
-                <textarea
-                  className="code-editor"
-                  value={transformationCode}
-                  onChange={(event) => {
-                    setTransformationCode(event.target.value);
-                  
-                    // Kod değiştiyse eski çalıştırma sonucu artık geçerli değildir.
-                    setResultRows(null);
-                    setPythonError(null);
-                    setValidationMessage(null);
-                  }}
-                />
-                
-
-                <div className="workspace-actions">
-                  <button
-                    className="run-button"
-                    onClick={runTransformation}
-                    disabled={pythonRunning}
-                  >
-                    {pythonRunning ? "Running..." : "▶ Run"}
-                  </button>
-                  
-                  <button
-                    className="submit-button"
-                    onClick={submitTransformation}
-                    disabled={submitting || resultRows === null}
-                  >
-                    {submitting ? "Validating..." : "✓ Submit"}
-                  </button>
-
-                </div>
-                {validationMessage && (
-                  <div className="validation-message">
-                    {validationMessage}
-                  </div>
-                )}
-
-              </section>
-            </div>
-
-            {mentorOpen && (
-              <>
-                <div
-                  className="mentor-backdrop"
-                  onClick={() => setMentorOpen(false)}
-                />
-
-                <aside className="mentor-drawer">
-                  <div className="mentor-drawer-header">
-                    <div>
-                      <h3>Ask your Mentor</h3>
-
-                      <p>
-                        Customer Data Quality · age nulls
-                      </p>
-                    </div>
-
-                    <button
-                      className="mentor-close"
-                      onClick={() => setMentorOpen(false)}
-                    >
-                      ×
-                    </button>
-                  </div>
-
-                  <div className="mentor-context">
-                    <span>Current task</span>
-                    <span>Last error</span>
-                    <span>Current code</span>
-                  </div>
-
-                  <div className="mentor-chat">
-                    {mentorMessages.map((message, index) =>
-                      message.role === "mentor" ? (
-                        <div
-                          className="mentor-message"
-                          key={index}
-                        >
-                          <strong>Mentor</strong>
-                          <p>{message.content}</p>
-                        </div>
-                      ) : (
-                        <div
-                          className="user-message"
-                          key={index}
-                        >
-                          <p>{message.content}</p>
-                        </div>
-                      )
-                    )}
-
-                    {mentorLoading && (
-                      <div className="mentor-message">
-                        <strong>Mentor</strong>
-                        <p>Thinking...</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mentor-input-area">
-                    <textarea
-                      placeholder="Ask about the task, code, or error..."
-                      value={mentorInput}
-                      onChange={(event) =>
-                        setMentorInput(event.target.value)
-                      }
-                    />
-
-                    <button
-                      onClick={sendMentorMessage}
-                      disabled={mentorLoading}
-                    >
-                      {mentorLoading ? "..." : "Send →"}
-                    </button>
-                  </div>
-
-
-                </aside>
-              </>
-            )}
-          </section>
-        )}
-      </main>    
+                ) : (
+                 <section className="workspace-page">
+                   <p className="muted">
+                     No workspace selected.
+                   </p>
+                 </section>
+               )}
+      </main>
+         
  
  
     </div>
