@@ -419,6 +419,17 @@ class WorkspaceValidationCheck(BaseModel):
 
     message: str
 
+    code: Literal[
+        "dataset_integrity",
+        "schema_preserved",
+        "duplicate_rows",
+        "missing_values",
+    ] | None = None
+
+    params: dict = Field(
+        default_factory=dict
+    )
+
 
 class WorkspaceValidationResponse(BaseModel):
     passed: bool

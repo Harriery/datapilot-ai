@@ -829,9 +829,9 @@ def validate_workspace_result(
     checks: list[
         WorkspaceValidationCheck
     ] = []
-
+    
     rows_exist = len(working_df) > 0
-
+    
     checks.append(
         WorkspaceValidationCheck(
             name="Dataset integrity",
@@ -844,15 +844,19 @@ def validate_workspace_result(
                 f"Working dataset contains "
                 f"{len(working_df)} rows."
             ),
+            code="dataset_integrity",
+            params={
+                "row_count": len(working_df),
+            },
         )
     )
-
+    
     schema_preserved = (
         source_df.columns.tolist()
         ==
         working_df.columns.tolist()
     )
-
+    
     checks.append(
         WorkspaceValidationCheck(
             name="Schema preserved",
@@ -869,12 +873,16 @@ def validate_workspace_result(
                 "Working dataset columns differ "
                 "from the original source."
             ),
+            code="schema_preserved",
+            params={
+                "preserved": schema_preserved,
+            },
         )
     )
-
+    
     for step in task.steps:
         finding = step.finding
-
+    
         if (
             finding.issue_type
             == "duplicate_rows"
@@ -884,11 +892,11 @@ def validate_workspace_result(
                     "duplicate_count"
                 ]
             )
-
+    
             success = (
                 duplicate_count == 0
             )
-
+    
             checks.append(
                 WorkspaceValidationCheck(
                     name="Duplicate rows",
@@ -901,9 +909,14 @@ def validate_workspace_result(
                         f"{duplicate_count} "
                         "duplicate rows remain."
                     ),
+                    code="duplicate_rows",
+                    params={
+                        "duplicate_count":
+                            duplicate_count,
+                    },
                 )
             )
-
+    
         elif (
             finding.issue_type
             == "missing_values"
@@ -917,11 +930,11 @@ def validate_workspace_result(
                     0,
                 )
             )
-
+    
             success = (
                 missing_count == 0
             )
-
+    
             checks.append(
                 WorkspaceValidationCheck(
                     name=(
@@ -938,9 +951,16 @@ def validate_workspace_result(
                         f"values remain in "
                         f"{finding.column}."
                     ),
+                    code="missing_values",
+                    params={
+                        "column":
+                            finding.column,
+                        "missing_count":
+                            missing_count,
+                    },
                 )
             )
-
+            
     passed = all(
         check.status != "failed"
         for check in checks

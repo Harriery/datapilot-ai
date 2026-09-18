@@ -49,6 +49,12 @@ type PracticeRecommendationData = {
   reason: string;
 };
 
+type WorkspaceValidationCheckCode =
+  | "dataset_integrity"
+  | "schema_preserved"
+  | "duplicate_rows"
+  | "missing_values";
+
 type WorkspaceValidationResult = {
   passed: boolean;
   source_row_count: number;
@@ -56,8 +62,17 @@ type WorkspaceValidationResult = {
 
   checks: {
     name: string;
-    status: "passed" | "failed" | "warning";
+
+    status:
+      | "passed"
+      | "failed"
+      | "warning";
+
     message: string;
+
+    code?: WorkspaceValidationCheckCode | null;
+
+    params?: Record<string, unknown>;
   }[];
 };
 
@@ -234,6 +249,122 @@ function App() {
     useState<AppLanguage>("en");
 
   const t = translations[language];
+
+  function getValidationCheckText(
+    check: WorkspaceValidationResult["checks"][number]
+  ) {
+    const params = check.params ?? {};
+  
+    const legacyCode =
+      check.name === "Dataset integrity"
+        ? "dataset_integrity"
+        : check.name === "Schema preserved"
+          ? "schema_preserved"
+          : check.name === "Duplicate rows"
+            ? "duplicate_rows"
+            : check.name.startsWith("Missing values")
+              ? "missing_values"
+              : null;
+  
+    const code = check.code ?? legacyCode;
+  
+    if (code === "dataset_integrity") {
+      const rowCount =
+        typeof params.row_count === "number"
+          ? params.row_count
+          : workspaceValidation?.working_row_count ?? 0;
+    
+      return {
+        name:
+          t.workspace.validationChecks.datasetIntegrity,
+      
+        message:
+          t.workspace.validationChecks
+            .datasetIntegrityMessage(rowCount),
+      };
+    }
+  
+    if (code === "schema_preserved") {
+      const preserved =
+        typeof params.preserved === "boolean"
+          ? params.preserved
+          : check.status === "passed";
+    
+      return {
+        name:
+          t.workspace.validationChecks.schemaPreserved,
+      
+        message: preserved
+          ? t.workspace.validationChecks
+              .schemaPreservedMessage
+          : t.workspace.validationChecks
+              .schemaChangedMessage,
+      };
+    }
+  
+    if (code === "duplicate_rows") {
+      const legacyCount =
+        Number.parseInt(
+          check.message.match(/^\d+/)?.[0] ?? "0",
+          10
+        );
+      
+      const duplicateCount =
+        typeof params.duplicate_count === "number"
+          ? params.duplicate_count
+          : legacyCount;
+      
+      return {
+        name:
+          t.workspace.validationChecks.duplicateRows,
+      
+        message:
+          t.workspace.validationChecks
+            .duplicateRowsMessage(duplicateCount),
+      };
+    }
+  
+    if (code === "missing_values") {
+      const legacyCount =
+        Number.parseInt(
+          check.message.match(/^\d+/)?.[0] ?? "0",
+          10
+        );
+      
+      const legacyColumn =
+        check.name.includes("·")
+          ? check.name.split("·").at(-1)?.trim() ?? ""
+          : "";
+      
+      const column =
+        typeof params.column === "string"
+          ? params.column
+          : legacyColumn;
+      
+      const missingCount =
+        typeof params.missing_count === "number"
+          ? params.missing_count
+          : legacyCount;
+      
+      return {
+        name:
+          t.workspace.validationChecks
+            .missingValues(column),
+      
+        message:
+          t.workspace.validationChecks
+            .missingValuesMessage(
+              missingCount,
+              column
+            ),
+      };
+    }
+  
+    return {
+      name: check.name,
+      message: check.message,
+    };
+  }
 
   const [showSkills, setShowSkills] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -2574,7 +2705,7 @@ async function completeWorkspaceHandoff() {
                     aria-hidden="true"
                   />
 
-                  Dashboard
+                  {t.workspace.backToDashboard}
                 </button>
               </div>
                 
@@ -3218,14 +3349,14 @@ async function completeWorkspaceHandoff() {
                             size={16}
                             aria-hidden="true"
                           />
-                          Dashboard
+                          {t.workspace.backToDashboard}
                         </button>
                       </div>
                       
                     <header className="workspace-overview-header">
                       <div>
                         <p className="workspace-eyebrow">
-                          WORKSPACE
+                          {t.workspace.workspaceLabel}
                         </p>
                       
                         <h2>
@@ -3467,8 +3598,11 @@ async function completeWorkspaceHandoff() {
                         </span>
                           
                         <h3>
-                          {resumeData?.checkpoint.current_focus ??
-                            "Ready to start"}
+                          {resumeData?.checkpoint.current_focus ===
+                          "Workspace completed"
+                            ? t.workspace.workspaceCompleted
+                            : resumeData?.checkpoint.current_focus ??
+                              "Ready to start"}
                         </h3>
                           
                         <p>
@@ -4212,32 +4346,37 @@ async function completeWorkspaceHandoff() {
                                     
                                 <div className="workspace-plan-steps">
                                   {workspaceValidation.checks.map(
-                                    (check, index) => (
-                                      <div
-                                        className={
-                                          check.status === "passed"
-                                            ? "workspace-plan-step completed"
-                                            : "workspace-plan-step active"
-                                        }
-                                        key={`${check.name}-${index}`}
-                                      >
-                                        <div className="workspace-plan-step-number">
-                                          {check.status === "passed"
-                                            ? "✓"
-                                            : "!"}
+                                    (check, index) => {
+                                      const localizedCheck =
+                                        getValidationCheckText(check);
+                                    
+                                      return (
+                                        <div
+                                          className={
+                                            check.status === "passed"
+                                              ? "workspace-plan-step completed"
+                                              : "workspace-plan-step active"
+                                          }
+                                          key={`${check.name}-${index}`}
+                                        >
+                                          <div className="workspace-plan-step-number">
+                                            {check.status === "passed"
+                                              ? "✓"
+                                              : "!"}
+                                          </div>
+                                            
+                                          <div>
+                                            <strong>
+                                              {localizedCheck.name}
+                                            </strong>
+                                            
+                                            <p>
+                                              {localizedCheck.message}
+                                            </p>
+                                          </div>
                                         </div>
-                                          
-                                        <div>
-                                          <strong>
-                                            {check.name}
-                                          </strong>
-                                          
-                                          <p>
-                                            {check.message}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    )
+                                      );
+                                    }
                                   )}
                                 </div>
                                 

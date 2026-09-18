@@ -135,6 +135,32 @@ handoffNotice:
 
 handoffCompleted:
   "✓ Handoff completed. Workspace is complete.",
+  backToDashboard: "Dashboard",
+workspaceLabel: "Workspace",
+validationChecks: {
+  datasetIntegrity: "Dataset integrity",
+  datasetIntegrityMessage: (rowCount: number) =>
+    `Working dataset contains ${rowCount} rows.`,
+
+  schemaPreserved: "Schema preserved",
+  schemaPreservedMessage:
+    "Working dataset columns match the original source.",
+  schemaChangedMessage:
+    "Working dataset columns differ from the original source.",
+
+  duplicateRows: "Duplicate rows",
+  duplicateRowsMessage: (count: number) =>
+    `${count} duplicate rows remain.`,
+
+  missingValues: (column: string) =>
+    `Missing values · ${column}`,
+  missingValuesMessage: (
+    count: number,
+    column: string
+  ) =>
+    `${count} missing values remain in ${column}.`,
+  },
+
     },
   },
 
@@ -272,6 +298,31 @@ handoffNotice:
 
 handoffCompleted:
   "✓ Teslim tamamlandı. Çalışma alanı tamamlandı.",
+  backToDashboard: "Ana Sayfa",
+workspaceLabel: "Çalışma Alanı",
+validationChecks: {
+  datasetIntegrity: "Veri seti bütünlüğü",
+  datasetIntegrityMessage: (rowCount: number) =>
+    `Çalışma veri seti ${rowCount} satır içeriyor.`,
+
+  schemaPreserved: "Şema korundu",
+  schemaPreservedMessage:
+    "Çalışma veri setinin sütunları kaynak veriyle eşleşiyor.",
+  schemaChangedMessage:
+    "Çalışma veri setinin sütunları kaynak veriden farklı.",
+
+  duplicateRows: "Tekrarlanan satırlar",
+  duplicateRowsMessage: (count: number) =>
+    `${count} tekrarlanan satır kaldı.`,
+
+  missingValues: (column: string) =>
+    `Eksik değerler · ${column}`,
+  missingValuesMessage: (
+    count: number,
+    column: string
+  ) =>
+    `${column} sütununda ${count} eksik değer kaldı.`,
+},
     },
   },
 } as const;
