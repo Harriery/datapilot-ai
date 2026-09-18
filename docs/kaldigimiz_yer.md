@@ -1,6 +1,6 @@
 # DataPilot AI — Kaldığımız Yer
 
-Son güncelleme: 12 Eylül 2026
+Son güncelleme: 18 Eylül 2026
 
 ---
 
@@ -1747,3 +1747,575 @@ Sonuç:
 Sıradaki aşama:
 
 # Phase 6 — Frontend 🚀
+
+
+---
+
+# 44. 18 Eylül 2026 — Workspace 2.0 güncel checkpoint
+
+Workspace 2.0 artık uçtan uca çalışan bir MVP akışına sahip.
+
+Tamamlanan gerçek kullanıcı akışı:
+
+```text
+Source
+↓
+Profile
+↓
+Plan
+↓
+Transform
+↓
+Validate
+↓
+Review
+↓
+Handoff
+↓
+Workspace Completed
+```
+
+Tamamlanan önemli parçalar:
+
+```text
+Workspace creation                    ✅
+Work / Personal context               ✅
+Data sensitivity metadata             ✅
+CSV upload                            ✅
+Safe persisted data profile           ✅
+AI destekli execution plan            ✅
+working.csv üzerinde gerçek çalışma   ✅
+Browser-side Pyodide execution        ✅
+Run preview                           ✅
+Submit transformation                 ✅
+Deterministic step validation         ✅
+Version snapshots                     ✅
+Rollback / Restore                    ✅
+Final validation                      ✅
+Validation result persistence         ✅
+Final human review                    ✅
+Review persistence                    ✅
+Final CSV export                      ✅
+Handoff completion                    ✅
+Workspace completed status            ✅
+```
+
+Son doğrulanan durum:
+
+```text
+Backend tests   ✅ 194 passed
+Frontend build  ✅ passed
+```
+
+Örnek test workspace'inde şu akış gerçek olarak tamamlandı:
+
+```text
+5 source rows
+↓
+duplicate removal
+↓
+4 working rows
+↓
+missing age values imputed
+↓
+final validation passed
+↓
+review completed
+↓
+datapilot_final.csv exported
+↓
+handoff completed
+↓
+workspace status = completed
+```
+
+---
+
+# 45. Sıradaki yapılacaklar — takip listesi
+
+Aşağıdaki sıra, yeni özellik eklerken mevcut MVP'yi bozmamak için ana çalışma planıdır.
+
+## A. Workspace UI / UX cleanup
+
+### A1. Execution Plan status bug
+
+Execution Plan içindeki bütün task step'leri tamamlandığında kartın sağ üstünde hâlâ:
+
+```text
+Active
+```
+
+görünüyor.
+
+Bu:
+
+```text
+Completed
+```
+
+olmalı.
+
+### A2. Workspace scroll yapısı
+
+İstenen davranış:
+
+```text
+Sol sidebar
+→ sabit
+
+Sağ workspace içeriği
+→ kendi içinde scroll
+
+Workspace başlığı + workflow stepper
+→ mümkünse sticky
+```
+
+Kullanıcı uzun workspace içinde aşağı inerken ana navigasyonu kaybetmemeli.
+
+### A3. Açılır / kapanır workspace bölümleri
+
+Uzun tek sayfa görünümünü azaltmak için section'lar collapsible olacak.
+
+Önerilen yapı:
+
+```text
+Data Source
+→ collapsible
+
+Execution Plan
+→ collapsible
+
+Transform Workbench
+→ aktif step varsa açık
+
+Validation
+→ aktifken açık
+→ tamamlandıktan sonra kapanabilir
+
+Review
+→ aktifken açık
+→ tamamlandıktan sonra kapanabilir
+
+Handoff
+→ aktif aşamadaysa açık
+```
+
+Prensip:
+
+> Aktif çalışma alanı açık kalsın, tamamlanan alanlar gerektiğinde tekrar açılabilsin.
+
+### A4. Merkezi dil sistemi
+
+UI şu anda Türkçe ve İngilizce karışık.
+
+Tek tek JSX içinde dil kontrolü yapılmayacak.
+
+Merkezi yapı kurulacak:
+
+```text
+translations
+├── en
+├── tr
+└── ileride nl
+```
+
+Örnek:
+
+```text
+translations.en.workspace.review
+translations.tr.workspace.review
+```
+
+Başlangıç:
+
+```text
+English
+Turkish
+```
+
+Daha sonra Dutch kolayca eklenebilir.
+
+Portfolio / profesyonel kullanım için varsayılan dil English olabilir.
+
+---
+
+# 46. Sidebar modülleri kaldırılmayacak
+
+Sidebar'daki şu alanlar ürünün gerçek parçaları olacak:
+
+```text
+Dashboard
+Practice
+Tasks
+Progress
+Documents
+Settings
+```
+
+Şu anda bazıları boş olsa da kaldırılmayacak.
+
+---
+
+# 47. Tasks modülü
+
+Amaç:
+
+> Junior'ın bütün workspace'lerdeki iş takibini tek yerde görebilmesi.
+
+Gösterilebilecek durumlar:
+
+```text
+To do
+Active
+Blocked
+Completed
+```
+
+Task kartında ileride:
+
+```text
+task
+workspace
+current step
+next action
+status
+validation state
+review state
+handoff state
+updated time
+```
+
+gibi bilgiler gösterilebilir.
+
+Tasks ekranı günlük iş takibi merkezi olacak.
+
+---
+
+# 48. Progress modülü
+
+Amaç:
+
+> Junior'ın teknik gelişimini ve bağımsızlık seviyesini anlaşılır hale getirmek.
+
+Gösterilecek ana bilgiler:
+
+```text
+strong skills
+weak skills
+skills to practice
+attempt count
+success rate
+last assistance level
+independence trend
+practice priority
+recommended next topics
+```
+
+Mevcut learner progress ve learning evidence backend'i bu ekranı besleyecek.
+
+Progress sadece skor ekranı olmayacak.
+
+Ana soru:
+
+> Junior artık hangi işi daha bağımsız yapabiliyor ve hangi konuda çalışması gerekiyor?
+
+---
+
+# 49. Documents modülü
+
+Documents basit bir dosya listesi olmayacak.
+
+Amaç:
+
+> Workspace'lerin kullanabileceği güvenli bir doküman / dataset kütüphanesi.
+
+Temel ayrım:
+
+```text
+Documents
+├── Personal
+└── Work
+    ├── Organization
+    └── Workspace
+```
+
+Her document için ileride en az şu metadata düşünülmeli:
+
+```text
+scope
+workspace_id
+organization_id
+data_sensitivity
+document_type
+owner
+created_at
+```
+
+## Kritik güvenlik kuralı
+
+Work verisi ile Personal veri birbirine karışmamalı.
+
+Örnek:
+
+```text
+Personal Workspace
+↓
+Work / Confidential dataset
+↓
+BLOCKED
+```
+
+Kullanıcı kişisel bir workspace içinde çalışırken şirket dataset'ini yanlışlıkla içeri alamamalı.
+
+Workspace sadece yetkili olduğu work document'lerini çağırabilmeli.
+
+Handoff yapılan final dataset / dokümanlar da uygun work klasörü altında saklanabilir.
+
+---
+
+# 50. Settings modülü
+
+Settings ileride şu alanları içerebilir:
+
+```text
+Profile
+Language
+Theme
+AI Usage
+Budget / Limits
+Security preferences
+```
+
+Tema:
+
+```text
+Light
+Dark
+```
+
+Dil:
+
+```text
+English
+Turkish
+ileride Dutch
+```
+
+## AI usage / token / cost görünümü
+
+Kullanıcı AI kullanımını görebilmeli.
+
+Örnek:
+
+```text
+tokens used this month
+estimated AI cost
+budget limit
+remaining budget
+usage percentage
+```
+
+Uyarı seviyeleri configurable olabilir.
+
+İlk öneri:
+
+```text
+< 80%
+→ normal
+
+>= 80%
+→ warning
+
+>= 95%
+→ critical warning
+
+>= 100%
+→ limit reached / policy action
+```
+
+Token ve maliyet hesabı frontend'e hardcode edilmeyecek.
+
+Backend gerçek API usage bilgisini kaydedecek ve maliyet / budget politikasını merkezi olarak hesaplayacak.
+
+---
+
+# 51. Güvenlik cleanup
+
+Workspace 2.0 geliştirilirken önemli bir güvenlik konusu tespit edildi.
+
+`build_data_profile()` içinde:
+
+```text
+sample_rows
+```
+
+bulunuyor.
+
+Workspace persistence sırasında sample rows çıkarılıyor, ancak AI recommendation çağrısının tam olarak sanitized profile kullandığı garanti altına alınmalı.
+
+Hedef:
+
+```text
+Raw dataset
+↓
+local / approved processing
+↓
+sanitized schema + statistics + findings
+↓
+AI
+```
+
+AI'ya gereksiz raw company rows gönderilmemeli.
+
+Bu cleanup yüksek öncelikli.
+
+---
+
+# 52. Legacy frontend cleanup
+
+Workspace 2.0 artık gerçek akış olduğu için eski hardcoded:
+
+```text
+Customer Data Quality
+```
+
+fallback ekranı kaldırılmalı.
+
+Bununla birlikte artık kullanılmayan:
+
+```text
+legacy state
+legacy functions
+hardcoded inputRows
+old submit flow
+unused JSX
+```
+
+temizlenmeli.
+
+Ama cleanup öncesi ve sonrası:
+
+```text
+python -m pytest
+npm run build
+```
+
+çalıştırılmalı.
+
+---
+
+# 53. Sonraki güvenlik / production yönü
+
+MVP sonrasında aşağıdaki alanlar güçlendirilecek:
+
+```text
+organization policy
+workspace authorization
+document authorization
+work / personal isolation
+PII / sensitive column detection
+destructive operation warnings
+audit trail
+export review
+version metadata
+```
+
+Version kayıtlarında ileride:
+
+```text
+transformation code
+validation metrics
+learner
+timestamp
+dataset hash
+reason / note
+```
+
+gibi audit metadata tutulabilir.
+
+---
+
+# 54. Daha güçlü workflow step tipleri
+
+Mevcut execution plan özellikle güvenli şekilde validate edilebilen:
+
+```text
+missing_values
+duplicate_rows
+```
+
+bulgularına odaklanıyor.
+
+İleride step modeli şu tiplerle genişletilmeli:
+
+```text
+investigate
+transform
+validate
+decision
+```
+
+Böylece:
+
+```text
+suspicious_values
+schema_issue
+data_type_issue
+```
+
+gibi bulgular da doğru iş akışıyla ele alınabilir.
+
+Örnek:
+
+```text
+Suspicious value
+↓
+Investigate
+↓
+business rule / data dictionary kontrolü
+↓
+Decision
+↓
+gerekirse Transform
+↓
+Validate
+```
+
+---
+
+# 55. Planlanan uygulama sırası
+
+Bir sonraki çalışma sırası:
+
+```text
+1. Execution Plan Active → Completed bug fix
+2. Workspace sticky / scroll düzeni
+3. Collapsible workspace sections
+4. Merkezi EN / TR localization
+5. Legacy frontend cleanup
+6. sample_rows / AI data sanitization security fix
+7. Full regression test
+8. docs checkpoint update
+9. Tasks modülü
+10. Progress modülü
+11. Documents modülü + Work / Personal isolation
+12. Settings + theme + AI usage / token / cost
+13. Audit / security hardening
+14. Advanced workflow step types
+```
+
+Her büyük aşamada:
+
+```text
+test
+↓
+browser smoke test
+↓
+git checkpoint / push
+```
+
+yapılacak.
+
+Ana öncelik:
+
+> Yeni özellik eklemekten önce Workspace 2.0 MVP'yi temiz, güvenli ve sürdürülebilir bir temel haline getirmek.
