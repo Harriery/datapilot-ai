@@ -76,6 +76,65 @@ export const translations = {
       medium: "Medium",
       high: "High",
     },
+    passed: "Passed",
+failed: "Failed",
+
+validateDataset: "Validate transformed dataset",
+validationDescription:
+  "Check the final working dataset against the source and execution plan.",
+
+validating: "Validating...",
+runFinalValidation: "Run final validation →",
+validationIntro:
+  "DataPilot will run deterministic checks on the final working dataset.",
+
+sourceRows: "Source rows",
+workingRows: "Working rows",
+checksPassed: "Checks passed",
+totalChecks: "Total checks",
+
+runValidationAgain: "Run validation again",
+validationReady:
+  "All required checks passed. Ready for review.",
+validationNeedsFix:
+  "Resolve failed checks before review.",
+
+  reviewDataset: "Review final dataset",
+reviewDescription:
+  "Confirm that the transformed dataset, validation results and expected outcome are ready for handoff.",
+
+noTaskBriefProvided: "No task brief provided.",
+noExpectedOutcomeProvided: "No expected outcome provided.",
+
+finalWorkingDataset: "Final working dataset",
+
+completingReview: "Completing review...",
+completeReview: "✓ Complete review",
+reviewConfirm:
+  "Confirm the final result before preparing the handoff.",
+reviewCompletedReady:
+  "✓ Final review completed. Ready to prepare the handoff.",
+  prepareFinalDelivery: "Prepare final delivery",
+handoffDescription:
+  "Export the validated working dataset and complete the workspace when the result is ready to hand off.",
+
+finalRows: "Final rows",
+validated: "Validated",
+reviewed: "Reviewed",
+yes: "Yes",
+no: "No",
+
+preparingCsv: "Preparing CSV...",
+downloadFinalCsv: "↓ Download final CSV",
+
+completingHandoff: "Completing...",
+completeHandoff: "✓ Complete handoff",
+
+handoffNotice:
+  "Downloading does not complete the workspace. Complete the handoff only when the result is ready for delivery.",
+
+handoffCompleted:
+  "✓ Handoff completed. Workspace is complete.",
     },
   },
 
@@ -154,6 +213,65 @@ export const translations = {
       medium: "Orta",
       high: "Yüksek",
     },
+    passed: "Başarılı",
+failed: "Başarısız",
+
+validateDataset: "Dönüştürülen veri setini doğrula",
+validationDescription:
+  "Son çalışma veri setini kaynak veri ve uygulama planına göre kontrol et.",
+
+validating: "Doğrulanıyor...",
+runFinalValidation: "Son doğrulamayı çalıştır →",
+validationIntro:
+  "DataPilot son çalışma veri seti üzerinde deterministik kontroller çalıştıracak.",
+
+sourceRows: "Kaynak satırlar",
+workingRows: "Çalışma satırları",
+checksPassed: "Başarılı kontroller",
+totalChecks: "Toplam kontrol",
+
+runValidationAgain: "Doğrulamayı tekrar çalıştır",
+validationReady:
+  "Gerekli tüm kontroller başarılı. İncelemeye hazır.",
+validationNeedsFix:
+  "İncelemeden önce başarısız kontrolleri düzelt.",
+  reviewDataset: "Son veri setini incele",
+reviewDescription:
+  "Dönüştürülen veri setinin, doğrulama sonuçlarının ve beklenen sonucun teslim için hazır olduğunu onayla.",
+
+noTaskBriefProvided: "Görev özeti eklenmemiş.",
+noExpectedOutcomeProvided: "Beklenen sonuç eklenmemiş.",
+
+finalWorkingDataset: "Son çalışma veri seti",
+
+completingReview: "İnceleme tamamlanıyor...",
+completeReview: "✓ İncelemeyi tamamla",
+reviewConfirm:
+  "Teslime hazırlamadan önce son sonucu onayla.",
+reviewCompletedReady:
+  "✓ Son inceleme tamamlandı. Teslime hazırlanmaya hazır.",
+
+  prepareFinalDelivery: "Son teslimi hazırla",
+handoffDescription:
+  "Doğrulanmış çalışma veri setini dışa aktar ve sonuç teslime hazır olduğunda çalışma alanını tamamla.",
+
+finalRows: "Son satırlar",
+validated: "Doğrulandı",
+reviewed: "İncelendi",
+yes: "Evet",
+no: "Hayır",
+
+preparingCsv: "CSV hazırlanıyor...",
+downloadFinalCsv: "↓ Son CSV'yi indir",
+
+completingHandoff: "Tamamlanıyor...",
+completeHandoff: "✓ Teslimi tamamla",
+
+handoffNotice:
+  "CSV'yi indirmek çalışma alanını tamamlamaz. Teslim yalnızca sonuç gerçekten hazır olduğunda tamamlanmalıdır.",
+
+handoffCompleted:
+  "✓ Teslim tamamlandı. Çalışma alanı tamamlandı.",
     },
   },
 } as const;

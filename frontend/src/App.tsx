@@ -3446,7 +3446,7 @@ async function completeWorkspaceHandoff() {
                       
                         <p>
                           {dashboardWorkspace.task_brief ??
-                            "No task brief added yet."}
+                            t.workspace.noTaskBriefProvided}
                         </p>
                       </section>
                           
@@ -3457,7 +3457,7 @@ async function completeWorkspaceHandoff() {
                           
                         <p>
                           {dashboardWorkspace.desired_outcome ??
-                            "No expected outcome added yet."}
+                            t.workspace.noExpectedOutcomeProvided}
                         </p>
                       </section>
                           
@@ -4131,12 +4131,11 @@ async function completeWorkspaceHandoff() {
                                 </span>
                         
                                 <h3>
-                                  Validate transformed dataset
+                                  {t.workspace.validateDataset}
                                 </h3>
                         
                                 <p>
-                                  Check the final working dataset against
-                                  the source and execution plan.
+                                  {t.workspace.validationDescription}
                                 </p>
                               </div>
                         
@@ -4149,8 +4148,8 @@ async function completeWorkspaceHandoff() {
                                   }
                                 >
                                   {workspaceValidation.passed
-                                    ? "passed"
-                                    : "failed"}
+                                    ? t.workspace.passed
+                                    : t.workspace.failed}
                                 </span>
                               )}
                             </div>
@@ -4166,13 +4165,12 @@ async function completeWorkspaceHandoff() {
                                   }}
                                 >
                                   {workspaceValidationLoading
-                                    ? "Validating..."
-                                    : "Run final validation →"}
+                                    ? t.workspace.validating
+                                    : t.workspace.runFinalValidation}
                                 </button>
                                   
                                 <span>
-                                  DataPilot will run deterministic checks
-                                  on the final working dataset.
+                                  {t.workspace.validationIntro}
                                 </span>
                               </div>
                             ) : (
@@ -4182,14 +4180,14 @@ async function completeWorkspaceHandoff() {
                                     <strong>
                                       {workspaceValidation.source_row_count}
                                     </strong>
-                                    <span>Source rows</span>
+                                    <span>{t.workspace.sourceRows}</span>
                                   </div>
                             
                                   <div>
                                     <strong>
                                       {workspaceValidation.working_row_count}
                                     </strong>
-                                    <span>Working rows</span>
+                                    <span>{t.workspace.workingRows}</span>
                                   </div>
                             
                                   <div>
@@ -4201,14 +4199,14 @@ async function completeWorkspaceHandoff() {
                                         ).length
                                       }
                                     </strong>
-                                    <span>Checks passed</span>
+                                    <span>{t.workspace.checksPassed}</span>
                                   </div>
                                     
                                   <div>
                                     <strong>
                                       {workspaceValidation.checks.length}
                                     </strong>
-                                    <span>Total checks</span>
+                                    <span>{t.workspace.totalChecks}</span>
                                   </div>
                                 </div>
                                     
@@ -4254,14 +4252,14 @@ async function completeWorkspaceHandoff() {
                                       }}
                                     >
                                       {workspaceValidationLoading
-                                        ? "Validating..."
-                                        : "Run validation again"}
+                                        ? t.workspace.validating
+                                        : t.workspace.runValidationAgain}
                                     </button>
                                       
                                     <span>
                                       {workspaceValidation.passed
-                                        ? "All required checks passed. Ready for review."
-                                        : "Resolve failed checks before review."}
+                                        ? t.workspace.validationReady
+                                        : t.workspace.validationNeedsFix}
                                     </span>
                                   </div>
                                 )}
@@ -4285,19 +4283,17 @@ async function completeWorkspaceHandoff() {
                                 </span>
 
                                 <h3>
-                                  Review final dataset
+                                  {t.workspace.reviewDataset}
                                 </h3>
 
                                 <p>
-                                  Confirm that the transformed dataset,
-                                  validation results and expected outcome
-                                  are ready for handoff.
+                                  {t.workspace.reviewDescription}
                                 </p>
                               </div>
 
                               {workspaceReviewCompleted && (
                                 <span className="workspace-list-status completed">
-                                  completed
+                                  {t.workspace.completed}
                                 </span>
                               )}
                             </div>
@@ -4305,7 +4301,7 @@ async function completeWorkspaceHandoff() {
                             <div className="workspace-overview-grid">
                               <div className="workspace-overview-card">
                                 <span className="workspace-overview-label">
-                                  Task brief
+                                  {t.workspace.taskBrief}
                                 </span>
                             
                                 <p>
@@ -4316,7 +4312,7 @@ async function completeWorkspaceHandoff() {
                                   
                               <div className="workspace-overview-card">
                                 <span className="workspace-overview-label">
-                                  Expected outcome
+                                  {t.workspace.expectedOutcome}
                                 </span>
                                   
                                 <p>
@@ -4330,8 +4326,9 @@ async function completeWorkspaceHandoff() {
                               <>
                                 <div className="workspace-profile-next">
                                   <span>
-                                    Final working dataset ·{" "}
-                                    {workspaceWorkingData.row_count} rows
+                                    {t.workspace.finalWorkingDataset} ·{" "}
+                                    {workspaceWorkingData.row_count}{" "} 
+                                    {t.workspace.rows.toLowerCase()}
                                   </span>
                                 </div>
                             
@@ -4386,19 +4383,17 @@ async function completeWorkspaceHandoff() {
                                     }}
                                   >
                                     {workspaceReviewLoading
-                                      ? "Completing review..."
-                                      : "✓ Complete review"}
+                                      ? t.workspace.completingReview
+                                      :t.workspace.completeReview}
                                   </button>
                                     
                                   <span>
-                                    Confirm the final result before
-                                    preparing the handoff.
+                                    {t.workspace.reviewConfirm}
                                   </span>
                                 </>
                               ) : (
                                 <span>
-                                  ✓ Final review completed. Ready to
-                                  prepare the handoff.
+                                  {t.workspace.reviewCompletedReady}
                                 </span>
                               )}
                             </div>
@@ -4419,19 +4414,17 @@ async function completeWorkspaceHandoff() {
                                 </span>
                         
                                 <h3>
-                                  Prepare final delivery
+                                  {t.workspace.prepareFinalDelivery}
                                 </h3>
                         
                                 <p>
-                                  Export the validated working dataset and
-                                  complete the workspace when the result is
-                                  ready to hand off.
+                                  {t.workspace.handoffDescription}
                                 </p>
                               </div>
                         
                               {workspaceHandoffCompleted && (
                                 <span className="workspace-list-status completed">
-                                  completed
+                                  {t.workspace.completed}
                                 </span>
                               )}
                             </div>
@@ -4441,7 +4434,7 @@ async function completeWorkspaceHandoff() {
                                 <strong>
                                   {workspaceWorkingData?.row_count ?? 0}
                                 </strong>
-                                <span>Final rows</span>
+                                <span>{t.workspace.finalRows}</span>
                               </div>
                             
                               <div>
@@ -4451,25 +4444,25 @@ async function completeWorkspaceHandoff() {
                                       check.status === "passed"
                                   ).length ?? 0}
                                 </strong>
-                                <span>Checks passed</span>
+                                <span>{t.workspace.checksPassed}</span>
                               </div>
                                 
                               <div>
                                 <strong>
                                   {workspaceValidation?.passed
-                                    ? "Yes"
-                                    : "No"}
+                                    ? t.workspace.yes
+                                    : t.workspace.no}
                                 </strong>
-                                <span>Validated</span>
+                                <span>{t.workspace.validated}</span>
                               </div>
                                   
                               <div>
                                 <strong>
                                   {workspaceReviewCompleted
-                                    ? "Yes"
-                                    : "No"}
+                                    ? t.workspace.yes
+                                    : t.workspace.no}
                                 </strong>
-                                <span>Reviewed</span>
+                                <span>{t.workspace.reviewed}</span>
                               </div>
                             </div>
                                   
@@ -4484,8 +4477,8 @@ async function completeWorkspaceHandoff() {
                                   }}
                                 >
                                   {workspaceExportLoading
-                                    ? "Preparing CSV..."
-                                    : "↓ Download final CSV"}
+                                    ? t.workspace.preparingCsv
+                                    : t.workspace.downloadFinalCsv}
                                 </button>
                                   
                                 <button
@@ -4497,20 +4490,18 @@ async function completeWorkspaceHandoff() {
                                   }}
                                 >
                                   {workspaceHandoffLoading
-                                    ? "Completing..."
-                                    : "✓ Complete handoff"}
+                                    ? t.workspace.completingHandoff
+                                    : t.workspace.completeHandoff}
                                 </button>
                                   
                                 <span>
-                                  Downloading does not complete the
-                                  workspace. Complete the handoff only
-                                  when the result is ready for delivery.
+                                  {t.workspace.handoffNotice}
                                 </span>
                               </div>
                             ) : (
                               <div className="workspace-profile-next">
                                 <span>
-                                  ✓ Handoff completed. Workspace is complete.
+                                  {t.workspace.handoffCompleted}
                                 </span>
                               </div>
                             )}
