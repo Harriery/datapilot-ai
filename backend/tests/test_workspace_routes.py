@@ -2,6 +2,12 @@ from fastapi.testclient import TestClient
 
 import backend.app.database as database
 
+import backend.app.workspace_routes as workspace_routes
+
+from backend.app.models import (
+    DataQualityAnalysis,
+)
+
 from backend.app.main import app
 
 
@@ -313,3 +319,76 @@ def test_update_workspace_status_to_completed(
 
     assert stored_workspace is not None
     assert stored_workspace.status == "completed"
+
+
+def test_profile_workspace_data_does_not_send_sample_rows_to_ai(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Private Dataset Test",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    captured_profile = {}
+
+    def fake_generate_data_recommendations(
+        profile: dict,
+    ):
+        captured_profile.update(profile)
+
+        return DataQualityAnalysis(
+            findings=[]
+        )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "generate_data_recommendations",
+        fake_generate_data_recommendations,
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "save_workspace_dataset",
+        lambda workspace_id, content: None,
+    )
+
+    csv_content = (
+        b"customer_id,name,age\n"
+        b"1001,Alice,31\n"
+        b"1002,Bob,29\n"
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/profile"
+        ),
+        files={
+            "file": (
+                "private.csv",
+                csv_content,
+                "text/csv",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert "sample_rows" not in captured_profile
+
+    assert captured_profile["row_count"] == 2
+
+    body = response.json()
+
+    assert "sample_rows" not in body["profile"]

@@ -270,16 +270,16 @@ def profile_workspace_data(
         )
 
     profile = build_data_profile(df)
-
-    analysis = generate_data_recommendations(
-        profile
-    )
-
+    
     safe_profile = {
         key: value
         for key, value in profile.items()
         if key != "sample_rows"
     }
+    
+    analysis = generate_data_recommendations(
+        safe_profile
+    )
 
     workspace.dataset_filename = file.filename
     workspace.dataset_profile = safe_profile
@@ -960,7 +960,7 @@ def validate_workspace_result(
                     },
                 )
             )
-            
+
     passed = all(
         check.status != "failed"
         for check in checks
