@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import {
+  translations,
+  type AppLanguage,
+} from "./i18n";
+
 import "./App.css";
 import {
   runDataFrameTransformation,
@@ -225,6 +230,11 @@ type PracticeSolutionData = {
 
 
 function App() {
+  const [language, setLanguage] =
+    useState<AppLanguage>("en");
+
+  const t = translations[language];
+
   const [showSkills, setShowSkills] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentView, setCurrentView] = useState<
@@ -448,6 +458,16 @@ df["age"] = df["age"].fillna(median_age)`);
     workspaceExportLoading,
     setWorkspaceExportLoading,
   ] = useState(false);
+
+  const [
+    workspacePlanOpen,
+    setWorkspacePlanOpen,
+  ] = useState(true);
+
+  const [
+    workspaceDataOpen,
+    setWorkspaceDataOpen,
+  ] = useState(true);
 
   const [practiceChallenge, setPracticeChallenge] =
   useState<PracticeChallengeData | null>(null);
@@ -2147,6 +2167,31 @@ async function completeWorkspaceHandoff() {
             <p>Adaptive Mentor</p>
           </div>
         </div>
+        <div className="language-switch">
+          <button
+            type="button"
+            className={
+              language === "en"
+                ? "language-option active"
+                : "language-option"
+            }
+            onClick={() => setLanguage("en")}
+          >
+            EN
+          </button>
+          
+          <button
+            type="button"
+            className={
+              language === "tr"
+                ? "language-option active"
+                : "language-option"
+            }
+            onClick={() => setLanguage("tr")}
+          >
+            TR
+          </button>
+        </div>
 
       <nav className="nav-menu">
         <button
@@ -2161,7 +2206,7 @@ async function completeWorkspaceHandoff() {
         >
           <span className="nav-icon">⌂</span>
           <span className="nav-label">
-            Dashboard
+            {t.sidebar.dashboard}
           </span>
         </button>
         
@@ -2174,7 +2219,7 @@ async function completeWorkspaceHandoff() {
           >
             <span className="nav-icon">◇</span>
             <span className="nav-label">
-              Workspace
+              {t.sidebar.workspace}
             </span>
           </button>
         )}
@@ -2193,35 +2238,35 @@ async function completeWorkspaceHandoff() {
           <span className="nav-label">
             {practiceLoading
               ? "Loading..."
-              : "Practice"}
+              : t.sidebar.practice}
           </span>
         </button>
             
         <button className="nav-item">
           <span className="nav-icon">✓</span>
           <span className="nav-label">
-            Tasks
+            {t.sidebar.tasks}
           </span>
         </button>
             
         <button className="nav-item">
           <span className="nav-icon">▥</span>
           <span className="nav-label">
-            Progress
+            {t.sidebar.progress}
           </span>
         </button>
             
         <button className="nav-item">
           <span className="nav-icon">▤</span>
           <span className="nav-label">
-            Documents
+            {t.sidebar.documents}
           </span>
         </button>
             
         <button className="nav-item">
           <span className="nav-icon">⚙</span>
           <span className="nav-label">
-            Settings
+            {t.sidebar.settings}
           </span>
         </button>
       </nav>    
@@ -2402,7 +2447,7 @@ async function completeWorkspaceHandoff() {
                     <span>✓</span>
                 
                     <div>
-                      <strong>Workspace completed</strong>
+                      <strong>{t.workspace.workspaceCompleted}</strong>
                       <p>
                         {dashboardWorkspace.title} is finished.
                       </p>
@@ -3161,20 +3206,21 @@ async function completeWorkspaceHandoff() {
                   dashboardWorkspace.title !==
                     "Customer Data Quality" ? (
                   <section className="workspace-page workspace-overview-page">
-                    <div className="workspace-overview-topbar">
-                      <button
-                        className="back-button"
-                        onClick={() =>
-                          setCurrentView("dashboard")
-                        }
-                      >
-                        <ArrowLeft
-                          size={16}
-                          aria-hidden="true"
-                        />
-                        Dashboard
-                      </button>
-                    </div>
+                    <div className="workspace-sticky-shell">
+                      <div className="workspace-overview-topbar">
+                        <button
+                          className="back-button"
+                          onClick={() =>
+                            setCurrentView("dashboard")
+                          }
+                        >
+                          <ArrowLeft
+                            size={16}
+                            aria-hidden="true"
+                          />
+                          Dashboard
+                        </button>
+                      </div>
                       
                     <header className="workspace-overview-header">
                       <div>
@@ -3188,25 +3234,37 @@ async function completeWorkspaceHandoff() {
                       
                         <div className="workspace-overview-meta">
                           <span>
-                            {dashboardWorkspace.usage_context ===
-                            "personal"
-                              ? "Personal"
-                              : "Work"}
+                            {dashboardWorkspace.usage_context === "personal"
+                              ? t.workspace.personal
+                              : t.workspace.work}
                           </span>
                             
                           {dashboardWorkspace.data_sensitivity && (
                             <span>
-                              {
-                                dashboardWorkspace.data_sensitivity
-                              }
+                              {dashboardWorkspace.data_sensitivity === "public"
+                                ? t.workspace.public
+                                : dashboardWorkspace.data_sensitivity === "internal"
+                                  ? t.workspace.internal
+                                  : dashboardWorkspace.data_sensitivity === "confidential"
+                                    ? t.workspace.confidential
+                                    : dashboardWorkspace.data_sensitivity === "restricted"
+                                      ? t.workspace.restricted
+                                      : t.workspace.unknown}
                             </span>
                           )}
 
                           <span>
-                            {dashboardWorkspace.workflow_type.replace(
-                              "_",
-                              " "
-                            )}
+                            {dashboardWorkspace.workflow_type === "auto"
+                              ? t.workspace.auto
+                              : dashboardWorkspace.workflow_type === "etl"
+                                ? t.workspace.etl
+                                : dashboardWorkspace.workflow_type === "elt"
+                                  ? t.workspace.elt
+                                  : dashboardWorkspace.workflow_type === "data_quality"
+                                    ? t.workspace.dataQuality
+                                    : dashboardWorkspace.workflow_type === "analysis"
+                                      ? t.workspace.analysis
+                                      : t.workspace.pipeline}
                           </span>
                         </div>
                       </div>
@@ -3219,7 +3277,11 @@ async function completeWorkspaceHandoff() {
                             : "workspace-list-status active"
                         }
                       >
-                        {dashboardWorkspace.status}
+                        {dashboardWorkspace.status === "completed"
+                          ? t.workspace.completed
+                          : dashboardWorkspace.status === "paused"
+                            ? t.workspace.paused
+                            : t.workspace.active}
                       </span>
                     </header>
                       
@@ -3227,7 +3289,7 @@ async function completeWorkspaceHandoff() {
                     <div className="workspace-flow">
                       <div className="workspace-flow-step completed">
                         <span>✓</span>
-                        <strong>Source</strong>
+                        <strong>{t.workspace.source}</strong>
                       </div>
 
                       <div className="workspace-flow-line completed" />
@@ -3242,7 +3304,7 @@ async function completeWorkspaceHandoff() {
                         <span>
                           {workspaceDataProfile ? "✓" : "2"}
                         </span>
-                        <strong>Profile</strong>
+                        <strong>{t.workspace.profile}</strong>
                       </div>
                       
                       <div
@@ -3266,7 +3328,7 @@ async function completeWorkspaceHandoff() {
                           {workspaceTask ? "✓" : "3"}
                         </span>
                       
-                        <strong>Plan</strong>
+                        <strong>{t.workspace.plan}</strong>
                       </div>
                       
                       <div
@@ -3292,7 +3354,7 @@ async function completeWorkspaceHandoff() {
                             : "4"}
                         </span>
                           
-                        <strong>Transform</strong>
+                        <strong>{t.workspace.transform}</strong>
                       </div>
                           
                       <div
@@ -3318,7 +3380,7 @@ async function completeWorkspaceHandoff() {
                             : "5"}
                         </span>
                           
-                        <strong>Validate</strong>
+                        <strong>{t.workspace.validate}</strong>
                       </div>
                           
                       <div
@@ -3344,7 +3406,7 @@ async function completeWorkspaceHandoff() {
                             : "6"}
                         </span>
                           
-                        <strong>Review</strong>
+                        <strong>{t.workspace.review}</strong>
                       </div>
                       
                       <div
@@ -3370,15 +3432,16 @@ async function completeWorkspaceHandoff() {
                             : "7"}
                         </span>
                           
-                        <strong>Handoff</strong>
+                        <strong>{t.workspace.handoff}</strong>
                       </div>
 
+                    </div>
                     </div>
                       
                     <div className="workspace-overview-grid">
                       <section className="workspace-overview-card">
                         <span className="workspace-overview-label">
-                          Task brief
+                          {t.workspace.taskBrief}
                         </span>
                       
                         <p>
@@ -3389,7 +3452,7 @@ async function completeWorkspaceHandoff() {
                           
                       <section className="workspace-overview-card">
                         <span className="workspace-overview-label">
-                          Expected outcome
+                          {t.workspace.expectedOutcome}
                         </span>
                           
                         <p>
@@ -3400,7 +3463,7 @@ async function completeWorkspaceHandoff() {
                           
                       <section className="workspace-overview-card">
                         <span className="workspace-overview-label">
-                          Progress
+                          {t.workspace.progress}
                         </span>
                           
                         <h3>
@@ -3411,15 +3474,33 @@ async function completeWorkspaceHandoff() {
                         <p>
                           {resumeData?.checkpoint.completed_items
                             .length
-                            ? `${resumeData.checkpoint.completed_items.length} step(s) completed.`
+                            ? `${resumeData.checkpoint.completed_items.length} ${t.workspace.stepsCompleted}`
                             : "No work has been completed yet."}
                         </p>
                       </section>
                           
                       <section className="workspace-overview-card workspace-data-card">
-                        <span className="workspace-overview-label">
-                          Data source
-                        </span>
+                        <button
+                          type="button"
+                          className="workspace-section-toggle"
+                          onClick={() =>
+                            setWorkspaceDataOpen(
+                              (previous) => !previous
+                            )
+                          }
+                          aria-expanded={workspaceDataOpen}
+                        >
+                          <span className="workspace-overview-label">
+                            {t.workspace.dataSource}
+                          </span>
+                        
+                          <span className="workspace-plan-chevron">
+                            {workspaceDataOpen ? "−" : "+"}
+                          </span>
+                        </button>
+                        
+                        {workspaceDataOpen && (
+                          <div className="workspace-collapsible-content">
 
                         {!workspaceDataProfile ? (
                           <>
@@ -3465,12 +3546,12 @@ async function completeWorkspaceHandoff() {
                                 </h3>
                         
                                 <p>
-                                  Dataset profiled successfully.
+                                  {t.workspace.datasetProfiled}
                                 </p>
                               </div>
                         
                               <label className="workspace-replace-data">
-                                Replace CSV
+                                {t.workspace.replaceCsv}
                         
                                 <input
                                   type="file"
@@ -3491,7 +3572,7 @@ async function completeWorkspaceHandoff() {
                             <div className="workspace-profile-layout">
                               <div className="workspace-profile-summary">
                                 <span className="workspace-overview-label">
-                                  Data profile
+                                  {t.workspace.dataProfile}
                                 </span>
 
                                 <div className="workspace-profile-stats">
@@ -3499,14 +3580,14 @@ async function completeWorkspaceHandoff() {
                                     <strong>
                                       {workspaceDataProfile.profile.row_count}
                                     </strong>
-                                    <span>Rows</span>
+                                    <span>{t.workspace.rows}</span>
                                   </div>
 
                                   <div>
                                     <strong>
                                       {workspaceDataProfile.profile.column_count}
                                     </strong>
-                                    <span>Columns</span>
+                                    <span>{t.workspace.columns}</span>
                                   </div>
 
                                   <div>
@@ -3518,7 +3599,7 @@ async function completeWorkspaceHandoff() {
                                         0
                                       )}
                                     </strong>
-                                    <span>Missing</span>
+                                    <span>{t.workspace.missing}</span>
                                   </div>
                                     
                                   <div>
@@ -3528,13 +3609,13 @@ async function completeWorkspaceHandoff() {
                                           .duplicate_count
                                       }
                                     </strong>
-                                    <span>Duplicates</span>
+                                    <span>{t.workspace.duplicates}</span>
                                   </div>
                                 </div>
                                     
                                 <div className="workspace-column-list">
                                   <span className="workspace-overview-label">
-                                    Columns
+                                    {t.workspace.columns}
                                   </span>
                                     
                                   {workspaceDataProfile.profile.columns.map(
@@ -3550,7 +3631,7 @@ async function completeWorkspaceHandoff() {
                                             workspaceDataProfile.profile
                                               .null_counts[column]
                                           }{" "}
-                                          missing
+                                          {t.workspace.missing.toLowerCase()}
                                         </span>
                                       </div>
                                     )
@@ -3561,7 +3642,7 @@ async function completeWorkspaceHandoff() {
                               <div className="workspace-findings-panel">
                                 <div className="workspace-findings-header">
                                   <span className="workspace-overview-label">
-                                    Findings
+                                    {t.workspace.findings}
                                   </span>
                                 
                                   <span className="workspace-findings-count">
@@ -3569,7 +3650,7 @@ async function completeWorkspaceHandoff() {
                                       workspaceDataProfile.analysis.findings
                                         .length
                                     }{" "}
-                                    detected
+                                    {t.workspace.detected}
                                   </span>
                                 </div>
                                   
@@ -3584,8 +3665,9 @@ async function completeWorkspaceHandoff() {
                                           <div className="workspace-finding-summary">
                                             <div>
                                               <strong>
-                                                {finding.issue_type
-                                                  .replaceAll("_", " ")}
+                                                {t.workspace.findingTypes[
+                                                  finding.issue_type as keyof typeof t.workspace.findingTypes
+                                                ] ?? finding.issue_type.replaceAll("_", " ")}
                                               </strong>
                                                 
                                               {finding.column && (
@@ -3598,7 +3680,9 @@ async function completeWorkspaceHandoff() {
                                             <span
                                               className={`finding-severity ${finding.severity}`}
                                             >
-                                              {finding.severity}
+                                              {t.workspace.severity[
+                                                finding.severity as keyof typeof t.workspace.severity
+                                              ]}
                                             </span>
                                           </div>
                                         </summary>
@@ -3623,91 +3707,38 @@ async function completeWorkspaceHandoff() {
                               </div>
                             </div>
                                 
-                            {!workspaceTask ? (
-                              <div className="workspace-profile-next">
-                                <button
-                                  type="button"
-                                  className="new-workspace-button"
-                                  disabled={
-                                    workspacePlanLoading ||
-                                    !workspaceDataProfile
-                                  }
-                                  onClick={() => {
-                                    void buildWorkspaceExecutionPlan();
-                                  }}
-                                >
-                                  {workspacePlanLoading
-                                    ? "Building plan..."
-                                    : "Build execution plan →"}
-                                </button>
-                                  
-                                <span>
-                                  DataPilot will create a guided workflow
-                                  from the dataset profile.
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="workspace-execution-plan">
-                                <div className="workspace-plan-header">
-                                  <div>
-                                    <span className="workspace-overview-label">
-                                      Execution plan
-                                    </span>
+                       {!workspaceTask && (
+                        <div className="workspace-profile-next">
+                          <button
+                            type="button"
+                            className="new-workspace-button"
+                            disabled={
+                              workspacePlanLoading ||
+                              !workspaceDataProfile
+                            }
+                            onClick={() => {
+                              void buildWorkspaceExecutionPlan();
+                            }}
+                          >
+                            {workspacePlanLoading
+                              ? "Building plan..."
+                              : "Build execution plan →"}
+                          </button>
                             
-                                    <h3>{workspaceTask.title}</h3>
-                                  </div>
-                            
-                                  <span className="workspace-list-status active">
-                                    Active
-                                  </span>
-                                </div>
-                            
-                                <div className="workspace-plan-steps">
-                                  {workspaceTask.steps.map((step) => (
-                                    <div
-                                      className={`workspace-plan-step ${step.status}`}
-                                      key={step.step_number}
-                                    >
-                                      <div className="workspace-plan-step-number">
-                                        {step.status === "completed"
-                                          ? "✓"
-                                          : step.step_number}
-                                      </div>
-                                        
-                                      <div className="workspace-plan-step-content">
-                                        <div className="workspace-plan-step-heading">
-                                          <strong>{step.title}</strong>
-                                        
-                                          <span>
-                                            {step.status}
-                                          </span>
-                                        </div>
-                                        
-                                        <p>
-                                          {step.finding.issue_type.replaceAll(
-                                            "_",
-                                            " "
-                                          )}
+                          <span>
+                            DataPilot will create a guided workflow
+                            from the dataset profile.
+                          </span>
+                        </div>
+                      )}
 
-                                          {step.finding.column
-                                            ? ` · ${step.finding.column}`
-                                            : ""}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                      {workspacePlanError && (
+                        <div className="workspace-form-error">
+                          {workspacePlanError}
+                        </div>
+                      )}
 
-                            {workspacePlanError && (
-                              <div className="workspace-form-error">
-                                {workspacePlanError}
-                              </div>
-                            )}
-                                
-
-                          </>
+                        </>
                         )}
 
                         {workspaceDataError && (
@@ -3716,7 +3747,91 @@ async function completeWorkspaceHandoff() {
                           </div>
                         )}
 
-                      </section>
+                            </div>
+                          )}
+
+                        </section>
+
+                        {workspaceTask && (
+                          <section className="workspace-overview-card workspace-plan-card">
+                            <button
+                              type="button"
+                              className="workspace-plan-header workspace-plan-toggle"
+                              onClick={() =>
+                                setWorkspacePlanOpen(
+                                  (previous) => !previous
+                                )
+                              }
+                              aria-expanded={workspacePlanOpen}
+                            >
+                              <div>
+                                <span className="workspace-overview-label">
+                                  {t.workspace.executionPlan}
+                                </span>
+                            
+                                <h3>{workspaceTask.title}</h3>
+                              </div>
+                            
+                              <div className="workspace-plan-header-actions">
+                                <span
+                                  className={
+                                    workspaceTask.status === "completed"
+                                      ? "workspace-list-status completed"
+                                      : "workspace-list-status active"
+                                  }
+                                >
+                                  {workspaceTask.status === "completed"
+                                    ? t.workspace.completed
+                                    : t.workspace.active}
+                                </span>
+                                  
+                                <span className="workspace-plan-chevron">
+                                  {workspacePlanOpen ? "−" : "+"}
+                                </span>
+                              </div>
+                            </button>
+                                  
+                            {workspacePlanOpen && (
+                              <div className="workspace-plan-steps">
+                                {workspaceTask.steps.map((step) => (
+                                  <div
+                                    className={`workspace-plan-step ${step.status}`}
+                                    key={step.step_number}
+                                  >
+                                    <div className="workspace-plan-step-number">
+                                      {step.status === "completed"
+                                        ? "✓"
+                                        : step.step_number}
+                                    </div>
+                                      
+                                    <div className="workspace-plan-step-content">
+                                      <div className="workspace-plan-step-heading">
+                                        <strong>
+                                          {step.title}
+                                        </strong>
+                                      
+                                        <span>
+                                          {step.status}
+                                        </span>
+                                      </div>
+                                      
+                                      <p>
+                                        {step.finding.issue_type.replaceAll(
+                                          "_",
+                                          " "
+                                        )}
+
+                                        {step.finding.column
+                                          ? ` · ${step.finding.column}`
+                                          : ""}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </section>
+                        )}
 
                       {workspaceTask && 
                         workspaceTask.status !== "completed" && (
@@ -3796,12 +3911,13 @@ async function completeWorkspaceHandoff() {
                                           : "↩ Restore"}
                                       </button>
                                     </div>
-                                  )
-                                )}
-                              </div>
+                                  ))}
+                                </div>
+                              
                             </div>
                           )}
 
+                        
                           {workspaceVersionError && (
                             <div className="workspace-form-error">
                               {workspaceVersionError}
@@ -4011,7 +4127,7 @@ async function completeWorkspaceHandoff() {
                             <div className="workspace-plan-header">
                               <div>
                                 <span className="workspace-overview-label">
-                                  Final validation
+                                  {t.workspace.finalValidation}
                                 </span>
                         
                                 <h3>
@@ -4165,7 +4281,7 @@ async function completeWorkspaceHandoff() {
                             <div className="workspace-plan-header">
                               <div>
                                 <span className="workspace-overview-label">
-                                  Final review
+                                  {t.workspace.finalReview}
                                 </span>
 
                                 <h3>
@@ -4185,7 +4301,7 @@ async function completeWorkspaceHandoff() {
                                 </span>
                               )}
                             </div>
-                            
+                           
                             <div className="workspace-overview-grid">
                               <div className="workspace-overview-card">
                                 <span className="workspace-overview-label">
@@ -4299,7 +4415,7 @@ async function completeWorkspaceHandoff() {
                             <div className="workspace-plan-header">
                               <div>
                                 <span className="workspace-overview-label">
-                                  Handoff
+                                  {t.workspace.prepareHandoff}
                                 </span>
                         
                                 <h3>

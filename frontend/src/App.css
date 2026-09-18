@@ -3,19 +3,31 @@
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
+  overflow: hidden;
+
   background: #f5f8fc;
   color: #15233c;
 }
 
 .sidebar {
   width: 220px;
+  height: 100vh;
+
+  box-sizing: border-box;
+  flex-shrink: 0;
+
   padding: 24px 16px;
+
   background: white;
   border-right: 1px solid #dce5ef;
+
   transition: width 0.25s ease;
+
   position: relative;
+
+  overflow: visible;
 }
 
 .sidebar.collapsed {
@@ -74,7 +86,15 @@
 
 .main-content {
   flex: 1;
+  min-width: 0;
+
+  height: 100vh;
+  box-sizing: border-box;
+
   padding: 34px;
+
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .page-header {
@@ -3015,4 +3035,160 @@
 .workspace-version-restore:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.workspace-sticky-shell {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+
+  padding-top: 4px;
+  padding-bottom: 10px;
+
+  background: #f5f8fc;
+}
+
+.workspace-sticky-shell
+  .workspace-flow {
+  margin-bottom: 0;
+}
+
+
+.workspace-plan-toggle {
+  width: 100%;
+
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+
+  font: inherit;
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.workspace-plan-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workspace-plan-chevron {
+  display: grid;
+  place-items: center;
+
+  width: 26px;
+  height: 26px;
+
+  border: 1px solid #d8e2ed;
+  border-radius: 7px;
+
+  background: #f7f9fc;
+  color: #607188;
+
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.workspace-plan-toggle:hover
+  .workspace-plan-chevron {
+  border-color: #b9cee8;
+  background: #eef5fd;
+  color: #2f80ed;
+}
+
+.workspace-section-toggle {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+
+  font: inherit;
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.workspace-section-toggle
+  .workspace-overview-label {
+  margin-bottom: 0;
+}
+
+.workspace-collapsible-content {
+  margin-top: 16px;
+}
+
+.workspace-plan-card {
+  grid-column: 1 / -1;
+}
+
+.workspace-plan-card
+  .workspace-plan-header {
+  margin-bottom: 0;
+}
+
+.workspace-plan-card
+  .workspace-plan-steps {
+  margin-top: 14px;
+}
+
+.language-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+
+  margin-bottom: 20px;
+  padding: 4px;
+
+  border: 1px solid #dce5ef;
+  border-radius: 9px;
+
+  background: #f4f7fa;
+}
+
+.language-option {
+  border: 0;
+  border-radius: 6px;
+
+  padding: 6px 8px;
+
+  background: transparent;
+  color: #74849a;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.language-option.active {
+  background: #ffffff;
+  color: #2f80ed;
+
+  box-shadow:
+    0 1px 3px rgba(20, 33, 61, 0.1);
+}
+
+.sidebar.collapsed .language-switch {
+  grid-template-columns: 1fr;
+
+  margin-left: auto;
+  margin-right: auto;
+
+  width: 44px;
+  box-sizing: border-box;
+}
+
+.sidebar.collapsed .language-option {
+  padding-left: 0;
+  padding-right: 0;
 }
