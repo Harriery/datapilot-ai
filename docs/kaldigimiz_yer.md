@@ -1,6 +1,6 @@
 # DataPilot AI — Kaldığımız Yer
 
-Son güncelleme: 18 Eylül 2026
+Son güncelleme: 19 Eylül 2026
 
 ---
 
@@ -12,159 +12,151 @@ DataPilot AI basit bir:
 
 uygulaması değildir.
 
-Projenin ana fikri:
+Ana ürün fikri:
 
-> Junior Data Engineer gerçek görevler üzerinde çalışırken, sistem onun hangi becerilerde ne kadar bağımsız olduğunu takip eder ve sadece ihtiyaç duyduğu kadar yardım eder.
+> Junior Data Engineer gerçek görevler üzerinde çalışırken, sistem onun hangi becerilerde ne kadar bağımsız olduğunu takip eder ve yalnızca ihtiyaç duyduğu kadar yardım eder.
 
-Ana ürün prensibi:
+Ana prensip:
 
 **AI junior'ın işini onun yerine yapmamalı. Junior'ın işi zamanla kendi başına yapabilmesini sağlamalı.**
 
 Sistem iki ana parçadan oluşuyor:
 
 ```text
-Data Engineering Workflow
+Data Engineering Workspace
 +
-Adaptive Mentor
-```
+Adaptive Mentor / Practice System
 
-Normal chatbot yaklaşımı:
+Temel ürün yaklaşımı:
 
-```text
-Junior soru sorar
-↓
-AI cevap verir
-↓
-biter
-```
-
-DataPilot yaklaşımı:
-
-```text
 Junior gerçek görev yapar
 ↓
-DataPilot problemi tanır
+DataPilot problemi ve bağlamı anlar
 ↓
-İlgili skill'i belirler
+Uygun çalışma planı oluşturulur
 ↓
-Junior'ın o skill'deki geçmişine bakar
+Junior işi kendisi uygular
 ↓
-Ne kadar yardım gerektiğini belirler
+Sistem sonucu doğrular
 ↓
-Minimum gerekli yardımı verir
+Gerekiyorsa minimum yeterli yardım verir
 ↓
-Junior kendisi dener
-↓
-Attempt deterministik / AI destekli değerlendirilir
-↓
-Learning evidence kaydedilir
+Learning evidence oluşur
 ↓
 Skill progress güncellenir
 ↓
-Bir sonraki görev ve yardım buna göre adapte olur
-```
+Bir sonraki görev / practice buna göre adapte olur
+2. Kullanılan teknoloji
 
----
+Backend:
 
-# 2. Kullanılan teknoloji
-
-Backend tarafında şu anda:
-
-- FastAPI
-- Python
-- Pydantic
-- SQLite
-- Pandas
-- OpenAI API
-- Embeddings / RAG
-- Pytest
-
-kullanılıyor.
-
-Frontend henüz başlamadı.
-
----
-
-# 3. İlk backend
-
-Proje başlangıçta basit bir yapıdaydı:
-
-```text
-POST /chat
-↓
-OpenAI
-↓
-reply
-```
-
-Daha sonra session, RAG, data profiling, adaptive mentor, progress ve practice sistemleri eklenerek gerçek bir ürün mimarisine dönüştürüldü.
-
----
-
-# 4. Session ve konuşma geçmişi
-
-Kullanıcının konuşmaları session altında saklanabiliyor.
-
-Kabaca:
-
-```text
-session
-↓
-messages
-↓
-user
-assistant
-user
-assistant
-```
-
-Böylece mentor yalnızca son mesaja bakmak yerine konuşmanın bağlamını kullanabiliyor.
-
----
-
-# 5. Document / RAG sistemi
-
-TXT / PDF gibi belgeler sisteme yüklenebiliyor.
-
-Akış:
-
-```text
-document
-↓
-text extraction
-↓
-chunking
-↓
-embedding
-↓
+Python
+FastAPI
+Pydantic
 SQLite
+Pandas
+OpenAI API
+Embeddings / RAG
+Pytest
+
+Frontend:
+
+React
+TypeScript
+Vite
+CSS
+Pyodide
+lucide-react
+
+Python transformation kodu mümkün olduğunca browser tarafında çalıştırılıyor.
+
+Backend learner'ın arbitrary Python kodunu çalıştırmıyor.
+
+3. Ana ürün prensipleri
+3.1 Minimum sufficient help
+
+Mentor mümkün olan en büyük cevabı vermek yerine junior'ın devam edebilmesi için gereken en küçük yeterli yardımı vermeli.
+
+Assistance seviyeleri:
+
+NONE
+NUDGE
+GUIDE
+TEACH
+DEMONSTRATE
+
+Amaç:
+
+TEACH
 ↓
-semantic search
+GUIDE
 ↓
-relevant chunks
+NUDGE
 ↓
-AI response
-```
+NONE
 
-Bu bölümde:
+şeklinde zamanla daha bağımsız çalışmaya geçmek.
 
-- chunking
-- embeddings
-- vector similarity
-- retrieval
-- RAG
+3.2 Deterministic yapılabilecek işi AI'ya bırakma
 
-mantıkları projeye eklendi.
+Örneğin:
 
----
+missing_values
+→ null_analysis
 
-# 6. CSV / Data Engineering workflow
+duplicate_rows
+→ duplicate_analysis
 
-Kullanıcı CSV yüklediğinde Pandas ile dataset profile çıkarılıyor.
+gibi finding → skill mapping deterministic tutuluyor.
 
-Örnek bilgiler:
+Validation da mümkün olduğunca gerçek before / after data üzerinden deterministic çalışıyor.
 
-```text
+3.3 AI işi junior'ın yerine yapmamalı
+
+Workspace içinde AI:
+
+task'i anlamaya
+plan oluşturmaya
+minimum yardım vermeye
+problemi açıklamaya
+
+yardım edebilir.
+
+Ancak transformation ve gerçek işi junior yapmalı.
+
+Daha derin öğrenme Practice alanında yapılmalı.
+
+4. Backend — mevcut ana sistemler
+
+Backend tarafında şu temel sistemler çalışıyor:
+
+Session / conversation history
+Document upload
+RAG
+CSV profiling
+Structured Data Quality Analysis
+Adaptive Mentor
+Learning Evidence
+Transformation Validation
+Multi-Step Tasks
+Learner Progress
+Independence Tracking
+Practice Recommendation
+Practice Challenges
+Practice Validation
+Micro-Check
+Workspace persistence
+Workspace dataset management
+Version / rollback
+Final validation
+Review
+Handoff
+5. CSV profiling
+
+CSV yüklendiğinde Pandas ile profile çıkarılıyor.
+
+Profile içinde örneğin:
+
 row_count
 column_count
 columns
@@ -174,110 +166,47 @@ duplicate_count
 sample_rows
 numeric_columns
 numeric_summary
-```
 
-Örnek:
+bulunabiliyor.
 
-```text
-name,age,city
-Ali,30,Den Haag
-Ayse,,Rotterdam
-Ali,30,Den Haag
-Mehmet,999,Utrecht
-```
+Önemli güvenlik ayrımı:
 
-DataPilot dataset hakkında rastgele yorum yapmak yerine önce gerçek veriyi profilliyor.
+build_data_profile()
 
----
+içinde sample_rows üretilebilir.
 
-# 7. Structured Data Quality Analysis
+Ancak workspace içinde persist edilen ve AI'a gönderilen profile bundan ayrılıyor.
 
-AI'nın yalnızca uzun bir metin üretmesi yerine structured modeller kullanıyoruz.
+6. Structured Data Quality Analysis
+
+AI çıktısı düz serbest metin yerine structured modellerle tutuluyor.
 
 Temel model:
 
-```text
 DataQualityFinding
-```
 
-Alanları:
+Alanlar:
 
-```text
 issue_type
 column
 severity
 observation
 suggested_action
-```
 
-Örnek:
+Desteklenen finding örnekleri:
 
-```json
-{
-  "issue_type": "missing_values",
-  "column": "age",
-  "severity": "medium",
-  "observation": "age sütununda eksik değer var.",
-  "suggested_action": "Eksik değerin nedenini inceleyin."
-}
-```
-
-Bir dataset içinde birden fazla finding olabilir:
-
-```text
-duplicate_rows
 missing_values
+duplicate_rows
 suspicious_values
 data_type_issue
 schema_issue
-```
 
-Böylece backend AI çıktısını programatik olarak kullanabiliyor.
+Bu sayede AI sonucu backend tarafından programatik olarak kullanılabiliyor.
 
----
+7. Skill ve learner progress sistemi
 
-# 8. Deterministic finding → skill mapping
+Takip edilen skill örnekleri:
 
-AI'nın her seferinde:
-
-> "Bu finding hangi skill?"
-
-diye tahmin yapmasına izin vermiyoruz.
-
-Backend deterministic mapping kullanıyor.
-
-Örnek:
-
-```text
-missing_values
-→ null_analysis
-
-duplicate_rows
-→ duplicate_analysis
-
-suspicious_values
-→ numeric_analysis
-
-data_type_issue
-→ data_types
-
-schema_issue
-→ schema_analysis
-```
-
-Prensip:
-
-> Deterministik yapılabilecek işi AI'ya bırakma.
-
----
-
-# 9. Adaptive Mentor
-
-Mentor junior'ın becerilerini skill bazında takip ediyor.
-
-Örnek skill'ler:
-
-```text
 python_data_structures
 python_functions
 debugging
@@ -296,203 +225,16 @@ pipeline_concepts
 data_modeling
 testing
 git_workflow
-```
 
-Bu skill catalog gelecekte genişletilecek.
+Skill durumları:
 
----
-
-# 10. Skill durumları
-
-Bir junior için her skill şu statülerden birinde olabilir:
-
-```text
 new
 learning
 practicing
 comfortable
-```
 
-MVP kuralımız:
+Learner progress API şu bilgileri takip edebiliyor:
 
-```text
-0 attempt
-→ new
-
-1–2 attempts
-→ learning
-
-3+ attempts
-→ practicing
-
-5+ attempts
-ve success rate >= %80
-→ comfortable
-```
-
-Bu ileride daha gelişmiş bir mastery modeliyle değiştirilebilir.
-
----
-
-# 11. Mentor assistance seviyeleri
-
-Mentor herkese aynı miktarda yardım vermiyor.
-
-Beş assistance seviyesi var:
-
-```text
-NONE
-NUDGE
-GUIDE
-TEACH
-DEMONSTRATE
-```
-
-Mantıkları:
-
-```text
-NONE
-→ Junior bağımsız ilerleyebilir.
-
-NUDGE
-→ Küçük ipucu.
-
-GUIDE
-→ Bir sonraki küçük adımı göster.
-
-TEACH
-→ Kavramı kısa şekilde öğret.
-
-DEMONSTRATE
-→ Junior gerçekten takılmışsa küçük çalışan örnek göster.
-```
-
-Ana prensip:
-
-**minimum sufficient help**
-
-Yani mümkün olan en büyük cevabı değil, junior'ın devam etmesini sağlayacak en küçük yeterli yardımı veriyoruz.
-
----
-
-# 12. Learning Evidence
-
-Junior'ın yaptığı her şey doğrudan progress sayılmıyor.
-
-Gerçek öğrenme kanıtlarını:
-
-```text
-application
-explanation
-debugging
-validation
-```
-
-gibi evidence türleriyle kaydediyoruz.
-
-Evidence:
-
-```text
-success = True
-```
-
-veya:
-
-```text
-success = False
-```
-
-olabilir.
-
-Gerçek learning evidence kaydedildiğinde:
-
-```text
-attempts
-successful_attempts
-skill status
-```
-
-güncelleniyor.
-
----
-
-# 13. Deterministic Transformation Validation
-
-Bu bölüm tamamlandı.
-
-Amaç:
-
-Junior bir transformation yaptığında sadece:
-
-> "Kod mantıklı görünüyor."
-
-dememek.
-
-Gerçek dataset sonucunu kontrol etmek.
-
-Örnek:
-
-```text
-BEFORE
-age null_count = 3
-
-Junior transformation
-
-AFTER
-age null_count = 1
-
-1 < 3
-→ success = True
-```
-
-Mevcut validation'lar:
-
-```text
-validate_missing_values_transformation()
-validate_missing_values_dataframes()
-
-validate_duplicate_rows_transformation()
-validate_duplicate_rows_dataframes()
-```
-
-Ayrıca finding'e göre doğru validator'ı seçen orchestration da mevcut.
-
----
-
-# 14. Multi-Step Data Engineering Tasks
-
-Junior'a tek mesajlık görev yerine çok adımlı Data Engineering task verilebiliyor.
-
-Örnek:
-
-```text
-Task
-├─ Step 1: missing values
-├─ Step 2: duplicate rows
-└─ Step 3: başka quality problemi
-```
-
-Step durumları:
-
-```text
-pending
-active
-completed
-```
-
-Bir step başarıyla tamamlandığında bir sonraki step aktif hale geliyor.
-
-Bu yapı gerçek Data Engineering workflow'una daha yakın bir deneyim sağlıyor.
-
----
-
-# 15. Learner Progress API
-
-Junior'ın skill bazlı gelişimi artık API üzerinden görülebiliyor.
-
-Örnek bilgiler:
-
-```text
 skill_name
 status
 attempts
@@ -501,1263 +243,268 @@ success_rate
 last_assistance_level
 independence_trend
 practice_priority
-```
+8. Learning Evidence
 
-Örnek:
+Junior'ın yaptığı her hareket doğrudan progress sayılmıyor.
 
-```json
-{
-  "skill_name": "python_data_structures",
-  "status": "practicing",
-  "attempts": 3,
-  "successful_attempts": 3,
-  "success_rate": 1.0,
-  "last_assistance_level": "NONE",
-  "independence_trend": "improving",
-  "practice_priority": "low"
-}
-```
+Gerçek öğrenme kanıtları:
 
----
+application
+explanation
+debugging
+validation
 
-# 16. Independence Trend
+gibi evidence türleriyle tutuluyor.
 
-Sadece doğru / yanlış sonucuna bakmıyoruz.
+Evidence sonucu:
 
-Junior'ın ne kadar yardımla başardığını da takip ediyoruz.
+success = True
 
-Assistance independence score:
+veya:
 
-```text
-DEMONSTRATE = 0
-TEACH       = 1
-GUIDE       = 2
-NUDGE       = 3
-NONE        = 4
-```
+success = False
 
-Böylece:
+olabilir.
 
-```text
-TEACH → GUIDE → NUDGE → NONE
-```
+Bu veriler learner progress'i güncelliyor.
 
-gibi bir gelişim:
+9. Independence tracking
 
-```text
+Sadece doğru / yanlış sonucu değil, ne kadar yardımla başarıldığı da takip ediliyor.
+
+Assistance independence yaklaşımı:
+
+DEMONSTRATE = en yüksek yardım
+TEACH
+GUIDE
+NUDGE
+NONE = en bağımsız
+
+Amaç junior'ın zamanla daha az desteğe ihtiyaç duyması.
+
+Örneğin:
+
+TEACH
+↓
+GUIDE
+↓
+NUDGE
+↓
+NONE
+
+gelişimi:
+
 independence_trend = improving
-```
 
-olarak değerlendirilebiliyor.
+olarak değerlendirilebilir.
 
-Önemli semantik:
+10. Practice sistemi
 
-Practice attempt evidence'ında kullanılan assistance level, attempt'ten SONRA verilen yardım değil, attempt'ten ÖNCE junior'ın sahip olduğu destek seviyesidir.
+Practice sistemi Workspace'ten ayrı düşünülüyor.
 
-Bu şekilde independence ölçümü nedensel olarak doğru kalır.
+Workspace:
 
----
+gerçek işi yap
+minimum yardım al
+sonucu validate et
 
-# 17. Practice Recommendation
+Practice:
 
-Progress sisteminin üstüne adaptive practice recommendation sistemi kuruldu.
+öğren
+tekrar et
+farklı senaryolar çöz
+hata yap
+feedback al
+
+Practice challenge type'ları:
+
+code
+multiple_choice
+debug
+output_prediction
+sql
+data_investigation
+transformation
+validation
+explain
+11. Practice recommendation
+
+Learner progress'ten practice recommendation üretilebiliyor.
 
 Akış:
 
-```text
 learner progress
 ↓
 practice priority
 ↓
-en önemli skill
+skill seçimi
 ↓
-difficulty
+difficulty seçimi
 ↓
-practice recommendation
-```
+challenge
 
 Difficulty:
 
-```text
-new
-→ foundation
+foundation
+easy
+medium
+hard
+12. Practice validation
 
-learning
-→ easy
+Practice sistemi deterministic validation kullanıyor.
 
-practicing
-→ medium
+Mevcut validation örnekleri:
 
-comfortable
-→ hard
-```
-
-Practice priority genel olarak:
-
-```text
-new
-→ high
-
-learning
-→ high / medium
-
-practicing
-→ medium / low
-
-comfortable
-→ none
-```
-
-Success rate ve independence trend de karara etki ediyor.
-
----
-
-# 18. Practice Challenge
-
-Recommendation'a göre junior için gerçek challenge oluşturulabiliyor.
-
-Challenge modelinde:
-
-```text
-challenge_id
-skill_name
-difficulty
-challenge_type
-title
-instructions
-starter_code
-input_rows
-```
-
-bulunuyor.
-
-Challenge type örnekleri:
-
-```text
-code
-debug
-output_prediction
-sql
-data_investigation
-transformation
-validation
-explain
-```
-
----
-
-# 19. Public challenge / private validation ayrımı
-
-Junior'a validation cevabını göstermiyoruz.
-
-İç yapıda:
-
-```text
-PracticeChallengeRecord
-```
-
-şunları tutuyor:
-
-```text
-public challenge
-+
-validation_spec
-+
-legacy expected_outcome
-```
-
-API junior'a yalnızca public challenge döndürüyor.
-
-Bu şekilde doğru cevap backend tarafında kalıyor.
-
----
-
-# 20. Structured Practice Validation
-
-Practice challenge validation sistemi artık structured hale getirildi.
-
-Model:
-
-```text
-PracticeValidationSpec
-```
-
-Şu validation tiplerini destekliyor:
-
-```text
 exact_output
+exact_answer
 null_count_reduction
 duplicate_count_reduction
-```
 
-Örnek:
+Transformation practice'te:
 
-```json
-{
-  "validation_type": "exact_output",
-  "expected_output": "3"
-}
-```
-
-Bu sayede validator artık şöyle sabit kod kullanmıyor:
-
-```python
-output == "2"
-```
-
-Onun yerine:
-
-```text
-challenge
-↓
-validation_spec
-↓
-expected_output
-↓
-deterministic validation
-```
-
-çalışıyor.
-
----
-
-# 21. Challenge Variation
-
-Demo için `python_data_structures` skill'inde kontrollü challenge variation sistemi var.
-
-Şu anda 3 varyant mevcut:
-
-```text
-1. Eksik city değerlerini bul
-2. Aktif kullanıcıları say
-3. Yüksek skorları say
-```
-
-Bunlar aynı temel skill'i farklı veri ve koşullarla ölçüyor.
-
-Örneğin:
-
-```text
-iteration
-dictionary access
-conditional logic
-counting
-output
-```
-
-Sistem learner + skill için daha önce kaç challenge oluşturulduğuna bakıyor.
-
-```text
-count = 0
-→ variant 1
-
-count = 1
-→ variant 2
-
-count = 2
-→ variant 3
-
-count = 3
-→ variant 1
-```
-
-Demo için bu yeterli.
-
-Gelecekte:
-
-- daha fazla template
-- difficulty'ye göre farklı template
-- farklı dataset
-- farklı kolon
-- farklı threshold
-- SQL variation
-- Data Engineering scenario variation
-
-eklenecek.
-
-Ama Phase 5 demo scope'unda mevcut yapı yeterli kabul edildi.
-
----
-
-# 22. Transformation Practice Challenge
-
-Practice sistemi yalnızca kod çıktısı kontrol etmiyor.
-
-Transformation challenge'larda challenge:
-
-```text
 input_rows
-```
-
-gönderiyor.
-
-Junior transformation yaptıktan sonra:
-
-```text
-result_rows
-```
-
-gönderiyor.
-
-Akış:
-
-```text
-challenge.input_rows
 ↓
 junior transformation
 ↓
-attempt.result_rows
+result_rows
 ↓
-backend before / after karşılaştırması
+before / after karşılaştırması
 ↓
 deterministic validation
-```
 
-Junior'ın `before_rows` göndermesine izin vermiyoruz.
+uygulanıyor.
 
-Başlangıç dataset'i backend'in challenge kaydından geliyor.
+13. Adaptive Practice Mentor
 
-Bu önemli çünkü learner başlangıç datasını değiştirerek validator'ı kandıramıyor.
-
----
-
-# 23. Null Count Reduction Practice Validation
-
-`null_analysis` practice challenge artık gerçek dataset üzerinden çalışıyor.
+Junior challenge'da zorlandığında destek seviyesi kademeli artabiliyor.
 
 Örnek:
 
-```text
-INPUT:
-
-Ali    30
-Ayse   None
-Mehmet None
-```
-
-Junior transformation:
-
-```text
-Ali    30
-Ayse   25
-Mehmet None
-```
-
-Backend:
-
-```text
-before null_count = 2
-after null_count  = 1
-
-1 < 2
-→ success = True
-```
-
-Validation type:
-
-```text
-null_count_reduction
-```
-
----
-
-# 24. Duplicate Count Reduction Practice Validation
-
-`duplicate_analysis` practice challenge da gerçek dataset üzerinden çalışıyor.
-
-Örnek input:
-
-```text
-1 | Ali  | Den Haag
-2 | Ayse | Rotterdam
-2 | Ayse | Rotterdam
-```
-
-Junior output:
-
-```text
-1 | Ali  | Den Haag
-2 | Ayse | Rotterdam
-```
-
-Backend:
-
-```text
-before duplicate_count = 1
-after duplicate_count  = 0
-
-0 < 1
-→ success = True
-```
-
-Validation type:
-
-```text
-duplicate_count_reduction
-```
-
----
-
-# 25. Practice Attempt
-
-Junior challenge için attempt gönderebiliyor.
-
-PracticeAttemptRequest içinde:
-
-```text
-learner_id
-challenge_id
-answer
-execution_output
-execution_error
-result_rows
-```
-
-bulunuyor.
-
-Code challenge:
-
-```text
-frontend çalıştırır
-↓
-execution_output backend'e gelir
-↓
-backend expected_output ile karşılaştırır
-```
-
-Transformation challenge:
-
-```text
-result_rows gelir
-↓
-input_rows ile karşılaştırılır
-↓
-dataset gerçekten iyileşti mi?
-```
-
-Backend V1'de arbitrary learner Python kodunu çalıştırmıyor.
-
-Frontend aşamasında Python execution için Pyodide düşünülüyor.
-
----
-
-# 26. Practice Attempt → Learning Evidence → Progress
-
-Bu bağlantı tamamlandı.
-
-Practice attempt sonucu:
-
-```text
-validation.success
-```
-
-learning evidence'ın success değerini belirliyor.
-
-AI burada yeniden:
-
-> "Bu gerçekten başarılı mı?"
-
-diye karar vermiyor.
-
-Deterministik validator'ın sonucu source of truth.
-
-Challenge type → evidence mapping örnekleri:
-
-```text
-code
-sql
-transformation
-→ application
-
-debug
-→ debugging
-
-output_prediction
-explain
-→ explanation
-
-validation
-data_investigation
-→ validation
-```
-
----
-
-# 27. Adaptive Practice Mentor
-
-Attempt başarısız olduğunda sistem junior'ın geçmiş attempt'lerine göre mentor support üretebiliyor.
-
-Örneğin:
-
-```text
 ilk hata
-→ küçük yardım
+→ NUDGE
 
 tekrar hata
-→ daha güçlü yardım
-```
+→ GUIDE
 
-Mentor support seviyeleri yine:
+devam eden hata
+→ TEACH
 
-```text
-NUDGE
-GUIDE
-TEACH
-DEMONSTRATE
-```
+gerektiğinde
+→ DEMONSTRATE
 
-mantığına bağlı.
+Amaç doğrudan cevabı vermek yerine junior'ın kendisinin çözmesini sağlamak.
 
----
+14. Micro-Check sistemi
 
-# 28. Persistent Micro-Check
+Mentor desteğinden sonra junior'a küçük kavram kontrolü sorulabiliyor.
 
-Practice mentor desteğine micro-check sistemi eklendi.
+Örnek:
+
+"Bu dictionary içinden year değerine nasıl erişirsin?"
+
+Micro-check sonucu ayrı kaydediliyor.
+
+Doğru micro-check:
+
+ana challenge'a geri dön
+
+anlamına gelir.
+
+Ana challenge otomatik başarılı sayılmaz.
+
+15. Workspace 2.0 — ürün vizyonu
+
+Workspace gerçek çalışma alanıdır.
 
 Amaç:
 
-Junior'a doğrudan çözümü vermek yerine çok küçük bir kontrol sorusu ile eksik kavramı anlamasını sağlamak.
+Junior'ın şirket veya kişisel veri görevini kontrollü, doğrulanabilir ve güvenli bir ortamda tamamlaması.
 
-Örnek:
+Ürün konumlandırması:
 
-```text
-"Bu dictionary içinden year değerine nasıl erişirsin?"
-```
+Junior'ın şirket verisi üzerinde güvenli çalışmasını sağlayan kontrollü AI workspace.
 
-Junior cevap verir.
+Workspace context:
 
-Micro-check sonucu DB'ye kaydedilir.
+Work
+Personal
+16. Work ve Personal ayrımı
 
-Tekrar yanlış cevap verilirse sistem daha fazla destek verebilir.
+Work workspace:
 
-Doğru cevap:
-
-```text
-return_to_challenge
-```
-
-ile ana challenge'a dönülmesini sağlar.
-
-Önemli:
-
-Micro-check'i doğru cevaplamak ana challenge'ı otomatik olarak başarılı yapmaz.
-
----
-
-# 29. Practice Result → Adaptive Recommendation
-
-Phase 5'in en önemli sonuçlarından biri budur.
-
-Canlı Swagger testinde gerçek olarak doğrulandı.
-
-Başlangıç:
-
-```text
-python_data_structures
-
-status = learning
-attempts = 2
-successes = 2
-priority = medium
-```
-
-Recommendation:
-
-```text
-python_data_structures
-difficulty = easy
-```
-
-Junior bir challenge daha başarıyla tamamladı.
-
-Sonuç:
-
-```text
-attempts = 3
-successes = 3
-status = practicing
-priority = low
-independence_trend = improving
-```
-
-Sistem tekrar recommendation üretti.
-
-Bu kez:
-
-```text
-duplicate_analysis
-```
-
-seçildi çünkü:
-
-```text
-duplicate_analysis
-status = learning
-priority = medium
-```
-
-Yani gerçek adaptive loop çalıştı:
-
-```text
-practice
-↓
-learning evidence
-↓
-progress update
-↓
-skill priority change
-↓
-next skill selection
-```
-
----
-
-# 30. Swagger'da doğrulanan gerçek Phase 5 akışı
-
-Gerçek API smoke test yapıldı.
-
-İlk recommendation:
-
-```text
-python_data_structures
-priority = medium
-difficulty = easy
-```
-
-Challenge:
-
-```text
-Aktif kullanıcıları say
-expected output = 3
-```
-
-Attempt:
-
-```text
-execution_output = 3
-```
-
-Sonuç:
-
-```text
-success = true
-mentor_support = null
-```
-
-Progress:
-
-```text
-python_data_structures
-attempts = 2
-successes = 2
-status = learning
-```
-
-Bir sonraki challenge:
-
-```text
-Yüksek skorları say
-expected output = 2
-```
-
-Başarılı attempt sonrası:
-
-```text
-attempts = 3
-successes = 3
-status = practicing
-priority = low
-```
-
-Yeni recommendation:
-
-```text
-duplicate_analysis
-priority = medium
-difficulty = easy
-```
-
-Duplicate transformation challenge:
-
-```text
-3 rows
-↓
-duplicate kaldırıldı
-↓
-2 rows
-```
-
-Validation sonucu:
-
-```text
-Transformation başarılı:
-duplicate row sayısı azaltıldı.
-```
-
-Bu smoke test ile adaptive practice loop uçtan uca doğrulandı.
-
----
-
-# 31. Test durumu
-
-Son full regression:
-
-```text
-177 passed
-```
-
-Önemli test alanları:
-
-```text
-models
-database
-practice_service
-practice_challenges
-practice_review_service
-practice_progress_integration
-transformation_validation_service
-mentor_routes
-micro-check
-progress
-mentor policy
-```
-
-Şu anda bilinen test failure yok.
-
----
-
-# 32. Phase durumu
-
-## Phase 1 — Adaptive Data Quality Mentor
-
-```text
-✅ COMPLETE
-```
-
-Tamamlananlar:
-
-```text
-structured findings
-finding → skill mapping
-adaptive assistance
-junior attempt
-learning evidence
-controlled next step
-```
-
----
-
-## Phase 2 — Deterministic Transformation Validation
-
-```text
-✅ COMPLETE
-```
-
-Tamamlananlar:
-
-```text
-before / after profile
-missing values validation
-duplicate validation
-real dataframe validation
-deterministic success
-```
-
----
-
-## Phase 3 — Multi-Step Data Engineering Tasks
-
-```text
-✅ COMPLETE
-```
-
-Tamamlananlar:
-
-```text
-task model
-steps
-active / pending / completed
-task persistence
-step transition
-transformation validation integration
-```
-
----
-
-## Phase 4 — Learner Progress / Profile
-
-```text
-✅ MVP COMPLETE
-```
-
-Tamamlananlar:
-
-```text
-skill status
-attempt count
-success rate
-last assistance
-independence trend
-practice priority
-progress API
-```
-
----
-
-## Phase 5 — Adaptive Practice & Challenges
-
-```text
-✅ COMPLETE FOR MVP / DEMO
-```
-
-Tamamlananlar:
-
-```text
-practice recommendation
-difficulty selection
-practice challenge
-challenge persistence
-structured validation spec
-exact output validation
-null count reduction
-duplicate count reduction
-challenge variation
-attempt persistence
-AI diagnosis
-adaptive mentor support
-language-aware support
-persistent micro-check
-practice → evidence
-practice → progress
-progress → next recommendation
-real API smoke test
-```
-
-Demo scope için mevcut challenge variation sayısı bilinçli olarak küçük tutuldu.
-
-Gelecekte skill catalog ve challenge bank genişletilecek.
-
----
-
-# 33. Şu anda ürünün yapabildiği şey
-
-DataPilot artık şu gerçek loop'u çalıştırabiliyor:
-
-```text
-Junior profile
-↓
-skill progress
-↓
-practice recommendation
-↓
-appropriate difficulty
-↓
-challenge
-↓
-junior attempt
-↓
-deterministic validation
-↓
-gerekirse adaptive mentor support
-↓
-learning evidence
-↓
-progress update
-↓
-independence tracking
-↓
-practice priority update
-↓
-next challenge / next skill
-```
-
-Bu projenin ana ürün fikrinin backend tarafında çalışan MVP'sidir.
-
----
-
-# 34. Bir sonraki büyük aşama
-
-## PHASE 6 — FRONTEND
-
-Şimdi backend'e yeni büyük feature eklemek yerine ürünü kullanılabilir hale getireceğiz.
-
-Planlanan frontend stack:
-
-```text
-React
-Tailwind
-```
-
-Muhtemel execution araçları:
-
-```text
-Python
-→ Pyodide
-
-SQL
-→ DuckDB-Wasm
-
-Code editor
-→ Monaco Editor
-
-Terminal / output
-→ browser output panel / xterm-benzeri alan
-```
-
-Backend learner'ın arbitrary Python kodunu çalıştırmayacak.
-
-Kod execution mümkün olduğunca browser sandbox tarafında olacak.
-
----
-
-# 35. İlk frontend hedefi
-
-İlk frontend MVP'de bütün backend özelliklerini bir anda göstermek istemiyoruz.
-
-Önce ana learning loop görünür hale getirilecek.
-
-İlk ekranlarda yaklaşık:
-
-```text
-Dashboard
-↓
-Current Recommendation
-↓
-Practice Challenge
-↓
-Code / Transformation Workspace
-↓
-Run
-↓
-Submit
-↓
-Validation Result
-↓
-Mentor Support
-↓
-Progress
-```
-
-olmalı.
-
----
-
-# 36. Frontend için ürün prensibi
-
-Workspace junior'ın gerçek işi yaptığı yer olacak.
-
-Burada mentor:
-
-```text
-minimum sufficient help
-```
-
-vermeli.
-
-Derin öğretim / uzun ders mantığı workspace'i boğmamalı.
-
-İleride ayrı bir:
-
-```text
-Learning / Practice environment
-```
-
-ile daha derin çalışma yapılabilir.
-
-Ana workspace:
-
-```text
-task
-code/data
-run
+şirket görevi
 validation
-next small mentor action
-```
+review
+handoff
+security
+audit
 
-odaklı olmalı.
+odaklıdır.
 
----
+Personal workspace:
 
-# 37. Gelecekte genişleteceğimiz skill sistemi
+portfolio
+Kaggle
+deneme
+kişisel öğrenme
+exploration
 
-Şu anda demo için sınırlı skill ve challenge template kullanıyoruz.
+gibi kullanım içindir.
 
-Gelecekte skill catalog yaklaşık şu domain'lere ayrılmalı:
+Uzun vadeli kritik güvenlik kuralı:
 
-```text
-Python
-├─ data_structures
-├─ loops_conditions
-├─ functions
-├─ error_handling
-├─ file_json_csv
-└─ data_transformation
+Work data
+→ Personal workspace içinde kullanılamaz
+17. Workspace güvenlik hiyerarşisi
 
-SQL
-├─ select_filter
-├─ joins
-├─ group_by_aggregation
-├─ null_handling
-├─ cte_subquery
-├─ window_functions
-└─ deduplication
+Planlanan yapı:
 
-Data Engineering
-├─ data_quality
-├─ schema_types
-├─ transformation
-├─ etl_elt
-├─ incremental_load
-├─ batch_streaming
-├─ medallion_architecture
-└─ validation_testing
-```
+Account / Organization
+        ↓
+Security Policy
+        ↓
+Workspace
+  Work / Personal
+        ↓
+Data Classification
+        ↓
+Dataset / Task / Mentor
 
-Her skill aynı öneme sahip olmayacak.
+Security iki katmanda düşünülüyor:
 
-Örneğin junior Data Engineer için:
-
-```text
-SQL joins
-group by
-data quality
-null handling
-transformations
-```
-
-daha yüksek ağırlıkta olabilir.
-
----
-
-# 38. Gelecekte challenge difficulty
-
-Her skill için farklı difficulty seviyesi olacak:
-
-```text
-foundation
-easy
-medium
-hard
-```
-
-Örneğin SQL JOIN:
-
-```text
-foundation
-→ INNER JOIN ne yapar?
-
-easy
-→ iki tabloyu birleştir
-
-medium
-→ JOIN + WHERE + GROUP BY
-
-hard
-→ üç tablo + NULL + aggregation + business rule
-```
-
-Selection ileride:
-
-```text
-skill importance
+Organization / Account policy
 +
-learner progress
-+
-recent mistakes
-+
-assistance dependency
-+
-previous challenges
-↓
-skill
-↓
-difficulty
-↓
-challenge type
-↓
-variant
-```
+Workspace context / data sensitivity
 
-şeklinde gelişecek.
+Şu an MVP seviyesinde data sensitivity metadata olarak tutuluyor.
 
----
+Gerçek organization authorization daha sonra eklenecek.
 
-# 39. Demo sonrası challenge variation geliştirmesi
+18. Workspace data sensitivity
 
-Şu anda 3 Python variant var.
+Work workspace oluşturulurken veri sensitivity metadata tutulabiliyor.
 
-Demo sonrası:
+Seçenekler:
 
-```text
-template
-+
-dataset variation
-+
-threshold variation
-+
-column variation
-+
-difficulty
-```
+public
+internal
+confidential
+restricted
+unknown
 
-kullanarak daha fazla kombinasyon üretilebilir.
+Bu bilgiler gelecekte:
 
-Ama tamamen random üretim yerine mümkün olduğunca:
+AI usage policy
+export policy
+document access
+organization rules
 
-```text
-controlled
-deterministic
-testable
-```
+ile bağlanacak.
 
-template sistemi tercih edilmeli.
+19. Workspace 2.0 tam kullanıcı akışı
 
-Bu sayede:
+Şu anda çalışan temel flow:
 
-```text
-AI randomness
-```
-
-yerine:
-
-```text
-predictable validation
-```
-
-korunur.
-
----
-
-# 40. Teknik borç / daha sonra yapılabilecek cleanup
-
-Şu anda `PracticeChallengeRecord` içinde:
-
-```text
-validation_spec
-```
-
-yanında eski:
-
-```text
-expected_outcome
-```
-
-alanı backward compatibility için tutuluyor.
-
-DB'deki eski `expected_outcome` kolonu da NOT NULL olduğu için Phase 5 sırasında kaldırılmadı.
-
-Şimdilik problem değildir.
-
-Frontend ve demo tamamlandıktan sonra migration ile temizlenebilir.
-
----
-
-# 41. Şu anda yapmamamız gerekenler
-
-Phase 6'ya geçerken şu anda backend'i gereksiz büyütmemeliyiz.
-
-Özellikle hemen:
-
-```text
-50 challenge template
-tam skill ontology
-çok gelişmiş mastery algorithm
-production auth
-cloud deployment
-complex admin panel
-```
-
-eklememeliyiz.
-
-Öncelik:
-
-> Çalışan adaptive backend'i kullanıcı tarafından görülebilen bir ürüne dönüştürmek.
-
----
-
-# 42. Bir sonraki oturumda başlayacağımız yer
-
-İlk iş:
-
-```text
-PHASE 6 — FRONTEND
-```
-
-Başlangıç sırası:
-
-```text
-1. Frontend klasör yapısı
-2. React app
-3. Backend bağlantısı
-4. Basit dashboard
-5. Practice recommendation gösterimi
-6. Challenge ekranı
-7. Run / Submit akışı
-8. Validation sonucu
-9. Mentor support
-10. Progress paneli
-```
-
-İlk amaç güzel tasarım değil.
-
-İlk amaç:
-
-```text
-Backend'deki gerçek adaptive loop'u
-tarayıcı üzerinden kullanılabilir hale getirmek.
-```
-
----
-
-# 43. Mevcut checkpoint özeti
-
-Şu anda DataPilot AI backend:
-
-```text
-CSV profiling                    ✅
-Structured data quality          ✅
-Adaptive mentor                  ✅
-Learning evidence                ✅
-Transformation validation        ✅
-Multi-step tasks                 ✅
-Learner progress                 ✅
-Independence tracking            ✅
-Practice recommendation          ✅
-Difficulty adaptation            ✅
-Challenge generation             ✅
-Challenge persistence            ✅
-Challenge variation              ✅
-Structured validation            ✅
-Exact output validation          ✅
-Null reduction validation        ✅
-Duplicate reduction validation   ✅
-Practice attempt persistence     ✅
-Adaptive mentor support          ✅
-Persistent micro-check           ✅
-Practice → progress              ✅
-Progress → new recommendation    ✅
-Swagger end-to-end smoke test    ✅
-Full test suite                  ✅ 177 passed
-```
-
-Sonuç:
-
-**Phase 5 backend MVP tamamlandı.**
-
-Sıradaki aşama:
-
-# Phase 6 — Frontend 🚀
-
-
----
-
-# 44. 18 Eylül 2026 — Workspace 2.0 güncel checkpoint
-
-Workspace 2.0 artık uçtan uca çalışan bir MVP akışına sahip.
-
-Tamamlanan gerçek kullanıcı akışı:
-
-```text
 Source
 ↓
 Profile
@@ -1773,207 +520,545 @@ Review
 Handoff
 ↓
 Workspace Completed
-```
 
-Tamamlanan önemli parçalar:
+Bu flow frontend'de stepper olarak da gösteriliyor.
 
-```text
-Workspace creation                    ✅
-Work / Personal context               ✅
-Data sensitivity metadata             ✅
-CSV upload                            ✅
-Safe persisted data profile           ✅
-AI destekli execution plan            ✅
-working.csv üzerinde gerçek çalışma   ✅
-Browser-side Pyodide execution        ✅
-Run preview                           ✅
-Submit transformation                 ✅
-Deterministic step validation         ✅
-Version snapshots                     ✅
-Rollback / Restore                    ✅
-Final validation                      ✅
-Validation result persistence         ✅
-Final human review                    ✅
-Review persistence                    ✅
-Final CSV export                      ✅
-Handoff completion                    ✅
-Workspace completed status            ✅
-```
+20. Workspace creation
 
-Son doğrulanan durum:
+Yeni workspace oluşturulurken şu bilgiler alınabiliyor:
 
-```text
-Backend tests   ✅ 194 passed
-Frontend build  ✅ passed
-```
+Workspace name
+Task brief
+Expected outcome
+Work / Personal
+Data sensitivity
+Workflow type
 
-Örnek test workspace'inde şu akış gerçek olarak tamamlandı:
+Workflow type seçenekleri:
 
-```text
+auto
+etl
+elt
+data_quality
+analysis
+pipeline
+
+Varsayılan:
+
+auto
+21. Dataset storage
+
+Workspace dataset'i server tarafında workspace'e özel klasörde tutuluyor.
+
+Yapı:
+
+data/workspaces/<workspace_uuid>/
+├── source.csv
+├── working.csv
+└── versions/
+
+Prensip:
+
+source.csv
+→ original / read-only kaynak
+
+working.csv
+→ junior'ın transformation yaptığı çalışma kopyası
+
+Transform işlemleri source dosyasını değiştirmiyor.
+
+22. Data profiling ve AI güvenliği
+
+Önce dataset lokal olarak profile ediliyor.
+
+Hedef mimari:
+
+Raw dataset
+↓
+local / approved processing
+↓
+schema + statistics + validation context
+↓
+sanitized profile
+↓
+AI
+
+AI'a gereksiz raw satır gönderilmemeli.
+
+23. sample_rows güvenlik düzeltmesi
+
+19 Eylül 2026 itibarıyla bu konu düzeltildi.
+
+Önceden route içinde akış:
+
+profile
+↓
+generate_data_recommendations(profile)
+↓
+sample_rows siliniyordu
+
+şeklindeydi.
+
+Bu durumda route seviyesinde AI fonksiyonu sample_rows içeren profile alabiliyordu.
+
+Şimdi:
+
+profile
+↓
+sample_rows çıkarılır
+↓
+safe_profile
+↓
+generate_data_recommendations(safe_profile)
+
+şeklinde çalışıyor.
+
+Ayrıca data_ai_service.py içinde prompt oluşturulurken de sample_rows tekrar filtreleniyor.
+
+Yani defense-in-depth var:
+
+Route sanitization
++
+AI prompt sanitization
+24. sample_rows regression testi
+
+Bu güvenlik davranışı için özel test eklendi.
+
+Test doğruluyor:
+
+generate_data_recommendations()
+→ sample_rows ALMIYOR
+
+API response profile
+→ sample_rows İÇERMİYOR
+
+Böylece gelecekte biri yanlışlıkla sanitization sırasını bozarsa test failure oluşacak.
+
+25. AI Execution Plan
+
+Dataset profile ve findings'ten AI destekli execution plan oluşturulabiliyor.
+
+Plan:
+
+task
+├── step 1
+├── step 2
+└── ...
+
+Ancak şu anda güvenli ve deterministic olarak validate edilebildiğimiz transformation finding'leri öncelikli:
+
+missing_values
+duplicate_rows
+
+Execution plan maximum kontrollü tutuluyor.
+
+AI doğrudan transformation'ı yapmıyor.
+
+Junior'ın yapacağı adımları tarif ediyor.
+
+26. Gelecekte gelişmiş step type
+
+Execution plan ileride şu step type'larla genişletilebilir:
+
+investigate
+transform
+validate
+decision
+
+Bu sayede:
+
+suspicious_values
+schema_issue
+data_type_issue
+
+gibi bulgular daha doğru workflow ile ele alınabilir.
+
+Örnek:
+
+Suspicious value
+↓
+Investigate
+↓
+business rule / documentation kontrolü
+↓
+Decision
+↓
+gerekirse Transform
+↓
+Validate
+27. Browser-side transformation workbench
+
+Workspace'te gerçek çalışma alanı mevcut.
+
+Junior:
+
+working.csv
+
+üzerinde Python transformation yazabiliyor.
+
+Python kodu Pyodide ile browser içinde çalıştırılıyor.
+
+Flow:
+
+working data
+↓
+Python code
+↓
+Run
+↓
+browser preview
+↓
+Submit
+↓
+backend validation
+
+Run yalnızca preview üretir.
+
+Submit backend validation + persistence akışını başlatır.
+
+28. Transformation validation
+
+Şu anda desteklenen ana transformation problemleri:
+
+missing_values
+duplicate_rows
+
+Örnek:
+
+before duplicate_count = 1
+after duplicate_count = 0
+→ success
+
+veya:
+
+before null_count = 2
+after null_count = 0
+→ success
+
+Başarılı transformation sonrası:
+
+working.csv güncellenir
+task step tamamlanır
+bir sonraki step aktif olur
+checkpoint güncellenir
+version oluşturulur
+29. Version history ve rollback
+
+Workspace transformation'ları version snapshot oluşturabiliyor.
+
+Junior:
+
+v1
+v2
+v3
+
+gibi önceki working dataset durumlarını görebiliyor.
+
+Restore işlemi:
+
+working.csv
+task state
+checkpoint
+
+durumunu ilgili version'a geri alabiliyor.
+
+Gelecekte version metadata şu bilgilerle genişletilebilir:
+
+transformation code
+validation metrics
+learner
+timestamp
+dataset hash
+reason / note
+30. Final validation
+
+Task transformation adımları tamamlandığında final validation çalıştırılıyor.
+
+Endpoint:
+
+POST /workspaces/{learner_id}/{workspace_id}/validate
+
+Kontroller:
+
+Dataset integrity
+Schema preserved
+Duplicate rows
+Missing values
+
+Validation sonucu workspace içinde persist ediliyor.
+
+Sayfa yenilense bile sonuç kaybolmuyor.
+
+31. Structured validation localization
+
+Validation check'leri artık yalnızca İngilizce human-readable string olarak kullanılmıyor.
+
+Backend modelinde:
+
+code
+params
+
+alanları var.
+
+Örnek:
+
+{
+  "code": "missing_values",
+  "params": {
+    "column": "age",
+    "missing_count": 0
+  }
+}
+
+Frontend bu machine-readable bilgiyi kullanarak seçili dile göre metni oluşturuyor.
+
+Böylece:
+
+TR
+Eksik değerler · age
+age sütununda 0 eksik değer kaldı.
+
+ve:
+
+EN
+Missing values · age
+0 missing values remain in age.
+
+gösterilebiliyor.
+
+Eski persisted validation kayıtları için fallback desteği de bulunuyor.
+
+32. Final review
+
+Validation başarılı olduktan sonra insan review aşaması var.
+
+Amaç:
+
+Teknik validation başarılı olsa bile junior final dataset'i kendisi gözden geçirmeli.
+
+Review tamamlandığında workspace checkpoint güncelleniyor.
+
+33. Handoff
+
+Review sonrası final teslim aşaması bulunuyor.
+
+Fonksiyonlar:
+
+Final CSV export
+Handoff completion
+
+Export için şartlar:
+
+successful validation
++
+completed review
+
+Handoff completion ayrı bir action.
+
+Final export dosyası:
+
+datapilot_final.csv
+
+olarak alınabiliyor.
+
+34. Tamamlanmış test workspace
+
+Gerçek smoke test yapılan workspace:
+
+Frontend Workspace Test
+
+Task:
+
+Clean duplicate customer records and investigate missing IDs.
+
+Expected outcome:
+
+A validated clean customer dataset.
+
+Başlangıç:
+
 5 source rows
-↓
-duplicate removal
-↓
-4 working rows
-↓
-missing age values imputed
-↓
-final validation passed
-↓
+1 duplicate
+2 missing age values
+
+Final working data:
+
+customer_id,name,age,city
+1001,Alice,31,Den Haag
+1002,Bob,29.5,Rotterdam
+1003,Carol,28,Utrecht
+1004,David,29.5,Delft
+
+Sonuç:
+
+4 rows
+0 duplicates
+0 missing age values
+schema preserved
+validation passed
 review completed
-↓
-datapilot_final.csv exported
-↓
 handoff completed
-↓
-workspace status = completed
-```
+workspace completed
+35. Workspace frontend UX
 
----
+Workspace uzun tek sayfa olarak çalışıyor ancak ana navigasyon korunuyor.
 
-# 45. Sıradaki yapılacaklar — takip listesi
+Mevcut davranış:
 
-Aşağıdaki sıra, yeni özellik eklerken mevcut MVP'yi bozmamak için ana çalışma planıdır.
-
-## A. Workspace UI / UX cleanup
-
-### A1. Execution Plan status bug
-
-Execution Plan içindeki bütün task step'leri tamamlandığında kartın sağ üstünde hâlâ:
-
-```text
-Active
-```
-
-görünüyor.
-
-Bu:
-
-```text
-Completed
-```
-
-olmalı.
-
-### A2. Workspace scroll yapısı
-
-İstenen davranış:
-
-```text
-Sol sidebar
+Sidebar
 → sabit
 
 Sağ workspace içeriği
 → kendi içinde scroll
 
-Workspace başlığı + workflow stepper
-→ mümkünse sticky
-```
+Workspace header + flow
+→ sticky
 
-Kullanıcı uzun workspace içinde aşağı inerken ana navigasyonu kaybetmemeli.
+Bu sayede junior uzun workspace'te aşağı inerken bağlamını kaybetmiyor.
 
-### A3. Açılır / kapanır workspace bölümleri
+36. Collapsible sections
 
-Uzun tek sayfa görünümünü azaltmak için section'lar collapsible olacak.
+Şu alanlar collapsible:
 
-Önerilen yapı:
-
-```text
 Data Source
-→ collapsible
-
 Execution Plan
-→ collapsible
 
-Transform Workbench
-→ aktif step varsa açık
+Execution Plan, Data Source bölümünden bağımsız bir kart.
 
-Validation
-→ aktifken açık
-→ tamamlandıktan sonra kapanabilir
+Yani Data Source kapatıldığında Plan kaybolmuyor.
 
-Review
-→ aktifken açık
-→ tamamlandıktan sonra kapanabilir
+Validation / Review / Handoff şu anda gate stage oldukları için görünür tutuluyor.
 
+37. Execution Plan status düzeltmesi
+
+Önceden bütün task step'leri tamamlanmış olsa bile Execution Plan kartında:
+
+Active
+
+görünebiliyordu.
+
+Bu düzeltildi.
+
+Task tamamlandıysa:
+
+Completed
+
+gösteriliyor.
+
+38. Merkezi localization sistemi
+
+Frontend'de merkezi localization temeli kuruldu.
+
+Dosya:
+
+frontend/src/i18n.ts
+
+Dil tipi:
+
+en
+tr
+
+Frontend:
+
+const t = translations[language]
+
+mantığıyla çalışıyor.
+
+Sidebar EN / TR switch üzerinden canlı değişiyor.
+
+39. Şu anda localization durumu
+
+Workspace tarafındaki önemli UI alanları büyük ölçüde EN / TR destekli:
+
+Sidebar
+Workspace header
+Flow stepper
+Workspace metadata
+Task brief
+Expected outcome
+Progress
+Data Source
+Data Profile
+Findings
+Execution Plan heading
+Final Validation
+Validation stats
+Validation check names/messages
+Final Review
 Handoff
-→ aktif aşamadaysa açık
-```
+Workspace completed state
 
-Prensip:
+Ancak localization henüz bütün uygulama için tamamlanmış değil.
 
-> Aktif çalışma alanı açık kalsın, tamamlanan alanlar gerektiğinde tekrar açılabilsin.
+Özellikle ileride temizlenecek alanlar:
 
-### A4. Merkezi dil sistemi
+Dashboard
+New Workspace
+Practice
+Transform workbench içindeki bazı metinler
+AI-generated plan step title/body
+bazı backend-generated text alanları
+40. Legacy frontend cleanup
 
-UI şu anda Türkçe ve İngilizce karışık.
+Eski hardcoded:
 
-Tek tek JSX içinde dil kontrolü yapılmayacak.
+Customer Data Quality
 
-Merkezi yapı kurulacak:
+workspace ekranı tamamen kaldırıldı.
 
-```text
-translations
-├── en
-├── tr
-└── ileride nl
-```
+Kaldırılan legacy parçalar:
 
-Örnek:
+hardcoded Alice / Bob / Carol / David dataset
+old transformation submit flow
+old completeWorkspace flow
+old mentor drawer
+old mentor state
+hardcoded inputRows
+legacy workspace-specific JSX
+unused functions / state
 
-```text
-translations.en.workspace.review
-translations.tr.workspace.review
-```
+Artık bütün gerçek workspaces Workspace 2.0 ekranını kullanıyor.
 
-Başlangıç:
+Legacy cleanup sonrası frontend build başarılı.
 
-```text
-English
-Turkish
-```
+41. Sidebar modülleri
 
-Daha sonra Dutch kolayca eklenebilir.
+Sidebar şu yapıda kalacak:
 
-Portfolio / profesyonel kullanım için varsayılan dil English olabilir.
-
----
-
-# 46. Sidebar modülleri kaldırılmayacak
-
-Sidebar'daki şu alanlar ürünün gerçek parçaları olacak:
-
-```text
 Dashboard
 Practice
 Tasks
 Progress
 Documents
 Settings
-```
 
-Şu anda bazıları boş olsa da kaldırılmayacak.
+Workspace açıldığında ayrıca:
 
----
+Workspace
 
-# 47. Tasks modülü
+navigation item'ı görünüyor.
+
+Bu modüller placeholder olarak kaldırılmayacak çünkü ürün roadmap'inin gerçek parçaları.
+
+42. Tasks modülü — sıradaki ana feature
+
+Sıradaki ana geliştirme:
+
+Tasks
 
 Amaç:
 
-> Junior'ın bütün workspace'lerdeki iş takibini tek yerde görebilmesi.
+Junior'ın bütün workspace'lerdeki iş takibini tek yerde görebilmesi.
 
-Gösterilebilecek durumlar:
+Planlanan task status:
 
-```text
 To do
 Active
 Blocked
 Completed
-```
 
-Task kartında ileride:
+Task görünümünde ileride:
 
-```text
 task
 workspace
 current step
@@ -1983,23 +1068,21 @@ validation state
 review state
 handoff state
 updated time
-```
 
-gibi bilgiler gösterilebilir.
+gösterilebilir.
 
-Tasks ekranı günlük iş takibi merkezi olacak.
+Tasks günlük çalışma merkezi olacak.
 
----
+43. Progress modülü
 
-# 48. Progress modülü
+Tasks sonrasında Progress ekranı geliştirilecek.
 
 Amaç:
 
-> Junior'ın teknik gelişimini ve bağımsızlık seviyesini anlaşılır hale getirmek.
+Junior hangi becerilerde gelişiyor ve artık hangi işleri daha bağımsız yapabiliyor?
 
-Gösterilecek ana bilgiler:
+Gösterilebilecek bilgiler:
 
-```text
 strong skills
 weak skills
 skills to practice
@@ -2009,39 +1092,27 @@ last assistance level
 independence trend
 practice priority
 recommended next topics
-```
 
-Mevcut learner progress ve learning evidence backend'i bu ekranı besleyecek.
+Mevcut learner progress backend'i bu ekranın temelini zaten sağlıyor.
 
-Progress sadece skor ekranı olmayacak.
+44. Documents modülü
 
-Ana soru:
-
-> Junior artık hangi işi daha bağımsız yapabiliyor ve hangi konuda çalışması gerekiyor?
-
----
-
-# 49. Documents modülü
-
-Documents basit bir dosya listesi olmayacak.
+Documents yalnızca dosya listesi olmayacak.
 
 Amaç:
 
-> Workspace'lerin kullanabileceği güvenli bir doküman / dataset kütüphanesi.
+Güvenli dataset / document library.
 
-Temel ayrım:
+Planlanan yapı:
 
-```text
 Documents
 ├── Personal
 └── Work
     ├── Organization
     └── Workspace
-```
 
-Her document için ileride en az şu metadata düşünülmeli:
+Document metadata ileride:
 
-```text
 scope
 workspace_id
 organization_id
@@ -2049,77 +1120,52 @@ data_sensitivity
 document_type
 owner
 created_at
-```
 
-## Kritik güvenlik kuralı
+içerebilir.
 
-Work verisi ile Personal veri birbirine karışmamalı.
+Kritik kural:
 
-Örnek:
-
-```text
 Personal Workspace
-↓
-Work / Confidential dataset
-↓
-BLOCKED
-```
++
+Work / Confidential document
+→ BLOCKED
+45. Settings modülü
 
-Kullanıcı kişisel bir workspace içinde çalışırken şirket dataset'ini yanlışlıkla içeri alamamalı.
+Settings içinde ileride:
 
-Workspace sadece yetkili olduğu work document'lerini çağırabilmeli.
-
-Handoff yapılan final dataset / dokümanlar da uygun work klasörü altında saklanabilir.
-
----
-
-# 50. Settings modülü
-
-Settings ileride şu alanları içerebilir:
-
-```text
 Profile
 Language
 Theme
 AI Usage
 Budget / Limits
-Security preferences
-```
+Security Preferences
 
-Tema:
+bulunabilir.
 
-```text
+Theme:
+
 Light
 Dark
-```
 
-Dil:
+Language:
 
-```text
 English
 Turkish
 ileride Dutch
-```
+46. AI token / cost görünümü
 
-## AI usage / token / cost görünümü
-
-Kullanıcı AI kullanımını görebilmeli.
+Settings içinde AI usage takibi planlanıyor.
 
 Örnek:
 
-```text
 tokens used this month
 estimated AI cost
 budget limit
 remaining budget
 usage percentage
-```
 
-Uyarı seviyeleri configurable olabilir.
+Örnek warning policy:
 
-İlk öneri:
-
-```text
 < 80%
 → normal
 
@@ -2127,195 +1173,344 @@ Uyarı seviyeleri configurable olabilir.
 → warning
 
 >= 95%
-→ critical warning
+→ critical
 
 >= 100%
-→ limit reached / policy action
-```
+→ limit / policy action
 
-Token ve maliyet hesabı frontend'e hardcode edilmeyecek.
+Token / cost hesabı frontend'e hardcode edilmeyecek.
 
-Backend gerçek API usage bilgisini kaydedecek ve maliyet / budget politikasını merkezi olarak hesaplayacak.
+Gerçek backend API usage bilgisinden hesaplanmalı.
 
----
+47. Production security roadmap
 
-# 51. Güvenlik cleanup
+MVP sonrası güçlendirilmesi gereken alanlar:
 
-Workspace 2.0 geliştirilirken önemli bir güvenlik konusu tespit edildi.
-
-`build_data_profile()` içinde:
-
-```text
-sample_rows
-```
-
-bulunuyor.
-
-Workspace persistence sırasında sample rows çıkarılıyor, ancak AI recommendation çağrısının tam olarak sanitized profile kullandığı garanti altına alınmalı.
-
-Hedef:
-
-```text
-Raw dataset
-↓
-local / approved processing
-↓
-sanitized schema + statistics + findings
-↓
-AI
-```
-
-AI'ya gereksiz raw company rows gönderilmemeli.
-
-Bu cleanup yüksek öncelikli.
-
----
-
-# 52. Legacy frontend cleanup
-
-Workspace 2.0 artık gerçek akış olduğu için eski hardcoded:
-
-```text
-Customer Data Quality
-```
-
-fallback ekranı kaldırılmalı.
-
-Bununla birlikte artık kullanılmayan:
-
-```text
-legacy state
-legacy functions
-hardcoded inputRows
-old submit flow
-unused JSX
-```
-
-temizlenmeli.
-
-Ama cleanup öncesi ve sonrası:
-
-```text
-python -m pytest
-npm run build
-```
-
-çalıştırılmalı.
-
----
-
-# 53. Sonraki güvenlik / production yönü
-
-MVP sonrasında aşağıdaki alanlar güçlendirilecek:
-
-```text
+authentication
 organization policy
 workspace authorization
 document authorization
-work / personal isolation
-PII / sensitive column detection
-destructive operation warnings
+Work / Personal isolation
+PII detection
+sensitive column detection
+destructive-operation warnings
 audit trail
-export review
-version metadata
-```
-
-Version kayıtlarında ileride:
-
-```text
-transformation code
-validation metrics
-learner
-timestamp
+export policy
 dataset hash
-reason / note
-```
+version metadata
+AI usage policy
 
-gibi audit metadata tutulabilir.
+Şu anda gerçek confidential company data ile production kullanımı hedeflenmiyor.
 
----
+Demo ve geliştirme sırasında:
 
-# 54. Daha güçlü workflow step tipleri
+synthetic
+veya
+public
 
-Mevcut execution plan özellikle güvenli şekilde validate edilebilen:
+data tercih edilmeli.
 
-```text
-missing_values
-duplicate_rows
-```
+48. PII / sensitive data yaklaşımı
 
-bulgularına odaklanıyor.
+Uzun vadede sistem dataset'i AI'a göndermeden önce:
 
-İleride step modeli şu tiplerle genişletilmeli:
+column classification
+PII detection
+sensitivity classification
+policy check
+sanitization
 
-```text
-investigate
-transform
-validate
-decision
-```
+uygulayabilmeli.
 
-Böylece:
+Hedef:
 
-```text
-suspicious_values
-schema_issue
-data_type_issue
-```
-
-gibi bulgular da doğru iş akışıyla ele alınabilir.
-
-Örnek:
-
-```text
-Suspicious value
+Raw company data
 ↓
-Investigate
+approved local processing
 ↓
-business rule / data dictionary kontrolü
+sanitized metadata / statistics
 ↓
-Decision
-↓
-gerekirse Transform
-↓
-Validate
-```
+AI
+49. Test durumu
 
----
+19 Eylül 2026 itibarıyla full backend regression:
 
-# 55. Planlanan uygulama sırası
+195 passed
 
-Bir sonraki çalışma sırası:
+Bilinen backend test failure yok.
 
-```text
-1. Execution Plan Active → Completed bug fix
-2. Workspace sticky / scroll düzeni
-3. Collapsible workspace sections
-4. Merkezi EN / TR localization
-5. Legacy frontend cleanup
-6. sample_rows / AI data sanitization security fix
-7. Full regression test
-8. docs checkpoint update
-9. Tasks modülü
-10. Progress modülü
-11. Documents modülü + Work / Personal isolation
-12. Settings + theme + AI usage / token / cost
-13. Audit / security hardening
-14. Advanced workflow step types
-```
+Frontend:
+
+npm run build
+
+başarılı.
+
+Browser smoke test de Workspace 2.0 için başarılı.
+
+50. Son önemli Git checkpoint'leri
+
+Son önemli commit'ler:
+
+f677c5e
+Prevent sample rows from reaching AI
+
+d193ec5
+Remove legacy workspace frontend
+
+a26adb0
+Localize persisted validation results
+
+d77fbae
+Localize workspace validation review and handoff
+
+87e7341
+Improve workspace UX and add localization foundation
+
+34a63c1
+Document Workspace 2.0 roadmap and next steps
+51. Workspace 2.0 mevcut durum
+
+Tamamlanan ana özellikler:
+
+Workspace creation                     ✅
+Task brief / expected outcome          ✅
+Work / Personal context                ✅
+Data sensitivity metadata              ✅
+CSV upload                             ✅
+source.csv / working.csv separation    ✅
+Data profile                           ✅
+Safe persisted profile                 ✅
+sample_rows AI sanitization            ✅
+AI execution plan                      ✅
+Supported finding filtering            ✅
+Step tracker                           ✅
+Browser-side Pyodide                   ✅
+Run preview                            ✅
+Transformation submit                  ✅
+Deterministic validation               ✅
+working.csv persistence                ✅
+Version snapshot                       ✅
+Rollback / restore                     ✅
+Final validation                       ✅
+Validation persistence                 ✅
+Structured validation localization     ✅
+Final review                           ✅
+Review persistence                     ✅
+Final CSV export                       ✅
+Handoff completion                     ✅
+Workspace completed                    ✅
+Sticky workspace navigation            ✅
+Collapsible Data Source                ✅
+Collapsible Execution Plan             ✅
+EN / TR localization foundation        ✅
+Legacy workspace removal               ✅
+Backend regression                     ✅ 195 passed
+Frontend production build              ✅
+Browser smoke test                     ✅
+52. Henüz tamamlanmamış önemli alanlar
+
+Workspace 2.0 kullanılabilir bir MVP temelinde ancak production-ready değildir.
+
+Önemli kalan alanlar:
+
+Full-app localization
+Tasks UI
+Progress UI
+Documents UI
+Settings UI
+Work / Personal authorization
+Organization policies
+PII detection
+Audit trail
+Authentication
+Advanced workflow step types
+Token / cost tracking
+Dark theme
+Dutch localization
+53. Şu anda yapmamamız gerekenler
+
+Bu aşamada ürünü gereksiz yere büyütmemeliyiz.
+
+Şimdilik kaçınılacak işler:
+
+50+ challenge template
+tam skill ontology
+çok karmaşık mastery algorithm
+production cloud architecture
+enterprise auth
+complex admin panel
+çok sayıda AI agent
+
+Öncelik:
+
+Çalışan temel ürünü temiz, anlaşılır, güvenli ve kullanılabilir hale getirmek.
+
+54. Bir sonraki geliştirme sırası
+
+Güncel sıra:
+
+1. docs checkpoint update                         ← ŞU AN
+2. Tasks modülü
+3. Progress modülü
+4. Documents modülü
+5. Work / Personal document isolation
+6. Settings
+7. Theme
+8. Full-app localization cleanup
+9. AI usage / token / cost tracking
+10. Audit / security hardening
+11. Advanced workflow step types
+12. PII / sensitive-column detection
+13. Organization / authorization layer
 
 Her büyük aşamada:
 
-```text
-test
+implement
+↓
+tests
+↓
+frontend build
 ↓
 browser smoke test
 ↓
-git checkpoint / push
-```
+git checkpoint
 
-yapılacak.
+uygulanacak.
 
-Ana öncelik:
+55. Mentor olarak çalışma yöntemi
 
-> Yeni özellik eklemekten önce Workspace 2.0 MVP'yi temiz, güvenli ve sürdürülebilir bir temel haline getirmek.
+Bu proje öğrenme amacı da taşıyor.
+
+Sadece çalışan kod üretmek yeterli değil.
+
+Çalışma döngüsü:
+
+Neden gerekiyor?
+↓
+Kullanıcı kodu görür / tamamlar
+↓
+Dosyalar arası akış açıklanır
+↓
+Test edilir
+↓
+Gerekirse temel parça yeniden kurulur
+
+Kullanıcı uzun süre IT'den uzak kaldığı için amaç yalnızca projeyi bitirmek değil, bilgiyi tekrar aktif hale getirmek.
+
+Kod değişikliklerinde:
+
+dosya
+↓
+Ctrl + F ile aranacak yer
+↓
+tam değişiklik bloğu
+↓
+test komutu
+↓
+beklenen sonuç
+
+şeklinde ilerlemek tercih ediliyor.
+
+56. Güncel ürün özeti
+
+DataPilot AI artık yalnızca bir chatbot veya eğitim demosu değil.
+
+Şu anda çalışan yapı:
+
+Workspace oluştur
+↓
+Task tanımla
+↓
+Dataset yükle
+↓
+Profile çıkar
+↓
+AI destekli plan oluştur
+↓
+Junior transformation'ı kendisi yazsın
+↓
+Browser'da çalıştır
+↓
+Backend sonucu doğrulasın
+↓
+Version oluştur
+↓
+Gerekirse rollback
+↓
+Final validation
+↓
+Human review
+↓
+Final export
+↓
+Handoff
+↓
+Workspace completed
+
+Bunun yanında ayrı adaptive learning sistemi:
+
+Practice
+↓
+Attempt
+↓
+Validation
+↓
+Mentor support
+↓
+Learning evidence
+↓
+Skill progress
+↓
+Next recommendation
+
+olarak çalışıyor.
+
+İki sistemin uzun vadeli birleşimi:
+
+Gerçek işte yapılan çalışma
++
+Practice alanındaki öğrenme
+↓
+Global learner profile
+↓
+Daha bağımsız junior
+57. Şu an kaldığımız yer
+
+Workspace 2.0'ın temel MVP foundation'ı tamamlandı.
+
+Son teknik durum:
+
+Backend tests:
+195 passed
+
+Frontend build:
+passed
+
+Legacy frontend:
+removed
+
+Validation localization:
+structured and working
+
+sample_rows security:
+fixed + regression tested
+
+Latest security commit:
+f677c5e
+Prevent sample rows from reaching AI
+
+Bir sonraki ana feature:
+
+Tasks Modülü
+
+Amaç:
+
+Bütün workspace'lerdeki gerçek işleri ve mevcut durumlarını tek bir günlük çalışma ekranında toplamak.
+
+
+Kaydettikten sonra önce:
+
+```powershell
+git status
+
+çalıştır
