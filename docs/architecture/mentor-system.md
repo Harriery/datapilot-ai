@@ -1878,3 +1878,363 @@ Select Assistance Level
 Generate Mentor Response
 ↓
 Save Learning Evidence
+
+---
+
+# Current Project Checkpoint — 19 Sep 2026
+
+## Completed: Progress / Development UI
+
+Progress ekranı tamamlandı ve `main` branch'e alındı.
+
+Tamamlanan parçalar:
+
+- `frontend/src/ProgressPage.tsx`
+- EN / TR localization
+- Skill Performance
+- Mentor Support & Independence
+- Skill Details
+- collapsible Progress sections
+- Mentor Dependency Over Time
+- Overall Independence & Readiness
+- gerçek `GET /mentor/progress/demo-learner` verisi
+- backend progress history + readiness modelleri
+- frontend build başarılı
+- 198 backend test başarılı
+
+Mevcut demo learner özeti:
+
+```text
+Tracked skills          3
+Average success       100%
+Total attempts          14
+Average independence   83%
+Overall readiness      93%
+Readiness level        INDEPENDENT
+```
+
+Overall Readiness yalnızca başarı oranına dayanmaz.
+
+V1 hesaplama:
+
+```text
+Knowledge / Success  → 40%
+Independence         → 40%
+Skill Coverage       → 20%
+```
+
+Mentor dependency history gerçek learning evidence kayıtlarından oluşturulur ve attempt sırasındaki:
+
+```text
+GUIDE
+→ NUDGE
+→ NONE
+```
+
+gibi yardım seviyesi değişimlerini gösterir.
+
+---
+
+# Next Major Area: Documents Security
+
+Documents ekranı yalnızca bir belge listesi olarak yapılmamalıdır.
+
+Amaç:
+
+> Personal ve gerçek Work dokümanlarının birbirine karışmasını önlemek ve şirket verisinin yanlış scope'a veya harici AI işlemine sızmasını backend seviyesinde engellemek.
+
+## Current Security Gap
+
+Mevcut belge sistemi:
+
+```text
+POST /documents/upload
+↓
+text extraction
+↓
+chunks
+↓
+OpenAI embeddings
+↓
+SQLite
+```
+
+Şu anda document kaydı:
+
+- learner / owner bilgisi bilmiyor
+- personal / work ayrımı bilmiyor
+- organization bilgisi bilmiyor
+- workspace scope bilmiyor
+- data sensitivity bilmiyor
+- upload sırasında external embedding çağrısını otomatik yapıyor
+
+Bu nedenle mevcut sürüme gerçek confidential / restricted şirket dokümanı yüklenmemelidir.
+
+Development sırasında yalnızca dummy / test data kullanılmalıdır.
+
+---
+
+## Document Security Model
+
+Personal / Work ayrımı yalnızca frontend filtresi olmayacaktır.
+
+Backend her document operation için access scope uygulamalıdır.
+
+Temel yapı:
+
+```text
+User
+│
+├── Personal Vault
+│   ├── personal documents
+│   ├── learning notes
+│   └── personal project documents
+│
+└── Work Vault
+    └── Organization
+        ├── Workspace A
+        ├── Workspace B
+        └── Work Documents
+```
+
+Personal context kullanan kullanıcı, Work kaynaklarına backend üzerinden erişememelidir.
+
+Work kaynakları yalnızca yetkili identity + organization membership ile erişilebilir olmalıdır.
+
+---
+
+## Document Metadata
+
+Document modeline en az şu scope bilgileri eklenmelidir:
+
+```text
+document_id
+owner_user_id / learner_id
+usage_context
+organization_id
+workspace_id
+data_sensitivity
+ai_processing_status
+filename
+content_type
+created_at
+```
+
+`usage_context`:
+
+```text
+personal
+work
+```
+
+Mevcut Workspace modelindeki `data_sensitivity` yapısı kullanılacaktır:
+
+```text
+public
+internal
+confidential
+restricted
+unknown
+```
+
+---
+
+## Default-Deny AI Policy
+
+External AI / embedding erişimi security policy tarafından belirlenmelidir.
+
+Başlangıç politikası:
+
+| Sensitivity | External AI processing |
+| --- | --- |
+| public | allowed |
+| internal | organization policy required |
+| confidential | blocked by default |
+| restricted | blocked |
+| unknown | blocked |
+
+Temel güvenlik prensibi:
+
+```text
+UNKNOWN = DENY
+```
+
+Sistem verinin güvenlik seviyesinden emin değilse external AI işlemine izin vermemelidir.
+
+---
+
+## Secure Upload Flow
+
+Hedef upload akışı:
+
+```text
+Upload
+↓
+Identity check
+↓
+Personal / Work scope check
+↓
+Organization / workspace authorization
+↓
+Sensitivity check
+↓
+Document Security Policy
+↓
+External AI allowed?
+├── YES → extraction → chunks → embeddings
+└── NO  → secure storage only / no external processing
+```
+
+Security policy kontrolü embedding işleminden ÖNCE yapılmalıdır.
+
+---
+
+## Secure Retrieval / RAG Scope
+
+Retrieval bütün document chunk'larını arayıp sonradan filtrelememelidir.
+
+Önce authorized document scope belirlenmeli, semantic search yalnızca bu scope içinde yapılmalıdır.
+
+```text
+Personal question
+↓
+Personal Vault chunks only
+
+Work / Organization A question
+↓
+Organization A + authorized workspace chunks only
+```
+
+Cross-context veya cross-organization retrieval engellenmelidir.
+
+---
+
+## Documents UI
+
+Documents ekranı security modelinin üstüne kurulacaktır.
+
+Yetkili kullanıcı için örnek:
+
+```text
+DOCUMENTS
+
+[ Personal ] [ Work ]
+
+Personal
+- Python Notes.pdf
+- Fabric Learning.pdf
+
+Work
+Organization: Example BV
+
+Workspace: Customer Pipeline
+- Data Dictionary.pdf     INTERNAL
+- ETL Specification.pdf   CONFIDENTIAL
+```
+
+Work dokümanlarında görünür security badge'leri bulunmalıdır.
+
+Örnek:
+
+```text
+WORK
+CONFIDENTIAL
+AI PROCESSING BLOCKED
+```
+
+veya:
+
+```text
+WORK
+PUBLIC
+AI PROCESSING ALLOWED
+```
+
+Personal-only identity Work sekmesini veya Work document metadata'sını görmemelidir.
+
+---
+
+## Authentication Direction
+
+V1 Documents Security geliştirmesi auth-ready olacaktır ancak gerçek production authentication ilk aşamada zorunlu değildir.
+
+Production yönü:
+
+```text
+Personal
+→ authenticated user
+→ optional MFA / passkey
+
+Work
+→ organization SSO
+→ OIDC
+→ Microsoft Entra ID / Google Workspace / Okta
+→ MFA
+→ organization membership
+→ role / permission enforcement
+```
+
+Frontend tarafından gönderilen `usage_context="work"` tek başına yetki sağlamamalıdır.
+
+Authorization backend tarafından authenticated identity üzerinden belirlenmelidir.
+
+---
+
+## Audit Requirements
+
+Work document işlemleri ileride audit edilebilir olmalıdır.
+
+Takip edilecek işlemler:
+
+- upload
+- view
+- search
+- AI processing
+- download
+- delete
+
+Örnek:
+
+```text
+17:42 document uploaded
+17:43 classified INTERNAL
+17:43 AI processing allowed
+17:48 document used in mentor query
+```
+
+---
+
+## Implementation Order
+
+Sıradaki geliştirme sırası:
+
+```text
+1. Document model + DB migration
+↓
+2. Document Security Policy service
+↓
+3. Secure upload endpoint
+↓
+4. Personal / Work scoped list endpoints
+↓
+5. Secure retrieval / RAG filtering
+↓
+6. DocumentsPage.tsx
+↓
+7. Security badges + EN/TR UI
+↓
+8. Tests
+↓
+9. Authentication / SSO layer later
+```
+
+Yeni geliştirme branch'i:
+
+```text
+documents-security
+```
+
+Temel kural:
+
+> Security boundary önce backend'de uygulanır. UI hiçbir zaman tek güvenlik kontrolü olarak kullanılmaz.
+
