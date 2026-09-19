@@ -6,6 +6,7 @@ import {
 
 import "./App.css";
 import TasksPage from "./TasksPage";
+import ProgressPage from "./ProgressPage";
 import {
   runDataFrameTransformation,
   runPythonCode,
@@ -374,6 +375,7 @@ function App() {
   | "workspace"
   | "practice"
   | "tasks"
+  |"progress"
   | "new-workspace"
   >("dashboard");
  
@@ -2074,8 +2076,20 @@ async function restoreWorkspaceVersion(
           </span>
         </button>
             
-        <button className="nav-item">
-          <span className="nav-icon">▥</span>
+        <button
+          className={
+            currentView === "progress"
+              ? "nav-item active"
+              : "nav-item"
+          }
+          onClick={() =>
+            setCurrentView("progress")
+          }
+        >
+          <span className="nav-icon">
+            ▥
+          </span>
+        
           <span className="nav-label">
             {t.sidebar.progress}
           </span>
@@ -2395,6 +2409,11 @@ async function restoreWorkspaceVersion(
                               }}
                             />
                             
+                          ) : currentView === "progress" ? (
+                            <ProgressPage
+                              language={language}
+                            />
+                          
                           ) : currentView === "new-workspace" ? (
             <section className="new-workspace-page">
               <div className="new-workspace-topbar">

@@ -58,6 +58,82 @@ export const translations = {
   },
   },
 
+  progress: {
+    eyebrow: "PROGRESS",
+    title: "Development overview",
+    description:
+      "See how your skills, success rate and independence are developing.",
+
+    loading: "Loading progress...",
+    loadError: "Progress could not be loaded.",
+    empty: "No progress data yet.",
+
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+
+    skillsTracked: "Skills tracked",
+    averageSuccess: "Average success",
+    totalAttempts: "Total attempts",
+    averageIndependence:
+      "Average independence",
+
+    skillPerformance:
+      "Skill performance",
+    skillPerformanceDescription:
+      "Success rate for each tracked skill.",
+
+    mentorIndependence:
+      "Mentor support & independence",
+    mentorIndependenceDescription:
+      "See how much mentor support you currently need for each skill.",
+
+    skillDetails: "Skill details",
+    skillDetailsDescription:
+      "Attempts, current learning stage and mentor mode.",
+
+    success: "Success",
+    attempts: "Attempts",
+    successfulAttempts:
+      "Successful attempts",
+
+    mentorMode: "Mentor mode",
+    independenceTrend:
+      "Independence trend",
+    practicePriority:
+      "Practice priority",
+
+    mentorModes: {
+      DEMONSTRATE: "Demonstrate",
+      TEACH: "Teach",
+      GUIDE: "Guide",
+      NUDGE: "Nudge",
+      NONE: "Independent",
+      noData: "No data",
+    },
+
+    trends: {
+      improving: "Improving",
+      stable: "Stable",
+      declining: "Declining",
+      insufficient_data:
+        "Not enough data",
+    },
+
+    priorities: {
+      high: "High",
+      medium: "Medium",
+      low: "Low",
+      none: "None",
+    },
+
+    statuses: {
+      new: "New",
+      learning: "Learning",
+      practicing: "Practicing",
+      comfortable: "Comfortable",
+    },
+  },
+
 
     workspace: {
       source: "Source",
@@ -268,6 +344,89 @@ validationChecks: {
       prepareFinalDatasetHandoff:
         "Son veri setini teslime hazırla",
     },
+    },
+
+    progress: {
+      eyebrow: "GELİŞİM",
+      title: "Gelişim özeti",
+      description:
+        "Becerilerinin, başarı oranının ve bağımsızlığının nasıl geliştiğini gör.",
+        
+      loading: "Gelişim verileri yükleniyor...",
+      loadError:
+        "Gelişim verileri yüklenemedi.",
+      empty:
+        "Henüz gelişim verisi yok.",
+        
+      refresh: "Yenile",
+      refreshing: "Yenileniyor...",
+        
+      skillsTracked:
+        "Takip edilen beceri",
+      averageSuccess:
+        "Ortalama başarı",
+      totalAttempts:
+        "Toplam deneme",
+      averageIndependence:
+        "Ortalama bağımsızlık",
+        
+      skillPerformance:
+        "Beceri performansı",
+      skillPerformanceDescription:
+        "Takip edilen her becerideki başarı oranını gör.",
+        
+      mentorIndependence:
+        "Mentor desteği ve bağımsızlık",
+      mentorIndependenceDescription:
+        "Her beceride şu anda ne kadar mentor desteğine ihtiyaç duyduğunu gör.",
+        
+      skillDetails:
+        "Beceri detayları",
+      skillDetailsDescription:
+        "Denemeler, öğrenme seviyesi ve mevcut mentor yaklaşımı.",
+        
+      success: "Başarı",
+      attempts: "Deneme",
+      successfulAttempts:
+        "Başarılı deneme",
+        
+      mentorMode:
+        "Mentor yaklaşımı",
+      independenceTrend:
+        "Bağımsızlık eğilimi",
+      practicePriority:
+        "Pratik önceliği",
+        
+      mentorModes: {
+        DEMONSTRATE: "Göster",
+        TEACH: "Öğret",
+        GUIDE: "Rehberlik et",
+        NUDGE: "Hafif yönlendir",
+        NONE: "Bağımsız",
+        noData: "Veri yok",
+      },
+    
+      trends: {
+        improving: "Gelişiyor",
+        stable: "Sabit",
+        declining: "Geriliyor",
+        insufficient_data:
+          "Yeterli veri yok",
+      },
+    
+      priorities: {
+        high: "Yüksek",
+        medium: "Orta",
+        low: "Düşük",
+        none: "Yok",
+      },
+    
+      statuses: {
+        new: "Yeni",
+        learning: "Öğreniyor",
+        practicing: "Pratik yapıyor",
+        comfortable: "Rahat",
+      },
     },
 
     workspace: {
