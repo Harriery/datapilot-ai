@@ -86,6 +86,17 @@ export const translations = {
       "Mentor support & independence",
     mentorIndependenceDescription:
       "See how much mentor support you currently need for each skill.",
+    mentorDependencyHistory:
+      "Mentor dependency over time",
+    mentorDependencyHistoryDescription:
+      "See how your need for mentor support changes across attempts.",
+    mentorDependencyEmpty:
+      "Not enough attempt history yet.",
+
+    attempt: "Attempt",
+    attemptsAxis: "Attempts",
+    historyStart: "Started at",
+    historyCurrent: "Current level",
 
     skillDetails: "Skill details",
     skillDetailsDescription:
@@ -131,6 +142,30 @@ export const translations = {
       learning: "Learning",
       practicing: "Practicing",
       comfortable: "Comfortable",
+    },
+
+    overallReadiness:
+      "Overall independence & readiness",
+
+    overallReadinessDescription:
+      "A combined view of knowledge, independence and skill coverage.",
+
+    knowledgeScore:
+      "Knowledge & success",
+
+    independenceScore:
+      "Independence",
+
+    skillCoverage:
+      "Skill coverage",
+
+    skillsCovered:
+      "skills covered",
+
+    readinessLevels: {
+      GUIDE: "Guide",
+      NUDGE: "Nudge",
+      INDEPENDENT: "Independent",
     },
   },
 
@@ -376,9 +411,22 @@ validationChecks: {
         "Takip edilen her becerideki başarı oranını gör.",
         
       mentorIndependence:
-        "Mentor desteği ve bağımsızlık",
+          "Mentor desteği ve bağımsızlık",
       mentorIndependenceDescription:
-        "Her beceride şu anda ne kadar mentor desteğine ihtiyaç duyduğunu gör.",
+          "Her beceride şu anda ne kadar mentor desteğine ihtiyaç duyduğunu gör.",
+              mentorDependencyHistory:
+          "Zaman içinde mentor bağımlılığı",
+       mentorDependencyHistoryDescription:
+        "Denemeler ilerledikçe mentor desteğine olan ihtiyacının nasıl değiştiğini gör.",
+
+      mentorDependencyEmpty:
+        "Henüz yeterli deneme geçmişi yok.",
+
+      attempt: "Deneme",
+      attemptsAxis: "Denemeler",
+      historyStart: "Başlangıç",
+      historyCurrent: "Mevcut seviye",
+      
         
       skillDetails:
         "Beceri detayları",
@@ -426,6 +474,30 @@ validationChecks: {
         learning: "Öğreniyor",
         practicing: "Pratik yapıyor",
         comfortable: "Rahat",
+      },
+
+      overallReadiness:
+        "Genel bağımsızlık ve hazırlık",
+
+      overallReadinessDescription:
+        "Bilgi ve başarı, bağımsızlık ve beceri kapsamının birleşik değerlendirmesi.",
+
+      knowledgeScore:
+        "Bilgi ve başarı",
+
+      independenceScore:
+        "Bağımsızlık",
+
+      skillCoverage:
+        "Beceri kapsamı",
+
+      skillsCovered:
+        "beceri kapsandı",
+
+      readinessLevels: {
+        GUIDE: "Rehberlik gerekli",
+        NUDGE: "Hafif yönlendirme",
+        INDEPENDENT: "Bağımsız",
       },
     },
 

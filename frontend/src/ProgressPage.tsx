@@ -8,6 +8,14 @@ import {
   type AppLanguage,
 } from "./i18n";
 
+import MentorDependencyChart, {
+  type MentorDependencyPointData,
+} from "./MentorDependencyChart";
+
+import OverallReadinessPanel, {
+  type OverallReadinessData,
+} from "./OverallReadinessPanel";
+
 
 type AssistanceLevel =
   | "NONE"
@@ -52,6 +60,12 @@ type SkillProgressData = {
 type ProgressResponse = {
   learner_id: string;
   skills: SkillProgressData[];
+
+  mentor_dependency_history:
+    MentorDependencyPointData[];
+  
+  overall_readiness:
+    OverallReadinessData | null;
 };
 
 
@@ -93,6 +107,21 @@ function ProgressPage({
 
   const [skills, setSkills] =
     useState<SkillProgressData[]>([]);
+  
+  const [
+    mentorDependencyHistory,
+    setMentorDependencyHistory,
+  ] = useState<
+    MentorDependencyPointData[]
+  >([]);
+
+  const [
+    overallReadiness,
+    setOverallReadiness,
+  ] = useState<
+    OverallReadinessData | null
+
+  >(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -139,6 +168,12 @@ function ProgressPage({
         await response.json();
 
       setSkills(data.skills);
+      setMentorDependencyHistory(
+        data.mentor_dependency_history
+      );
+      setOverallReadiness(
+        data.overall_readiness
+      );
 
     } catch (error) {
       console.error(error);
@@ -294,7 +329,11 @@ function ProgressPage({
           </span>
         </div>
       </div>
-
+      
+      <OverallReadinessPanel
+        language={language}
+        readiness={overallReadiness}
+      />
 
       {error ? (
         <div className="python-error">
@@ -511,7 +550,13 @@ function ProgressPage({
               </div>
             )}
           </section>
-
+          
+          <MentorDependencyChart
+            language={language}
+            history={
+              mentorDependencyHistory
+            }
+          />
 
           <section className="progress-panel">
             <button

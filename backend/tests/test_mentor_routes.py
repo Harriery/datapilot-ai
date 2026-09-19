@@ -499,6 +499,8 @@ def test_get_progress_returns_learner_progress():
                 "practice_priority": "low",
             }
         ],
+        "mentor_dependency_history": [],
+        "overall_readiness": None,
     }
 
     with patch(

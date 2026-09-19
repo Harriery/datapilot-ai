@@ -669,6 +669,41 @@ class LearnerSkillProgress(BaseModel):
     ] = "none"
 
 
+class MentorDependencyPoint(BaseModel):
+    attempt_number: int
+    skill_name: str
+
+    assistance_level: Literal[
+        "NONE",
+        "NUDGE",
+        "GUIDE",
+        "TEACH",
+        "DEMONSTRATE",
+    ]
+
+    independence_percent: int
+
+    created_at: str | None = None
+
+
+class OverallReadiness(BaseModel):
+    level: Literal[
+        "GUIDE",
+        "NUDGE",
+        "INDEPENDENT",
+    ]
+
+    score: int
+
+    knowledge_score: int
+    independence_score: int
+    skill_coverage: int
+
+    covered_skills: int
+    total_skills: int
+    total_attempts: int
+
+
 # LearnerProgressResponse:
 #
 # Bir junior'ın bütün takip edilen skill'lerdeki
@@ -676,6 +711,12 @@ class LearnerSkillProgress(BaseModel):
 class LearnerProgressResponse(BaseModel):
     learner_id: str
     skills: list[LearnerSkillProgress]
+
+    mentor_dependency_history: list[
+        MentorDependencyPoint
+    ] = Field(default_factory=list)
+
+    overall_readiness: OverallReadiness | None = None
 
 
 # ==================================================

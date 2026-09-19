@@ -4,6 +4,7 @@ from backend.app.progress_service import (
     get_learner_progress,
      calculate_independence_trend,
      calculate_practice_priority,
+     assistance_level_to_percent,
 )
 
 
@@ -269,3 +270,161 @@ def test_calculate_practice_priority_none_for_comfortable_skill():
     )
 
     assert result == "none"
+def test_assistance_level_to_percent():
+
+    assert assistance_level_to_percent(
+        "DEMONSTRATE"
+    ) == 0
+
+    assert assistance_level_to_percent(
+        "TEACH"
+    ) == 25
+
+    assert assistance_level_to_percent(
+        "GUIDE"
+    ) == 50
+
+    assert assistance_level_to_percent(
+        "NUDGE"
+    ) == 75
+
+    assert assistance_level_to_percent(
+        "NONE"
+    ) == 100
+
+
+def test_progress_builds_dependency_history_and_readiness():
+
+    fake_skill_states = [
+        {
+            "skill_name": "python_data_structures",
+            "status": "comfortable",
+            "attempts": 4,
+            "successful_attempts": 4,
+        },
+        {
+            "skill_name": "null_analysis",
+            "status": "practicing",
+            "attempts": 5,
+            "successful_attempts": 5,
+        },
+        {
+            "skill_name": "duplicate_analysis",
+            "status": "practicing",
+            "attempts": 5,
+            "successful_attempts": 5,
+        },
+    ]
+
+    def fake_get_evidence(
+        learner_id: str,
+        skill_name: str,
+    ):
+        if skill_name == "python_data_structures":
+            return [
+                {
+                    "id": 3,
+                    "assistance_level": "NONE",
+                    "created_at":
+                        "2026-09-19 10:03:00",
+                },
+            ]
+
+        if skill_name == "null_analysis":
+            return [
+                {
+                    "id": 1,
+                    "assistance_level": "GUIDE",
+                    "created_at":
+                        "2026-09-19 10:01:00",
+                },
+                {
+                    "id": 4,
+                    "assistance_level": "NUDGE",
+                    "created_at":
+                        "2026-09-19 10:04:00",
+                },
+            ]
+
+        if skill_name == "duplicate_analysis":
+            return [
+                {
+                    "id": 2,
+                    "assistance_level": "GUIDE",
+                    "created_at":
+                        "2026-09-19 10:02:00",
+                },
+                {
+                    "id": 5,
+                    "assistance_level": "NUDGE",
+                    "created_at":
+                        "2026-09-19 10:05:00",
+                },
+            ]
+
+        return []
+
+    with patch(
+        "backend.app.progress_service."
+        "database.get_skill_states_by_learner",
+        return_value=fake_skill_states,
+    ), patch(
+        "backend.app.progress_service."
+        "database.get_learning_evidence_by_skill",
+        side_effect=fake_get_evidence,
+    ):
+
+        result = get_learner_progress(
+            learner_id="learner-001"
+        )
+
+    # ----------------------------------------------
+    # Dependency history
+    # ----------------------------------------------
+
+    assert len(
+        result.mentor_dependency_history
+    ) == 5
+
+    assert [
+        item.assistance_level
+        for item
+        in result.mentor_dependency_history
+    ] == [
+        "GUIDE",
+        "GUIDE",
+        "NONE",
+        "NUDGE",
+        "NUDGE",
+    ]
+
+    assert [
+        item.independence_percent
+        for item
+        in result.mentor_dependency_history
+    ] == [
+        50,
+        50,
+        100,
+        75,
+        75,
+    ]
+
+    # ----------------------------------------------
+    # Overall readiness
+    # ----------------------------------------------
+
+    readiness = result.overall_readiness
+
+    assert readiness is not None
+
+    assert readiness.knowledge_score == 100
+    assert readiness.independence_score == 83
+    assert readiness.skill_coverage == 100
+
+    assert readiness.covered_skills == 3
+    assert readiness.total_skills == 3
+    assert readiness.total_attempts == 14
+
+    assert readiness.score == 93
+    assert readiness.level == "INDEPENDENT"
