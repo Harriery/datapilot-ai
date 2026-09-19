@@ -93,15 +93,110 @@ def init_db():
 
         # Yüklenen belgelerin bilgilerini saklar.
     connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS documents (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT NOT NULL,
-            content_type TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-        """
+    """
+    CREATE TABLE IF NOT EXISTS documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        learner_id TEXT,
+
+        filename TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+
+        usage_context TEXT NOT NULL DEFAULT 'unknown',
+
+        organization_id TEXT,
+        workspace_id TEXT,
+
+        data_sensitivity TEXT
+            NOT NULL DEFAULT 'unknown',
+
+        ai_processing_status TEXT
+            NOT NULL DEFAULT 'blocked',
+
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
+    """
+    )
+
+    # ==================================================
+# DOCUMENT SECURITY SCHEMA MIGRATION
+# ==================================================
+#
+# Eski database dosyalarında document security
+# kolonları bulunmayabilir.
+#
+# Eski kayıtları otomatik olarak personal/work
+# kabul etmiyoruz.
+#
+# Güvenli varsayılan:
+#
+# usage_context       = unknown
+# data_sensitivity    = unknown
+# ai_processing_status = blocked
+
+    document_columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(documents)"
+        ).fetchall()
+    }
+
+
+    if "learner_id" not in document_columns:
+        connection.execute(
+            """
+            ALTER TABLE documents
+            ADD COLUMN learner_id TEXT
+            """
+        )
+
+
+    if "usage_context" not in document_columns:
+        connection.execute(
+            """
+            ALTER TABLE documents
+            ADD COLUMN usage_context TEXT
+            NOT NULL DEFAULT 'unknown'
+            """
+        )
+
+
+    if "organization_id" not in document_columns:
+        connection.execute(
+            """
+            ALTER TABLE documents
+            ADD COLUMN organization_id TEXT
+            """
+        )
+
+
+    if "workspace_id" not in document_columns:
+        connection.execute(
+            """
+            ALTER TABLE documents
+            ADD COLUMN workspace_id TEXT
+            """
+        )
+
+
+    if "data_sensitivity" not in document_columns:
+        connection.execute(
+            """
+            ALTER TABLE documents
+            ADD COLUMN data_sensitivity TEXT
+            NOT NULL DEFAULT 'unknown'
+            """
+        )
+
+
+    if "ai_processing_status" not in document_columns:
+        connection.execute(
+            """
+            ALTER TABLE documents
+            ADD COLUMN ai_processing_status TEXT
+            NOT NULL DEFAULT 'blocked'
+            """
+        )
 
     # Belgelerden oluşturulan metin parçalarını saklar. (chunk lari saklar)
     connection.execute(
@@ -647,20 +742,48 @@ def delete_last_message(session_id: str):
 
 # Yüklenen belgeyi documents tablosuna kaydeder
 # ve oluşturulan document id'sini geri döndürür.
-def insert_document(filename: str, content_type: str) -> int:
+def insert_document(
+    filename: str,
+    content_type: str,
+    learner_id: str,
+    usage_context: str,
+    data_sensitivity: str,
+    ai_processing_status: str,
+    organization_id: str | None = None,
+    workspace_id: str | None = None,
+) -> int:
+
     connection = get_connection()
 
     cursor = connection.execute(
         """
-        INSERT INTO documents (filename, content_type)
-        VALUES (?, ?)
+        INSERT INTO documents (
+            learner_id,
+            filename,
+            content_type,
+            usage_context,
+            organization_id,
+            workspace_id,
+            data_sensitivity,
+            ai_processing_status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (filename, content_type),
+        (
+            learner_id,
+            filename,
+            content_type,
+            usage_context,
+            organization_id,
+            workspace_id,
+            data_sensitivity,
+            ai_processing_status,
+        ),
     )
 
     connection.commit()
 
-    document_id = cursor.lastrowid  # ise yeni oluşturulan belgenin otomatik id değerini verir.
+    document_id = cursor.lastrowid
 
     connection.close()
 

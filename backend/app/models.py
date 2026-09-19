@@ -32,20 +32,128 @@ class ChatResponse(BaseModel):      #/chat endpoint’inin başarılı cevabınd
                                     #reply isimli string alan bulunacak.
     reply: str
 
+# ==================================================
+# DOCUMENT SECURITY
+# ==================================================
 
+class DocumentMetadata(BaseModel):
+    document_id: int
+
+    # Eski / migrate edilmemiş document kayıtlarında
+    # owner henüz bilinmeyebilir.
+    learner_id: str | None = None
+
+    filename: str
+    content_type: str
+
+    # "unknown" eski veya henüz sınıflandırılmamış
+    # document'lar için güvenli ara durumdur.
+    usage_context: Literal[
+        "personal",
+        "work",
+        "unknown",
+    ] = "unknown"
+
+    # Work document'larında kullanılacak.
+    organization_id: str | None = None
+    workspace_id: str | None = None
+
+    data_sensitivity: Literal[
+        "public",
+        "internal",
+        "confidential",
+        "restricted",
+        "unknown",
+    ] = "unknown"
+
+    # Default deny:
+    # Security policy açıkça izin vermedikçe
+    # external AI processing kapalı kalır.
+    ai_processing_status: Literal[
+        "allowed",
+        "blocked",
+        "pending",
+    ] = "blocked"
+
+    created_at: str | None = None
+
+class DocumentSecurityDecision(BaseModel):
+
+    ai_processing_status: Literal[
+        "allowed",
+        "blocked",
+        "pending",
+    ]
+
+    external_ai_allowed: bool
+
+    reason_code: Literal[
+        "allowed_public",
+        "allowed_personal_internal",
+        "allowed_organization_internal",
+        "unknown_context",
+        "unknown_sensitivity",
+        "organization_required",
+        "organization_policy_required",
+        "organization_policy_blocked",
+        "sensitive_data_blocked",
+    ]
+
+    reason: str
+
+class DocumentAccessDecision(BaseModel):
+
+    allowed: bool
+
+    reason_code: Literal[
+        "allowed",
+        "unknown_owner",
+        "owner_mismatch",
+        "unknown_context",
+        "context_mismatch",
+        "organization_required",
+        "organization_mismatch",
+    ]
+
+    reason: str
 class DocumentAskRequest(BaseModel):
+    learner_id: str
+
+    usage_context: Literal[
+        "personal",
+        "work",
+    ]
+
+    organization_id: str | None = None
+
     question: str
-    top_k: int =Field(default=3, ge=1, le=10)
+
+    top_k: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
+
     session_id: str
 
-class DocumentSearchRequest(BaseModel): # sadece dokuman icinde arama yapiyor.
+
+class DocumentSearchRequest(BaseModel):
+    learner_id: str
+
+    usage_context: Literal[
+        "personal",
+        "work",
+    ]
+
+    organization_id: str | None = None
+
     question: str
-    top_k: int =Field(default=3, ge=1, le=10)   
-# Field(...)
-# │
-# ├── default=3  → top_k gönderilmezse 3
-# ├── ge=1       → greater than or equal → en az 1
-# └── le=10      → less than or equal → en fazla 10
+
+    top_k: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
 
 class MentorDecision(BaseModel):
     skill_name: str
@@ -518,6 +626,12 @@ class Workspace(BaseModel):
         "personal",
     ] = "work"
 
+    # Work workspace'in hangi organization'a
+    # ait olduğunu belirtir.
+    #
+    # Personal workspace için None kalır.
+    organization_id: str | None = None
+
     # Sadece work workspace'lerde anlamlıdır.
     # Şimdilik metadata olarak saklanır.
     # Gerçek security enforcement daha sonra eklenecek.
@@ -553,6 +667,18 @@ class Workspace(BaseModel):
     dataset_profile: dict | None = None
 
     dataset_analysis: DataQualityAnalysis | None = None
+
+    dataset_ai_processing_status: Literal[
+        "allowed",
+        "blocked",
+        "pending",
+    ] | None = None
+
+    dataset_analysis_source: Literal[
+        "local",
+        "local_and_ai",
+        "local_ai_fallback",
+    ] | None = None
 
     validation_result: WorkspaceValidationResponse | None = None
 
@@ -1172,6 +1298,8 @@ class WorkspaceCreateRequest(BaseModel):
         "personal",
     ] = "work"
 
+    organization_id: str | None = None
+    
     data_sensitivity: Literal[
         "public",
         "internal",

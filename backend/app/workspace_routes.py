@@ -53,6 +53,15 @@ from backend.app.mentor_service import (
     review_data_engineering_task_transformation,
 )
 
+from backend.app.local_data_quality_service import (
+    analyze_dataframe_locally,
+    merge_data_quality_analyses,
+)
+
+from backend.app.document_security_service import (
+    evaluate_document_ai_policy,
+)
+
 router = APIRouter()
 
 
@@ -87,6 +96,7 @@ def create_workspace(
         learner_id=request.learner_id,
         title=request.title,
         usage_context=request.usage_context,
+        organization_id=request.organization_id,
         data_sensitivity=request.data_sensitivity,
         task_brief=request.task_brief,
         desired_outcome=request.desired_outcome,
@@ -269,21 +279,131 @@ def profile_workspace_data(
             detail="CSV dosyası geçersiz veya bozuk.",
         )
 
-    profile = build_data_profile(df)
-    
+        # ==================================================
+    # LOCAL DATA ANALYSIS
+    # ==================================================
+    #
+    # Raw dataset üzerinde deterministic kontroller
+    # HER ZAMAN local olarak çalışır.
+    #
+    # Bu işlem external AI izninden bağımsızdır.
+
+    local_analysis = (
+        analyze_dataframe_locally(
+            df
+        )
+    )
+
+
+    # ==================================================
+    # SAFE PROFILE
+    # ==================================================
+    #
+    # Raw sample rows external AI context'ine
+    # dahil edilmez.
+
+    profile = build_data_profile(
+        df
+    )
+
     safe_profile = {
         key: value
         for key, value in profile.items()
         if key != "sample_rows"
     }
-    
-    analysis = generate_data_recommendations(
+
+
+    # ==================================================
+    # DATA SECURITY POLICY
+    # ==================================================
+
+    security_decision = (
+        evaluate_document_ai_policy(
+            usage_context=(
+                workspace.usage_context
+            ),
+            data_sensitivity=(
+                workspace.data_sensitivity
+                or "unknown"
+            ),
+            organization_id=(
+                workspace.organization_id
+            ),
+            organization_ai_allowed=None,
+        )
+    )
+
+
+    # ==================================================
+    # ANALYSIS STRATEGY
+    # ==================================================
+
+    if (
+        security_decision
+        .external_ai_allowed
+    ):
+
+        try:
+            ai_analysis = (
+                generate_data_recommendations(
+                    safe_profile
+                )
+            )
+
+            analysis = (
+                merge_data_quality_analyses(
+                    local_analysis,
+                    ai_analysis,
+                )
+            )
+
+            analysis_source = (
+                "local_and_ai"
+            )
+
+        except Exception:
+
+            # External AI izinli olsa bile
+            # servis çalışmazsa junior'ın işi
+            # tamamen durmamalı.
+            #
+            # Local deterministic findings ile
+            # devam ediyoruz.
+
+            analysis = local_analysis
+
+            analysis_source = (
+                "local_ai_fallback"
+            )
+
+    else:
+
+        # Confidential / restricted / unknown
+        # veya organization policy izin vermiyorsa
+        # external AI çağrısı yapılmaz.
+
+        analysis = local_analysis
+
+        analysis_source = "local"
+
+    workspace.dataset_filename = file.filename
+    workspace.dataset_profile = (
         safe_profile
     )
 
-    workspace.dataset_filename = file.filename
-    workspace.dataset_profile = safe_profile
-    workspace.dataset_analysis = analysis
+    workspace.dataset_analysis = (
+        analysis
+    )
+
+    workspace.dataset_ai_processing_status = (
+        security_decision
+        .ai_processing_status
+    )
+
+    workspace.dataset_analysis_source = (
+        analysis_source
+    )
+
     workspace.validation_result = None
 
     workspace.checkpoint.completed_items = [
@@ -333,10 +453,28 @@ def profile_workspace_data(
     )
 
     return {
-        "workspace_id": workspace_id,
-        "filename": file.filename,
-        "profile": safe_profile,
-        "analysis": analysis.model_dump(),
+        "workspace_id":
+            workspace_id,
+
+        "filename":
+            file.filename,
+
+        "profile":
+            safe_profile,
+
+        "analysis":
+            analysis.model_dump(),
+
+        "ai_processing_status":
+            security_decision
+            .ai_processing_status,
+
+        "external_ai_allowed":
+            security_decision
+            .external_ai_allowed,
+
+        "analysis_source":
+            analysis_source,
     }
 
 @router.get(

@@ -23,7 +23,12 @@ Daha sonra eklenecek aşamalar:
 - Bulunan bilgilere dayanarak AI cevabı üretme
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    UploadFile,
+    Form,
+)
 from pypdf import PdfReader
 from backend.app.database import(
     insert_chunks,
@@ -32,8 +37,12 @@ from backend.app.database import(
     get_chunks_by_document,
     get_session_by_id,
     insert_message,
-    get_messages_by_session
+    get_messages_by_session,
+    get_learner_profile_by_id,
 ) 
+from backend.app.document_security_service import (
+    evaluate_document_ai_policy,
+)
 
 from backend.app.embedding_service import (
     create_embedding,
@@ -42,7 +51,9 @@ from backend.app.embedding_service import (
 from backend.app.retrieval_service import find_relevant_chunks
 from backend.app.models import DocumentSearchRequest, DocumentAskRequest
 from backend.app.rag_service import build_context, generate_answer
-
+from backend.app.document_access_service import (
+    evaluate_document_access,
+)
 
 router = APIRouter()  # Belge endpoint'lerini gruplar.
 
@@ -56,7 +67,59 @@ ALLOWED_CONTENT_TYPES = {
     "text/plain",
 }
 
+def require_document_access(
+    document_id: int,
+    learner_id: str,
+    usage_context: str,
+    organization_id: str | None = None,
+):
 
+    document = get_document_by_id(
+        document_id
+    )
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Belge bulunamadı.",
+        )
+
+    decision = evaluate_document_access(
+        document=document,
+        requester_learner_id=(
+            learner_id
+        ),
+        usage_context=usage_context,
+        organization_id=(
+            organization_id
+        ),
+    )
+
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Bu belgeye erişim izniniz yok."
+            ),
+        )
+
+    return document
+
+def require_external_ai_access(
+    document,
+):
+
+    if (
+        document["ai_processing_status"]
+        != "allowed"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Bu belge için external AI "
+                "processing izinli değil."
+            ),
+        )
 
 # ==================================================
 # BELGE HAZIRLAMA YARDIMCI FONKSİYONLARI
@@ -106,95 +169,361 @@ def extract_pdf_text(file: UploadFile) -> str:
 # ==================================================
 
 @router.post("/documents/upload")
-def upload_document(file: UploadFile):      # stekteki file alanını al ve bir UploadFile nesnesine çevir. file.filename, file.content_type, file.file.read() erisebiliyoruz.
-    # Dosya PDF veya TXT değilse isteği reddeder.
+def upload_document(
+    file: UploadFile,
+
+    learner_id: str = Form(...),
+
+    usage_context: str = Form(...),
+
+    data_sensitivity: str = Form(...),
+
+    organization_id: str | None = Form(
+        default=None
+    ),
+
+    workspace_id: str | None = Form(
+        default=None
+    ),
+):
+
+    # ==================================================
+    # FILE TYPE
+    # ==================================================
+
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="Yalnızca PDF veya TXT dosyası yükleyebilirsiniz.",
+            detail=(
+                "Yalnızca PDF veya TXT "
+                "dosyası yükleyebilirsiniz."
+            ),
         )
 
-    # Dosya türüne göre metni çıkarır.
-    if file.content_type == "text/plain":
-        file_bytes = file.file.read()       # TXT dosyasını bytes olarak okur.
-        text = file_bytes.decode("utf-8")   # Bytes verisini normal metne çevirir.
-    else:
-        text = extract_pdf_text(file)       # PDF içindeki metni çıkarır.
+    # ==================================================
+    # LEARNER
+    # ==================================================
 
-    # PDF veya TXT içinde okunabilir metin yoksa işlemi durdurur.
+    learner = get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner bulunamadı.",
+        )
+
+    # ==================================================
+    # SECURITY METADATA VALIDATION
+    # ==================================================
+
+    if usage_context not in {
+        "personal",
+        "work",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "usage_context yalnızca "
+                "personal veya work olabilir."
+            ),
+        )
+
+    if data_sensitivity not in {
+        "public",
+        "internal",
+        "confidential",
+        "restricted",
+        "unknown",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Geçersiz document "
+                "sensitivity değeri."
+            ),
+        )
+
+    # ==================================================
+    # SECURITY POLICY
+    # ==================================================
+    #
+    # ÖNEMLİ:
+    # Bu kontrol dosya içeriğini okumadan ve
+    # external AI çağrısı yapmadan önce gerçekleşir.
+    #
+    # Work + internal için organization policy
+    # henüz implement edilmediği için policy=None.
+    # Sonuç PENDING olacaktır.
+
+    security_decision = (
+        evaluate_document_ai_policy(
+            usage_context=usage_context,
+            data_sensitivity=(
+                data_sensitivity
+            ),
+            organization_id=(
+                organization_id
+            ),
+            organization_ai_allowed=None,
+        )
+    )
+
+    # ==================================================
+    # EXTERNAL AI BLOCKED / PENDING
+    # ==================================================
+    #
+    # Güvenlik kararı AI işlemine izin vermiyorsa:
+    #
+    # - dosya içeriğini okumuyoruz
+    # - chunk oluşturmuyoruz
+    # - embedding üretmiyoruz
+    #
+    # V1'de yalnızca document metadata kaydedilir.
+    #
+    # Daha sonra encrypted local storage
+    # eklediğimizde raw file burada güvenli şekilde
+    # saklanabilecek.
+
+    if not security_decision.external_ai_allowed:
+
+        document_id = insert_document(
+            filename=file.filename,
+            content_type=file.content_type,
+            learner_id=learner_id,
+            usage_context=usage_context,
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            data_sensitivity=(
+                data_sensitivity
+            ),
+            ai_processing_status=(
+                security_decision
+                .ai_processing_status
+            ),
+        )
+
+        return {
+            "document_id": document_id,
+            "filename": file.filename,
+
+            "usage_context":
+                usage_context,
+
+            "data_sensitivity":
+                data_sensitivity,
+
+            "ai_processing_status":
+                security_decision
+                .ai_processing_status,
+
+            "external_ai_allowed":
+                False,
+
+            "reason_code":
+                security_decision
+                .reason_code,
+
+            "security_reason":
+                security_decision.reason,
+
+            "content_ingested":
+                False,
+
+            "chunk_count":
+                0,
+        }
+
+    # ==================================================
+    # CONTENT EXTRACTION
+    # ==================================================
+    #
+    # Buraya geldiysek policy external AI
+    # processing'e açıkça izin verdi.
+
+    if file.content_type == "text/plain":
+
+        file_bytes = file.file.read()
+
+        text = file_bytes.decode(
+            "utf-8"
+        )
+
+    else:
+
+        text = extract_pdf_text(
+            file
+        )
+
     if not text.strip():
         raise HTTPException(
             status_code=400,
-            detail="Dosyadan metin çıkarılamadı.",
+            detail=(
+                "Dosyadan metin "
+                "çıkarılamadı."
+            ),
         )
 
-    # PDF veya TXT metnini chunk'lara böler.
-    chunks = split_text_into_chunks(text)
+    # ==================================================
+    # CHUNKS + EMBEDDINGS
+    # ==================================================
 
-    # Bütün chunk'ların embedding vektörlerini oluşturur
-    chunk_embeddings = create_embeddings(chunks)
+    chunks = split_text_into_chunks(
+        text
+    )
 
-    # Belge bilgilerini documents tablosuna kaydeder.
+    chunk_embeddings = (
+        create_embeddings(
+            chunks
+        )
+    )
+
+    # ==================================================
+    # DOCUMENT METADATA
+    # ==================================================
+
     document_id = insert_document(
         filename=file.filename,
         content_type=file.content_type,
+        learner_id=learner_id,
+        usage_context=usage_context,
+        organization_id=organization_id,
+        workspace_id=workspace_id,
+        data_sensitivity=(
+            data_sensitivity
+        ),
+        ai_processing_status=(
+            security_decision
+            .ai_processing_status
+        ),
     )
 
-    # Chunk'ları aynı document_id ile chunks tablosuna kaydeder.
     insert_chunks(
         document_id=document_id,
         chunks=chunks,
-        embeddings=chunk_embeddings
+        embeddings=chunk_embeddings,
     )
 
-    return {                    # Endpoint Python sözlüğü döndürüyor
+    return {
         "document_id": document_id,
         "filename": file.filename,
-        "content_type": file.content_type,
-        "character_count": len(text),
-        "preview": text[:200],
-        "chunk_count": len(chunks),
-        "first_chunk_preview": chunks[0][:200],
-        "embedding_count": len(chunk_embeddings),
-        "first_embedding_length": len(chunk_embeddings[0]),
-        "first_embedding_preview": chunk_embeddings[0][:5],
+        "content_type":
+            file.content_type,
+
+        "usage_context":
+            usage_context,
+
+        "data_sensitivity":
+            data_sensitivity,
+
+        "ai_processing_status":
+            security_decision
+            .ai_processing_status,
+
+        "external_ai_allowed":
+            True,
+
+        "reason_code":
+            security_decision
+            .reason_code,
+
+        "security_reason":
+            security_decision.reason,
+
+        "content_ingested":
+            True,
+
+        "character_count":
+            len(text),
+
+        "preview":
+            text[:200],
+
+        "chunk_count":
+            len(chunks),
+
+        "first_chunk_preview":
+            chunks[0][:200],
+
+        "embedding_count":
+            len(chunk_embeddings),
+
+        "first_embedding_length":
+            len(
+                chunk_embeddings[0]
+            ),
+
+        "first_embedding_preview":
+            chunk_embeddings[0][:5],
     }
+
 
 @router.get("/documents/{document_id}")
-def get_document(document_id: int):
-    # 1. Belgeyi database.py üzerinden getir.
-    document = get_document_by_id(document_id) 
+def get_document(
+    document_id: int,
+    learner_id: str,
+    usage_context: str,
+    organization_id: str | None = None,
+):
 
-    # 2. Belge yoksa 404 döndür.
-    if document is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Belge bulunamadı.",
-        )
+    document = require_document_access(
+        document_id=document_id,
+        learner_id=learner_id,
+        usage_context=usage_context,
+        organization_id=organization_id,
+    )
 
-    # 3. Belgeye ait chunk'ları getir.
-    chunks =  get_chunks_by_document(document_id)
+    chunks = get_chunks_by_document(
+        document_id
+    )
 
-    # 4. Belge bilgilerini ve chunk'ları döndür.
     return {
-        # database.py icinde documents tablosundaki kolonları SQL ile id, filename ve content_type
-        # olarak tanımladığımız için sonuçlara bu kolon adlarıyla erişiyoruz.
-        "document_id": document["id"],
-        "filename": document["filename"],
-        "content_type": document["content_type"],
+        "document_id":
+            document["id"],
+
+        "filename":
+            document["filename"],
+
+        "content_type":
+            document["content_type"],
+
+        "usage_context":
+            document["usage_context"],
+
+        "organization_id":
+            document["organization_id"],
+
+        "workspace_id":
+            document["workspace_id"],
+
+        "data_sensitivity":
+            document["data_sensitivity"],
+
+        "ai_processing_status":
+            document[
+                "ai_processing_status"
+            ],
+
         "chunks": [
             {
-                # database.py icinde,  SELECT sorgusunda chunk_index ve content kolonlarını aldığımız için
-                # her chunk satırına bu kolon adlarıyla erişiyoruz.
-                "chunk_index": chunk["chunk_index"],
-                "content": chunk["content"],
-                "embedding_length": len(chunk["embedding"]),
-                "embedding_preview": chunk["embedding"][:5],
+                "chunk_index":
+                    chunk["chunk_index"],
+
+                "content":
+                    chunk["content"],
+
+                "embedding_length":
+                    len(
+                        chunk["embedding"]
+                    ),
+
+                "embedding_preview":
+                    chunk["embedding"][:5],
             }
-            for chunk in chunks     # tek bir chunk değil, birden fazla chunk’tan oluşan liste döndürür
+            for chunk in chunks
         ],
     }
-
 
 # /search
 # → Yalnızca ilgili chunk’ları bulur ve döndürür
@@ -205,15 +534,18 @@ def search_document(
     ):
 
     # URL'den gelen document_id ile belgeyi veritabanında arar.
-    document = get_document_by_id(document_id)
+    document = require_document_access(
+        document_id=document_id,
+        learner_id=request.learner_id,
+        usage_context=request.usage_context,
+        organization_id=(
+            request.organization_id
+        ),
+    )
 
-    # Belge bulunamazsa arama yapılamaz.
-    if document is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Belge bulunamadı.",
-        )
-
+    require_external_ai_access(
+        document
+    )
     # Kullanıcının gönderdiği sorunun başındaki ve sonundaki boşlukları temizler.
     question = request.question.strip() #model icinde questionve top-k vardi, biz questionaldik.
 
@@ -268,14 +600,18 @@ def ask_document(
         )
     
     # URL'den gelen document_id ile belgeyi veritabanında arar.
-    document = get_document_by_id(document_id)
-
-    # Belge bulunamazsa arama yapılamaz.
-    if document is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Belge bulunamadı.",
-        )
+    document = require_document_access(
+        document_id=document_id,
+        learner_id=request.learner_id,
+        usage_context=request.usage_context,
+        organization_id=(
+            request.organization_id
+        ),
+    )
+    
+    require_external_ai_access(
+        document
+    )
 
     # Kullanıcının gönderdiği sorunun başındaki ve sonundaki boşlukları temizler.
     question = request.question.strip() #model icinde questionve top-k vardi, biz questionaldik.

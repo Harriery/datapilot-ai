@@ -2,36 +2,80 @@ from fastapi.testclient import TestClient
 
 from backend.app.main import app
 from unittest.mock import patch
-
+import pytest
+import backend.app.database as database
 
 client = TestClient(app)
 
+@pytest.fixture(autouse=True)
+def ensure_demo_learner():
+
+    learner = (
+        database.get_learner_profile_by_id(
+            "demo-learner"
+        )
+    )
+
+    if learner is None:
+        database.insert_learner_profile(
+            learner_id="demo-learner",
+            answer_length="concise",
+            learning_style="guided",
+            code_support="medium",
+            preferred_language="auto",
+        )
+
+PERSONAL_PUBLIC_UPLOAD_DATA = {
+    "learner_id": "demo-learner",
+    "usage_context": "personal",
+    "data_sensitivity": "public",
+}
 
 #----- TXT dosya yukleme testi-----
 
 def test_upload_txt_document():
-    response = client.post(
-        "/documents/upload",
-        files={
-            "file": (                           # Testte gerçek bir dosya seçemediğimiz için, dosyayı kod içinde taklit ediyoruz:
-                "test.txt",
-                b"Data engineering test metni.",
-                "text/plain",
-            )
-        },
-    )
 
-    assert response.status_code == 200          # → Dosya başarıyla yüklendi mi?
-    assert "document_id" in response.json()     #  Belge veritabanına kaydedilip ID aldı mı?
-    assert response.json()["chunk_count"] >= 1  # → Metin en az bir chunk’a bölündü mü?
+    with patch(
+        "backend.app.document_routes.create_embeddings"
+    ) as mock_create_embeddings:
 
+        mock_create_embeddings.return_value = [
+            [1.0, 0.0]
+        ]
 
+        response = client.post(
+            "/documents/upload",
+            data=PERSONAL_PUBLIC_UPLOAD_DATA,
+            files={
+                "file": (
+                    "test.txt",
+                    b"Data engineering test metni.",
+                    "text/plain",
+                )
+            },
+        )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert "document_id" in body
+    assert body["chunk_count"] >= 1
+
+    assert body["usage_context"] == "personal"
+    assert body["data_sensitivity"] == "public"
+
+    assert body["external_ai_allowed"] is True
+    assert body["content_ingested"] is True
+
+    mock_create_embeddings.assert_called_once()
 
 #-----Gecersiz dosya turu testi-----
 
 def test_upload_invalid_file_type():
     response = client.post(
         "/documents/upload",
+        data=PERSONAL_PUBLIC_UPLOAD_DATA,
         files={
             "file": (
                 "test.jpg",
@@ -45,42 +89,62 @@ def test_upload_invalid_file_type():
     assert response.json()["detail"] == ("Yalnızca PDF veya TXT dosyası yükleyebilirsiniz.")
 
 def test_get_uploaded_document():
-     # Önce bir TXT belgesi yükler.
-    upload_response = client.post(
-        "/documents/upload",    # bu endpointe post istegi gonderiyruz. 
 
-        files={                 # Python dictionary ve tuple oluşturuyoruz
-            "file": (           # bu bizim test amacli olusturdugumuz txt dosyasi adi, icerigi
-                "test.txt",
-                b"Data engineering test metni",
-                "text/plain",
-            )
-        },
+    with patch(
+        "backend.app.document_routes.create_embeddings"
+    ) as mock_create_embeddings:
 
+        mock_create_embeddings.return_value = [
+            [1.0, 0.0]
+        ]
+
+        upload_response = client.post(
+            "/documents/upload",
+            data=PERSONAL_PUBLIC_UPLOAD_DATA,
+            files={
+                "file": (
+                    "test.txt",
+                    b"Data engineering test metni",
+                    "text/plain",
+                )
+            },
+        )
+
+    assert upload_response.status_code == 200
+
+    document_id = (
+        upload_response.json()[
+            "document_id"
+        ]
     )
 
-    # POST cevabındaki JSON'u Python sözlüğüne çevirir.
-    upload_body = upload_response.json()
+    get_response = client.get(
+        f"/documents/{document_id}",
+        params={
+            "learner_id": "demo-learner",
+            "usage_context": "personal",
+        },
+    )
 
-    # Sözlük içindeki document_id değerini alır.
-    document_id = upload_body["document_id"]
-
-    # Oluşan belgeyi ID ile tekrar ister.
-    # upload_response, HTTP Response nesnesidir.
-    # .json()  Python dict hâline getirir.
-    get_response = client.get(f"/documents/{document_id}")  
-
-    # GET cevabındaki JSON'u sözlüğe çevirir.
     get_body = get_response.json()
 
     assert get_response.status_code == 200
-    assert get_body["filename"] == "test.txt"
-    assert len(get_body["chunks"]) >= 1
 
+    assert get_body["filename"] == "test.txt"
+
+    assert len(
+        get_body["chunks"]
+    ) >= 1
 
 
 def test_get_nonexistent_document():
-    response = client.get("/documents/999999")
+    response = client.get(
+        "/documents/999999",
+        params={
+            "learner_id": "demo-learner",
+            "usage_context": "personal",
+        },
+    )
 
     # JSON cevabını Python sözlüğüne çevir.
     body = response.json()
@@ -106,6 +170,7 @@ def test_search_uploaded_document():
 
         upload_response = client.post(
             "/documents/upload",
+            data=PERSONAL_PUBLIC_UPLOAD_DATA,
             files={
                 "file": (
                     "search_test.txt",
@@ -133,6 +198,8 @@ def test_search_uploaded_document():
         search_response = client.post(
             f"/documents/{document_id}/search",
             json={
+                "learner_id": "demo-learner",
+                "usage_context": "personal",
                 "question": "Python listeleri nedir?",
                 "top_k": 1,
             },
@@ -163,6 +230,7 @@ def test_ask_uploaded_document():
 
         upload_response = client.post(
             "/documents/upload",
+            data=PERSONAL_PUBLIC_UPLOAD_DATA,
             files={
                 "file": (
                     "ask_test.txt",
@@ -204,6 +272,8 @@ def test_ask_uploaded_document():
                 ask_response = client.post(
                     f"/documents/{document_id}/ask",
                     json={
+                        "learner_id": "demo-learner",
+                        "usage_context": "personal",
                         "question": "Python listeleri nedir?",
                         "top_k": 1,
                         "session_id": session_id,
@@ -232,7 +302,11 @@ def test_ask_document_without_chunks():
 
         mock_get_document.return_value = {
             "id": 99,
+            "learner_id": "demo-learner",
             "filename": "empty.txt",
+            "usage_context": "personal",
+            "organization_id": None,
+            "ai_processing_status": "allowed",
         }
 
         session_response = client.post("/sessions")
@@ -246,6 +320,8 @@ def test_ask_document_without_chunks():
             response = client.post(
             "/documents/99/ask",
             json={
+                "learner_id": "demo-learner",
+                "usage_context": "personal",
                 "question": "Bu belgede ne anlatılıyor?",
                 "top_k": 1,
                 "session_id": session_id,
@@ -264,7 +340,11 @@ def test_ask_document_ai_error():
 
         mock_get_document.return_value = {
             "id": 99,
+            "learner_id": "demo-learner",
             "filename": "ai_error_test.txt",
+            "usage_context": "personal",
+            "organization_id": None,
+            "ai_processing_status": "allowed",
         }
 
         session_response = client.post("/sessions")
@@ -299,6 +379,8 @@ def test_ask_document_ai_error():
                     response = client.post(
                         "/documents/99/ask",
                         json={
+                            "learner_id": "demo-learner",
+                            "usage_context": "personal",
                             "question": "Python listeleri nedir?",
                             "top_k": 1,
                             "session_id": session_id,
@@ -311,3 +393,352 @@ def test_ask_document_ai_error():
                     assert body["detail"] == (
                         "AI servisine şu anda ulaşılamıyor."
                     )
+
+def test_confidential_document_never_calls_embeddings():
+
+    with patch(
+        "backend.app.document_routes."
+        "create_embeddings"
+    ) as mock_embeddings:
+
+        response = client.post(
+            "/documents/upload",
+
+            data={
+                "learner_id":
+                    "demo-learner",
+
+                "usage_context":
+                    "work",
+
+                "data_sensitivity":
+                    "confidential",
+
+                "organization_id":
+                    "company-001",
+            },
+
+            files={
+                "file": (
+                    "confidential.txt",
+                    b"Sensitive company data",
+                    "text/plain",
+                )
+            },
+        )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert (
+        body["external_ai_allowed"]
+        is False
+    )
+
+    assert (
+        body["ai_processing_status"]
+        == "blocked"
+    )
+
+    assert (
+        body["content_ingested"]
+        is False
+    )
+
+    assert body["chunk_count"] == 0
+
+    mock_embeddings.assert_not_called()
+
+def test_personal_context_cannot_access_work_document():
+
+    with patch(
+        "backend.app.document_routes."
+        "create_embeddings"
+    ) as mock_embeddings:
+
+        mock_embeddings.return_value = [
+            [1.0, 0.0]
+        ]
+
+        upload_response = client.post(
+            "/documents/upload",
+
+            data={
+                "learner_id":
+                    "demo-learner",
+
+                "usage_context":
+                    "work",
+
+                "data_sensitivity":
+                    "public",
+
+                "organization_id":
+                    "company-001",
+            },
+
+            files={
+                "file": (
+                    "work.txt",
+                    b"Public work document",
+                    "text/plain",
+                )
+            },
+        )
+
+    document_id = (
+        upload_response.json()[
+            "document_id"
+        ]
+    )
+
+    response = client.get(
+        f"/documents/{document_id}",
+        params={
+            "learner_id":
+                "demo-learner",
+
+            "usage_context":
+                "personal",
+        },
+    )
+
+    assert response.status_code == 403
+
+
+def test_blocked_document_search_never_calls_ai():
+
+    upload_response = client.post(
+        "/documents/upload",
+
+        data={
+            "learner_id":
+                "demo-learner",
+
+            "usage_context":
+                "work",
+
+            "data_sensitivity":
+                "confidential",
+
+            "organization_id":
+                "company-001",
+        },
+
+        files={
+            "file": (
+                "secret.txt",
+                b"Sensitive company data",
+                "text/plain",
+            )
+        },
+    )
+
+    document_id = (
+        upload_response.json()[
+            "document_id"
+        ]
+    )
+
+    with patch(
+        "backend.app.document_routes."
+        "create_embedding"
+    ) as mock_embedding:
+
+        response = client.post(
+            f"/documents/{document_id}/search",
+
+            json={
+                "learner_id":
+                    "demo-learner",
+
+                "usage_context":
+                    "work",
+
+                "organization_id":
+                    "company-001",
+
+                "question":
+                    "What is inside?",
+
+                "top_k": 1,
+            },
+        )
+
+    assert response.status_code == 403
+
+    mock_embedding.assert_not_called()
+
+def test_personal_context_cannot_access_work_document():
+
+    with patch(
+        "backend.app.document_routes.create_embeddings"
+    ) as mock_embeddings:
+
+        mock_embeddings.return_value = [
+            [1.0, 0.0]
+        ]
+
+        upload_response = client.post(
+            "/documents/upload",
+            data={
+                "learner_id": "demo-learner",
+                "usage_context": "work",
+                "data_sensitivity": "public",
+                "organization_id": "company-001",
+            },
+            files={
+                "file": (
+                    "work.txt",
+                    b"Public work document",
+                    "text/plain",
+                )
+            },
+        )
+
+    assert upload_response.status_code == 200
+
+    document_id = (
+        upload_response.json()["document_id"]
+    )
+
+    response = client.get(
+        f"/documents/{document_id}",
+        params={
+            "learner_id": "demo-learner",
+            "usage_context": "personal",
+        },
+    )
+
+    assert response.status_code == 403
+
+def test_blocked_document_search_never_calls_ai():
+
+    upload_response = client.post(
+        "/documents/upload",
+        data={
+            "learner_id": "demo-learner",
+            "usage_context": "work",
+            "data_sensitivity": "confidential",
+            "organization_id": "company-001",
+        },
+        files={
+            "file": (
+                "secret.txt",
+                b"Sensitive company data",
+                "text/plain",
+            )
+        },
+    )
+
+    assert upload_response.status_code == 200
+
+    document_id = (
+        upload_response.json()["document_id"]
+    )
+
+    with patch(
+        "backend.app.document_routes.create_embedding"
+    ) as mock_embedding:
+
+        response = client.post(
+            f"/documents/{document_id}/search",
+            json={
+                "learner_id": "demo-learner",
+                "usage_context": "work",
+                "organization_id": "company-001",
+                "question": "What is inside?",
+                "top_k": 1,
+            },
+        )
+
+    assert response.status_code == 403
+
+    mock_embedding.assert_not_called()
+
+def test_other_learner_cannot_access_document():
+
+    with patch(
+        "backend.app.document_routes.create_embeddings"
+    ) as mock_embeddings:
+
+        mock_embeddings.return_value = [
+            [1.0, 0.0]
+        ]
+
+        upload_response = client.post(
+            "/documents/upload",
+            data={
+                "learner_id": "demo-learner",
+                "usage_context": "personal",
+                "data_sensitivity": "public",
+            },
+            files={
+                "file": (
+                    "personal.txt",
+                    b"Personal document",
+                    "text/plain",
+                )
+            },
+        )
+
+    assert upload_response.status_code == 200
+
+    document_id = (
+        upload_response.json()["document_id"]
+    )
+
+    response = client.get(
+        f"/documents/{document_id}",
+        params={
+            "learner_id": "another-learner",
+            "usage_context": "personal",
+        },
+    )
+
+    assert response.status_code == 403
+
+def test_other_organization_cannot_access_work_document():
+
+    with patch(
+        "backend.app.document_routes.create_embeddings"
+    ) as mock_embeddings:
+
+        mock_embeddings.return_value = [
+            [1.0, 0.0]
+        ]
+
+        upload_response = client.post(
+            "/documents/upload",
+            data={
+                "learner_id": "demo-learner",
+                "usage_context": "work",
+                "data_sensitivity": "public",
+                "organization_id": "company-001",
+            },
+            files={
+                "file": (
+                    "company.txt",
+                    b"Company document",
+                    "text/plain",
+                )
+            },
+        )
+
+    assert upload_response.status_code == 200
+
+    document_id = (
+        upload_response.json()["document_id"]
+    )
+
+    response = client.get(
+        f"/documents/{document_id}",
+        params={
+            "learner_id": "demo-learner",
+            "usage_context": "work",
+            "organization_id": "company-002",
+        },
+    )
+
+    assert response.status_code == 403

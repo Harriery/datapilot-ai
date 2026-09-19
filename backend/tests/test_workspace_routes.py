@@ -37,6 +37,11 @@ def test_create_workspace(tmp_path):
         json={
             "learner_id": "learner-001",
             "title": "Customer Data Quality",
+
+            "usage_context": "work",
+            "organization_id": "company-001",
+            "data_sensitivity": "internal",
+
             "workspace_type": "data_engineering",
             "current_task_id": "task-001",
         },
@@ -60,6 +65,18 @@ def test_create_workspace(tmp_path):
     assert (
         body["checkpoint"]["completed_items"]
         == []
+    )
+
+    assert body["usage_context"] == "work"
+
+    assert (
+        body["organization_id"]
+        == "company-001"
+    )
+
+    assert (
+        body["data_sensitivity"]
+        == "internal"
     )
 
 
@@ -332,6 +349,10 @@ def test_profile_workspace_data_does_not_send_sample_rows_to_ai(
         json={
             "learner_id": "learner-001",
             "title": "Private Dataset Test",
+        
+            "usage_context": "personal",
+            "data_sensitivity": "public",
+        
             "workspace_type": "data_engineering",
         },
     )
@@ -392,3 +413,185 @@ def test_profile_workspace_data_does_not_send_sample_rows_to_ai(
     body = response.json()
 
     assert "sample_rows" not in body["profile"]
+
+    assert (
+        body["external_ai_allowed"]
+        is True
+    )
+
+    assert (
+        body["analysis_source"]
+        == "local_and_ai"
+    )
+def test_personal_workspace_has_no_organization(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Personal Practice",
+            "usage_context": "personal",
+            "data_sensitivity": "internal",
+            "workspace_type": "practice",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["usage_context"] == "personal"
+
+    assert body["organization_id"] is None
+
+
+def test_confidential_workspace_uses_local_analysis_without_ai(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id":
+                "learner-001",
+
+            "title":
+                "Confidential Company Data",
+
+            "usage_context":
+                "work",
+
+            "organization_id":
+                "company-001",
+
+            "data_sensitivity":
+                "confidential",
+
+            "workspace_type":
+                "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()[
+            "workspace_id"
+        ]
+    )
+
+
+    ai_called = False
+
+    def fake_generate_data_recommendations(
+        profile: dict,
+    ):
+        nonlocal ai_called
+
+        ai_called = True
+
+        return DataQualityAnalysis(
+            findings=[]
+        )
+
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "generate_data_recommendations",
+        fake_generate_data_recommendations,
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "save_workspace_dataset",
+        lambda workspace_id, content: None,
+    )
+
+
+    csv_content = (
+        b"id,age,city\n"
+        b"1,20,Amsterdam\n"
+        b"2,,Rotterdam\n"
+        b"2,,Rotterdam\n"
+    )
+
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/profile"
+        ),
+        files={
+            "file": (
+                "confidential.csv",
+                csv_content,
+                "text/csv",
+            )
+        },
+    )
+
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+
+    # External AI kesinlikle çağrılmamalı.
+    assert ai_called is False
+
+    assert (
+        body["external_ai_allowed"]
+        is False
+    )
+
+    assert (
+        body["ai_processing_status"]
+        == "blocked"
+    )
+
+    assert (
+        body["analysis_source"]
+        == "local"
+    )
+
+
+    finding_types = {
+        finding["issue_type"]
+        for finding
+        in body["analysis"]["findings"]
+    }
+
+    assert (
+        "missing_values"
+        in finding_types
+    )
+
+    assert (
+        "duplicate_rows"
+        in finding_types
+    )
+
+
+    stored_workspace = (
+        database.get_workspace(
+            workspace_id=workspace_id,
+            learner_id="learner-001",
+        )
+    )
+
+    assert stored_workspace is not None
+
+    assert (
+        stored_workspace
+        .dataset_analysis_source
+        == "local"
+    )
+
+    assert (
+        stored_workspace
+        .dataset_ai_processing_status
+        == "blocked"
+    )
