@@ -583,6 +583,38 @@ class Workspace(BaseModel):
         default_factory=WorkspaceCheckpoint
     )
 
+class TaskSummaryItem(BaseModel):
+    workspace_id: str
+    workspace_title: str
+
+    task_id: str | None = None
+    task_title: str
+
+    status: Literal[
+        "todo",
+        "active",
+        "blocked",
+        "completed",
+    ]
+
+    current_step: str | None = None
+    next_action: str | None = None
+
+    validation_passed: bool = False
+    review_completed: bool = False
+    handoff_completed: bool = False
+
+    usage_context: Literal[
+        "work",
+        "personal",
+    ]
+
+
+class TaskSummaryResponse(BaseModel):
+    learner_id: str
+    tasks: list[TaskSummaryItem]
+
+
 # ==================================================
 # LEARNER PROGRESS
 # ==================================================

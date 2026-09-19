@@ -13,7 +13,9 @@ from backend.app.workspace_routes import (
     router as workspace_router,
 )
 
-
+from backend.app.task_routes import (
+    router as task_router,
+)
 
 # Server başlar
 # ↓
@@ -57,6 +59,7 @@ app.include_router(document_router)
 app.include_router(data_router)
 app.include_router(mentor_router)
 app.include_router(workspace_router)
+app.include_router(task_router)
 
 @app.get("/")
 def home():
