@@ -2238,3 +2238,204 @@ Temel kural:
 
 > Security boundary önce backend'de uygulanır. UI hiçbir zaman tek güvenlik kontrolü olarak kullanılmaz.
 
+## Local Data Engine and Mentor Fallback
+
+Document Security yalnızca "AI'ya gönder / gönderme" kararı değildir.
+
+DataPilot'ın amacı, external AI kullanılamadığı durumda mentorun tamamen körleşmesini önlemektir.
+
+Temel mimari:
+
+```text
+Dataset / Document
+↓
+Local Analysis Engine
+↓
+Security Policy
+↓
+External AI allowed?
+├── YES → safe context → AI mentor
+└── NO  → local findings → mentor fallback
+```
+
+### Local Data Engine
+
+Özellikle gerçek iş dataset'lerinde mümkün olan deterministic kontroller önce local olarak yapılmalıdır.
+
+Local Data Engine mümkün olduğunca şu problem sınıflarını incelemelidir:
+
+- missing / null values
+- duplicate rows
+- duplicate keys
+- schema mismatches
+- unexpected columns
+- missing required columns
+- data type problems
+- parsing problems
+- invalid numeric values
+- suspicious min / max values
+- impossible ranges
+- outliers / extreme values
+- empty strings
+- whitespace-only values
+- inconsistent casing
+- inconsistent categorical values
+- malformed dates
+- invalid date ranges
+- invalid identifiers
+- uniqueness violations
+- referential consistency problems where reference data is available
+- row-count anomalies
+- before / after transformation row-count changes
+- dropped columns
+- unexpected null growth
+- duplicate growth after transformation
+- validation regressions
+- basic distribution changes
+- schema drift
+- other deterministic checks that can be derived safely from the dataset
+
+Bu liste sabit bir son liste değildir.
+
+DataPilot ileride yeni deterministic validator'lar ekleyerek local analysis kapsamını genişletebilir.
+
+### Raw Data Boundary
+
+Local analysis mümkün olduğunca raw dataset üzerinde çalışabilir.
+
+Ancak external AI'ya ham satırlar otomatik olarak gönderilmemelidir.
+
+AI'ya gönderilebilecek context, security policy izin veriyorsa mümkün olduğunca güvenli ve minimize edilmiş olmalıdır.
+
+Örnek:
+
+```text
+Raw rows
+→ local only
+
+Safe profile
+→ row_count
+→ column_count
+→ data_types
+→ null_counts
+→ duplicate_count
+→ numeric_summary
+→ validated findings
+```
+
+Önemli:
+
+Kolon isimleri, istatistikler veya metadata bile bazı şirketlerde hassas olabilir.
+
+Bu nedenle "safe profile" ifadesi tek başına external AI izni anlamına gelmez.
+
+Security Policy yine uygulanmalıdır.
+
+### Mentor Fallback Without External AI
+
+External AI processing engellendiğinde mentor işlevsiz hale gelmemelidir.
+
+Local findings kullanılarak junior'a deterministic bir çalışma akışı verilmelidir.
+
+Örnek:
+
+```text
+Finding:
+14 duplicate rows
+
+Mentor fallback:
+1. Duplicate kayıtları görüntüle.
+2. Gerçekten aynı entity olup olmadığını doğrula.
+3. Business key varsa key bazında tekrar kontrol et.
+4. Silmeden önce duplicate oluşum nedenini belirle.
+5. Transformation sonrası duplicate count'u yeniden doğrula.
+```
+
+Başka bir örnek:
+
+```text
+Finding:
+age column
+84 missing values
+
+Mentor fallback:
+1. Eksik kayıtları ayır.
+2. Eksikliğin pattern gösterip göstermediğini kontrol et.
+3. Business rule'u doğrula.
+4. Silme / doldurma kararını otomatik verme.
+5. Seçilen işlemi uyguladıktan sonra null count'u tekrar kontrol et.
+```
+
+Bu mentor fallback'i yalnızca statik metin olmamalıdır.
+
+Finding type, severity, dataset state ve junior'ın mevcut task durumuna göre uygun sıradaki küçük adımı seçmelidir.
+
+### Junior Assistance
+
+External AI kullanılamadığı durumda da junior:
+
+- finding hakkında açıklama alabilmeli
+- sıradaki küçük adımı görebilmeli
+- yaptığı transformation'ı local validation ile kontrol edebilmeli
+- hata yaptığında deterministic feedback alabilmeli
+- aynı finding üzerinde tekrar deneyebilmeli
+- tamamlanan ve kalan kontrolleri takip edebilmeli
+
+Ama sistem güvenlik sınırını aşmamalıdır.
+
+Eğer bir sorunun cevaplanması gerçekten semantic / domain reasoning gerektiriyorsa ve external AI yasaksa sistem bunu açıkça belirtmelidir.
+
+Örnek:
+
+```text
+Local checks show that age contains values between -4 and 227.
+
+DataPilot can confirm that these values are statistically suspicious,
+but cannot determine the correct business rule without an approved
+domain source or AI processing permission.
+```
+
+Bu durumda mentor junior'a:
+
+- ilgili business rule'u bulmasını
+- approved company documentation'a bakmasını
+- domain owner / senior engineer ile doğrulamasını
+- daha sonra sonucu DataPilot'a validation için vermesini
+
+önermelidir.
+
+### Shared Security Policy
+
+Documents Security ve Workspace Data Security ayrı iki sistem olarak geliştirilmemelidir.
+
+İkisi aynı policy katmanını kullanmalıdır.
+
+```text
+Document
+   ┐
+   ├──→ Data Security Policy
+Dataset
+   ┘
+```
+
+Policy en az şu sorulara cevap vermelidir:
+
+- context personal mı work mü?
+- hangi organization?
+- hangi workspace?
+- sensitivity seviyesi nedir?
+- external AI processing izinli mi?
+- local processing izinli mi?
+- hangi metadata dışarı çıkabilir?
+- audit gerekli mi?
+
+### Product Principle
+
+DataPilot'ın güvenlik hedefi:
+
+> External AI yasak olduğunda işi durdurmak değil; güvenli şekilde local analysis ve deterministic mentoring ile junior'ın ilerlemesini mümkün olduğunca sürdürmek.
+
+Ancak:
+
+> Security boundary hiçbir zaman mentor kolaylığı uğruna aşılmamalıdır.
+
