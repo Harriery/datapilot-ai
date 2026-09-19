@@ -160,3 +160,112 @@ def generate_workspace_execution_plan(
         current_step_number=1,
         status="active",
     )
+
+def generate_local_workspace_execution_plan(
+    workspace: Workspace,
+    findings: list[DataQualityFinding],
+) -> DataEngineeringTask:
+
+    if not findings:
+        raise ValueError(
+            "Execution plan oluşturmak için finding bulunamadı."
+        )
+
+    supported_findings = [
+        finding
+        for finding in findings
+        if finding.issue_type
+        in SUPPORTED_TRANSFORMATION_ISSUES
+    ]
+
+    if not supported_findings:
+        raise ValueError(
+            "Bu dataset için şu anda desteklenen "
+            "bir transformation finding bulunamadı."
+        )
+
+    issue_priority = {
+        "duplicate_rows": 0,
+        "missing_values": 1,
+    }
+
+    severity_priority = {
+        "high": 0,
+        "medium": 1,
+        "low": 2,
+    }
+
+    supported_findings.sort(
+        key=lambda finding: (
+            issue_priority.get(
+                finding.issue_type,
+                99,
+            ),
+            severity_priority.get(
+                finding.severity,
+                99,
+            ),
+        )
+    )
+
+    task_steps: list[
+        DataEngineeringTaskStep
+    ] = []
+
+    for finding in supported_findings:
+
+        if (
+            finding.issue_type
+            == "duplicate_rows"
+        ):
+            title = (
+                "Duplicate kayıtları incele "
+                "ve doğrula"
+            )
+
+        elif (
+            finding.issue_type
+            == "missing_values"
+        ):
+            if finding.column:
+                title = (
+                    f"{finding.column} kolonundaki "
+                    "eksik değerleri incele"
+                )
+            else:
+                title = (
+                    "Eksik değerleri incele"
+                )
+
+        else:
+            continue
+
+        task_steps.append(
+            DataEngineeringTaskStep(
+                step_number=(
+                    len(task_steps) + 1
+                ),
+                title=title,
+                finding=finding,
+                status=(
+                    "active"
+                    if not task_steps
+                    else "pending"
+                ),
+            )
+        )
+
+    if not task_steps:
+        raise ValueError(
+            "Local execution plan oluşturulamadı."
+        )
+
+    return DataEngineeringTask(
+        task_id=str(uuid.uuid4()),
+        title=(
+            f"{workspace.title} Data Quality Plan"
+        ),
+        steps=task_steps,
+        current_step_number=1,
+        status="active",
+    )

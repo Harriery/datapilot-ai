@@ -500,6 +500,32 @@ class WorkspaceExecutionPlanResponse(BaseModel):
     # Oluşturulup DB'ye kaydedilmiş gerçek task.
     task: DataEngineeringTask
 
+class WorkspaceFindingMentorResponse(BaseModel):
+    finding_index: int
+
+    finding: DataQualityFinding
+
+    skill_name: str
+
+    skill_status: Literal[
+        "new",
+        "learning",
+        "practicing",
+        "comfortable",
+    ]
+
+    assistance_level: Literal[
+        "NONE",
+        "NUDGE",
+        "GUIDE",
+    ]
+
+    mentor_response: str
+
+    source: Literal[
+        "local",
+    ] = "local"
+
 class WorkspaceWorkingDataResponse(
     BaseModel
 ):

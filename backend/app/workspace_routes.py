@@ -24,6 +24,7 @@ from backend.app.models import (
     WorkspaceValidationCheck,
     WorkspaceValidationResponse,
     WorkspaceReviewResponse,
+    WorkspaceFindingMentorResponse,
 )
 
 import pandas as pd
@@ -34,6 +35,7 @@ from backend.app.data_profile_service import build_data_profile
 from backend.app.data_ai_service import generate_data_recommendations
 from backend.app.workspace_plan_service import (
     generate_workspace_execution_plan,
+    generate_local_workspace_execution_plan,
 )
 
 from backend.app.workspace_data_service import (
@@ -51,6 +53,7 @@ from backend.app.workspace_data_service import (
 
 from backend.app.mentor_service import (
     review_data_engineering_task_transformation,
+    get_skill_for_data_quality_issue,
 )
 
 from backend.app.local_data_quality_service import (
@@ -60,6 +63,12 @@ from backend.app.local_data_quality_service import (
 
 from backend.app.document_security_service import (
     evaluate_document_ai_policy,
+)
+
+from backend.app.local_data_quality_mentor_service import (
+    build_local_mentor_response,
+    get_local_assistance_level,
+    review_task_transformation_locally,
 )
 
 router = APIRouter()
@@ -170,12 +179,105 @@ def create_workspace_execution_plan(
                 task=existing_task
             )
 
-    try:
-        task = generate_workspace_execution_plan(
-            workspace=workspace,
-            profile=request.profile,
-            findings=request.findings,
+        # ==================================================
+    # TRUSTED WORKSPACE DATA
+    # ==================================================
+    #
+    # Execution plan için frontend'in gönderdiği
+    # profile/findings güvenlik kaynağı değildir.
+    #
+    # Backend'in daha önce local olarak oluşturup
+    # workspace'e kaydettiği veriyi kullanıyoruz.
+
+    if workspace.dataset_profile is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Execution plan öncesinde "
+                "dataset profile oluşturulmalı."
+            ),
         )
+
+    if workspace.dataset_analysis is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Execution plan öncesinde "
+                "dataset analysis oluşturulmalı."
+            ),
+        )
+
+    trusted_profile = (
+        workspace.dataset_profile
+    )
+
+    trusted_findings = (
+        workspace.dataset_analysis.findings
+    )
+
+
+    # ==================================================
+    # SECURITY POLICY
+    # ==================================================
+
+    security_decision = (
+        evaluate_document_ai_policy(
+            usage_context=(
+                workspace.usage_context
+            ),
+            data_sensitivity=(
+                workspace.data_sensitivity
+                or "unknown"
+            ),
+            organization_id=(
+                workspace.organization_id
+            ),
+            organization_ai_allowed=None,
+        )
+    )
+
+
+    # ==================================================
+    # EXECUTION PLAN STRATEGY
+    # ==================================================
+
+    try:
+
+        if (
+            security_decision
+            .external_ai_allowed
+        ):
+
+            try:
+                task = (
+                    generate_workspace_execution_plan(
+                        workspace=workspace,
+                        profile=trusted_profile,
+                        findings=trusted_findings,
+                    )
+                )
+
+            except Exception:
+
+                # AI izinli olsa bile servis çökerse
+                # junior tamamen durmaz.
+                task = (
+                    generate_local_workspace_execution_plan(
+                        workspace=workspace,
+                        findings=trusted_findings,
+                    )
+                )
+
+        else:
+
+            # Confidential / restricted / pending vb.
+            # durumlarda OpenAI hiç çağrılmaz.
+            task = (
+                generate_local_workspace_execution_plan(
+                    workspace=workspace,
+                    findings=trusted_findings,
+                )
+            )
 
     except ValueError as exc:
         raise HTTPException(
@@ -477,6 +579,119 @@ def profile_workspace_data(
             analysis_source,
     }
 
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data/findings/{finding_index}/mentor"
+    ),
+    response_model=WorkspaceFindingMentorResponse,
+)
+def mentor_workspace_finding_locally(
+    learner_id: str,
+    workspace_id: str,
+    finding_index: int,
+):
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.dataset_analysis is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Workspace için dataset analysis "
+                "henüz bulunmuyor."
+            ),
+        )
+
+    findings = (
+        workspace.dataset_analysis.findings
+    )
+
+    if (
+        finding_index < 0
+        or finding_index >= len(findings)
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Finding bulunamadı.",
+        )
+
+    # Finding frontend'den gelmiyor.
+    # Güvenilir workspace state içinden alınıyor.
+    finding = findings[finding_index]
+
+    skill_name = (
+        get_skill_for_data_quality_issue(
+            finding.issue_type
+        )
+    )
+
+    if skill_name is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu finding için uygun "
+                "mentor skill'i bulunamadı."
+            ),
+        )
+
+    skill_state = database.get_skill_state(
+        learner_id,
+        skill_name,
+    )
+
+    if skill_state is None:
+
+        database.insert_skill_state(
+            learner_id,
+            skill_name,
+            status="new",
+        )
+
+        skill_status = "new"
+
+    else:
+        skill_status = (
+            skill_state["status"]
+        )
+
+    assistance_level = (
+        get_local_assistance_level(
+            skill_status
+        )
+    )
+
+    mentor_response = (
+        build_local_mentor_response(
+            finding=finding,
+            skill_status=skill_status,
+        )
+    )
+
+    return WorkspaceFindingMentorResponse(
+        finding_index=finding_index,
+        finding=finding,
+        skill_name=skill_name,
+        skill_status=skill_status,
+        assistance_level=(
+            assistance_level
+        ),
+        mentor_response=(
+            mentor_response
+        ),
+        source="local",
+    )
+
+
 @router.get(
     "/workspaces/{learner_id}/{workspace_id}/data/working",
     response_model=WorkspaceWorkingDataResponse,
@@ -771,17 +986,66 @@ def transform_workspace_data(
         ),
     )
 
-    try:
-        result = (
-            review_data_engineering_task_transformation(
-                learner_id=learner_id,
-                task=task,
-                before_df=before_df,
-                after_df=after_df,
-            )
+        # ==================================================
+    # DATA SECURITY POLICY
+    # ==================================================
+
+    security_decision = (
+        evaluate_document_ai_policy(
+            usage_context=(
+                workspace.usage_context
+            ),
+            data_sensitivity=(
+                workspace.data_sensitivity
+                or "unknown"
+            ),
+            organization_id=(
+                workspace.organization_id
+            ),
+            organization_ai_allowed=None,
         )
+    )
+
+
+    # ==================================================
+    # TRANSFORMATION REVIEW STRATEGY
+    # ==================================================
+
+    try:
+
+        if (
+            security_decision
+            .external_ai_allowed
+        ):
+
+            result = (
+                review_data_engineering_task_transformation(
+                    learner_id=learner_id,
+                    task=task,
+                    before_df=before_df,
+                    after_df=after_df,
+                )
+            )
+
+        else:
+
+            # Confidential / restricted / pending
+            # work data external AI'ya gitmez.
+            #
+            # Validation, learning evidence ve
+            # task progression local olarak yapılır.
+
+            result = (
+                review_task_transformation_locally(
+                    learner_id=learner_id,
+                    task=task,
+                    before_df=before_df,
+                    after_df=after_df,
+                )
+            )
 
     except ValueError as exc:
+
         delete_workspace_version(
             workspace_id=workspace_id,
             version_number=version_number,
