@@ -5,6 +5,7 @@ import {
 } from "./i18n";
 
 import "./App.css";
+import TasksPage from "./TasksPage";
 import {
   runDataFrameTransformation,
   runPythonCode,
@@ -369,7 +370,11 @@ function App() {
   const [showSkills, setShowSkills] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentView, setCurrentView] = useState<
-  "dashboard" | "workspace" | "practice" | "new-workspace"
+  "dashboard"
+  | "workspace"
+  | "practice"
+  | "tasks"
+  | "new-workspace"
   >("dashboard");
  
 
@@ -1022,7 +1027,10 @@ async function loadWorkspaceVersions(
 
 
 async function openSelectedWorkspace(
-  workspace: DashboardWorkspace
+  workspace: Pick<
+    DashboardWorkspace,
+    "workspace_id"
+  >
 ) {
   const learnerId = "demo-learner";
 
@@ -2047,8 +2055,20 @@ async function restoreWorkspaceVersion(
           </span>
         </button>
             
-        <button className="nav-item">
-          <span className="nav-icon">✓</span>
+        <button
+          className={
+            currentView === "tasks"
+              ? "nav-item active"
+              : "nav-item"
+          }
+          onClick={() =>
+            setCurrentView("tasks")
+          }
+        >
+          <span className="nav-icon">
+            ✓
+          </span>
+        
           <span className="nav-label">
             {t.sidebar.tasks}
           </span>
@@ -2365,6 +2385,16 @@ async function restoreWorkspaceVersion(
               )}
             </section>
           </>
+                          ) : currentView === "tasks" ? (
+                            <TasksPage
+                              language={language}
+                              onOpenWorkspace={(workspaceId) => {
+                                void openSelectedWorkspace({
+                                  workspace_id: workspaceId,
+                                });
+                              }}
+                            />
+                            
                           ) : currentView === "new-workspace" ? (
             <section className="new-workspace-page">
               <div className="new-workspace-topbar">

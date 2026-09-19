@@ -11,6 +11,53 @@ export const translations = {
       documents: "Documents",
       settings: "Settings",
     },
+    tasks: {
+    eyebrow: "TASKS",
+    title: "Task overview",
+    description:
+      "Track work across all workspaces from one place.",
+
+    loading: "Loading tasks...",
+    loadError: "Tasks could not be loaded.",
+    empty: "No tasks yet.",
+
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+
+    workspace: "Workspace",
+    currentStep: "Current step",
+    nextAction: "Next action",
+
+    validation: "Validation",
+    review: "Review",
+    handoff: "Handoff",
+
+    openWorkspace: "Open workspace →",
+
+    status: {
+      todo: "To do",
+      active: "Active",
+      blocked: "Blocked",
+      completed: "Completed",
+    },
+
+    systemText: {
+    workspaceCompleted: "Workspace completed",
+    reviewTransformedDataset:
+      "Review transformed dataset",
+    reviewTransformationResults:
+      "Review transformation results",
+    reviewFinalDataset:
+      "Review final dataset and changes",
+    resolveValidationFailures:
+      "Resolve validation failures",
+    prepareHandoff:
+      "Prepare handoff",
+    prepareFinalDatasetHandoff:
+      "Prepare final dataset handoff",
+  },
+  },
+
 
     workspace: {
       source: "Source",
@@ -173,6 +220,54 @@ validationChecks: {
       progress: "Gelişim",
       documents: "Dokümanlar",
       settings: "Ayarlar",
+    },
+
+    tasks: {
+      eyebrow: "GÖREVLER",
+      title: "Görevler",
+      description:
+        "Tüm çalışma alanlarındaki işleri tek yerden takip et.",
+
+      loading: "Görevler yükleniyor...",
+      loadError: "Görevler yüklenemedi.",
+      empty: "Henüz görev yok.",
+
+      refresh: "Yenile",
+      refreshing: "Yenileniyor...",
+
+      workspace: "Çalışma alanı",
+      currentStep: "Mevcut adım",
+      nextAction: "Sonraki işlem",
+
+      validation: "Doğrulama",
+      review: "İnceleme",
+      handoff: "Teslim",
+
+      openWorkspace: "Çalışma alanını aç →",
+
+      status: {
+        todo: "Yapılacak",
+        active: "Aktif",
+        blocked: "Engelli",
+        completed: "Tamamlandı",
+      },
+
+      systemText: {
+      workspaceCompleted:
+        "Çalışma alanı tamamlandı",
+      reviewTransformedDataset:
+        "Dönüştürülen veri setini incele",
+      reviewTransformationResults:
+        "Dönüştürme sonuçlarını incele",
+      reviewFinalDataset:
+        "Son veri setini ve değişiklikleri incele",
+      resolveValidationFailures:
+        "Doğrulama hatalarını çöz",
+      prepareHandoff:
+        "Teslimi hazırla",
+      prepareFinalDatasetHandoff:
+        "Son veri setini teslime hazırla",
+    },
     },
 
     workspace: {
