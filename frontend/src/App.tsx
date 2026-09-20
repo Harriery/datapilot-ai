@@ -5,8 +5,13 @@ import {
 } from "./i18n";
 
 import "./App.css";
+import PersonalProjectDeliverables, {
+  type ProjectDeliverableData,
+} from "./PersonalProjectDeliverables";
 import TasksPage from "./TasksPage";
 import ProgressPage from "./ProgressPage";
+import WorkspaceModeCards from "./WorkspaceModeCards";
+
 import {
   runDataFrameTransformation,
   runPythonCode,
@@ -108,6 +113,17 @@ type DashboardWorkspace = {
 
   task_brief: string | null;
   desired_outcome: string | null;
+
+  project_type:
+    | "data_engineering"
+    | "data_analysis"
+    | "bi_dashboard"
+    | "data_quality"
+    | "portfolio"
+    | null;
+  
+  project_deliverables?:
+    ProjectDeliverableData[];
 
   usage_context: "work" | "personal";
 
@@ -457,6 +473,18 @@ df["age"] = df["age"].fillna(median_age)`);
       | "analysis"
       | "pipeline"
     >("auto");
+
+  type PersonalProjectType =
+    | "data_engineering"
+    | "data_analysis"
+    | "bi_dashboard"
+    | "data_quality"
+    | "portfolio";
+
+  const [
+    newPersonalProjectType,
+    setNewPersonalProjectType,
+  ] = useState<PersonalProjectType | "">("");
 
   const [
     newWorkspaceUsageContext,
@@ -1222,6 +1250,29 @@ async function uploadWorkspaceData(
       // Backend yeni dataset yüklenince eski planı
       // geçersiz kılıyor. Frontend de aynı duruma gelsin.
       setWorkspaceTask(null);
+
+      const workspaceResponse = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+      );
+      
+      if (workspaceResponse.ok) {
+        const updatedWorkspace: DashboardWorkspace =
+          await workspaceResponse.json();
+      
+        setDashboardWorkspace(
+          updatedWorkspace
+        );
+      
+        setDashboardWorkspaces(
+          (previous) =>
+            previous.map((workspace) =>
+              workspace.workspace_id ===
+              updatedWorkspace.workspace_id
+                ? updatedWorkspace
+                : workspace
+            )
+        );
+      }
           
       const resumeResponse = await fetch(
         `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
@@ -1311,9 +1362,21 @@ async function createNewWorkspace() {
       return;
     }
 
+
+
     if (!taskBrief) {
       setWorkspaceCreateError(
         "Task brief is required."
+      );
+      return;
+    }
+
+    if (
+      newWorkspaceUsageContext === "personal" &&
+      !newPersonalProjectType
+    ) {
+      setWorkspaceCreateError(
+        "Please choose a project type."
       );
       return;
     }
@@ -1346,6 +1409,11 @@ async function createNewWorkspace() {
 
             desired_outcome:
               newWorkspaceOutcome.trim() || null,
+            
+            project_type:
+              newWorkspaceUsageContext === "personal"
+                ? newPersonalProjectType || null
+                : null,
 
             workflow_type:
               newWorkspaceWorkflow,
@@ -1377,6 +1445,7 @@ async function createNewWorkspace() {
       setNewWorkspaceOutcome("");
       setNewWorkspaceWorkflow("auto");
       setNewWorkspaceUsageContext("work");
+      setNewPersonalProjectType("");
       setNewWorkspaceDataSensitivity("unknown");
 
       // Şimdilik yeni workspace oluşturulduktan sonra
@@ -2122,21 +2191,43 @@ async function restoreWorkspaceVersion(
                 </p>
               </div>
         
-              <div className="dashboard-header-actions">
-                <button
-                  className="primary-button"
-                  onClick={() =>
-                    setCurrentView("new-workspace")
-                  }
-                >
-                  + New Workspace
-                </button>
-                
-                <div className="profile-badge">
-                  Junior Data Engineer
-                </div>
+             <div className="dashboard-header-actions">
+              <div className="profile-badge">
+                Junior Data Engineer
               </div>
+            </div>
             </header>
+
+            <WorkspaceModeCards
+              language={language}
+              onStartPersonal={() => {
+                setNewWorkspaceUsageContext(
+                  "personal"
+                );
+              
+                setNewWorkspaceDataSensitivity(
+                  "public"
+                );
+              
+                setCurrentView(
+                  "new-workspace"
+                );
+              }}
+              onExploreWork={() => {
+                setNewWorkspaceUsageContext(
+                  "work"
+                );
+              
+                setNewWorkspaceDataSensitivity(
+                  "unknown"
+                );
+              
+                setCurrentView(
+                  "new-workspace"
+                );
+              }}
+            />
+
         
             <section className="dashboard-grid">
               
@@ -2435,16 +2526,29 @@ async function restoreWorkspaceVersion(
               <header className="new-workspace-header">
                 <div>
                   <p className="workspace-eyebrow">
-                    WORKSPACE SETUP
+                    {newWorkspaceUsageContext === "personal"
+                      ? "PERSONAL PROJECT SETUP"
+                      : "SECURE WORK SETUP"}
                   </p>
-                
-                  <h2>Create a workspace</h2>
-                
+                    
+                  <h2>
+                    {newWorkspaceUsageContext === "personal"
+                      ? "Create a personal project"
+                      : "Create a secure work workspace"}
+                  </h2>
+                    
                   <p>
-                    Define the task you received from
-                    your team. DataPilot will use this
-                    context to guide and review your
-                    work.
+                    {newWorkspaceUsageContext === "personal"
+                      ? (
+                          "Start with a project goal. DataPilot will guide you " +
+                          "from raw data toward a validated, documented and " +
+                          "usable data product."
+                        )
+                      : (
+                          "Define the assignment you received from your team. " +
+                          "DataPilot will guide the work while applying " +
+                          "security controls to company or client data."
+                        )}
                   </p>
                 </div>
               </header>
@@ -2555,20 +2659,79 @@ async function restoreWorkspaceVersion(
                     )}
                   </div>
 
+                  {newWorkspaceUsageContext === "personal" && (
+                    <div className="workspace-form-section">
+                      <label
+                        className="workspace-form-label"
+                        htmlFor="personal-project-type"
+                      >
+                        What do you want to build?
+                      </label>
+
+                      <select
+                        id="personal-project-type"
+                        className="workspace-form-select"
+                        value={newPersonalProjectType}
+                        onChange={(event) =>
+                          setNewPersonalProjectType(
+                            event.target.value as
+                              | PersonalProjectType
+                              | ""
+                          )
+                        }
+                      >
+                        <option value="" disabled>
+                          Choose a project type
+                        </option>
+                      
+                        <option value="data_engineering">
+                          Data Engineering Project
+                        </option>
+                      
+                        <option value="data_analysis">
+                          Data Analysis Project
+                        </option>
+                      
+                        <option value="bi_dashboard">
+                          BI / Dashboard Project
+                        </option>
+                      
+                        <option value="data_quality">
+                          Data Quality Project
+                        </option>
+                      
+                        <option value="portfolio">
+                          Portfolio Project
+                        </option>
+                      </select>
+                      
+                      <p className="workspace-field-help">
+                        DataPilot will use this choice to shape the
+                        project stages and final deliverables.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="workspace-form-row">
                     <div className="workspace-form-section">
                       <label
                         className="workspace-form-label"
                         htmlFor="workspace-name"
                       >
-                        Workspace name
+                        {newWorkspaceUsageContext === "personal"
+                           ? "Project name"
+                           : "Workspace name"}
                       </label>
                                   
                       <input
                         id="workspace-name"
                         className="workspace-form-input"
                         type="text"
-                        placeholder="e.g. Customer Orders Cleanup"
+                        placeholder={
+                          newWorkspaceUsageContext === "personal"
+                            ? "e.g. Netherlands Housing Analysis"
+                            : "e.g. Customer Orders Cleanup"
+                        }
                         value={newWorkspaceTitle}
                         onChange={(event) =>
                           setNewWorkspaceTitle(event.target.value)
@@ -2576,7 +2739,9 @@ async function restoreWorkspaceVersion(
                       />
                   
                       <p className="workspace-field-help">
-                        Short name for this assignment.
+                        {newWorkspaceUsageContext === "personal"
+                          ? "A short name for your data project."
+                          : "A short name for this assignment."}
                       </p>
                     </div>
                       
@@ -2633,7 +2798,7 @@ async function restoreWorkspaceVersion(
                     >
                       {newWorkspaceUsageContext === "work"
                         ? "Task brief"
-                        : "Goal / project idea"}
+                        : "Project goal"}
                     </label>
                     
                     <textarea
@@ -2642,7 +2807,7 @@ async function restoreWorkspaceVersion(
                       placeholder={
                         newWorkspaceUsageContext === "work"
                           ? "What did your team ask you to do?"
-                          : "What do you want to build, analyze or learn?"
+                          : "What do you want to build or discover with this data?"
                       }
                       value={
                         newWorkspaceTaskBrief
@@ -2655,9 +2820,15 @@ async function restoreWorkspaceVersion(
                     />
 
                     <p className="workspace-field-help">
-                      Write the task as you received it.
-                      The mentor will use this as the
-                      working context.
+                      {newWorkspaceUsageContext === "personal"
+                        ? (
+                            "Describe the problem, question or data product you want " +
+                            "to create. DataPilot will use this as the project goal."
+                          )
+                        : (
+                            "Write the task as you received it. The mentor will use " +
+                            "this as the working context."
+                          )}
                     </p>
                   </div>
                     
@@ -2666,13 +2837,24 @@ async function restoreWorkspaceVersion(
                       className="workspace-form-label"
                       htmlFor="desired-outcome"
                     >
-                      Expected outcome
+                      {newWorkspaceUsageContext === "personal"
+                        ? "Desired project outcome"
+                        : "Expected outcome"}
                     </label>
                     
                     <textarea
                       id="desired-outcome"
                       className="workspace-form-textarea small"
-                      placeholder="e.g. A cleaned orders table with validated daily aggregates"
+                      placeholder={
+                        newWorkspaceUsageContext === "personal"
+                          ? (
+                              "e.g. A Power BI-ready dataset and dashboard showing " +
+                              "housing price trends by region"
+                            )
+                          : (
+                              "e.g. A cleaned orders table with validated daily aggregates"
+                            )
+                      }
                       value={
                         newWorkspaceOutcome
                       }
@@ -2741,14 +2923,21 @@ async function restoreWorkspaceVersion(
                     </span>
                       
                     <h3>
-                      Start with the assignment,
-                      not the solution.
+                      {newWorkspaceUsageContext === "personal"
+                        ? "Start with the outcome, not the tools."
+                        : "Start with the assignment, not the solution."}
                     </h3>
                       
                     <p>
-                      Describe what your team expects.
-                      You do not need to know every
-                      technical step yet.
+                      {newWorkspaceUsageContext === "personal"
+                        ? (
+                            "Describe what you want to learn, analyze or produce. " +
+                            "You do not need to know the final technical steps yet."
+                          )
+                        : (
+                            "Describe what your team expects. You do not need to " +
+                            "know every technical step yet."
+                          )}
                     </p>
                   </div>
                       
@@ -3293,7 +3482,9 @@ async function restoreWorkspaceVersion(
                     <div className="workspace-overview-grid">
                       <section className="workspace-overview-card">
                         <span className="workspace-overview-label">
-                          {t.workspace.taskBrief}
+                          {dashboardWorkspace.usage_context === "personal"
+                            ? "PROJECT GOAL"
+                            : t.workspace.taskBrief}
                         </span>
                       
                         <p>
@@ -3312,6 +3503,21 @@ async function restoreWorkspaceVersion(
                             t.workspace.noExpectedOutcomeProvided}
                         </p>
                       </section>
+
+                      {dashboardWorkspace.usage_context ===
+                        "personal" &&
+                        dashboardWorkspace.project_deliverables &&
+                        dashboardWorkspace.project_deliverables.length > 0 && (
+                          <PersonalProjectDeliverables
+                            language={language}
+                            projectType={
+                              dashboardWorkspace.project_type
+                            }
+                            deliverables={
+                              dashboardWorkspace.project_deliverables
+                            }
+                          />
+                        )}
                           
                       <section className="workspace-overview-card">
                         <span className="workspace-overview-label">

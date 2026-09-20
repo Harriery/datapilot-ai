@@ -75,6 +75,11 @@ from backend.app.local_data_quality_mentor_service import (
     review_task_transformation_locally,
 )
 
+from backend.app.personal_project_service import (
+    build_personal_project_deliverables,
+    update_personal_project_deliverable,
+)
+
 router = APIRouter()
 
 
@@ -104,6 +109,15 @@ def create_workspace(
         mentor_session_id
     )
 
+    project_deliverables = []
+
+    if request.usage_context == "personal":
+        project_deliverables = (
+            build_personal_project_deliverables(
+                request.project_type
+            )
+        )
+
     workspace = Workspace(
         workspace_id=workspace_id,
         learner_id=request.learner_id,
@@ -113,6 +127,8 @@ def create_workspace(
         data_sensitivity=request.data_sensitivity,
         task_brief=request.task_brief,
         desired_outcome=request.desired_outcome,
+        project_type=request.project_type,
+        project_deliverables=project_deliverables,
         workflow_type=request.workflow_type,
         workspace_type=request.workspace_type,
         current_task_id=request.current_task_id,
@@ -509,6 +525,13 @@ def profile_workspace_data(
     workspace.dataset_analysis_source = (
         analysis_source
     )
+
+    if workspace.usage_context == "personal":
+        update_personal_project_deliverable(
+            workspace=workspace,
+            code="data_profile",
+            status="completed",
+        )
 
     workspace.validation_result = None
 
@@ -1553,11 +1576,20 @@ def validate_workspace_result(
     )
 
     if passed:
+
+        if workspace.usage_context == "personal":
+            update_personal_project_deliverable(
+                workspace=workspace,
+                code="clean_dataset",
+                status="completed",
+            )
+    
         if (
             "Validation passed"
             not in
             workspace.checkpoint.completed_items
         ):
+            
             workspace.checkpoint.completed_items.append(
                 "Validation passed"
             )

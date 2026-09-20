@@ -1324,3 +1324,307 @@ def test_personal_public_workspace_attempt_can_use_external_ai(
         "Age kolonundaki null "
         "değerleri kontrol ettim."
     )
+
+def test_create_personal_workspace_saves_project_type(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Housing Dashboard",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "task_brief": (
+                "Analyze housing price trends."
+            ),
+            "desired_outcome": (
+                "Power BI-ready dashboard."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["usage_context"] == "personal"
+
+    assert (
+        body["project_type"]
+        == "bi_dashboard"
+    )
+
+def test_bi_dashboard_project_gets_deliverables(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Housing Dashboard",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "task_brief": (
+                "Analyze housing price trends."
+            ),
+            "desired_outcome": (
+                "Create a Power BI dashboard."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    deliverables = (
+        body["project_deliverables"]
+    )
+
+    deliverable_codes = [
+        item["code"]
+        for item in deliverables
+    ]
+
+    assert "clean_dataset" in deliverable_codes
+    assert "kpi_definitions" in deliverable_codes
+    assert "data_model" in deliverable_codes
+    assert "bi_ready_dataset" in deliverable_codes
+    assert "dashboard" in deliverable_codes
+
+    assert all(
+        item["status"] == "pending"
+        for item in deliverables
+    )
+
+def test_personal_dataset_profile_completes_deliverable(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Housing Dashboard",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "task_brief": (
+                "Analyze housing price trends."
+            ),
+            "desired_outcome": (
+                "Create a Power BI dashboard."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    profile_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/profile"
+        ),
+        files={
+            "file": (
+                "housing.csv",
+                (
+                    "region,year,price\n"
+                    "Den Haag,2025,450000\n"
+                    "Rotterdam,2025,390000\n"
+                ),
+                "text/csv",
+            )
+        },
+    )
+
+    assert profile_response.status_code == 200
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert workspace_response.status_code == 200
+
+    workspace = workspace_response.json()
+
+    deliverables = {
+        item["code"]: item
+        for item in workspace[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables["data_profile"]["status"]
+        == "completed"
+    )
+
+    assert (
+        deliverables["clean_dataset"]["status"]
+        == "pending"
+    )
+
+def test_successful_personal_validation_completes_clean_dataset(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Housing Dashboard",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "task_brief": (
+                "Analyze housing data."
+            ),
+            "desired_outcome": (
+                "Create a dashboard."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    finding = DataQualityFinding(
+        issue_type="duplicate_rows",
+        column=None,
+        severity="high",
+        observation=(
+            "1 duplicate row found."
+        ),
+        suggested_action=(
+            "Remove duplicate rows."
+        ),
+    )
+
+    task = DataEngineeringTask(
+        task_id="task-clean-001",
+        title="Clean housing data",
+        steps=[
+            DataEngineeringTaskStep(
+                step_number=1,
+                title="Remove duplicate rows",
+                finding=finding,
+                status="completed",
+            )
+        ],
+        current_step_number=1,
+        status="completed",
+    )
+
+    database.save_data_engineering_task(
+        learner_id="learner-001",
+        task=task,
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.current_task_id = (
+        task.task_id
+    )
+
+    database.save_workspace(
+        workspace
+    )
+
+    source_df = pd.DataFrame(
+        [
+            {
+                "region": "Den Haag",
+                "price": 450000,
+            },
+            {
+                "region": "Rotterdam",
+                "price": 390000,
+            },
+            {
+                "region": "Rotterdam",
+                "price": 390000,
+            },
+        ]
+    )
+
+    working_df = pd.DataFrame(
+        [
+            {
+                "region": "Den Haag",
+                "price": 450000,
+            },
+            {
+                "region": "Rotterdam",
+                "price": 390000,
+            },
+        ]
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_source_dataframe",
+        lambda workspace_id: source_df,
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_working_dataframe",
+        lambda workspace_id: working_df,
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/validate"
+        )
+    )
+
+    assert response.status_code == 200
+    assert response.json()["passed"] is True
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert workspace_response.status_code == 200
+
+    deliverables = {
+        item["code"]: item
+        for item in workspace_response.json()[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables["clean_dataset"]["status"]
+        == "completed"
+    )

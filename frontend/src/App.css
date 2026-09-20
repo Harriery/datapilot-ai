@@ -4033,3 +4033,406 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ==================================================
+   WORKSPACE MODE CARDS
+   ================================================== */
+
+.workspace-mode-section {
+  margin-bottom: 24px;
+}
+
+.workspace-mode-heading {
+  margin-bottom: 14px;
+}
+
+.workspace-mode-heading h3 {
+  margin: 5px 0 6px;
+
+  color: #15233c;
+
+  font-size: 20px;
+}
+
+.workspace-mode-heading > p:last-child {
+  margin: 0;
+
+  max-width: 760px;
+
+  color: #6b7a90;
+
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+
+.workspace-mode-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 18px;
+}
+
+
+.workspace-mode-card {
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+
+  padding: 20px;
+
+  border: 1px solid #dce5ef;
+  border-radius: 16px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 18px
+    rgba(20, 33, 61, 0.04);
+}
+
+
+.workspace-mode-card.personal {
+  border-color: #cfdef1;
+}
+
+
+.workspace-mode-card.work {
+  border-color: #d9d7ee;
+}
+
+
+.workspace-mode-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 17px;
+}
+
+
+.workspace-mode-icon {
+  display: grid;
+  place-items: center;
+
+  width: 42px;
+  height: 42px;
+
+  border-radius: 12px;
+}
+
+
+.workspace-mode-icon.personal {
+  background: #eaf3ff;
+  color: #2f80ed;
+}
+
+
+.workspace-mode-icon.work {
+  background: #f1edff;
+  color: #7557f5;
+}
+
+
+.workspace-mode-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 5px 8px;
+
+  border-radius: 999px;
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+
+.workspace-mode-status.ready {
+  background: #eaf7ef;
+  color: #31845a;
+}
+
+
+.workspace-mode-status.preview {
+  background: #f1edff;
+  color: #6a50d8;
+}
+
+
+.workspace-mode-content {
+  flex: 1;
+}
+
+
+.workspace-mode-content h3 {
+  margin: 0 0 7px;
+
+  color: #16233c;
+
+  font-size: 19px;
+}
+
+
+.workspace-mode-content > p {
+  margin: 0;
+
+  color: #66758a;
+
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+
+.workspace-mode-features {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+
+  margin: 17px 0 20px;
+  padding: 0;
+
+  list-style: none;
+}
+
+
+.workspace-mode-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+
+  color: #485b73;
+
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+
+.workspace-mode-features li svg {
+  flex-shrink: 0;
+
+  margin-top: 1px;
+
+  color: #71849b;
+}
+
+
+.workspace-mode-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+
+  padding: 10px 12px;
+
+  border-radius: 10px;
+
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+
+.workspace-mode-action.personal {
+  border: 1px solid #cfe1f8;
+
+  background: #eef6ff;
+  color: #2f80ed;
+}
+
+
+.workspace-mode-action.personal:hover {
+  background: #e4f0ff;
+}
+
+
+.workspace-mode-action.work {
+  border: 1px solid #dcd5fa;
+
+  background: #f5f2ff;
+  color: #6a50d8;
+}
+
+
+.workspace-mode-action.work:hover {
+  background: #ede8ff;
+}
+
+
+@media (max-width: 850px) {
+  .workspace-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==================================================
+   PERSONAL PROJECT DELIVERABLES
+   ================================================== */
+
+.personal-deliverables-card {
+  grid-column: 1 / -1;
+
+  padding: 20px;
+
+  border: 1px solid #cfdef1;
+  border-radius: 16px;
+
+  background: #ffffff;
+}
+
+.personal-deliverables-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  margin-bottom: 18px;
+}
+
+.personal-deliverables-header h3 {
+  margin: 5px 0 8px;
+
+  color: #15233c;
+
+  font-size: 19px;
+}
+
+.personal-project-type-badge {
+  display: inline-flex;
+
+  padding: 4px 8px;
+
+  border-radius: 999px;
+
+  background: #eaf3ff;
+  color: #2f80ed;
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.personal-deliverables-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.personal-deliverables-progress strong {
+  color: #15233c;
+
+  font-size: 18px;
+}
+
+.personal-deliverables-progress span {
+  color: #7a899d;
+
+  font-size: 11px;
+}
+
+.personal-project-outcome {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  margin-bottom: 18px;
+  padding: 12px 14px;
+
+  border-radius: 10px;
+
+  background: #f5f9fe;
+}
+
+.personal-project-outcome svg {
+  flex-shrink: 0;
+
+  margin-top: 2px;
+
+  color: #2f80ed;
+}
+
+.personal-project-outcome span {
+  color: #66758a;
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.personal-project-outcome p {
+  margin: 4px 0 0;
+
+  color: #263850;
+
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.personal-deliverables-list {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 9px;
+}
+
+.personal-deliverable-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  padding: 10px 12px;
+
+  border: 1px solid #e1e8f0;
+  border-radius: 9px;
+
+  color: #53657d;
+
+  font-size: 12px;
+}
+
+.personal-deliverable-item svg {
+  flex-shrink: 0;
+
+  color: #9aa8b8;
+}
+
+.personal-deliverable-item.completed {
+  border-color: #cce6d7;
+
+  background: #f2faf5;
+  color: #31845a;
+}
+
+.personal-deliverable-item.completed svg {
+  color: #31845a;
+}
+
+.personal-deliverable-item.in_progress {
+  border-color: #cfe1f8;
+
+  background: #f4f8fe;
+  color: #2f80ed;
+}
+
+@media (max-width: 760px) {
+  .personal-deliverables-list {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-deliverables-header {
+    flex-direction: column;
+  }
+
+  .personal-deliverables-progress {
+    align-items: flex-start;
+  }
+}

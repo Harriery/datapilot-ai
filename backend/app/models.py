@@ -646,6 +646,18 @@ class DataEngineeringTaskCreateRequest(BaseModel):
 #
 # workspace'e özel kalır.
 
+class ProjectDeliverable(BaseModel):
+    code: str
+    title: str
+
+    status: Literal[
+        "pending",
+        "in_progress",
+        "completed",
+    ] = "pending"
+
+    required: bool = True
+
 
 class WorkspaceCheckpoint(BaseModel):
     # Junior'ın bu workspace içinde tamamladığı
@@ -707,6 +719,19 @@ class Workspace(BaseModel):
     # İş tamamlandığında beklenen sonuç.
     desired_outcome: str | None = None
 
+    project_type: Literal[
+        "data_engineering",
+        "data_analysis",
+        "bi_dashboard",
+        "data_quality",
+        "portfolio",
+    ] | None = None
+
+    project_deliverables: list[
+        ProjectDeliverable
+    ] = Field(default_factory=list)
+
+    
     # Çalışmanın genel veri mühendisliği akışı.
     # "auto" ise ileride mentor task brief'e göre
     # uygun workflow'u seçecek.
@@ -1367,6 +1392,14 @@ class WorkspaceCreateRequest(BaseModel):
 
     task_brief: str | None = None
     desired_outcome: str | None = None
+
+    project_type: Literal[
+        "data_engineering",
+        "data_analysis",
+        "bi_dashboard",
+        "data_quality",
+        "portfolio",
+    ] | None = None
 
     workflow_type: Literal[
         "auto",
