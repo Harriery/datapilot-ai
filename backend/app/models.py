@@ -526,6 +526,34 @@ class WorkspaceFindingMentorResponse(BaseModel):
         "local",
     ] = "local"
 
+class WorkspaceFindingAttemptRequest(BaseModel):
+    attempt: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+
+
+class WorkspaceFindingAttemptResponse(BaseModel):
+    finding_index: int
+
+    skill_name: str
+
+    skill_status: Literal[
+        "new",
+        "learning",
+        "practicing",
+        "comfortable",
+    ]
+
+    mentor_response: str
+
+    evidence: LearningEvidenceDecision
+
+    source: Literal[
+        "local",
+        "external_ai",
+    ]
+
 class WorkspaceWorkingDataResponse(
     BaseModel
 ):

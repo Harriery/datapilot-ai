@@ -61,12 +61,15 @@ from backend.app.progress_service import (
     get_learner_progress,
 )
 
-from backend.app.mentor_service import (
-    get_mentor_response_for_data_quality_finding,
-    review_data_quality_attempt,
-    review_data_quality_transformation,
-    review_data_engineering_task_transformation,
+
+
+from backend.app.local_data_quality_mentor_service import (
+    get_local_mentor_response_for_data_quality_finding,
+    review_data_quality_attempt_locally,
+    review_data_quality_transformation_locally,
+    review_task_transformation_locally,
 )
+
 import pandas as pd
 import backend.app.database as database
 # Bu router içindeki bütün endpoint'ler /mentor ile başlayacak.
@@ -119,56 +122,33 @@ router = APIRouter(
 # ↓
 # API response
 #
-@router.post("/data-quality")
-def mentor_data_quality(request: DataQualityMentorRequest):
 
-    try:
-        mentor_response = get_mentor_response_for_data_quality_finding(
+@router.post("/data-quality")
+def mentor_data_quality(
+    request: DataQualityMentorRequest,
+):
+
+    mentor_response = (
+        get_local_mentor_response_for_data_quality_finding(
             learner_id=request.learner_id,
             finding=request.finding,
         )
+    )
 
-    # Örneğin learner profile bulunamazsa
-    # service tarafı ValueError üretebilir.
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        )
-
-    # OpenAI API anahtarı geçersizse.
-    except AuthenticationError:
-        raise HTTPException(
-            status_code=401,
-            detail="OpenAI API anahtarı geçersiz.",
-        )
-
-    # OpenAI kullanım limiti / bakiye problemi varsa.
-    except RateLimitError:
-        raise HTTPException(
-            status_code=429,
-            detail="AI kullanım limiti veya bakiyesi yetersiz.",
-        )
-
-    # OpenAI servisine bağlantı kurulamazsa.
-    except APIConnectionError:
-        raise HTTPException(
-            status_code=503,
-            detail="AI servisine şu anda ulaşılamıyor.",
-        )
-
-    # Finding herhangi bir mentor skill'i ile eşleşmiyorsa
-    # service None döndürebilir.
     if mentor_response is None:
         raise HTTPException(
             status_code=400,
-            detail="Bu data quality problemi için uygun mentor skill'i bulunamadı.",
+            detail=(
+                "Bu data quality problemi için "
+                "uygun mentor skill'i bulunamadı."
+            ),
         )
 
-    # Junior'a gösterilecek adaptif mentor cevabı.
     return {
-        "mentor_response": mentor_response
+        "mentor_response":
+            mentor_response
     }
+
 
 # ---------------------------------------------------------
 # DATA QUALITY JUNIOR ATTEMPT ENDPOINT
@@ -198,51 +178,31 @@ def mentor_data_quality_attempt(
 ):
 
     try:
-        result = review_data_quality_attempt(
-            learner_id=request.learner_id,
-            finding=request.finding,
-            attempt=request.attempt,
+        result = (
+            review_data_quality_attempt_locally(
+                learner_id=request.learner_id,
+                finding=request.finding,
+                attempt=request.attempt,
+            )
         )
 
     except ValueError as exc:
-        # Learner yoksa resource bulunamadı.
-        if "Learner profile bulunamadı" in str(exc):
-            raise HTTPException(
-                status_code=404,
-                detail=str(exc),
-            )
-
-        # Boş attempt vb. kullanıcı request hataları.
         raise HTTPException(
             status_code=400,
             detail=str(exc),
         )
 
-    except AuthenticationError:
-        raise HTTPException(
-            status_code=401,
-            detail="OpenAI API anahtarı geçersiz.",
-        )
-
-    except RateLimitError:
-        raise HTTPException(
-            status_code=429,
-            detail="AI kullanım limiti veya bakiyesi yetersiz.",
-        )
-
-    except APIConnectionError:
-        raise HTTPException(
-            status_code=503,
-            detail="AI servisine şu anda ulaşılamıyor.",
-        )
-
     if result is None:
         raise HTTPException(
             status_code=400,
-            detail="Bu data quality problemi için uygun mentor skill'i bulunamadı.",
+            detail=(
+                "Bu data quality problemi için "
+                "uygun mentor skill'i bulunamadı."
+            ),
         )
 
     return result
+
 
 # ---------------------------------------------------------
 # DATA QUALITY TRANSFORMATION ENDPOINT
@@ -280,11 +240,13 @@ def mentor_data_quality_transformation(
     after_df = pd.DataFrame(request.after_rows)
 
     try:
-        result = review_data_quality_transformation(
-            learner_id=request.learner_id,
-            finding=request.finding,
-            before_df=before_df,
-            after_df=after_df,
+        result = (
+            review_data_quality_transformation_locally(
+                learner_id=request.learner_id,
+                finding=request.finding,
+                before_df=before_df,
+                after_df=after_df,
+            )
         )
 
     except ValueError as exc:
@@ -356,11 +318,13 @@ def mentor_task_transformation(
     after_df = pd.DataFrame(request.after_rows)
 
     try:
-        result = review_data_engineering_task_transformation(
-            learner_id=request.learner_id,
-            task=task,
-            before_df=before_df,
-            after_df=after_df,
+        result = (
+            review_task_transformation_locally(
+                learner_id=request.learner_id,
+                task=task,
+                before_df=before_df,
+                after_df=after_df,
+            )
         )
 
     except ValueError as exc:

@@ -29,7 +29,7 @@ def test_mentor_data_quality_returns_mentor_response():
     # Gerçek AI çağrısı yapmıyoruz.
     # mentor_routes.py içindeki service fonksiyonunu mock'luyoruz.
     with patch(
-        "backend.app.mentor_routes.get_mentor_response_for_data_quality_finding",
+        "backend.app.mentor_routes.get_local_mentor_response_for_data_quality_finding",
         return_value="Test mentor cevabı.",
     ) as mock_mentor:
 
@@ -68,19 +68,26 @@ def test_mentor_data_quality_attempt_returns_review():
     }
 
     fake_result = {
-        "mentor_response": "Doğru. Şimdi null oranını kontrol et.",
+        "mentor_response": (
+            "Bu açıklamayı local mode'da "
+            "doğru veya yanlış diye puanlamıyorum."
+        ),
         "skill_name": "null_analysis",
         "skill_status": "learning",
         "evidence": {
-            "is_evidence": True,
-            "evidence_type": "application",
-            "success": True,
-            "note": "Junior uygun bir null kontrolü önerdi.",
+            "is_evidence": False,
+            "evidence_type": None,
+            "success": None,
+            "note": (
+                "Free-text attempt local mode'da "
+                "otomatik learning evidence olarak "
+                "değerlendirilmedi."
+            ),
         },
     }
 
     with patch(
-        "backend.app.mentor_routes.review_data_quality_attempt",
+        "backend.app.mentor_routes.review_data_quality_attempt_locally",
         return_value=fake_result,
     ) as mock_review:
 
@@ -139,7 +146,7 @@ def test_mentor_data_quality_transformation_returns_validation_result():
     }
 
     with patch(
-        "backend.app.mentor_routes.review_data_quality_transformation",
+        "backend.app.mentor_routes.review_data_quality_transformation_locally",
         return_value=fake_result,
     ) as mock_review:
 
@@ -315,7 +322,7 @@ def test_mentor_task_transformation_returns_updated_task():
         "backend.app.mentor_routes.database.get_data_engineering_task",
         return_value=stored_task,
     ) as mock_get_task, patch(
-        "backend.app.mentor_routes.review_data_engineering_task_transformation",
+        "backend.app.mentor_routes.review_task_transformation_locally",
         return_value=fake_result,
     ) as mock_review:
 

@@ -15,6 +15,8 @@ from backend.app.models import (
     DataEngineeringTaskTransformationResponse,
     MissingValuesValidationResult,
     LearningEvidenceDecision,
+    WorkspaceFindingAttemptRequest,
+    DataQualityAttemptResponse,
 )
 
 from backend.app.main import app
@@ -1062,4 +1064,263 @@ def test_confidential_transformation_uses_local_reviewer(
     assert (
         result.validation.success
         is False
+    )
+
+def test_confidential_workspace_attempt_never_calls_external_ai(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Secure Attempt Test",
+            "usage_context": "work",
+            "organization_id": "company-001",
+            "data_sensitivity": "confidential",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()[
+            "workspace_id"
+        ]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    workspace.dataset_analysis = (
+        DataQualityAnalysis(
+            findings=[
+                DataQualityFinding(
+                    issue_type="missing_values",
+                    column="age",
+                    severity="medium",
+                    observation=(
+                        "2 missing values found."
+                    ),
+                    suggested_action=(
+                        "Inspect missing values."
+                    ),
+                )
+            ]
+        )
+    )
+
+    workspace.dataset_ai_processing_status = (
+        "blocked"
+    )
+
+    workspace.dataset_analysis_source = (
+        "local"
+    )
+
+    database.save_workspace(
+        workspace
+    )
+
+    ai_called = False
+
+    def fake_ai_attempt(**kwargs):
+        nonlocal ai_called
+
+        ai_called = True
+
+        raise AssertionError(
+            "External AI attempt reviewer "
+            "must not be called."
+        )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "review_data_quality_attempt",
+        fake_ai_attempt,
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/"
+            "findings/0/attempt"
+        ),
+        json={
+            "attempt": (
+                "Age kolonundaki null değerleri "
+                "inceledim."
+            )
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert ai_called is False
+
+    assert body["source"] == "local"
+
+    assert (
+        body["skill_name"]
+        == "null_analysis"
+    )
+
+    assert (
+        body["evidence"]["is_evidence"]
+        is False
+    )
+
+    assert (
+        body["evidence"]["success"]
+        is None
+    )
+
+def test_personal_public_workspace_attempt_can_use_external_ai(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Personal Public Attempt",
+            "usage_context": "personal",
+            "data_sensitivity": "public",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()[
+            "workspace_id"
+        ]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    workspace.dataset_analysis = (
+        DataQualityAnalysis(
+            findings=[
+                DataQualityFinding(
+                    issue_type="missing_values",
+                    column="age",
+                    severity="medium",
+                    observation=(
+                        "2 missing values found."
+                    ),
+                    suggested_action=(
+                        "Inspect missing values."
+                    ),
+                )
+            ]
+        )
+    )
+
+    workspace.dataset_ai_processing_status = (
+        "allowed"
+    )
+
+    workspace.dataset_analysis_source = (
+        "local_and_ai"
+    )
+
+    database.save_workspace(
+        workspace
+    )
+
+    ai_called = False
+    captured_finding = None
+    captured_attempt = None
+
+    def fake_ai_attempt(
+        learner_id,
+        finding,
+        attempt,
+    ):
+        nonlocal ai_called
+        nonlocal captured_finding
+        nonlocal captured_attempt
+
+        ai_called = True
+        captured_finding = finding
+        captured_attempt = attempt
+
+        return DataQualityAttemptResponse(
+            mentor_response=(
+                "Evet, bu uygun bir adım."
+            ),
+            skill_name="null_analysis",
+            skill_status="learning",
+            evidence=LearningEvidenceDecision(
+                is_evidence=True,
+                evidence_type="application",
+                success=True,
+                note=(
+                    "Junior missing values "
+                    "üzerinde anlamlı bir kontrol yaptı."
+                ),
+            ),
+        )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "review_data_quality_attempt",
+        fake_ai_attempt,
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/"
+            "findings/0/attempt"
+        ),
+        json={
+            "attempt": (
+                "Age kolonundaki null "
+                "değerleri kontrol ettim."
+            )
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert ai_called is True
+
+    assert (
+        body["source"]
+        == "external_ai"
+    )
+
+    assert (
+        body["evidence"]["success"]
+        is True
+    )
+
+    # Finding frontend'den değil,
+    # backend workspace state'inden geldi.
+    assert (
+        captured_finding.column
+        == "age"
+    )
+
+    assert (
+        captured_finding.issue_type
+        == "missing_values"
+    )
+
+    assert captured_attempt == (
+        "Age kolonundaki null "
+        "değerleri kontrol ettim."
     )

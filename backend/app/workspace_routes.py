@@ -25,6 +25,9 @@ from backend.app.models import (
     WorkspaceValidationResponse,
     WorkspaceReviewResponse,
     WorkspaceFindingMentorResponse,
+    WorkspaceFindingAttemptRequest,
+    WorkspaceFindingAttemptResponse,
+    LearningEvidenceDecision,
 )
 
 import pandas as pd
@@ -54,6 +57,7 @@ from backend.app.workspace_data_service import (
 from backend.app.mentor_service import (
     review_data_engineering_task_transformation,
     get_skill_for_data_quality_issue,
+    review_data_quality_attempt,
 )
 
 from backend.app.local_data_quality_service import (
@@ -688,6 +692,186 @@ def mentor_workspace_finding_locally(
         mentor_response=(
             mentor_response
         ),
+        source="local",
+    )
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data/findings/{finding_index}/attempt"
+    ),
+    response_model=WorkspaceFindingAttemptResponse,
+)
+def review_workspace_finding_attempt(
+    learner_id: str,
+    workspace_id: str,
+    finding_index: int,
+    request: WorkspaceFindingAttemptRequest,
+):
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.dataset_analysis is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Workspace için dataset analysis "
+                "bulunamadı."
+            ),
+        )
+
+    findings = (
+        workspace.dataset_analysis.findings
+    )
+
+    if (
+        finding_index < 0
+        or finding_index >= len(findings)
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Finding bulunamadı.",
+        )
+
+    # Frontend finding göndermiyor.
+    # Trusted finding backend workspace state'inden geliyor.
+    finding = findings[finding_index]
+
+    skill_name = (
+        get_skill_for_data_quality_issue(
+            finding.issue_type
+        )
+    )
+
+    if skill_name is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu finding için uygun "
+                "mentor skill'i bulunamadı."
+            ),
+        )
+
+    security_decision = (
+        evaluate_document_ai_policy(
+            usage_context=(
+                workspace.usage_context
+            ),
+            data_sensitivity=(
+                workspace.data_sensitivity
+                or "unknown"
+            ),
+            organization_id=(
+                workspace.organization_id
+            ),
+            organization_ai_allowed=None,
+        )
+    )
+
+    # ==================================================
+    # EXTERNAL AI ALLOWED
+    # ==================================================
+
+    if security_decision.external_ai_allowed:
+
+        result = review_data_quality_attempt(
+            learner_id=learner_id,
+            finding=finding,
+            attempt=request.attempt,
+        )
+
+        if result is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Attempt review için uygun "
+                    "mentor skill'i bulunamadı."
+                ),
+            )
+
+        return WorkspaceFindingAttemptResponse(
+            finding_index=finding_index,
+            skill_name=result.skill_name,
+            skill_status=result.skill_status,
+            mentor_response=(
+                result.mentor_response
+            ),
+            evidence=result.evidence,
+            source="external_ai",
+        )
+
+
+    # ==================================================
+    # LOCAL SECURE MODE
+    # ==================================================
+    #
+    # Free-text attempt'in semantik olarak doğru
+    # olup olmadığını deterministic engine ile
+    # uydurarak değerlendirmiyoruz.
+    #
+    # Gerçek success ancak transformation sonucunda
+    # before/after data ile doğrulanacak.
+
+    skill_state = database.get_skill_state(
+        learner_id,
+        skill_name,
+    )
+
+    if skill_state is None:
+
+        database.insert_skill_state(
+            learner_id,
+            skill_name,
+            status="new",
+        )
+
+        skill_status = "new"
+
+    else:
+        skill_status = (
+            skill_state["status"]
+        )
+
+    local_guidance = (
+        build_local_mentor_response(
+            finding=finding,
+            skill_status=skill_status,
+        )
+    )
+
+    evidence = LearningEvidenceDecision(
+        is_evidence=False,
+        evidence_type=None,
+        success=None,
+        note=(
+            "Free-text attempt local secure mode'da "
+            "otomatik başarı evidence'ı olarak "
+            "değerlendirilmedi. Gerçek sonuç "
+            "transformation validation ile doğrulanmalı."
+        ),
+    )
+
+    mentor_response = (
+        "Bu açıklamayı local secure mode'da "
+        "doğru veya yanlış diye puanlamıyorum. "
+        f"{local_guidance}"
+    )
+
+    return WorkspaceFindingAttemptResponse(
+        finding_index=finding_index,
+        skill_name=skill_name,
+        skill_status=skill_status,
+        mentor_response=mentor_response,
+        evidence=evidence,
         source="local",
     )
 

@@ -4,11 +4,13 @@ import backend.app.database as database
 
 from backend.app.models import (
     DataQualityFinding,
+    DataQualityAttemptResponse,
     DataEngineeringTask,
     DataEngineeringTaskTransformationResponse,
     LearningEvidenceDecision,
     MissingValuesValidationResult,
     DuplicateRowsValidationResult,
+    DataQualityTransformationResponse,
 )
 
 from backend.app.transformation_validation_service import (
@@ -140,6 +142,120 @@ def build_local_mentor_response(
         f"İlk adım: {next_step}"
     )
 
+def get_local_mentor_response_for_data_quality_finding(
+    learner_id: str,
+    finding: DataQualityFinding,
+) -> str | None:
+
+    skill_name = (
+        get_skill_for_data_quality_issue(
+            finding.issue_type
+        )
+    )
+
+    if skill_name is None:
+        return None
+
+    skill_state = database.get_skill_state(
+        learner_id,
+        skill_name,
+    )
+
+    if skill_state is None:
+
+        database.insert_skill_state(
+            learner_id,
+            skill_name,
+            status="new",
+        )
+
+        skill_status = "new"
+
+    else:
+        skill_status = (
+            skill_state["status"]
+        )
+
+    return build_local_mentor_response(
+        finding=finding,
+        skill_status=skill_status,
+    )
+
+
+def review_data_quality_attempt_locally(
+    learner_id: str,
+    finding: DataQualityFinding,
+    attempt: str,
+) -> DataQualityAttemptResponse | None:
+
+    if not attempt.strip():
+        raise ValueError(
+            "Attempt boş olamaz."
+        )
+
+    skill_name = (
+        get_skill_for_data_quality_issue(
+            finding.issue_type
+        )
+    )
+
+    if skill_name is None:
+        return None
+
+    skill_state = database.get_skill_state(
+        learner_id,
+        skill_name,
+    )
+
+    if skill_state is None:
+
+        database.insert_skill_state(
+            learner_id,
+            skill_name,
+            status="new",
+        )
+
+        skill_status = "new"
+
+    else:
+        skill_status = (
+            skill_state["status"]
+        )
+
+    guidance = build_local_mentor_response(
+        finding=finding,
+        skill_status=skill_status,
+    )
+
+    # Free-text'i deterministic olarak
+    # doğru/yanlış diye tahmin etmiyoruz.
+    #
+    # Gerçek success evidence'ı daha sonra
+    # before/after transformation validation'dan gelir.
+    evidence = LearningEvidenceDecision(
+        is_evidence=False,
+        evidence_type=None,
+        success=None,
+        note=(
+            "Free-text attempt local mode'da "
+            "otomatik learning evidence olarak "
+            "değerlendirilmedi."
+        ),
+    )
+
+    mentor_response = (
+        "Bu açıklamayı local mode'da "
+        "doğru veya yanlış diye puanlamıyorum. "
+        f"{guidance}"
+    )
+
+    return DataQualityAttemptResponse(
+        mentor_response=mentor_response,
+        skill_name=skill_name,
+        skill_status=skill_status,
+        evidence=evidence,
+    )
+
 def build_local_learning_evidence(
     validation: (
         MissingValuesValidationResult
@@ -179,6 +295,97 @@ def build_local_learning_evidence(
         note=note,
     )
 
+
+def review_data_quality_transformation_locally(
+    learner_id: str,
+    finding: DataQualityFinding,
+    before_df: pd.DataFrame,
+    after_df: pd.DataFrame,
+) -> DataQualityTransformationResponse | None:
+
+    skill_name = (
+        get_skill_for_data_quality_issue(
+            finding.issue_type
+        )
+    )
+
+    if skill_name is None:
+        return None
+
+    # ==================================================
+    # LOCAL SKILL STATE
+    # ==================================================
+
+    skill_state = database.get_skill_state(
+        learner_id,
+        skill_name,
+    )
+
+    if skill_state is None:
+
+        database.insert_skill_state(
+            learner_id,
+            skill_name,
+            status="new",
+        )
+
+        skill_status_before = "new"
+
+    else:
+        skill_status_before = (
+            skill_state["status"]
+        )
+
+    assistance_level = (
+        get_local_assistance_level(
+            skill_status_before
+        )
+    )
+
+    # ==================================================
+    # DETERMINISTIC VALIDATION
+    # ==================================================
+
+    validation = (
+        validate_transformation_for_finding(
+            before_df=before_df,
+            after_df=after_df,
+            finding=finding,
+        )
+    )
+
+    if validation is None:
+        return None
+
+    # ==================================================
+    # LOCAL LEARNING EVIDENCE
+    # ==================================================
+
+    evidence = build_local_learning_evidence(
+        validation
+    )
+
+    database.record_learning_evidence(
+        learner_id=learner_id,
+        skill_name=skill_name,
+        assistance_level=assistance_level,
+        success=evidence.success,
+        evidence_type=evidence.evidence_type,
+        note=evidence.note,
+        session_id=None,
+    )
+
+    skill_status = refresh_skill_status(
+        learner_id=learner_id,
+        skill_name=skill_name,
+    )
+
+    return DataQualityTransformationResponse(
+        skill_name=skill_name,
+        skill_status=skill_status,
+        validation=validation,
+        evidence=evidence,
+    )
 
 def review_task_transformation_locally(
     learner_id: str,
