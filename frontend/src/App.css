@@ -4436,3 +4436,512 @@
     align-items: flex-start;
   }
 }
+
+.personal-analysis-plan {
+  grid-column: 1 / -1;
+  padding: 24px;
+  border: 1px solid #dbe5f1;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.personal-analysis-plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.personal-analysis-plan-header h2 {
+  margin: 6px 0 8px;
+  font-size: 22px;
+  color: #15233f;
+}
+
+.personal-analysis-plan-header p {
+  margin: 0;
+  max-width: 680px;
+  color: #637895;
+  line-height: 1.6;
+}
+
+.personal-analysis-plan-source {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #eef6ff;
+  color: #2374d8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.personal-analysis-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.personal-analysis-plan-group {
+  padding: 18px;
+  border: 1px solid #e0e8f2;
+  border-radius: 12px;
+  background: #f9fbfd;
+}
+
+.personal-analysis-plan-label {
+  display: block;
+  margin-bottom: 12px;
+  color: #7286a0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.personal-analysis-plan-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.personal-analysis-plan-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #edf5ff;
+  color: #276fca;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.personal-analysis-plan-empty {
+  color: #8b9bb0;
+  font-size: 13px;
+}
+
+.personal-analysis-questions {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #e0e8f2;
+  border-radius: 12px;
+}
+
+.personal-analysis-questions ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.personal-analysis-questions li {
+  margin: 8px 0;
+  color: #435873;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .personal-analysis-plan-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-analysis-plan-header {
+    flex-direction: column;
+  }
+}
+
+.personal-analysis-run {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #e0e8f2;
+  border-radius: 12px;
+  background: #f9fbfd;
+}
+
+.personal-analysis-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.personal-analysis-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.personal-analysis-controls label > span {
+  color: #637895;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.personal-analysis-controls select {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #d3dfed;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #253650;
+  font: inherit;
+}
+
+.personal-analysis-error {
+  margin: 14px 0 0;
+  color: #b42318;
+  font-size: 13px;
+}
+
+.personal-analysis-results {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #dbe5f1;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.personal-analysis-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.personal-analysis-results-header h3 {
+  margin: 5px 0 0;
+  color: #15233f;
+}
+
+.personal-analysis-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.personal-analysis-summary > div {
+  padding: 14px;
+  border: 1px solid #e2eaf3;
+  border-radius: 10px;
+  background: #f9fbfd;
+}
+
+.personal-analysis-summary span {
+  display: block;
+  margin-bottom: 5px;
+  color: #7a8da5;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.personal-analysis-summary strong {
+  color: #1d2d48;
+  font-size: 18px;
+}
+
+.personal-analysis-table-wrap {
+  margin-top: 18px;
+  overflow-x: auto;
+}
+
+.personal-analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.personal-analysis-table th,
+.personal-analysis-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #e5ebf2;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.personal-analysis-table th {
+  color: #687d98;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.personal-analysis-table td {
+  color: #334862;
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .personal-analysis-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-analysis-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.personal-kpi-card {
+  grid-column: 1 / -1;
+  padding: 24px;
+  border: 1px solid #dbe5f1;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.personal-kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.personal-kpi-header h2 {
+  margin: 6px 0 8px;
+  color: #15233f;
+  font-size: 22px;
+}
+
+.personal-kpi-header p {
+  margin: 0;
+  max-width: 680px;
+  color: #637895;
+  line-height: 1.6;
+}
+
+.personal-kpi-list {
+  display: grid;
+  gap: 12px;
+}
+
+.personal-kpi-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid #e0e8f2;
+  border-radius: 12px;
+  background: #f9fbfd;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.personal-kpi-item.selected {
+  border-color: #89b8f0;
+  background: #f1f7ff;
+}
+
+.personal-kpi-item input {
+  margin-top: 4px;
+}
+
+.personal-kpi-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.personal-kpi-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.personal-kpi-title-row strong {
+  color: #223550;
+}
+
+.personal-kpi-aggregation {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #2b73c9;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.personal-kpi-content p {
+  margin: 7px 0 10px;
+  color: #637895;
+  line-height: 1.5;
+}
+
+.personal-kpi-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.personal-kpi-meta span {
+  color: #7a8da5;
+  font-size: 12px;
+}
+
+.personal-kpi-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.personal-kpi-actions > span {
+  color: #637895;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .personal-kpi-header {
+    flex-direction: column;
+  }
+
+  .personal-kpi-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .personal-kpi-actions .new-workspace-button {
+    width: 100%;
+  }
+}
+
+.personal-data-model-card {
+  grid-column: 1 / -1;
+  padding: 24px;
+  border: 1px solid #dbe5f1;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.personal-data-model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.personal-data-model-header h2 {
+  margin: 7px 0 8px;
+  color: #15233f;
+  font-size: 22px;
+}
+
+.personal-data-model-header p {
+  margin: 0;
+  max-width: 700px;
+  color: #637895;
+  line-height: 1.6;
+}
+
+.personal-data-model-result {
+  display: grid;
+  gap: 20px;
+}
+
+.personal-data-model-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.personal-data-model-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 15px;
+  border: 1px solid #e0e8f2;
+  border-radius: 11px;
+  background: #f8fafc;
+}
+
+.personal-data-model-summary span {
+  color: #7a8da5;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.personal-data-model-summary strong {
+  color: #253650;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.personal-data-model-section {
+  padding-top: 4px;
+}
+
+.personal-data-model-section h3 {
+  margin: 0 0 10px;
+  color: #253650;
+  font-size: 15px;
+}
+
+.personal-data-model-section > p {
+  margin: 0;
+  color: #637895;
+  font-size: 13px;
+}
+
+.personal-data-model-measures {
+  display: grid;
+  gap: 10px;
+}
+
+.personal-data-model-measure {
+  padding: 14px;
+  border: 1px solid #e0e8f2;
+  border-radius: 11px;
+  background: #f9fbfd;
+}
+
+.personal-data-model-measure > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.personal-data-model-measure strong {
+  color: #253650;
+}
+
+.personal-data-model-measure > div > span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #2374d8;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.personal-data-model-measure p {
+  margin: 4px 0 0;
+  color: #637895;
+  font-size: 12px;
+}
+
+.personal-data-model-ready {
+  padding: 13px 15px;
+  border: 1px solid #bfe2cc;
+  border-radius: 10px;
+  background: #f1faf4;
+  color: #28784a;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 800px) {
+  .personal-data-model-header {
+    flex-direction: column;
+  }
+
+  .personal-data-model-summary {
+    grid-template-columns: 1fr;
+  }
+}

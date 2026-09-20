@@ -646,6 +646,123 @@ class DataEngineeringTaskCreateRequest(BaseModel):
 #
 # workspace'e özel kalır.
 
+class PersonalProjectAnalysisPlan(BaseModel):
+    measure_candidates: list[str] = Field(
+        default_factory=list
+    )
+
+    dimension_candidates: list[str] = Field(
+        default_factory=list
+    )
+
+    time_candidates: list[str] = Field(
+        default_factory=list
+    )
+
+    suggested_questions: list[str] = Field(
+        default_factory=list
+    )
+
+    source: Literal[
+        "local",
+    ] = "local"
+
+
+class PersonalProjectAnalysisResult(BaseModel):
+
+    measure: str
+    dimension: str | None = None
+
+    overall: dict = Field(
+        default_factory=dict
+    )
+
+    grouped_results: list[dict] = Field(
+        default_factory=list
+    )
+
+    source: Literal[
+        "local",
+    ] = "local"
+
+class PersonalProjectAnalysisRequest(BaseModel):
+    measure: str
+    dimension: str | None = None
+
+
+class PersonalProjectKPIDefinition(BaseModel):
+    code: str
+    title: str
+
+    measure: str | None = None
+
+    aggregation: Literal[
+        "count",
+        "sum",
+        "mean",
+        "min",
+        "max",
+    ]
+
+    dimension: str | None = None
+
+    description: str
+
+    source: Literal[
+        "local",
+        "user",
+    ] = "local"   
+
+class PersonalProjectKPISelectionRequest(BaseModel):
+    codes: list[str] = Field(
+        min_length=1
+    )
+
+class PersonalProjectDataModelMeasure(BaseModel):
+    code: str
+    title: str
+
+    column: str | None = None
+
+    aggregation: Literal[
+        "count",
+        "sum",
+        "mean",
+        "min",
+        "max",
+    ]
+
+    dimension: str | None = None
+
+
+class PersonalProjectDataModelPlan(BaseModel):
+    model_type: Literal[
+        "single_table",
+        "star_schema_candidate",
+    ]
+
+    base_table: str
+
+    grain: str
+
+    dimensions: list[str] = Field(
+        default_factory=list
+    )
+
+    time_dimension: str | None = None
+
+    measures: list[
+        PersonalProjectDataModelMeasure
+    ] = Field(default_factory=list)
+
+    recommended_dimension_tables: list[
+        str
+    ] = Field(default_factory=list)
+
+    source: Literal[
+        "local",
+    ] = "local"
+
 class ProjectDeliverable(BaseModel):
     code: str
     title: str
@@ -731,7 +848,26 @@ class Workspace(BaseModel):
         ProjectDeliverable
     ] = Field(default_factory=list)
 
-    
+    analysis_plan: (
+        PersonalProjectAnalysisPlan | None
+    ) = None
+
+    analysis_result: (
+        PersonalProjectAnalysisResult | None
+    ) = None
+
+    kpi_candidates: list[
+        PersonalProjectKPIDefinition
+    ] = Field(default_factory=list)
+
+    kpi_definitions: list[
+        PersonalProjectKPIDefinition
+    ] = Field(default_factory=list)
+
+    data_model_plan: (
+        PersonalProjectDataModelPlan | None
+    ) = None
+
     # Çalışmanın genel veri mühendisliği akışı.
     # "auto" ise ileride mentor task brief'e göre
     # uygun workflow'u seçecek.

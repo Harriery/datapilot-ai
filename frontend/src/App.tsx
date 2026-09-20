@@ -5,9 +5,12 @@ import {
 } from "./i18n";
 
 import "./App.css";
+
 import PersonalProjectDeliverables, {
   type ProjectDeliverableData,
 } from "./PersonalProjectDeliverables";
+
+import PersonalAnalysisPlan from "./PersonalAnalysisPlan";
 import TasksPage from "./TasksPage";
 import ProgressPage from "./ProgressPage";
 import WorkspaceModeCards from "./WorkspaceModeCards";
@@ -27,6 +30,12 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
+
+import PersonalKpiCandidates, {
+  type PersonalKpiData,
+} from "./PersonalKpiCandidates";
+
+import PersonalDataModel from "./PersonalDataModel";
 
 type SkillProgressData = {
   skill_name: string;
@@ -124,6 +133,77 @@ type DashboardWorkspace = {
   
   project_deliverables?:
     ProjectDeliverableData[];
+
+  analysis_plan?: {
+    measure_candidates: string[];
+    dimension_candidates: string[];
+    time_candidates: string[];
+    suggested_questions: string[];
+    source: "local";
+  } | null;
+
+  analysis_result?: {
+    measure: string;
+    dimension: string | null;
+
+    overall: {
+      count: number;
+      mean: number | null;
+      min: number | null;
+      max: number | null;
+    };
+
+    grouped_results: {
+      value:
+        | string
+        | number
+        | boolean
+        | null;
+
+      count: number;
+      mean: number | null;
+      min: number | null;
+      max: number | null;
+    }[];
+
+    source: "local";
+  } | null;
+
+  kpi_candidates?: PersonalKpiData[];
+
+  kpi_definitions?: PersonalKpiData[];
+
+  data_model_plan?: {
+    model_type:
+      | "single_table"
+      | "star_schema_candidate";
+
+    base_table: string;
+    grain: string;
+
+    dimensions: string[];
+
+    time_dimension: string | null;
+
+    measures: {
+      code: string;
+      title: string;
+      column: string | null;
+
+      aggregation:
+        | "count"
+        | "sum"
+        | "mean"
+        | "min"
+        | "max";
+
+      dimension: string | null;
+    }[];
+
+    recommended_dimension_tables: string[];
+
+    source: "local";
+  } | null;
 
   usage_context: "work" | "personal";
 
@@ -585,6 +665,16 @@ df["age"] = df["age"].fillna(median_age)`);
   ] = useState(false);
 
   const [
+    personalAnalysisLoading,
+    setPersonalAnalysisLoading,
+  ] = useState(false);
+
+  const [
+    personalAnalysisError,
+    setPersonalAnalysisError,
+  ] = useState<string | null>(null);
+
+  const [
     workspaceValidationError,
     setWorkspaceValidationError,
   ] = useState<string | null>(null);
@@ -669,8 +759,26 @@ df["age"] = df["age"].fillna(median_age)`);
   const [practiceSolutionError, setPracticeSolutionError] =
     useState<string | null>(null);
 
+  const [
+    personalKpiLoading,
+    setPersonalKpiLoading,
+  ] = useState(false);
+
+  const [
+    personalKpiError,
+    setPersonalKpiError,
+  ] = useState<string | null>(null);
 
 
+  const [
+    personalDataModelLoading,
+    setPersonalDataModelLoading,
+  ] = useState(false);
+
+  const [
+    personalDataModelError,
+    setPersonalDataModelError,
+  ] = useState<string | null>(null);
   
   useEffect(() => {
     async function loadDashboardData() {
@@ -1254,7 +1362,7 @@ async function uploadWorkspaceData(
       const workspaceResponse = await fetch(
         `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
       );
-      
+
       if (workspaceResponse.ok) {
         const updatedWorkspace: DashboardWorkspace =
           await workspaceResponse.json();
@@ -1532,6 +1640,226 @@ async function runWorkspaceValidation() {
     }
   }
 
+async function runPersonalAnalysis(
+  measure: string,
+  dimension: string | null,
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  setPersonalAnalysisLoading(true);
+  setPersonalAnalysisError(null);
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/analysis/run`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          measure,
+          dimension,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Analysis çalıştırılamadı."
+      );
+    }
+
+    await response.json();
+
+    const workspaceResponse = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+    );
+
+    if (!workspaceResponse.ok) {
+      throw new Error(
+        "Analysis tamamlandı fakat workspace yenilenemedi."
+      );
+    }
+
+    const updatedWorkspace: DashboardWorkspace =
+      await workspaceResponse.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map((workspace) =>
+          workspace.workspace_id ===
+          updatedWorkspace.workspace_id
+            ? updatedWorkspace
+            : workspace
+        )
+    );
+
+  } catch (error) {
+    setPersonalAnalysisError(
+      error instanceof Error
+        ? error.message
+        : "Analysis çalıştırılamadı."
+    );
+  } finally {
+    setPersonalAnalysisLoading(false);
+  }
+}
+
+async function savePersonalKpis(
+  codes: string[],
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  setPersonalKpiLoading(true);
+  setPersonalKpiError(null);
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/kpis/select`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          codes,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "KPI seçimleri kaydedilemedi."
+      );
+    }
+
+    await response.json();
+
+    const workspaceResponse = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+    );
+
+    if (!workspaceResponse.ok) {
+      throw new Error(
+        "KPI seçimleri kaydedildi fakat workspace yenilenemedi."
+      );
+    }
+
+    const updatedWorkspace: DashboardWorkspace =
+      await workspaceResponse.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map((workspace) =>
+          workspace.workspace_id ===
+          updatedWorkspace.workspace_id
+            ? updatedWorkspace
+            : workspace
+        )
+    );
+
+  } catch (error) {
+    setPersonalKpiError(
+      error instanceof Error
+        ? error.message
+        : "KPI seçimleri kaydedilemedi."
+    );
+  } finally {
+    setPersonalKpiLoading(false);
+  }
+}
+
+async function buildPersonalDataModel() {
+  if (!workspaceId) {
+    return;
+  }
+
+  setPersonalDataModelLoading(true);
+  setPersonalDataModelError(null);
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data-model/build`,
+      {
+        method: "POST",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Data model oluşturulamadı."
+      );
+    }
+
+    await response.json();
+
+    const workspaceResponse = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+    );
+
+    if (!workspaceResponse.ok) {
+      throw new Error(
+        "Data model oluşturuldu fakat workspace yenilenemedi."
+      );
+    }
+
+    const updatedWorkspace: DashboardWorkspace =
+      await workspaceResponse.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map((workspace) =>
+          workspace.workspace_id ===
+          updatedWorkspace.workspace_id
+            ? updatedWorkspace
+            : workspace
+        )
+    );
+
+  } catch (error) {
+    setPersonalDataModelError(
+      error instanceof Error
+        ? error.message
+        : "Data model oluşturulamadı."
+    );
+  } finally {
+    setPersonalDataModelLoading(false);
+  }
+}
+  
 async function completeWorkspaceReview() {
     if (!workspaceId) {
       setWorkspaceReviewError(
@@ -3518,7 +3846,72 @@ async function restoreWorkspaceVersion(
                             }
                           />
                         )}
+
+                      {dashboardWorkspace.usage_context === "personal" &&
+                        dashboardWorkspace.analysis_plan && (
+                          <PersonalAnalysisPlan
+                            analysisPlan={
+                              dashboardWorkspace.analysis_plan
+                            }
                           
+                            analysisResult={
+                              dashboardWorkspace.analysis_result
+                            }
+                          
+                            loading={
+                              personalAnalysisLoading
+                            }
+                          
+                            error={
+                              personalAnalysisError
+                            }
+                          
+                            onRunAnalysis={
+                              runPersonalAnalysis
+                            }
+                          />
+                        )}
+
+                      {dashboardWorkspace.usage_context === "personal" &&
+                        dashboardWorkspace.kpi_candidates &&
+                        dashboardWorkspace.kpi_candidates.length > 0 && (
+                          <PersonalKpiCandidates
+                            candidates={
+                              dashboardWorkspace.kpi_candidates
+                            }
+                          
+                            selectedDefinitions={
+                              dashboardWorkspace.kpi_definitions ?? []
+                            }
+                          
+                            loading={
+                              personalKpiLoading
+                            }
+                          
+                            error={
+                              personalKpiError
+                            }
+                          
+                            onSave={
+                              savePersonalKpis
+                            }
+                          />
+                        )}
+
+                      {dashboardWorkspace.usage_context === "personal" &&
+                        dashboardWorkspace.kpi_definitions &&
+                        dashboardWorkspace.kpi_definitions.length > 0 && (
+                          <PersonalDataModel
+                            dataModelPlan={
+                              dashboardWorkspace.data_model_plan
+                            }
+                            loading={personalDataModelLoading}
+                            error={personalDataModelError}
+                            onBuild={buildPersonalDataModel}
+                          />
+                        )}
+
+
                       <section className="workspace-overview-card">
                         <span className="workspace-overview-label">
                           {t.workspace.progress}

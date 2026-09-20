@@ -158,3 +158,39 @@ def update_personal_project_deliverable(
             return True
 
     return False
+
+def complete_and_advance_personal_project_deliverable(
+    workspace: Workspace,
+    code: str,
+) -> bool:
+
+    if workspace.usage_context != "personal":
+        return False
+
+    completed_index = None
+
+    for index, deliverable in enumerate(
+        workspace.project_deliverables
+    ):
+        if deliverable.code == code:
+
+            if deliverable.status == "completed":
+                return False
+        
+            deliverable.status = "completed"
+            completed_index = index
+            break
+
+    if completed_index is None:
+        return False
+
+    for deliverable in (
+        workspace.project_deliverables[
+            completed_index + 1:
+        ]
+    ):
+        if deliverable.status == "pending":
+            deliverable.status = "in_progress"
+            break
+
+    return True

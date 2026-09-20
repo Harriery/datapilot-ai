@@ -28,6 +28,11 @@ from backend.app.models import (
     WorkspaceFindingAttemptRequest,
     WorkspaceFindingAttemptResponse,
     LearningEvidenceDecision,
+    PersonalProjectAnalysisRequest,
+    PersonalProjectAnalysisResult,
+    PersonalProjectKPISelectionRequest,
+    PersonalProjectKPIDefinition,
+    PersonalProjectDataModelPlan,
 )
 
 import pandas as pd
@@ -36,6 +41,7 @@ import pandas as pd
 
 from backend.app.data_profile_service import build_data_profile
 from backend.app.data_ai_service import generate_data_recommendations
+
 from backend.app.workspace_plan_service import (
     generate_workspace_execution_plan,
     generate_local_workspace_execution_plan,
@@ -77,7 +83,20 @@ from backend.app.local_data_quality_mentor_service import (
 
 from backend.app.personal_project_service import (
     build_personal_project_deliverables,
-    update_personal_project_deliverable,
+    complete_and_advance_personal_project_deliverable,
+)
+
+from backend.app.personal_analysis_service import (
+    build_personal_analysis_plan,
+    build_personal_analysis_result,
+)
+
+from backend.app.personal_kpi_service import (
+    build_personal_kpi_candidates,
+)
+
+from backend.app.personal_data_model_service import (
+    build_personal_data_model_plan,
 )
 
 router = APIRouter()
@@ -527,13 +546,16 @@ def profile_workspace_data(
     )
 
     if workspace.usage_context == "personal":
-        update_personal_project_deliverable(
+        complete_and_advance_personal_project_deliverable(
             workspace=workspace,
             code="data_profile",
-            status="completed",
         )
 
     workspace.validation_result = None
+    workspace.analysis_plan = None
+    workspace.analysis_result = None
+    workspace.kpi_candidates = []
+    workspace.kpi_definitions = []
 
     workspace.checkpoint.completed_items = [
         item
@@ -1039,6 +1061,10 @@ def restore_workspace_version(
         restored_checkpoint
     )
     workspace.validation_result = None
+    workspace.analysis_plan = None
+    workspace.analysis_result = None
+    workspace.kpi_candidates = []
+    workspace.kpi_definitions = []
 
     workspace.checkpoint.completed_items = [
         item
@@ -1270,6 +1296,10 @@ def transform_workspace_data(
                 df=after_df,
             )
             workspace.validation_result = None
+            workspace.analysis_plan = None
+            workspace.analysis_result = None
+            workspace.kpi_candidates = []
+            workspace.kpi_definitions = []
 
         except OSError as exc:
             # Task review servisi başarılı validation
@@ -1578,18 +1608,21 @@ def validate_workspace_result(
     if passed:
 
         if workspace.usage_context == "personal":
-            update_personal_project_deliverable(
+            complete_and_advance_personal_project_deliverable(
                 workspace=workspace,
                 code="clean_dataset",
-                status="completed",
             )
-    
+
+            workspace.analysis_plan = (
+                build_personal_analysis_plan(
+                    working_profile
+                )
+            )
+
         if (
             "Validation passed"
-            not in
-            workspace.checkpoint.completed_items
+            not in workspace.checkpoint.completed_items
         ):
-            
             workspace.checkpoint.completed_items.append(
                 "Validation passed"
             )
@@ -1638,6 +1671,378 @@ def validate_workspace_result(
     "/workspaces/{learner_id}/{workspace_id}/review/complete",
     response_model=WorkspaceReviewResponse,
 )
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/analysis/run"
+    ),
+    response_model=PersonalProjectAnalysisResult,
+)
+def run_personal_project_analysis(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectAnalysisRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Personal project analysis yalnızca "
+                "personal workspace için kullanılabilir."
+            ),
+        )
+
+    if (
+        workspace.validation_result is None
+        or not workspace.validation_result.passed
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Analysis başlamadan önce "
+                "final validation başarılı olmalı."
+            ),
+        )
+
+    if workspace.analysis_plan is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Analysis plan bulunamadı.",
+        )
+
+    has_analysis_deliverable = any(
+        deliverable.code == "analysis"
+        for deliverable
+        in workspace.project_deliverables
+    )
+
+    if not has_analysis_deliverable:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu personal project type "
+                "analysis deliverable içermiyor."
+            ),
+        )
+
+    if (
+        request.measure
+        not in
+        workspace.analysis_plan.measure_candidates
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Geçersiz analysis measure."
+            ),
+        )
+
+    if (
+        request.dimension is not None
+        and request.dimension
+        not in
+        workspace.analysis_plan.dimension_candidates
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Geçersiz analysis dimension."
+            ),
+        )
+
+    try:
+        working_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+        result = (
+            build_personal_analysis_result(
+                df=working_df,
+                measure=request.measure,
+                dimension=request.dimension,
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    workspace.analysis_result = result
+
+    workspace.kpi_candidates = (
+        build_personal_kpi_candidates(
+            result
+        )
+    )
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="analysis",
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Review analysis results and define KPIs"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Define KPIs"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return result
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/kpis/select"
+    ),
+    response_model=list[
+        PersonalProjectKPIDefinition
+    ],
+)
+def select_personal_project_kpis(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectKPISelectionRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "KPI selection yalnızca "
+                "personal workspace için kullanılabilir."
+            ),
+        )
+
+    if workspace.analysis_result is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "KPI seçilmeden önce "
+                "analysis çalıştırılmalı."
+            ),
+        )
+
+    has_kpi_deliverable = any(
+        deliverable.code == "kpi_definitions"
+        for deliverable
+        in workspace.project_deliverables
+    )
+
+    if not has_kpi_deliverable:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu project type KPI definitions "
+                "deliverable içermiyor."
+            ),
+        )
+
+    if not workspace.kpi_candidates:
+        raise HTTPException(
+            status_code=400,
+            detail="KPI candidate bulunamadı.",
+        )
+
+    candidates_by_code = {
+        candidate.code: candidate
+        for candidate
+        in workspace.kpi_candidates
+    }
+
+    selected_codes = list(
+        dict.fromkeys(
+            request.codes
+        )
+    )
+
+    invalid_codes = [
+        code
+        for code in selected_codes
+        if code not in candidates_by_code
+    ]
+
+    if invalid_codes:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Geçersiz KPI candidate: "
+                + ", ".join(invalid_codes)
+            ),
+        )
+
+    selected_definitions = [
+        candidates_by_code[code]
+        for code in selected_codes
+    ]
+
+    workspace.kpi_definitions = (
+        selected_definitions
+    )
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="kpi_definitions",
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Build data model"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Build data model"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return selected_definitions
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data-model/build"
+    ),
+    response_model=PersonalProjectDataModelPlan,
+)
+def build_personal_project_data_model(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Data model yalnızca personal "
+                "workspace için oluşturulabilir."
+            ),
+        )
+
+    if workspace.analysis_plan is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Data model oluşturulmadan önce "
+                "analysis plan gerekli."
+            ),
+        )
+
+    if not workspace.kpi_definitions:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Data model oluşturulmadan önce "
+                "KPI definitions seçilmeli."
+            ),
+        )
+
+    has_data_model_deliverable = any(
+        deliverable.code == "data_model"
+        for deliverable
+        in workspace.project_deliverables
+    )
+
+    if not has_data_model_deliverable:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu project type data model "
+                "deliverable içermiyor."
+            ),
+        )
+
+    data_model_plan = (
+        build_personal_data_model_plan(
+            dataset_filename=(
+                workspace.dataset_filename
+            ),
+            analysis_plan=(
+                workspace.analysis_plan
+            ),
+            kpi_definitions=(
+                workspace.kpi_definitions
+            ),
+        )
+    )
+
+    workspace.data_model_plan = (
+        data_model_plan
+    )
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="data_model",
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Prepare Power BI-ready dataset"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Prepare Power BI-ready dataset"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return data_model_plan
+
 def complete_workspace_review(
     learner_id: str,
     workspace_id: str,

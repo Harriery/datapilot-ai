@@ -15,8 +15,12 @@ from backend.app.models import (
     DataEngineeringTaskTransformationResponse,
     MissingValuesValidationResult,
     LearningEvidenceDecision,
-    WorkspaceFindingAttemptRequest,
     DataQualityAttemptResponse,
+    PersonalProjectAnalysisPlan,
+    WorkspaceValidationResponse,
+    PersonalProjectKPIDefinition,
+    PersonalProjectAnalysisResult,
+    
 )
 
 from backend.app.main import app
@@ -1477,7 +1481,7 @@ def test_personal_dataset_profile_completes_deliverable(
 
     assert (
         deliverables["clean_dataset"]["status"]
-        == "pending"
+        == "in_progress"
     )
 
 def test_successful_personal_validation_completes_clean_dataset(
@@ -1627,4 +1631,555 @@ def test_successful_personal_validation_completes_clean_dataset(
     assert (
         deliverables["clean_dataset"]["status"]
         == "completed"
+    )
+
+    assert (
+        deliverables["analysis"]["status"]
+        == "in_progress"
+    )
+
+    analysis_plan = (
+        workspace_response.json()[
+            "analysis_plan"
+        ]
+    )
+    
+    assert analysis_plan is not None
+    
+    assert (
+        analysis_plan["measure_candidates"]
+        == ["price"]
+    )
+    
+    assert (
+        analysis_plan["dimension_candidates"]
+        == ["region"]
+    )
+    
+    assert (
+        analysis_plan["source"]
+        == "local"
+    )
+
+def test_run_personal_analysis_completes_analysis_deliverable(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Customer Analysis",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "task_brief": (
+                "Analyze customer age by city."
+            ),
+            "desired_outcome": (
+                "Create a BI dashboard."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.validation_result = (
+        WorkspaceValidationResponse(
+            passed=True,
+            source_row_count=4,
+            working_row_count=4,
+            checks=[],
+        )
+    )
+
+    workspace.analysis_plan = (
+        PersonalProjectAnalysisPlan(
+            measure_candidates=[
+                "age",
+            ],
+            dimension_candidates=[
+                "city",
+            ],
+            time_candidates=[],
+            suggested_questions=[
+                "How does age vary by city?",
+            ],
+            source="local",
+        )
+    )
+
+    # Analysis aşamasını aktif duruma getiriyoruz.
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code == "analysis":
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    working_df = pd.DataFrame(
+        {
+            "age": [
+                31.0,
+                29.5,
+                28.0,
+                29.5,
+            ],
+            "city": [
+                "Den Haag",
+                "Rotterdam",
+                "Utrecht",
+                "Delft",
+            ],
+        }
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_working_dataframe",
+        lambda workspace_id: working_df,
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/analysis/run"
+        ),
+        json={
+            "measure": "age",
+            "dimension": "city",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["measure"] == "age"
+    assert body["dimension"] == "city"
+
+    assert body["overall"] == {
+        "count": 4,
+        "mean": 29.5,
+        "min": 28.0,
+        "max": 31.0,
+    }
+
+    assert (
+        len(body["grouped_results"])
+        == 4
+    )
+
+    assert body["source"] == "local"
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert workspace_response.status_code == 200
+
+    updated_workspace = (
+        workspace_response.json()
+    )
+
+    kpi_candidates = (
+        updated_workspace[
+            "kpi_candidates"
+        ]
+    )
+
+    deliverables = {
+        item["code"]: item
+        for item in updated_workspace[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables["analysis"]["status"]
+        == "completed"
+    )
+
+    assert (
+        deliverables[
+            "kpi_definitions"
+        ]["status"]
+        == "in_progress"
+    )
+
+    assert (
+        updated_workspace[
+            "analysis_result"
+        ]["measure"]
+        == "age"
+    )
+
+    assert (
+        updated_workspace[
+            "analysis_result"
+        ]["dimension"]
+        == "city"
+    )
+
+    assert len(kpi_candidates) == 5
+
+    assert [
+        item["code"]
+        for item in kpi_candidates
+    ] == [
+        "average_age",
+        "count_age",
+        "minimum_age",
+        "maximum_age",
+        "average_age_by_city",
+    ]
+
+    assert (
+        updated_workspace[
+            "kpi_definitions"
+        ]
+        == []
+    )
+
+def test_select_personal_kpis_completes_kpi_deliverable(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Customer Dashboard",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "task_brief": (
+                "Analyze customer age by city."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.analysis_result = (
+        PersonalProjectAnalysisResult(
+            measure="age",
+            dimension="city",
+            overall={
+                "count": 4,
+                "mean": 29.5,
+                "min": 28.0,
+                "max": 31.0,
+            },
+            grouped_results=[],
+            source="local",
+        )
+    )
+
+    workspace.kpi_candidates = [
+        PersonalProjectKPIDefinition(
+            code="average_age",
+            title="Average age",
+            measure="age",
+            aggregation="mean",
+            dimension=None,
+            description=(
+                "Average age across dataset."
+            ),
+            source="local",
+        ),
+        PersonalProjectKPIDefinition(
+            code="average_age_by_city",
+            title="Average age by city",
+            measure="age",
+            aggregation="mean",
+            dimension="city",
+            description=(
+                "Average age by city."
+            ),
+            source="local",
+        ),
+    ]
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code == "analysis":
+            deliverable.status = "completed"
+
+        if deliverable.code == "kpi_definitions":
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/kpis/select"
+        ),
+        json={
+            "codes": [
+                "average_age",
+                "average_age_by_city",
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert [
+        item["code"]
+        for item in body
+    ] == [
+        "average_age",
+        "average_age_by_city",
+    ]
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    updated_workspace = (
+        workspace_response.json()
+    )
+
+    deliverables = {
+        item["code"]: item
+        for item in updated_workspace[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables[
+            "kpi_definitions"
+        ]["status"]
+        == "completed"
+    )
+
+    assert (
+        deliverables[
+            "data_model"
+        ]["status"]
+        == "in_progress"
+    )
+
+    assert len(
+        updated_workspace[
+            "kpi_definitions"
+        ]
+    ) == 2
+
+
+def test_build_personal_data_model_completes_deliverable(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Customer Dashboard",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "task_brief": (
+                "Analyze customer age by city."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.dataset_filename = (
+        "test_quality.csv"
+    )
+
+    workspace.analysis_plan = (
+        PersonalProjectAnalysisPlan(
+            measure_candidates=[
+                "age",
+            ],
+            dimension_candidates=[
+                "city",
+            ],
+            time_candidates=[],
+            suggested_questions=[
+                "How does age vary by city?",
+            ],
+            source="local",
+        )
+    )
+
+    workspace.kpi_definitions = [
+        PersonalProjectKPIDefinition(
+            code="average_age",
+            title="Average age",
+            measure="age",
+            aggregation="mean",
+            dimension=None,
+            description=(
+                "Average age across dataset."
+            ),
+            source="local",
+        ),
+        PersonalProjectKPIDefinition(
+            code="average_age_by_city",
+            title="Average age by city",
+            measure="age",
+            aggregation="mean",
+            dimension="city",
+            description=(
+                "Average age by city."
+            ),
+            source="local",
+        ),
+    ]
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code in {
+            "analysis",
+            "kpi_definitions",
+        }:
+            deliverable.status = "completed"
+
+        if deliverable.code == "data_model":
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data-model/build"
+        )
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert (
+        body["model_type"]
+        == "star_schema_candidate"
+    )
+
+    assert (
+        body["base_table"]
+        == "fact_test_quality"
+    )
+
+    assert (
+        body["dimensions"]
+        == ["city"]
+    )
+
+    assert [
+        item["code"]
+        for item in body["measures"]
+    ] == [
+        "average_age",
+        "average_age_by_city",
+    ]
+
+    assert (
+        body[
+            "recommended_dimension_tables"
+        ]
+        == ["dim_city"]
+    )
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert workspace_response.status_code == 200
+
+    updated_workspace = (
+        workspace_response.json()
+    )
+
+    deliverables = {
+        item["code"]: item
+        for item in updated_workspace[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables[
+            "data_model"
+        ]["status"]
+        == "completed"
+    )
+
+    assert (
+        deliverables[
+            "bi_ready_dataset"
+        ]["status"]
+        == "in_progress"
+    )
+
+    assert (
+        updated_workspace[
+            "data_model_plan"
+        ]["base_table"]
+        == "fact_test_quality"
     )
