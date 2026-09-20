@@ -77,7 +77,7 @@ class DocumentMetadata(BaseModel):
 
     created_at: str | None = None
 
-class DocumentSecurityDecision(BaseModel):
+class ExternalAIProcessingDecision(BaseModel):
 
     ai_processing_status: Literal[
         "allowed",
@@ -100,6 +100,9 @@ class DocumentSecurityDecision(BaseModel):
     ]
 
     reason: str
+# Backward compatibility:
+# Eski document-specific kodlar kırılmasın.
+DocumentSecurityDecision = ExternalAIProcessingDecision
 
 class DocumentAccessDecision(BaseModel):
 

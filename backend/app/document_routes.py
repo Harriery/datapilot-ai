@@ -40,8 +40,8 @@ from backend.app.database import(
     get_messages_by_session,
     get_learner_profile_by_id,
 ) 
-from backend.app.document_security_service import (
-    evaluate_document_ai_policy,
+from backend.app.data_security_service import (
+    evaluate_external_ai_policy,
 )
 
 from backend.app.embedding_service import (
@@ -258,7 +258,7 @@ def upload_document(
     # Sonuç PENDING olacaktır.
 
     security_decision = (
-        evaluate_document_ai_policy(
+        evaluate_external_ai_policy(
             usage_context=usage_context,
             data_sensitivity=(
                 data_sensitivity

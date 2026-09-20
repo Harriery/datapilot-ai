@@ -65,8 +65,8 @@ from backend.app.local_data_quality_service import (
     merge_data_quality_analyses,
 )
 
-from backend.app.document_security_service import (
-    evaluate_document_ai_policy,
+from backend.app.data_security_service import (
+    evaluate_external_ai_policy,
 )
 
 from backend.app.local_data_quality_mentor_service import (
@@ -225,7 +225,7 @@ def create_workspace_execution_plan(
     # ==================================================
 
     security_decision = (
-        evaluate_document_ai_policy(
+        evaluate_external_ai_policy(
             usage_context=(
                 workspace.usage_context
             ),
@@ -424,7 +424,7 @@ def profile_workspace_data(
     # ==================================================
 
     security_decision = (
-        evaluate_document_ai_policy(
+        evaluate_external_ai_policy(
             usage_context=(
                 workspace.usage_context
             ),
@@ -762,7 +762,7 @@ def review_workspace_finding_attempt(
         )
 
     security_decision = (
-        evaluate_document_ai_policy(
+        evaluate_external_ai_policy(
             usage_context=(
                 workspace.usage_context
             ),
@@ -1175,7 +1175,7 @@ def transform_workspace_data(
     # ==================================================
 
     security_decision = (
-        evaluate_document_ai_policy(
+        evaluate_external_ai_policy(
             usage_context=(
                 workspace.usage_context
             ),

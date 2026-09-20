@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, UploadFile
 import pandas as pd
 from backend.app.data_ai_service import generate_data_recommendations
 from backend.app.data_profile_service import build_data_profile
+
+
 router = APIRouter()
 
 
