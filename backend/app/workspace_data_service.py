@@ -13,6 +13,7 @@ import pandas as pd
 from backend.app.models import (
     DataEngineeringTask,
     WorkspaceCheckpoint,
+    WorkspaceWorkbenchOperation,
 )
 
 WORKSPACE_DATA_ROOT = Path(
@@ -153,12 +154,25 @@ def save_workspace_working_dataframe(
         working_path
     )
 
+
 def create_workspace_version(
     workspace_id: str,
     df: pd.DataFrame,
-    task: DataEngineeringTask,
+    task: DataEngineeringTask | None,
     checkpoint: WorkspaceCheckpoint,
     label: str,
+    workbench_operations: (
+        list[WorkspaceWorkbenchOperation] | None
+    ) = None,
+    workbench_active_operation_id: (
+        str | None
+    ) = None,
+    operation_id: str | None = None,
+    operation_title: str | None = None,
+    operation_type: str | None = None,
+    transformation_code: str | None = None,
+    before_columns: list[str] | None = None,
+    after_columns: list[str] | None = None,
 ) -> int:
     workspace_dir = (
         _get_workspace_data_dir(
@@ -188,6 +202,7 @@ def create_workspace_version(
             existing_numbers.append(
                 number
             )
+
         except (
             ValueError,
             IndexError,
@@ -195,7 +210,10 @@ def create_workspace_version(
             continue
 
     version_number = (
-        max(existing_numbers, default=0)
+        max(
+            existing_numbers,
+            default=0,
+        )
         + 1
     )
 
@@ -212,16 +230,80 @@ def create_workspace_version(
         index=False,
     )
 
+    operation_metadata = None
+
+    if operation_id is not None:
+        operation_metadata = {
+            "operation_id":
+                operation_id,
+
+            "operation_title":
+                operation_title,
+
+            "operation_type":
+                operation_type,
+
+            "transformation_code":
+                transformation_code,
+
+            "before_columns":
+                before_columns or [],
+
+            "after_columns":
+                after_columns or [],
+
+            "schema_changed": (
+                before_columns
+                != after_columns
+                if (
+                    before_columns is not None
+                    and after_columns is not None
+                )
+                else None
+            ),
+        }
+
     metadata = {
-        "version_number": version_number,
-        "label": label,
-        "created_at": datetime.now(
-            timezone.utc
-        ).isoformat(),
-        "row_count": len(df),
-        "task": task.model_dump(),
+        "version_number":
+            version_number,
+
+        "label":
+            label,
+
+        "created_at":
+            datetime.now(
+                timezone.utc
+            ).isoformat(),
+
+        "row_count":
+            len(df),
+
+        "task": (
+            task.model_dump()
+            if task is not None
+            else None
+        ),
+
         "checkpoint":
             checkpoint.model_dump(),
+
+        "workbench_operations": (
+            [
+                operation.model_dump()
+                for operation
+                in workbench_operations
+            ]
+            if workbench_operations
+            is not None
+            else None
+        ),
+
+        "workbench_active_operation_id": (
+            workbench_active_operation_id
+        ),
+
+        "operation":
+            operation_metadata,
     }
 
     metadata_path.write_text(
@@ -234,7 +316,6 @@ def create_workspace_version(
     )
 
     return version_number
-
 
 def delete_workspace_version(
     workspace_id: str,
@@ -261,6 +342,7 @@ def delete_workspace_version(
     if metadata_path.exists():
         metadata_path.unlink()
 
+
 def list_workspace_versions(
     workspace_id: str,
 ) -> list[dict]:
@@ -286,16 +368,55 @@ def list_workspace_versions(
                 )
             )
 
+            operation = (
+                metadata.get("operation")
+                or {}
+            )
+
             versions.append(
                 {
                     "version_number":
-                        metadata["version_number"],
+                        metadata[
+                            "version_number"
+                        ],
+
                     "label":
                         metadata["label"],
+
                     "created_at":
-                        metadata["created_at"],
+                        metadata[
+                            "created_at"
+                        ],
+
                     "row_count":
-                        metadata["row_count"],
+                        metadata[
+                            "row_count"
+                        ],
+
+                    "operation_id":
+                        operation.get(
+                            "operation_id"
+                        ),
+
+                    "operation_title":
+                        operation.get(
+                            "operation_title"
+                        ),
+
+                    "operation_type":
+                        operation.get(
+                            "operation_type"
+                        ),
+
+                    "transformation_code":
+                        operation.get(
+                            "transformation_code"
+                        ),
+
+                    "schema_changed":
+                        operation.get(
+                            "schema_changed"
+                        ),
                 }
             )
 
@@ -319,8 +440,10 @@ def load_workspace_version(
     version_number: int,
 ) -> tuple[
     pd.DataFrame,
-    DataEngineeringTask,
+    DataEngineeringTask | None,
     WorkspaceCheckpoint,
+    list[WorkspaceWorkbenchOperation] | None,
+    str | None,
 ]:
     if version_number < 1:
         raise ValueError(
@@ -366,8 +489,16 @@ def load_workspace_version(
         csv_path
     )
 
-    task = DataEngineeringTask.model_validate(
-        metadata["task"]
+    task_data = metadata.get(
+        "task"
+    )
+
+    task = (
+        DataEngineeringTask.model_validate(
+            task_data
+        )
+        if task_data is not None
+        else None
     )
 
     checkpoint = (
@@ -376,8 +507,28 @@ def load_workspace_version(
         )
     )
 
+    operations_data = metadata.get(
+        "workbench_operations"
+    )
+
+    workbench_operations = (
+        [
+            WorkspaceWorkbenchOperation
+            .model_validate(item)
+            for item in operations_data
+        ]
+        if operations_data is not None
+        else None
+    )
+
+    active_operation_id = metadata.get(
+        "workbench_active_operation_id"
+    )
+
     return (
         df,
         task,
         checkpoint,
+        workbench_operations,
+        active_operation_id,
     )

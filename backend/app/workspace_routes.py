@@ -35,6 +35,8 @@ from backend.app.models import (
     PersonalProjectDataModelPlan,
     WorkspaceWorkbenchOperation,
     WorkspaceWorkbenchOperationCreateRequest,
+    WorkspaceWorkbenchTransformationRequest,
+    WorkspaceWorkbenchTransformationResponse,
 )
 
 import pandas as pd
@@ -107,7 +109,13 @@ from backend.app.personal_data_model_studio_service import (
 
 from backend.app.workspace_workbench_service import (
     add_user_workbench_operation,
+    complete_workbench_operation,
+    get_workbench_operation,
     sync_data_quality_workbench_operations,
+)
+
+from backend.app.transformation_validation_service import (
+    validate_transformation_for_finding,
 )
 
 router = APIRouter()
@@ -231,6 +239,424 @@ def create_workspace_workbench_operation(
     )
 
     return operation
+
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/workbench/transform"
+    ),
+    response_model=(
+        WorkspaceWorkbenchTransformationResponse
+    ),
+)
+def transform_workspace_workbench_data(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceWorkbenchTransformationRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    try:
+        operation = get_workbench_operation(
+            operations=(
+                workspace.workbench_operations
+            ),
+            operation_id=request.operation_id,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    if operation.status != "active":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Yalnızca aktif Workbench operation "
+                "submit edilebilir."
+            ),
+        )
+
+    try:
+        before_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    after_df = pd.DataFrame(
+        request.after_rows
+    )
+
+    if after_df.empty:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Transformation dataset içindeki "
+                "bütün satırları silemez."
+            ),
+        )
+
+    missing_source_columns = [
+        column
+        for column in operation.source_columns
+        if column not in before_df.columns
+    ]
+
+    if missing_source_columns:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Transformation için gerekli source "
+                "column bulunamadı: "
+                + ", ".join(
+                    missing_source_columns
+                )
+            ),
+        )
+
+    missing_expected_columns = [
+        column
+        for column in operation.expected_columns
+        if column not in after_df.columns
+    ]
+
+    if missing_expected_columns:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Transformation beklenen column'ları "
+                "oluşturmadı: "
+                + ", ".join(
+                    missing_expected_columns
+                )
+            ),
+        )
+
+    if operation.origin == "data_quality":
+
+        if (
+            workspace.dataset_analysis is None
+            or operation.finding_index is None
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Data-quality operation için "
+                    "trusted finding bulunamadı."
+                ),
+            )
+
+        findings = (
+            workspace.dataset_analysis.findings
+        )
+
+        if (
+            operation.finding_index < 0
+            or operation.finding_index
+            >= len(findings)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Workbench finding reference "
+                    "geçersiz."
+                ),
+            )
+
+        finding = findings[
+            operation.finding_index
+        ]
+
+        validation = (
+            validate_transformation_for_finding(
+                before_df=before_df,
+                after_df=after_df,
+                finding=finding,
+            )
+        )
+
+        if validation is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Bu data-quality operation için "
+                    "deterministic validation "
+                    "desteklenmiyor."
+                ),
+            )
+
+        if not validation.success:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Transformation data-quality "
+                    "requirement'ını henüz "
+                    "karşılamıyor."
+                ),
+            )
+
+    # --------------------------------------------------
+    # VERSION SNAPSHOT
+    # --------------------------------------------------
+    #
+    # Dataset değişmeden ÖNCE rollback noktası oluştur.
+    # Workbench operation state'i de snapshot'a girer.
+
+    task_snapshot = None
+
+    if workspace.current_task_id is not None:
+        task_snapshot = (
+            database.get_data_engineering_task(
+                task_id=(
+                    workspace.current_task_id
+                ),
+                learner_id=learner_id,
+            )
+        )
+
+    checkpoint_snapshot = (
+        workspace.checkpoint.model_copy(
+            deep=True
+        )
+    )
+
+    operations_snapshot = [
+        item.model_copy(
+            deep=True
+        )
+        for item
+        in workspace.workbench_operations
+    ]
+
+    version_number = create_workspace_version(
+        workspace_id=workspace_id,
+        df=before_df,
+        task=task_snapshot,
+        checkpoint=checkpoint_snapshot,
+        workbench_operations=(
+            operations_snapshot
+        ),
+        workbench_active_operation_id=(
+            workspace
+            .workbench_active_operation_id
+        ),
+        label=(
+            "Before Workbench operation: "
+            f"{operation.title}"
+        ),
+        operation_id=(
+            operation.operation_id
+        ),
+        operation_title=(
+            operation.title
+        ),
+        operation_type=(
+            operation.operation_type
+        ),
+        transformation_code=(
+            request.code
+        ),
+        before_columns=(
+            before_df.columns.tolist()
+        ),
+        after_columns=(
+            after_df.columns.tolist()
+        ),
+    )
+
+    schema_changed = (
+        list(before_df.columns)
+        != list(after_df.columns)
+    )
+
+    try:
+        save_workspace_working_dataframe(
+            workspace_id=workspace_id,
+            df=after_df,
+        )
+
+    except OSError as exc:
+
+        delete_workspace_version(
+            workspace_id=workspace_id,
+            version_number=version_number,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Transformation doğrulandı fakat "
+                "working dataset kaydedilemedi."
+            ),
+        ) from exc
+
+    try:
+        (
+            completed_operation,
+            next_operation_id,
+        ) = complete_workbench_operation(
+            operations=(
+                workspace.workbench_operations
+            ),
+            operation_id=request.operation_id,
+            code=request.code,
+            rollback_version_number=(
+                version_number
+            ),
+        )
+
+    except ValueError as exc:
+
+        # Operation state güncellenemiyorsa
+        # dataset'i eski haline döndür.
+        save_workspace_working_dataframe(
+            workspace_id=workspace_id,
+            df=before_df,
+        )
+
+        delete_workspace_version(
+            workspace_id=workspace_id,
+            version_number=version_number,
+        )
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    workspace.workbench_active_operation_id = (
+        next_operation_id
+    )
+
+    workspace.workbench_preview = None
+
+    # Dataset değiştiği için downstream state artık
+    # eski working dataset'e ait.
+    workspace.validation_result = None
+
+    workspace.analysis_plan = None
+    workspace.analysis_result = None
+
+    workspace.kpi_candidates = []
+    workspace.kpi_definitions = []
+
+    workspace.data_model_plan = None
+    workspace.data_model_studio = None
+
+    if workspace.usage_context == "personal":
+
+        invalidate_started = False
+
+        for deliverable in (
+            workspace.project_deliverables
+        ):
+            if (
+                deliverable.code
+                == "clean_dataset"
+            ):
+                deliverable.status = (
+                    "in_progress"
+                )
+
+                invalidate_started = True
+
+                continue
+
+            if invalidate_started:
+                deliverable.status = "pending"
+
+    workspace.checkpoint.completed_items = [
+        item
+        for item
+        in workspace.checkpoint.completed_items
+        if item not in {
+            "Validation passed",
+            "Final review completed",
+            "Handoff completed",
+        }
+    ]
+
+    if next_operation_id is None:
+
+        workspace.checkpoint.current_focus = (
+            "Validate prepared dataset"
+        )
+
+        workspace.checkpoint.next_actions = [
+            "Validate prepared dataset"
+        ]
+
+    else:
+
+        next_operation = (
+            get_workbench_operation(
+                operations=(
+                    workspace.workbench_operations
+                ),
+                operation_id=(
+                    next_operation_id
+                ),
+            )
+        )
+
+        workspace.checkpoint.current_focus = (
+            next_operation.title
+        )
+
+        workspace.checkpoint.next_actions = [
+            next_operation.title
+        ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return (
+        WorkspaceWorkbenchTransformationResponse(
+            operation=completed_operation,
+            active_operation_id=(
+                next_operation_id
+            ),
+            before_row_count=len(before_df),
+            after_row_count=len(after_df),
+            schema_changed=schema_changed,
+            working_data=(
+                WorkspaceWorkingDataResponse(
+                    columns=(
+                        after_df.columns.tolist()
+                    ),
+                    row_count=len(after_df),
+                    rows=dataframe_to_records(
+                        after_df
+                    ),
+                )
+            ),
+        )
+    )
+
+
 
 @router.post(
     "/workspaces/{learner_id}/{workspace_id}/plan",
@@ -1076,6 +1502,8 @@ def restore_workspace_version(
             restored_df,
             restored_task,
             restored_checkpoint,
+            restored_operations,
+            restored_active_operation_id,
         ) = load_workspace_version(
             workspace_id=workspace_id,
             version_number=version_number,
@@ -1085,7 +1513,7 @@ def restore_workspace_version(
         raise HTTPException(
             status_code=404,
             detail=str(exc),
-        )
+        ) from exc
 
     except (
         ValueError,
@@ -1094,41 +1522,81 @@ def restore_workspace_version(
         raise HTTPException(
             status_code=400,
             detail=str(exc),
-        )
+        ) from exc
 
-    # Önce data'yı geri getir.
     save_workspace_working_dataframe(
         workspace_id=workspace_id,
         df=restored_df,
     )
 
-    # Sonra task state'ini geri getir.
-    database.save_data_engineering_task(
-        learner_id=learner_id,
-        task=restored_task,
-    )
+    if restored_task is not None:
+        database.save_data_engineering_task(
+            learner_id=learner_id,
+            task=restored_task,
+        )
 
-    # Workspace tekrar snapshot'taki task'a
-    # bağlı kalmalı.
-    workspace.current_task_id = (
-        restored_task.task_id
-    )
+        workspace.current_task_id = (
+            restored_task.task_id
+        )
+
+    else:
+        workspace.current_task_id = None
 
     workspace.checkpoint = (
         restored_checkpoint
     )
+
+    if restored_operations is not None:
+        workspace.workbench_operations = (
+            restored_operations
+        )
+
+        workspace.workbench_active_operation_id = (
+            restored_active_operation_id
+        )
+
+    workspace.workbench_preview = None
+
     workspace.validation_result = None
+
     workspace.analysis_plan = None
     workspace.analysis_result = None
+
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
 
+    workspace.data_model_plan = None
+    workspace.data_model_studio = None
+
+    if workspace.usage_context == "personal":
+
+        invalidate_started = False
+
+        for deliverable in (
+            workspace.project_deliverables
+        ):
+            if (
+                deliverable.code
+                == "clean_dataset"
+            ):
+                deliverable.status = (
+                    "in_progress"
+                )
+
+                invalidate_started = True
+                continue
+
+            if invalidate_started:
+                deliverable.status = "pending"
+
     workspace.checkpoint.completed_items = [
         item
-        for item in workspace.checkpoint.completed_items
+        for item
+        in workspace.checkpoint.completed_items
         if item not in {
             "Validation passed",
             "Final review completed",
+            "Handoff completed",
         }
     ]
 
@@ -1139,22 +1607,43 @@ def restore_workspace_version(
     )
 
     return {
-        "version_number": version_number,
-        "message": "Workspace version restored.",
-        "task": restored_task,
-        "checkpoint": restored_checkpoint,
+        "version_number":
+            version_number,
+
+        "message":
+            "Workspace version restored.",
+
+        "task": (
+            restored_task.model_dump()
+            if restored_task is not None
+            else None
+        ),
+
+        "checkpoint":
+            workspace.checkpoint,
+
+        "workbench_operations": (
+            workspace.workbench_operations
+        ),
+
+        "workbench_active_operation_id": (
+            workspace
+            .workbench_active_operation_id
+        ),
+
         "working_data": {
             "columns":
                 restored_df.columns.tolist(),
+
             "row_count":
                 len(restored_df),
+
             "rows":
                 dataframe_to_records(
                     restored_df
                 ),
         },
     }
-
 
 @router.post(
     "/workspaces/{learner_id}/{workspace_id}/data/transform",

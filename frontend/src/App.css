@@ -5109,137 +5109,458 @@
 }
 
 .workspace-stage-navigation {
-  margin: 22px 0 28px;
+  margin: 8px 0 14px;
 }
+
+.workspace-stage-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.workspace-stage-canvas {
+  position: relative;
+  min-width: 880px;
+}
+
+/* =========================================
+   MAIN STAGE RAIL
+   ========================================= */
 
 .workspace-stage-main {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px;
-  border: 1px solid #dbe5f1;
-  border-radius: 14px;
-  background: #ffffff;
-  overflow-x: auto;
+  position: relative;
+
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+
+  align-items: start;
+
+  padding: 2px 8px 0;
 }
 
+/* Ana yatay çizgi */
+.workspace-stage-main::before {
+  content: "";
+
+  position: absolute;
+
+  left: calc(
+    (100% / 9) / 2
+  );
+
+  right: calc(
+    (100% / 9) / 2
+  );
+
+  top: 41px;
+
+  height: 1px;
+
+  background: #d8e2ee;
+}
+
+/* =========================================
+   MAIN STAGE BUTTON
+   ========================================= */
+
 .workspace-stage-button {
+  position: relative;
+  z-index: 1;
+
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 7px;
-  flex: 1 0 auto;
-  min-width: 105px;
-  padding: 10px 12px;
+
+  gap: 5px;
+
+  padding: 0 4px 5px;
+
   border: 0;
-  border-radius: 9px;
+
   background: transparent;
-  color: #667a94;
+
+  color: #74859a;
+
   font: inherit;
-  font-size: 13px;
-  font-weight: 600;
+
   cursor: pointer;
+
   transition:
-    background 0.15s ease,
-    color 0.15s ease;
+    color 180ms ease,
+    transform 180ms ease;
 }
 
 .workspace-stage-button:hover:not(:disabled) {
-  background: #f3f7fc;
+  color: #41698f;
 }
 
-.workspace-stage-button.active {
-  background: #eaf3ff;
-  color: #176bd1;
-}
-
-.workspace-stage-button.status-completed {
-  color: #39745b;
-}
-
-.workspace-stage-button.status-completed.active {
-  background: #eef9f2;
-  color: #26754f;
-}
-
-.workspace-stage-button.status-current {
-  color: #176bd1;
-}
-
-.workspace-stage-button.status-locked {
-  color: #a8b3c1;
+.workspace-stage-button:disabled {
   cursor: not-allowed;
 }
 
-.workspace-stage-status {
-  display: inline-flex;
-  align-items: center;
+/* Label yüksekliğini sabit tutuyoruz.
+   Böylece Data Model / BI Dataset gibi
+   iki kelimeli başlıklarda node çizgisi kaymaz. */
+
+.workspace-stage-label {
+  display: flex;
+  align-items: flex-end;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  border-radius: 50%;
+
+  min-height: 28px;
+
+  text-align: center;
+
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1.15;
+
+  white-space: normal;
+
+  transition:
+    color 180ms ease,
+    transform 180ms ease,
+    font-weight 180ms ease;
 }
 
-.status-completed .workspace-stage-status {
-  background: #e4f5eb;
-  color: #238257;
+/* =========================================
+   STAGE NODE
+   ========================================= */
+
+.workspace-stage-dot {
+  position: relative;
+
+  width: 13px;
+  height: 13px;
+
+  flex: 0 0 13px;
+
+  border: 2px solid #b9c6d5;
+  border-radius: 50%;
+
+  background: #ffffff;
+
+  box-sizing: border-box;
+
+  transition:
+    transform 200ms ease,
+    border-color 200ms ease,
+    background 200ms ease,
+    box-shadow 200ms ease;
 }
 
-.status-current .workspace-stage-status {
-  background: #e6f1ff;
+/* Completed */
+
+.workspace-stage-button.status-completed:not(.active) {
+  color: #438065;
+}
+
+.workspace-stage-button.status-completed:not(.active)
+  .workspace-stage-dot {
+  border-color: #55a57a;
+  background: #f4fbf7;
+}
+
+/* Current ama henüz seçili değil */
+
+.workspace-stage-button.status-current:not(.active) {
+  color: #3e74aa;
+}
+
+.workspace-stage-button.status-current:not(.active)
+  .workspace-stage-dot {
+  border-color: #65a2e8;
+  background: #eef6ff;
+}
+
+/* Locked */
+
+.workspace-stage-button.status-locked {
+  color: #aab4c1;
+}
+
+.workspace-stage-button.status-locked
+  .workspace-stage-dot {
+  border-color: #d0d7df;
+  background: #f7f9fb;
+}
+
+/* =========================================
+   ACTIVE STAGE
+   ========================================= */
+
+.workspace-stage-button.active {
   color: #176bd1;
 }
 
-.status-locked .workspace-stage-status {
-  background: #f1f4f7;
-  color: #a8b3c1;
+.workspace-stage-button.active
+  .workspace-stage-label {
+  color: #176bd1;
+  font-weight: 700;
+
+  transform: translateY(-2px);
 }
 
-.workspace-stage-subnav {
-  display: flex;
-  gap: 6px;
-  margin-top: 10px;
-  padding-left: 6px;
+.workspace-stage-button.active
+  .workspace-stage-dot {
+  transform:
+    translateY(-3px)
+    scale(1.28);
+
+  border-color: #3183df;
+
+  background: #dcecff;
+
+  box-shadow:
+    0 0 0 4px rgba(49, 131, 223, 0.1),
+    0 4px 10px rgba(49, 131, 223, 0.16);
 }
+
+/* =========================================
+   MINI TREE
+   ========================================= */
+
+.workspace-stage-tree {
+  position: relative;
+
+  height: 47px;
+
+  margin-top: -2px;
+}
+
+/* Aktif ana node'dan aşağı inen kök */
+
+.workspace-stage-tree-stem {
+  position: absolute;
+
+  top: 0;
+
+  width: 1px;
+  height: 12px;
+
+  background: #bad2ec;
+
+  transform-origin: top;
+
+  animation:
+    workspace-tree-stem-grow
+    150ms ease-out both;
+}
+
+/* Alt dalların tamamı */
+
+.workspace-stage-tree-branches {
+  position: absolute;
+
+  top: 11px;
+
+  width: 270px;
+
+  transform: translateX(-50%);
+
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+
+  padding-top: 10px;
+}
+
+/* Yatay dal */
+
+.workspace-stage-tree-branches::before {
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  left: 16.666%;
+  right: 16.666%;
+
+  height: 1px;
+
+  background: #bad2ec;
+
+  transform-origin: center;
+
+  animation:
+    workspace-tree-branch-grow
+    170ms ease-out both;
+
+  animation-delay: 80ms;
+}
+
+/* =========================================
+   SUB PAGE BUTTON
+   ========================================= */
 
 .workspace-stage-subnav-button {
-  padding: 8px 14px;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 5px;
+
+  min-width: 0;
+
+  padding: 6px 5px;
+
+  border: 0;
+  border-radius: 7px;
+
   background: transparent;
-  color: #6c7f97;
+
+  color: #74879e;
+
   font: inherit;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
+
   cursor: pointer;
+
+  opacity: 0;
+
+  transform: translateY(-4px);
+
+  animation:
+    workspace-tree-item-enter
+    170ms ease-out forwards;
+
+  transition:
+    color 160ms ease,
+    background 160ms ease;
+}
+
+/* Her alt node'u yatay dala bağlayan küçük çizgi */
+
+.workspace-stage-subnav-button::before {
+  content: "";
+
+  position: absolute;
+
+  top: -10px;
+  left: 50%;
+
+  width: 1px;
+  height: 10px;
+
+  background: #bad2ec;
 }
 
 .workspace-stage-subnav-button:hover {
-  background: #f4f7fb;
+  color: #2f6fae;
+
+  background: #f5f9fd;
 }
+
+/* Alt başlık node'u */
+
+.workspace-stage-subnav-dot {
+  width: 7px;
+  height: 7px;
+
+  flex: 0 0 7px;
+
+  border: 1.5px solid #aebed0;
+  border-radius: 50%;
+
+  background: #ffffff;
+
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+/* Aktif alt sayfa */
 
 .workspace-stage-subnav-button.active {
-  border-color: #c8ddf5;
-  background: #eef6ff;
   color: #176bd1;
+  font-weight: 700;
 }
+
+.workspace-stage-subnav-button.active
+  .workspace-stage-subnav-dot {
+  border-color: #3183df;
+  background: #3183df;
+
+  box-shadow:
+    0 0 0 3px rgba(49, 131, 223, 0.09);
+}
+
+/* =========================================
+   TREE ANIMATIONS
+   ========================================= */
+
+@keyframes workspace-tree-stem-grow {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes workspace-tree-branch-grow {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes workspace-tree-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================
+   RESPONSIVE
+   ========================================= */
 
 @media (max-width: 900px) {
-  .workspace-stage-main {
-    justify-content: flex-start;
-  }
-
-  .workspace-stage-button {
-    flex: 0 0 auto;
-  }
-
-  .workspace-stage-subnav {
-    overflow-x: auto;
+  .workspace-stage-canvas {
+    min-width: 820px;
   }
 }
+
+/* Kullanıcı işletim sisteminde
+   hareket azaltmayı seçmişse animasyon kapansın. */
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-stage-tree-stem,
+  .workspace-stage-tree-branches::before,
+  .workspace-stage-subnav-button {
+    animation: none;
+  }
+
+  .workspace-stage-subnav-button {
+    opacity: 1;
+    transform: none;
+  }
+
+  .workspace-stage-button,
+  .workspace-stage-label,
+  .workspace-stage-dot {
+    transition: none;
+  }
+}
+
+
 
 .personal-transform-summary {
   grid-column: 1 / -1;
@@ -5328,4 +5649,446 @@
 .personal-transform-summary-result strong {
   color: #1f2f49;
   font-size: 15px;
+}
+
+
+.workspace-transform-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workspace-modal-backdrop {
+  position: fixed;
+  inset: 0;
+
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background: rgba(20, 31, 48, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+.workspace-modal {
+  width: min(720px, 100%);
+  max-height: 86vh;
+
+  overflow-y: auto;
+
+  padding: 24px;
+
+  border: 1px solid #dce5ef;
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 24px 70px
+    rgba(20, 31, 48, 0.22);
+}
+
+.workspace-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+
+  padding-bottom: 18px;
+
+  border-bottom: 1px solid #e7edf4;
+}
+
+.workspace-modal-header h3 {
+  margin: 5px 0 5px;
+
+  color: #172640;
+
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.workspace-modal-header p {
+  margin: 0;
+
+  color: #6f7f93;
+
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.workspace-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 34px;
+  height: 34px;
+
+  flex-shrink: 0;
+
+  padding: 0;
+
+  border: 1px solid #dce5ef;
+  border-radius: 9px;
+
+  background: #ffffff;
+  color: #6f7f93;
+
+  font-size: 23px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.workspace-modal-close:hover {
+  background: #f4f7fa;
+  color: #172640;
+}
+
+.workspace-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  padding: 20px 0;
+}
+
+.workspace-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.workspace-modal-field > span {
+  color: #334760;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workspace-modal-field input,
+.workspace-modal-field textarea,
+.workspace-modal-field select {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  padding: 11px 12px;
+
+  border: 1px solid #cfd9e6;
+  border-radius: 10px;
+
+  background: #fbfcfe;
+  color: #172640;
+
+  font: inherit;
+  font-size: 13px;
+
+  outline: none;
+}
+
+.workspace-modal-field input,
+.workspace-modal-field select {
+  min-height: 42px;
+}
+
+.workspace-modal-field textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.workspace-modal-field input:focus,
+.workspace-modal-field textarea:focus,
+.workspace-modal-field select:focus {
+  border-color: #2f80ed;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(47, 128, 237, 0.1);
+}
+
+.workspace-modal-columns {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+
+  gap: 14px;
+}
+
+.workspace-modal-hint {
+  margin-top: -7px;
+
+  color: #8593a5;
+
+  font-size: 11px;
+}
+
+.workspace-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 10px;
+
+  padding-top: 18px;
+
+  border-top: 1px solid #e7edf4;
+}
+
+.workspace-modal-footer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .workspace-modal-backdrop {
+    align-items: flex-end;
+
+    padding: 12px;
+  }
+
+  .workspace-modal {
+    width: 100%;
+    max-height: 92vh;
+
+    padding: 20px;
+
+    border-radius: 16px;
+  }
+
+  .workspace-modal-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-modal-footer {
+    flex-direction: column-reverse;
+  }
+
+  .workspace-modal-footer button {
+    width: 100%;
+  }
+
+  .workspace-transform-header-actions {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+}
+
+
+/* ==================================================
+   COMPACT WORKSPACE SHELL
+   ================================================== */
+
+.workspace-overview-page {
+  gap: 8px;
+}
+
+.workspace-sticky-shell {
+  padding-top: 0;
+  padding-bottom: 4px;
+}
+
+/* Eski header yerine tek satırlık compact header */
+
+.workspace-compact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  min-height: 34px;
+
+  margin-bottom: 5px;
+}
+
+.workspace-compact-main {
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+
+  min-width: 0;
+  flex: 1;
+}
+
+.workspace-compact-back {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 4px;
+
+  flex: 0 0 auto;
+
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.workspace-compact-divider {
+  width: 1px;
+  height: 20px;
+
+  flex: 0 0 1px;
+
+  background: #d9e2ed;
+}
+
+.workspace-compact-header h2 {
+  min-width: 0;
+
+  margin: 0;
+
+  color: #15233c;
+
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Personal / Auto vb. */
+
+.workspace-compact-meta {
+  flex: 0 0 auto;
+
+  flex-wrap: nowrap;
+
+  gap: 4px;
+}
+
+.workspace-compact-meta span {
+  padding: 3px 6px;
+
+  border-radius: 6px;
+
+  font-size: 9px;
+}
+
+/* Sağdaki Active badge de daha küçük */
+
+.workspace-compact-header
+  > .workspace-list-status {
+  flex: 0 0 auto;
+
+  padding: 4px 8px;
+
+  font-size: 9px;
+}
+
+/* ==================================================
+   COMPACT STAGE NAVIGATION SPACING
+   ================================================== */
+
+.workspace-sticky-shell
+  .workspace-stage-navigation {
+  margin-top: 2px;
+  margin-bottom: 5px;
+}
+
+/* Ana stage biraz daha kısa */
+
+.workspace-sticky-shell
+  .workspace-stage-label {
+  min-height: 22px;
+
+  font-size: 10px;
+}
+
+/* Yatay çizgiyi yukarı taşı */
+
+.workspace-sticky-shell
+  .workspace-stage-main::before {
+  top: 34px;
+}
+
+/* Alt ağaç daha az dikey alan kullansın */
+
+.workspace-sticky-shell
+  .workspace-stage-tree {
+  height: 35px;
+
+  margin-top: -4px;
+}
+
+.workspace-sticky-shell
+  .workspace-stage-tree-stem {
+  height: 9px;
+}
+
+.workspace-sticky-shell
+  .workspace-stage-tree-branches {
+  top: 8px;
+
+  padding-top: 8px;
+}
+
+.workspace-sticky-shell
+  .workspace-stage-tree-branches::before {
+  top: 0;
+}
+
+.workspace-sticky-shell
+  .workspace-stage-subnav-button {
+  padding-top: 4px;
+  padding-bottom: 4px;
+
+  font-size: 10px;
+}
+
+.workspace-sticky-shell
+  .workspace-stage-subnav-button::before {
+  top: -8px;
+
+  height: 8px;
+}
+
+
+/* ==================================================
+   RESPONSIVE
+   ================================================== */
+
+@media (max-width: 1050px) {
+  .workspace-compact-header {
+    align-items: flex-start;
+  }
+
+  .workspace-compact-main {
+    flex-wrap: wrap;
+  }
+
+  .workspace-compact-header h2 {
+    max-width: 440px;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspace-compact-header {
+    align-items: flex-start;
+  }
+
+  .workspace-compact-divider {
+    display: none;
+  }
+
+  .workspace-compact-header h2 {
+    width: 100%;
+    max-width: none;
+
+    font-size: 17px;
+  }
+
+  .workspace-compact-meta {
+    width: 100%;
+  }
 }

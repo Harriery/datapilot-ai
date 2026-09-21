@@ -2470,3 +2470,663 @@ def test_profile_creates_data_quality_workbench_operations(
             "operation_id"
         ]
     )
+
+def test_workbench_custom_transformation_can_change_schema(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Customer Preparation",
+            "usage_context": "personal",
+            "project_type": "data_engineering",
+            "task_brief": (
+                "Prepare customer data."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    profile_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/profile"
+        ),
+        files={
+            "file": (
+                "customers.csv",
+                (
+                    "customer_id,full_name\n"
+                    "1,Alice Smith\n"
+                    "2,Bob Jones\n"
+                ),
+                "text/csv",
+            )
+        },
+    )
+
+    assert profile_response.status_code == 200
+
+    first_operation_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/workbench/operations"
+        ),
+        json={
+            "title": "Split full_name",
+            "goal": (
+                "Create first_name and "
+                "last_name columns."
+            ),
+            "operation_type": "transform",
+            "source_columns": [
+                "full_name",
+            ],
+            "expected_columns": [
+                "first_name",
+                "last_name",
+            ],
+        },
+    )
+
+    assert (
+        first_operation_response.status_code
+        == 200
+    )
+
+    first_operation = (
+        first_operation_response.json()
+    )
+
+    assert (
+        first_operation["status"]
+        == "active"
+    )
+
+    second_operation_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/workbench/operations"
+        ),
+        json={
+            "title": "Create display_name",
+            "goal": (
+                "Create a display_name column."
+            ),
+            "operation_type": "custom",
+            "source_columns": [
+                "first_name",
+                "last_name",
+            ],
+            "expected_columns": [
+                "display_name",
+            ],
+        },
+    )
+
+    assert (
+        second_operation_response.status_code
+        == 200
+    )
+
+    second_operation = (
+        second_operation_response.json()
+    )
+
+    assert (
+        second_operation["status"]
+        == "pending"
+    )
+
+    transform_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/workbench/transform"
+        ),
+        json={
+            "operation_id": (
+                first_operation[
+                    "operation_id"
+                ]
+            ),
+            "code": (
+                'df[["first_name", '
+                '"last_name"]] = '
+                'df["full_name"].str.split('
+                '" ", n=1, expand=True)'
+            ),
+            "after_rows": [
+                {
+                    "customer_id": 1,
+                    "full_name": (
+                        "Alice Smith"
+                    ),
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                },
+                {
+                    "customer_id": 2,
+                    "full_name": (
+                        "Bob Jones"
+                    ),
+                    "first_name": "Bob",
+                    "last_name": "Jones",
+                },
+            ],
+        },
+    )
+
+    assert transform_response.status_code == 200
+
+    body = transform_response.json()
+
+    assert body["schema_changed"] is True
+
+    assert body["before_row_count"] == 2
+    assert body["after_row_count"] == 2
+
+    assert (
+        body["operation"]["status"]
+        == "completed"
+    )
+
+    assert (
+        body["operation"]["code"]
+        is not None
+    )
+
+    assert (
+        body["active_operation_id"]
+        == second_operation["operation_id"]
+    )
+
+    assert body["working_data"]["columns"] == [
+        "customer_id",
+        "full_name",
+        "first_name",
+        "last_name",
+    ]
+
+    working_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/working"
+        )
+    )
+
+    assert working_response.status_code == 200
+
+    working = working_response.json()
+
+    assert working["row_count"] == 2
+
+    assert "first_name" in working["columns"]
+    assert "last_name" in working["columns"]
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert workspace_response.status_code == 200
+
+    workspace = workspace_response.json()
+
+    operations = workspace[
+        "workbench_operations"
+    ]
+
+    completed_operation = next(
+        operation
+        for operation in operations
+        if (
+            operation["operation_id"]
+            == first_operation["operation_id"]
+        )
+    )
+
+    next_operation = next(
+        operation
+        for operation in operations
+        if (
+            operation["operation_id"]
+            == second_operation["operation_id"]
+        )
+    )
+
+    assert (
+        completed_operation["status"]
+        == "completed"
+    )
+
+    assert next_operation["status"] == "active"
+
+    assert (
+        workspace[
+            "workbench_active_operation_id"
+        ]
+        == second_operation["operation_id"]
+    )
+
+def test_workbench_quality_operation_requires_real_validation(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Quality Workbench",
+            "usage_context": "personal",
+            "project_type": "data_quality",
+            "task_brief": (
+                "Resolve customer data quality "
+                "problems."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    profile_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/profile"
+        ),
+        files={
+            "file": (
+                "customers.csv",
+                (
+                    "customer_id,name,age\n"
+                    "1,Alice,30\n"
+                    "2,Bob,\n"
+                    "3,Carol,40\n"
+                ),
+                "text/csv",
+            )
+        },
+    )
+
+    assert profile_response.status_code == 200
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert workspace_response.status_code == 200
+
+    workspace = workspace_response.json()
+
+    quality_operation = next(
+        operation
+        for operation
+        in workspace["workbench_operations"]
+        if (
+            operation["origin"]
+            == "data_quality"
+            and operation["source_columns"]
+            == ["age"]
+        )
+    )
+
+    assert (
+        quality_operation["status"]
+        == "active"
+    )
+
+    failed_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/workbench/transform"
+        ),
+        json={
+            "operation_id": (
+                quality_operation[
+                    "operation_id"
+                ]
+            ),
+            "code": (
+                "# intentionally leaves "
+                "missing age unchanged"
+            ),
+            "after_rows": [
+                {
+                    "customer_id": 1,
+                    "name": "Alice",
+                    "age": 30,
+                },
+                {
+                    "customer_id": 2,
+                    "name": "Bob",
+                    "age": None,
+                },
+                {
+                    "customer_id": 3,
+                    "name": "Carol",
+                    "age": 40,
+                },
+            ],
+        },
+    )
+
+    assert failed_response.status_code == 400
+
+    successful_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/workbench/transform"
+        ),
+        json={
+            "operation_id": (
+                quality_operation[
+                    "operation_id"
+                ]
+            ),
+            "code": (
+                'df["age"] = '
+                'df["age"].fillna('
+                'df["age"].median())'
+            ),
+            "after_rows": [
+                {
+                    "customer_id": 1,
+                    "name": "Alice",
+                    "age": 30,
+                },
+                {
+                    "customer_id": 2,
+                    "name": "Bob",
+                    "age": 35,
+                },
+                {
+                    "customer_id": 3,
+                    "name": "Carol",
+                    "age": 40,
+                },
+            ],
+        },
+    )
+
+    assert successful_response.status_code == 200
+
+    body = successful_response.json()
+
+    assert (
+        body["operation"]["status"]
+        == "completed"
+    )
+
+    assert (
+        body["operation"]["origin"]
+        == "data_quality"
+    )
+
+    working_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/working"
+        )
+    )
+
+    assert working_response.status_code == 200
+
+    rows = working_response.json()["rows"]
+
+    assert all(
+        row["age"] is not None
+        for row in rows
+    )
+
+def test_workbench_submit_version_and_restore_flow(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Workbench Version Test",
+            "usage_context": "personal",
+            "project_type": "data_engineering",
+            "task_brief": "Prepare customer data.",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    profile_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/profile"
+        ),
+        files={
+            "file": (
+                "customers.csv",
+                (
+                    "customer_id,full_name\n"
+                    "1,Alice Smith\n"
+                    "2,Bob Jones\n"
+                ),
+                "text/csv",
+            )
+        },
+    )
+
+    assert profile_response.status_code == 200
+
+    operation_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/workbench/operations"
+        ),
+        json={
+            "title": "Split full_name",
+            "goal": (
+                "Create first_name and "
+                "last_name columns."
+            ),
+            "operation_type": "transform",
+            "source_columns": [
+                "full_name",
+            ],
+            "expected_columns": [
+                "first_name",
+                "last_name",
+            ],
+        },
+    )
+
+    assert operation_response.status_code == 200
+
+    operation = operation_response.json()
+
+    assert operation["status"] == "active"
+
+    transform_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/workbench/transform"
+        ),
+        json={
+            "operation_id": (
+                operation["operation_id"]
+            ),
+            "code": (
+                'df[["first_name", '
+                '"last_name"]] = '
+                'df["full_name"].str.split('
+                '" ", n=1, expand=True)'
+            ),
+            "after_rows": [
+                {
+                    "customer_id": 1,
+                    "full_name": "Alice Smith",
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                },
+                {
+                    "customer_id": 2,
+                    "full_name": "Bob Jones",
+                    "first_name": "Bob",
+                    "last_name": "Jones",
+                },
+            ],
+        },
+    )
+
+    assert transform_response.status_code == 200
+
+    transformed = transform_response.json()
+
+    assert (
+        transformed["operation"]["status"]
+        == "completed"
+    )
+
+    rollback_version_number = (
+        transformed["operation"][
+            "rollback_version_number"
+        ]
+    )
+
+    assert rollback_version_number == 1
+
+    versions_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/versions"
+        )
+    )
+
+    assert versions_response.status_code == 200
+
+    versions = versions_response.json()
+
+    assert len(versions) == 1
+
+    version = versions[0]
+
+    assert version["version_number"] == 1
+
+    assert (
+        version["operation_id"]
+        == operation["operation_id"]
+    )
+
+    assert (
+        version["operation_title"]
+        == "Split full_name"
+    )
+
+    assert (
+        version["operation_type"]
+        == "transform"
+    )
+
+    assert version["schema_changed"] is True
+
+    working_after_transform = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/working"
+        )
+    ).json()
+
+    assert "first_name" in (
+        working_after_transform["columns"]
+    )
+
+    assert "last_name" in (
+        working_after_transform["columns"]
+    )
+
+    restore_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/versions/"
+            f"{rollback_version_number}/restore"
+        )
+    )
+
+    assert restore_response.status_code == 200
+
+    restored = restore_response.json()
+
+    assert restored["version_number"] == 1
+
+    assert restored["working_data"]["columns"] == [
+        "customer_id",
+        "full_name",
+    ]
+
+    restored_operation = next(
+        item
+        for item
+        in restored["workbench_operations"]
+        if (
+            item["operation_id"]
+            == operation["operation_id"]
+        )
+    )
+
+    assert (
+        restored_operation["status"]
+        == "active"
+    )
+
+    assert restored_operation["code"] is None
+
+    assert (
+        restored[
+            "workbench_active_operation_id"
+        ]
+        == operation["operation_id"]
+    )
+
+    working_after_restore = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/working"
+        )
+    ).json()
+
+    assert (
+        working_after_restore["columns"]
+        == [
+            "customer_id",
+            "full_name",
+        ]
+    )

@@ -573,6 +573,22 @@ class WorkspaceVersionSummary(BaseModel):
     created_at: str
     row_count: int
 
+    operation_id: str | None = None
+    operation_title: str | None = None
+
+    operation_type: Literal[
+        "clean",
+        "transform",
+        "schema",
+        "business_rule",
+        "enrichment",
+        "custom",
+    ] | None = None
+
+    transformation_code: str | None = None
+
+    schema_changed: bool | None = None
+
 class WorkspaceValidationCheck(BaseModel):
     name: str
 
@@ -927,6 +943,8 @@ class WorkspaceWorkbenchOperation(BaseModel):
 
     code: str | None = None
 
+    finding_index: int | None = None
+    rollback_version_number: int | None = None
     result_version_id: str | None = None
 
 
@@ -953,6 +971,33 @@ class WorkspaceWorkbenchPreview(BaseModel):
     source: Literal["local"] = "local"
 
 
+
+class WorkspaceWorkbenchTransformationRequest(BaseModel):
+    operation_id: str = Field(
+        min_length=1
+    )
+
+    code: str = Field(
+        min_length=1,
+        max_length=20000,
+    )
+
+    after_rows: list[dict] = Field(
+        min_length=1
+    )
+
+
+class WorkspaceWorkbenchTransformationResponse(BaseModel):
+    operation: WorkspaceWorkbenchOperation
+
+    active_operation_id: str | None = None
+
+    before_row_count: int
+    after_row_count: int
+
+    schema_changed: bool
+
+    working_data: WorkspaceWorkingDataResponse
 
 class Workspace(BaseModel):
     workspace_id: str

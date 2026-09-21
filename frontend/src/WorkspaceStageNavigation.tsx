@@ -30,86 +30,137 @@ function WorkspaceStageNavigation({
   onStageChange,
   onPrepareStageChange,
 }: WorkspaceStageNavigationProps) {
+  const activeStageIndex =
+    PERSONAL_WORKSPACE_STAGES.findIndex(
+      (stage) => stage.code === activeStage
+    );
+
+  const activeStagePosition =
+    ((activeStageIndex + 0.5) /
+      PERSONAL_WORKSPACE_STAGES.length) *
+    100;
+
   return (
-    <nav className="workspace-stage-navigation">
-      <div className="workspace-stage-main">
-        {PERSONAL_WORKSPACE_STAGES.map(
-          (stage) => {
-            const status = getStageStatus(
-              stage.code
-            );
+    <nav
+      className="workspace-stage-navigation"
+      aria-label="Workspace stages"
+    >
+      <div className="workspace-stage-scroll">
+        <div className="workspace-stage-canvas">
+          <div className="workspace-stage-main">
+            {PERSONAL_WORKSPACE_STAGES.map(
+              (stage) => {
+                const status =
+                  getStageStatus(stage.code);
 
-            const isActive =
-              activeStage === stage.code;
+                const isActive =
+                  activeStage === stage.code;
 
-            return (
-              <button
-                key={stage.code}
-                type="button"
-                className={[
-                  "workspace-stage-button",
-                  `status-${status}`,
-                  isActive ? "active" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                disabled={
-                  status === "locked"
-                }
-                onClick={() =>
-                  onStageChange(stage.code)
-                }
+                return (
+                  <button
+                    key={stage.code}
+                    type="button"
+                    className={[
+                      "workspace-stage-button",
+                      `status-${status}`,
+                      isActive ? "active" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    disabled={
+                      status === "locked"
+                    }
+                    onClick={() =>
+                      onStageChange(stage.code)
+                    }
+                    aria-current={
+                      isActive
+                        ? "step"
+                        : undefined
+                    }
+                  >
+                    <span className="workspace-stage-label">
+                      {stage.label}
+                    </span>
+
+                    <span
+                      className="workspace-stage-dot"
+                      aria-hidden="true"
+                    />
+                  </button>
+                );
+              }
+            )}
+          </div>
+
+          {activeStage === "prepare" && (
+            <div className="workspace-stage-tree">
+              <span
+                className="workspace-stage-tree-stem"
+                style={{
+                  left: `${activeStagePosition}%`,
+                }}
+                aria-hidden="true"
+              />
+
+              <div
+                className="workspace-stage-tree-branches"
+                style={{
+                  left: `${activeStagePosition}%`,
+                }}
               >
-                <span className="workspace-stage-status">
-                  {status === "completed"
-                    ? "✓"
-                    : status === "current"
-                      ? "●"
-                      : "○"}
-                </span>
+                {PREPARE_STAGES.map(
+                  (stage, index) => {
+                    const isActive =
+                      activePrepareStage ===
+                      stage.code;
 
-                <span>
-                  {stage.label}
-                </span>
-              </button>
-            );
-          }
-        )}
-      </div>
+                    return (
+                      <button
+                        key={stage.code}
+                        type="button"
+                        className={[
+                          "workspace-stage-subnav-button",
+                          isActive
+                            ? "active"
+                            : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        style={{
+                          animationDelay: `${
+                            140 +
+                            index * 55
+                          }ms`,
+                        }}
+                        onClick={() =>
+                          onPrepareStageChange(
+                            stage.code
+                          )
+                        }
+                        aria-current={
+                          isActive
+                            ? "page"
+                            : undefined
+                        }
+                      >
+                        <span
+                          className="workspace-stage-subnav-dot"
+                          aria-hidden="true"
+                        />
 
-      {activeStage === "prepare" && (
-        <div className="workspace-stage-subnav">
-          {PREPARE_STAGES.map(
-            (stage) => {
-              const isActive =
-                activePrepareStage ===
-                stage.code;
-
-              return (
-                <button
-                  key={stage.code}
-                  type="button"
-                  className={[
-                    "workspace-stage-subnav-button",
-                    isActive
-                      ? "active"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onClick={() =>
-                    onPrepareStageChange(
-                      stage.code
-                    )
+                        <span>
+                          {stage.label}
+                        </span>
+                      </button>
+                    );
                   }
-                >
-                  {stage.label}
-                </button>
-              );
-            }
+                )}
+              </div>
+            </div>
           )}
         </div>
-      )}
+      </div>
     </nav>
   );
 }

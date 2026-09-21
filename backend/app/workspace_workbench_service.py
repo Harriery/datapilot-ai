@@ -162,6 +162,7 @@ def build_workbench_operations_from_findings(
                     source_columns
                 ),
                 expected_columns=[],
+                finding_index=index - 1,
             )
         )
 
@@ -273,5 +274,83 @@ def sync_data_quality_workbench_operations(
 
     return (
         operations,
+        active_operation_id,
+    )
+
+
+def get_workbench_operation(
+    operations: list[
+        WorkspaceWorkbenchOperation
+    ],
+    operation_id: str,
+) -> WorkspaceWorkbenchOperation:
+
+    operation = next(
+        (
+            item
+            for item in operations
+            if item.operation_id == operation_id
+        ),
+        None,
+    )
+
+    if operation is None:
+        raise ValueError(
+            "Workbench operation bulunamadı."
+        )
+
+    return operation
+
+def complete_workbench_operation(
+    operations: list[
+        WorkspaceWorkbenchOperation
+    ],
+    operation_id: str,
+    code: str,
+    rollback_version_number: int,
+) -> tuple[
+    WorkspaceWorkbenchOperation,
+    str | None,
+]:
+    operation = get_workbench_operation(
+        operations=operations,
+        operation_id=operation_id,
+    )
+
+    if operation.status != "active":
+        raise ValueError(
+            "Yalnızca aktif Workbench operation "
+            "submit edilebilir."
+        )
+
+    operation.code = code.strip()
+
+    operation.rollback_version_number = (
+        rollback_version_number
+    )
+
+    operation.status = "completed"
+
+    next_operation = next(
+        (
+            item
+            for item in operations
+            if item.status == "pending"
+        ),
+        None,
+    )
+
+    if next_operation is None:
+        active_operation_id = None
+
+    else:
+        next_operation.status = "active"
+
+        active_operation_id = (
+            next_operation.operation_id
+        )
+
+    return (
+        operation,
         active_operation_id,
     )

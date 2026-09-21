@@ -46,6 +46,12 @@ import {
   type WorkspaceStageStatus,
 } from "./workspaceStages";
 
+
+import AddTransformationModal, {
+  type WorkbenchOperationCreateData,
+  type WorkbenchOperationType,
+} from "./AddTransformationModal";
+
 type SkillProgressData = {
   skill_name: string;
   status: "new" | "learning" | "practicing" | "comfortable";
@@ -100,6 +106,34 @@ type WorkspaceValidationResult = {
     params?: Record<string, unknown>;
   }[];
 };
+
+type WorkbenchOperationData = {
+  operation_id: string;
+
+  title: string;
+  goal: string;
+
+  operation_type:
+    WorkbenchOperationType;
+
+  origin:
+    | "data_quality"
+    | "project_requirement"
+    | "user";
+
+  status:
+    | "pending"
+    | "active"
+    | "completed";
+
+  source_columns: string[];
+  expected_columns: string[];
+
+  code: string | null;
+  result_version_id: string | null;
+};
+
+
 
 type DashboardWorkspace = {
   workspace_id: string;
@@ -245,7 +279,9 @@ type DashboardWorkspace = {
       }[];
     }[];
 
-    relationships: {
+ 
+
+  relationships: {
       from_table: string;
       from_column: string;
 
@@ -260,11 +296,16 @@ type DashboardWorkspace = {
       active: boolean;
     }[];
 
-    source:
+  source:
       | "local"
       | "user";
   } | null;
 
+  workbench_operations?:
+    WorkbenchOperationData[];
+
+  workbench_active_operation_id?:
+    string | null;
 
   usage_context: "work" | "personal";
 
@@ -283,6 +324,8 @@ type DashboardWorkspace = {
     | "data_quality"
     | "analysis"
     | "pipeline";
+
+
 };
 
 
@@ -310,6 +353,43 @@ type WorkspaceDataProfileResponse = {
   };
 };
 
+type WorkspaceWorkbenchOperation = {
+  operation_id: string;
+
+  title: string;
+  goal: string;
+
+  operation_type:
+    | "clean"
+    | "transform"
+    | "schema"
+    | "business_rule"
+    | "enrichment"
+    | "custom";
+
+  origin:
+    | "data_quality"
+    | "project_requirement"
+    | "user";
+
+  status:
+    | "pending"
+    | "active"
+    | "completed";
+
+  source_columns: string[];
+  expected_columns: string[];
+
+  code: string | null;
+
+  finding_index: number | null;
+
+  rollback_version_number: number | null;
+
+  result_version_id: string | null;
+};
+
+
 type WorkspaceWorkingData = {
   columns: string[];
   row_count: number;
@@ -321,6 +401,22 @@ type WorkspaceVersionSummary = {
   label: string;
   created_at: string;
   row_count: number;
+
+  operation_id: string | null;
+  operation_title: string | null;
+
+  operation_type:
+    | "clean"
+    | "transform"
+    | "schema"
+    | "business_rule"
+    | "enrichment"
+    | "custom"
+    | null;
+
+  transformation_code: string | null;
+
+  schema_changed: boolean | null;
 };
 
 type WorkspaceTask = {
@@ -706,9 +802,26 @@ df["age"] = df["age"].fillna(median_age)`);
   ] = useState<WorkspaceVersionSummary[]>([]);
 
   const [
+    showAddTransformationModal,
+    setShowAddTransformationModal,
+  ] = useState(false);
+
+  const [
+    addTransformationLoading,
+    setAddTransformationLoading,
+  ] = useState(false);
+
+  const [
+    addTransformationError,
+    setAddTransformationError,
+  ] = useState<string | null>(null);
+
+  const [
     workspaceVersionError,
     setWorkspaceVersionError,
   ] = useState<string | null>(null);
+
+
 
   const [
     restoringVersion,
@@ -2188,6 +2301,94 @@ async function completeWorkspaceHandoff() {
 }
 
 
+async function createWorkbenchOperation(
+  data: WorkbenchOperationCreateData
+): Promise<boolean> {
+  if (!workspaceId) {
+    setAddTransformationError(
+      "Workspace bulunamadı."
+    );
+
+    return false;
+  }
+
+  setAddTransformationLoading(true);
+  setAddTransformationError(null);
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/workbench/operations`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify(data),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Transformation eklenemedi."
+      );
+    }
+
+    const operation:
+      WorkbenchOperationData =
+        await response.json();
+
+
+    setDashboardWorkspace(
+      (previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        const existingOperations =
+          previous.workbench_operations ??
+          [];
+
+        return {
+          ...previous,
+
+          workbench_operations: [
+            ...existingOperations,
+            operation,
+          ],
+
+          workbench_active_operation_id:
+            operation.status === "active"
+              ? operation.operation_id
+              : previous
+                  .workbench_active_operation_id,
+        };
+      }
+    );
+
+    return true;
+
+  } catch (error) {
+    setAddTransformationError(
+      error instanceof Error
+        ? error.message
+        : "Transformation eklenemedi."
+    );
+
+    return false;
+
+  } finally {
+    setAddTransformationLoading(false);
+  }
+}
+
+
 async function runTransformation() {
     if (!transformationCode.trim()) {
       setPythonError(
@@ -2232,38 +2433,76 @@ async function runTransformation() {
   }
 
 async function submitWorkspaceTransformation() {
+  if (
+    !workspaceId ||
+    !resultRows ||
+    !dashboardWorkspace
+  ) {
+    setValidationMessage(
+      "Önce transformation kodunu çalıştır."
+    );
+    return;
+  }
+
+  setSubmitting(true);
+  setValidationMessage(null);
+
+  try {
+    // ==================================================
+    // PERSONAL WORKBENCH
+    // ==================================================
+
     if (
-      !workspaceId ||
-      !workspaceTask ||
-      !resultRows
+      dashboardWorkspace.usage_context ===
+      "personal"
     ) {
-      setValidationMessage(
-        "Önce transformation kodunu çalıştır."
-      );
-      return;
-    }
+      const activeOperation =
+        dashboardWorkspace.workbench_operations?.find(
+          (operation) =>
+            operation.operation_id ===
+              dashboardWorkspace
+                .workbench_active_operation_id ||
+            operation.status === "active"
+        );
 
-    setSubmitting(true);
-    setValidationMessage(null);
+      if (!activeOperation) {
+        setValidationMessage(
+          "Yeni bir transformation eklemeden submit yapılamaz."
+        );
 
-    try {
+        return;
+      }
+
       const response = await fetch(
-        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/transform`,
+        (
+          `http://127.0.0.1:8000/workspaces/` +
+          `demo-learner/${workspaceId}` +
+          `/workbench/transform`
+        ),
         {
           method: "POST",
 
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
 
           body: JSON.stringify({
-            after_rows: resultRows,
+            operation_id:
+              activeOperation.operation_id,
+
+            code:
+              transformationCode,
+
+            after_rows:
+              resultRows,
           }),
         }
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData =
+          await response.json();
 
         throw new Error(
           errorData.detail ||
@@ -2272,104 +2511,258 @@ async function submitWorkspaceTransformation() {
       }
 
       const data: {
-        task: WorkspaceTask;
+        operation:
+          WorkspaceWorkbenchOperation;
 
-        validation: {
-          success: boolean;
-        };
+        active_operation_id:
+          string | null;
 
-        skill_name: string;
-        skill_status: string;
+        before_row_count: number;
+        after_row_count: number;
+
+        schema_changed: boolean;
+
+        working_data:
+          WorkspaceWorkingData;
       } = await response.json();
 
-      setWorkspaceTask(data.task);
-
-      if (!data.validation.success) {
-        setValidationMessage(
-          "❌ Validation failed. working.csv değiştirilmedi."
-        );
-
-        return;
-      }
-
-      // Validation başarılıysa backend working.csv'yi
-      // zaten güncelledi. Yeni halini tekrar çekiyoruz.
-      const workingDataResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/working`
+      setWorkspaceWorkingData(
+        data.working_data
       );
 
-      if (!workingDataResponse.ok) {
+      const workspaceResponse =
+        await fetch(
+          (
+            `http://127.0.0.1:8000/workspaces/` +
+            `demo-learner/${workspaceId}`
+          )
+        );
+
+      if (!workspaceResponse.ok) {
         throw new Error(
-          "Transformation kaydedildi fakat güncel dataset yüklenemedi."
+          "Transformation kaydedildi fakat workspace yenilenemedi."
         );
       }
 
-      const workingData: WorkspaceWorkingData =
-        await workingDataResponse.json();
+      const updatedWorkspace:
+        DashboardWorkspace =
+          await workspaceResponse.json();
 
-      setWorkspaceWorkingData(workingData);
-        await loadWorkspaceVersions(
-          workspaceId
-        );
+      setDashboardWorkspace(
+        updatedWorkspace
+      );
+
+      setDashboardWorkspaces(
+        (previous) =>
+          previous.map(
+            (workspace) =>
+              workspace.workspace_id ===
+              updatedWorkspace.workspace_id
+                ? updatedWorkspace
+                : workspace
+          )
+      );
+
+      await loadWorkspaceVersions(
+        workspaceId
+      );
 
       setWorkspaceValidation(null);
       setWorkspaceValidationError(null);
 
-      const resumeResponse = await fetch(
-        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/resume`
+      setResultRows(null);
+      setPythonError(null);
+
+      setTransformationCode(
+        (
+          "# df is already loaded.\n" +
+          "# Write your pandas transformation below.\n"
+        )
       );
 
-      if (!resumeResponse.ok) {
-        throw new Error(
-          "Transformation kaydedildi fakat workspace durumu yenilenemedi."
+      if (
+        data.active_operation_id
+        === null
+      ) {
+        setValidationMessage(
+          "✅ Transformation saved. Workbench tasks are complete."
+        );
+      } else {
+        setValidationMessage(
+          "✅ Transformation saved. The next Workbench task is active."
         );
       }
 
-      const updatedResume =
-        await resumeResponse.json();
+      return;
+    }
 
-      setResumeData(updatedResume);
+    // ==================================================
+    // LEGACY WORK WORKSPACE
+    // ==================================================
 
-      setDashboardWorkspace((previous) => {
+    if (!workspaceTask) {
+      setValidationMessage(
+        "Aktif execution task bulunamadı."
+      );
+
+      return;
+    }
+
+    const response = await fetch(
+      (
+        `http://127.0.0.1:8000/workspaces/` +
+        `demo-learner/${workspaceId}` +
+        `/data/transform`
+      ),
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          after_rows: resultRows,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Transformation doğrulanamadı."
+      );
+    }
+
+    const data: {
+      task: WorkspaceTask;
+
+      validation: {
+        success: boolean;
+      };
+
+      skill_name: string;
+      skill_status: string;
+    } = await response.json();
+
+    setWorkspaceTask(
+      data.task
+    );
+
+    if (!data.validation.success) {
+      setValidationMessage(
+        "❌ Validation failed. working.csv değiştirilmedi."
+      );
+
+      return;
+    }
+
+    const workingDataResponse =
+      await fetch(
+        (
+          `http://127.0.0.1:8000/workspaces/` +
+          `demo-learner/${workspaceId}` +
+          `/data/working`
+        )
+      );
+
+    if (!workingDataResponse.ok) {
+      throw new Error(
+        "Transformation kaydedildi fakat güncel dataset yüklenemedi."
+      );
+    }
+
+    const workingData:
+      WorkspaceWorkingData =
+        await workingDataResponse.json();
+
+    setWorkspaceWorkingData(
+      workingData
+    );
+
+    await loadWorkspaceVersions(
+      workspaceId
+    );
+
+    setWorkspaceValidation(null);
+    setWorkspaceValidationError(null);
+
+    const resumeResponse =
+      await fetch(
+        (
+          `http://127.0.0.1:8000/workspaces/` +
+          `demo-learner/${workspaceId}` +
+          `/resume`
+        )
+      );
+
+    if (!resumeResponse.ok) {
+      throw new Error(
+        "Transformation kaydedildi fakat workspace durumu yenilenemedi."
+      );
+    }
+
+    const updatedResume =
+      await resumeResponse.json();
+
+    setResumeData(
+      updatedResume
+    );
+
+    setDashboardWorkspace(
+      (previous) => {
         if (!previous) {
           return previous;
         }
 
         return {
           ...previous,
+
           checkpoint:
             updatedResume.checkpoint,
         };
-      });
-
-      setResultRows(null);
-      setPythonError(null);
-
-      setTransformationCode(
-        "# df is already loaded.\n# Write your pandas transformation below.\n"
-      );
-
-      if (data.task.status === "completed") {
-        setValidationMessage(
-          "✅ Transformation validated. Execution plan transformations are complete."
-        );
-      } else {
-        setValidationMessage(
-          "✅ Transformation validated and saved. The next step is now active."
-        );
       }
-    } catch (error) {
-      console.error(error);
+    );
 
+    setResultRows(null);
+    setPythonError(null);
+
+    setTransformationCode(
+      (
+        "# df is already loaded.\n" +
+        "# Write your pandas transformation below.\n"
+      )
+    );
+
+    if (
+      data.task.status ===
+      "completed"
+    ) {
       setValidationMessage(
-        error instanceof Error
-          ? `❌ ${error.message}`
-          : "❌ Beklenmeyen bir hata oluştu."
+        "✅ Transformation validated. Execution plan transformations are complete."
       );
-    } finally {
-      setSubmitting(false);
+    } else {
+      setValidationMessage(
+        "✅ Transformation validated and saved. The next step is now active."
+      );
     }
+  } catch (error) {
+    console.error(error);
+
+    setValidationMessage(
+      error instanceof Error
+        ? `❌ ${error.message}`
+        : "❌ Beklenmeyen bir hata oluştu."
+    );
+  } finally {
+    setSubmitting(false);
   }
+}
+
 
 async function restoreWorkspaceVersion(
     versionNumber: number
@@ -3710,84 +4103,86 @@ async function restoreWorkspaceVersion(
                 ) : dashboardWorkspace ? (
                   <section className="workspace-page workspace-overview-page">
                     <div className="workspace-sticky-shell">
-                      <div className="workspace-overview-topbar">
-                        <button
-                          className="back-button"
-                          onClick={() =>
-                            setCurrentView("dashboard")
-                          }
-                        >
-                          <ArrowLeft
-                            size={16}
+                      <header className="workspace-compact-header">
+                        <div className="workspace-compact-main">
+                          <button
+                            className="back-button workspace-compact-back"
+                            onClick={() =>
+                              setCurrentView("dashboard")
+                            }
+                          >
+                            <ArrowLeft
+                              size={15}
+                              aria-hidden="true"
+                            />
+                      
+                            {t.workspace.backToDashboard}
+                          </button>
+                          
+                          <span
+                            className="workspace-compact-divider"
                             aria-hidden="true"
                           />
-                          {t.workspace.backToDashboard}
-                        </button>
-                      </div>
                       
-                    <header className="workspace-overview-header">
-                      <div>
-                        <p className="workspace-eyebrow">
-                          {t.workspace.workspaceLabel}
-                        </p>
-                      
-                        <h2>
-                          {dashboardWorkspace.title}
-                        </h2>
-                      
-
-                        <div className="workspace-overview-meta">
-                          <span>
-                            {dashboardWorkspace.usage_context === "personal"
-                              ? t.workspace.personal
-                              : t.workspace.work}
-                          </span>
-                            
-                          {dashboardWorkspace.data_sensitivity && (
-                            <span>
-                              {dashboardWorkspace.data_sensitivity === "public"
-                                ? t.workspace.public
-                                : dashboardWorkspace.data_sensitivity === "internal"
-                                  ? t.workspace.internal
-                                  : dashboardWorkspace.data_sensitivity === "confidential"
-                                    ? t.workspace.confidential
-                                    : dashboardWorkspace.data_sensitivity === "restricted"
-                                      ? t.workspace.restricted
-                                      : t.workspace.unknown}
-                            </span>
-                          )}
-
-                          <span>
-                            {dashboardWorkspace.workflow_type === "auto"
-                              ? t.workspace.auto
-                              : dashboardWorkspace.workflow_type === "etl"
-                                ? t.workspace.etl
-                                : dashboardWorkspace.workflow_type === "elt"
-                                  ? t.workspace.elt
-                                  : dashboardWorkspace.workflow_type === "data_quality"
-                                    ? t.workspace.dataQuality
-                                    : dashboardWorkspace.workflow_type === "analysis"
-                                      ? t.workspace.analysis
-                                      : t.workspace.pipeline}
-                          </span>
-                        </div>
-                      </div>
+                          <h2>
+                            {dashboardWorkspace.title}
+                          </h2>
                           
-                      <span
-                        className={
-                          dashboardWorkspace.status ===
-                          "completed"
-                            ? "workspace-list-status completed"
-                            : "workspace-list-status active"
-                        }
-                      >
-                        {dashboardWorkspace.status === "completed"
-                          ? t.workspace.completed
-                          : dashboardWorkspace.status === "paused"
-                            ? t.workspace.paused
-                            : t.workspace.active}
-                      </span>
-                    </header>
+                          <div className="workspace-overview-meta workspace-compact-meta">
+                            <span>
+                              {dashboardWorkspace.usage_context === "personal"
+                                ? t.workspace.personal
+                                : t.workspace.work}
+                            </span>
+                              
+                            {dashboardWorkspace.data_sensitivity && (
+                              <span>
+                                {dashboardWorkspace.data_sensitivity === "public"
+                                  ? t.workspace.public
+                                  : dashboardWorkspace.data_sensitivity === "internal"
+                                    ? t.workspace.internal
+                                    : dashboardWorkspace.data_sensitivity === "confidential"
+                                      ? t.workspace.confidential
+                                      : dashboardWorkspace.data_sensitivity === "restricted"
+                                        ? t.workspace.restricted
+                                        : t.workspace.unknown}
+                              </span>
+                            )}
+                      
+                            <span>
+                              {dashboardWorkspace.workflow_type === "auto"
+                                ? t.workspace.auto
+                                : dashboardWorkspace.workflow_type === "etl"
+                                  ? t.workspace.etl
+                                  : dashboardWorkspace.workflow_type === "elt"
+                                    ? t.workspace.elt
+                                    : dashboardWorkspace.workflow_type === "data_quality"
+                                      ? t.workspace.dataQuality
+                                      : dashboardWorkspace.workflow_type === "analysis"
+                                        ? t.workspace.analysis
+                                        : t.workspace.pipeline}
+                            </span>
+                          </div>
+                        </div>
+                              
+                        <span
+                          className={
+                            dashboardWorkspace.status === "completed"
+                              ? "workspace-list-status completed"
+                              : "workspace-list-status active"
+                          }
+                        >
+                          {dashboardWorkspace.status === "completed"
+                            ? t.workspace.completed
+                            : dashboardWorkspace.status === "paused"
+                              ? t.workspace.paused
+                              : t.workspace.active}
+                        </span>
+                      </header>
+
+
+
+
                       
                     {dashboardWorkspace.usage_context === "personal" && (
                       <WorkspaceStageNavigation
@@ -4454,13 +4849,13 @@ async function restoreWorkspaceVersion(
                         )}
 
                       {workspaceTask &&
-                        workspaceTask.status !== "completed" &&
                         (
-                          dashboardWorkspace.usage_context !== "personal" ||
-                          (
-                            activeWorkspaceStage === "prepare" &&
-                            activePrepareStage === "workbench"
-                          )
+                          dashboardWorkspace.usage_context !== "personal"
+                            ? workspaceTask.status !== "completed"
+                            : (
+                                activeWorkspaceStage === "prepare" &&
+                                activePrepareStage === "workbench"
+                              )
                         ) && (
                         <section className="workspace-overview-card workspace-transform-card">
                           <div className="workspace-transform-header">
@@ -4468,20 +4863,85 @@ async function restoreWorkspaceVersion(
                               <span className="workspace-overview-label">
                                 Transform workbench
                               </span>
-                                            
+
                               <h3>
-                                {workspaceTask.steps.find(
-                                  (step) => step.status === "active"
-                                )?.title ?? "No active step"}
+                                {dashboardWorkspace.usage_context ===
+                                "personal"
+                                  ? (
+                                      dashboardWorkspace
+                                        .workbench_operations
+                                        ?.find(
+                                          (operation) =>
+                                            operation.operation_id ===
+                                              dashboardWorkspace
+                                                .workbench_active_operation_id ||
+                                            operation.status ===
+                                              "active"
+                                        )
+                                        ?.title ??
+                                      "Ready for a new transformation"
+                                    )
+                                  : (
+                                      workspaceTask?.steps.find(
+                                        (step) =>
+                                          step.status ===
+                                          "active"
+                                      )?.title ??
+                                      "No active step"
+                                    )}
                               </h3>
                             </div>
+                                  
+                                  
+                            <div className="workspace-transform-header-actions">
+                              {dashboardWorkspace.usage_context ===
+                                "personal" &&
+                                workspaceId && (
+                                  <button
+                                    type="button"
+                                    className="secondary-button"
+                                    onClick={() => {
+                                      setAddTransformationError(
+                                        null
+                                      );
+                                    
+                                      setShowAddTransformationModal(
+                                        true
+                                      );
+                                    }}
+                                  >
+                                    + Add transformation
+                                  </button>
+                                )}
+
                               
-                            {workspaceWorkingData && (
-                              <span className="workspace-transform-count">
-                                {workspaceWorkingData.row_count} rows
-                              </span>
-                            )}
+                              {workspaceWorkingData && (
+                                <span className="workspace-transform-count">
+                                  {workspaceWorkingData.row_count} rows
+                                </span>
+                              )}
+                            </div>
                           </div>
+                            
+                            
+                          <AddTransformationModal
+                            open={showAddTransformationModal}
+                            language={language}
+                            loading={addTransformationLoading}
+                            error={addTransformationError}
+                            onClose={() => {
+                              setShowAddTransformationModal(
+                                false
+                              );
+                            
+                              setAddTransformationError(
+                                null
+                              );
+                            }}
+                            onSubmit={
+                              createWorkbenchOperation
+                            }
+                          />
                           
                           
                           {workspaceVersions.length > 0 && (
@@ -4657,12 +5117,33 @@ async function restoreWorkspaceVersion(
                                     disabled={
                                       submitting ||
                                       pythonRunning ||
-                                      resultRows === null
+                                      resultRows === null ||
+                                      (
+                                        dashboardWorkspace.usage_context ===
+                                          "personal" &&
+                                        !dashboardWorkspace
+                                          .workbench_operations
+                                          ?.some(
+                                            (operation) =>
+                                              operation.status === "active"
+                                          )
+                                      )
                                     }
                                   >
                                     {submitting
                                       ? "Validating..."
-                                      : "✓ Submit transformation"}
+                                      : (
+                                          dashboardWorkspace.usage_context ===
+                                            "personal" &&
+                                          !dashboardWorkspace
+                                            .workbench_operations
+                                            ?.some(
+                                              (operation) =>
+                                                operation.status === "active"
+                                            )
+                                            ? "Add a transformation to submit"
+                                            : "✓ Submit transformation"
+                                        )}
                                   </button>
                                     
                                   <span>
@@ -4745,6 +5226,8 @@ async function restoreWorkspaceVersion(
                               </div>
                             </div>
                           )}
+                        
+                        
                         </section>
                       )}
 
