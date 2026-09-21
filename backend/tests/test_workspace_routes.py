@@ -2187,9 +2187,9 @@ def test_build_personal_data_model_completes_deliverable(
     studio = updated_workspace[
         "data_model_studio"
     ]
-    
+
     assert studio is not None
-    
+
     assert [
         table["name"]
         for table in studio["tables"]
@@ -2197,45 +2197,276 @@ def test_build_personal_data_model_completes_deliverable(
         "fact_test_quality",
         "dim_city",
     ]
-    
+
     assert (
         studio["tables"][0]["table_type"]
         == "fact"
     )
-    
+
     assert (
         studio["tables"][1]["table_type"]
         == "dimension"
     )
-    
+
     assert len(
         studio["relationships"]
     ) == 1
-    
+
     assert (
         studio["relationships"][0][
             "from_table"
         ]
         == "fact_test_quality"
     )
-    
+
     assert (
         studio["relationships"][0][
             "from_column"
         ]
         == "city"
     )
-    
+
     assert (
         studio["relationships"][0][
             "to_table"
         ]
         == "dim_city"
     )
-    
+
     assert (
         studio["relationships"][0][
             "to_column"
         ]
         == "city"
+    )
+
+def test_add_user_workbench_operation_is_persisted(
+tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Customer Preparation",
+            "usage_context": "personal",
+            "project_type": "data_engineering",
+            "task_brief": (
+                "Prepare customer data."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/workbench/operations"
+        ),
+        json={
+            "title": "Split full_name",
+            "goal": (
+                "Create first_name and "
+                "last_name columns."
+            ),
+            "operation_type": "transform",
+            "source_columns": [
+                "full_name",
+            ],
+            "expected_columns": [
+                "first_name",
+                "last_name",
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["operation_id"].startswith(
+        "user-"
+    )
+
+    assert body["title"] == (
+        "Split full_name"
+    )
+
+    assert body["goal"] == (
+        "Create first_name and "
+        "last_name columns."
+    )
+
+    assert (
+        body["operation_type"]
+        == "transform"
+    )
+
+    assert body["origin"] == "user"
+    assert body["status"] == "active"
+
+    assert body["source_columns"] == [
+        "full_name",
+    ]
+
+    assert body["expected_columns"] == [
+        "first_name",
+        "last_name",
+    ]
+
+    assert body["code"] is None
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert workspace_response.status_code == 200
+
+    updated_workspace = (
+        workspace_response.json()
+    )
+
+    operations = updated_workspace[
+        "workbench_operations"
+    ]
+
+    assert len(operations) == 1
+
+    assert (
+        operations[0]["operation_id"]
+        == body["operation_id"]
+    )
+
+    assert (
+        operations[0]["title"]
+        == "Split full_name"
+    )
+
+    assert (
+        operations[0]["origin"]
+        == "user"
+    )
+
+    assert (
+        operations[0]["status"]
+        == "active"
+    )
+
+    assert (
+        updated_workspace[
+            "workbench_active_operation_id"
+        ]
+        == body["operation_id"]
+    )
+
+def test_profile_creates_data_quality_workbench_operations(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Customer Quality Project",
+            "usage_context": "personal",
+            "project_type": "data_engineering",
+            "task_brief": (
+                "Prepare customer data."
+            ),
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    csv_content = (
+        "customer_id,name,age,city\n"
+        "1,Alice,30,Den Haag\n"
+        "2,Bob,,Rotterdam\n"
+        "2,Bob,,Rotterdam\n"
+    )
+
+    profile_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/profile"
+        ),
+        files={
+            "file": (
+                "customers.csv",
+                csv_content,
+                "text/csv",
+            )
+        },
+    )
+
+    assert profile_response.status_code == 200
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert workspace_response.status_code == 200
+
+    workspace = workspace_response.json()
+
+    operations = workspace[
+        "workbench_operations"
+    ]
+
+    assert len(operations) >= 2
+
+    quality_operations = [
+        operation
+        for operation in operations
+        if operation["origin"] == "data_quality"
+    ]
+
+    assert len(quality_operations) >= 2
+
+    titles = {
+        operation["title"]
+        for operation in quality_operations
+    }
+
+    assert "Handle duplicate rows" in titles
+
+    assert (
+        "Handle missing values in age"
+        in titles
+    )
+
+    active_operations = [
+        operation
+        for operation in operations
+        if operation["status"] == "active"
+    ]
+
+    assert len(active_operations) == 1
+
+    assert (
+        workspace[
+            "workbench_active_operation_id"
+        ]
+        == active_operations[0][
+            "operation_id"
+        ]
     )

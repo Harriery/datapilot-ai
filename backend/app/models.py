@@ -867,7 +867,91 @@ class PersonalProjectDataModelStudio(BaseModel):
         "user",
     ] = "local"
 
-    
+
+
+class WorkspaceWorkbenchOperationCreateRequest(BaseModel):
+    title: str = Field(min_length=1)
+    goal: str = Field(min_length=1)
+
+    operation_type: Literal[
+        "clean",
+        "transform",
+        "schema",
+        "business_rule",
+        "enrichment",
+        "custom",
+    ]
+
+    source_columns: list[str] = Field(
+        default_factory=list
+    )
+
+    expected_columns: list[str] = Field(
+        default_factory=list
+    )
+
+class WorkspaceWorkbenchOperation(BaseModel):
+    operation_id: str
+
+    title: str
+    goal: str
+
+    operation_type: Literal[
+        "clean",
+        "transform",
+        "schema",
+        "business_rule",
+        "enrichment",
+        "custom",
+    ]
+
+    origin: Literal[
+        "data_quality",
+        "project_requirement",
+        "user",
+    ]
+
+    status: Literal[
+        "pending",
+        "active",
+        "completed",
+    ] = "pending"
+
+    source_columns: list[str] = Field(
+        default_factory=list
+    )
+
+    expected_columns: list[str] = Field(
+        default_factory=list
+    )
+
+    code: str | None = None
+
+    result_version_id: str | None = None
+
+
+class WorkspaceWorkbenchPreview(BaseModel):
+    operation_id: str
+
+    code: str
+
+    before_row_count: int
+    after_row_count: int
+
+    before_columns: list[str] = Field(
+        default_factory=list
+    )
+
+    after_columns: list[str] = Field(
+        default_factory=list
+    )
+
+    sample_rows: list[dict] = Field(
+        default_factory=list
+    )
+
+    source: Literal["local"] = "local"
+
 
 
 class Workspace(BaseModel):
@@ -941,6 +1025,16 @@ class Workspace(BaseModel):
 
     data_model_studio: (
         PersonalProjectDataModelStudio | None
+    ) = None
+
+    workbench_operations: list[
+        WorkspaceWorkbenchOperation
+    ] = Field(default_factory=list)
+
+    workbench_active_operation_id: str | None = None
+
+    workbench_preview: (
+        WorkspaceWorkbenchPreview | None
     ) = None
 
     # Çalışmanın genel veri mühendisliği akışı.

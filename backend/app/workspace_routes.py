@@ -33,6 +33,8 @@ from backend.app.models import (
     PersonalProjectKPISelectionRequest,
     PersonalProjectKPIDefinition,
     PersonalProjectDataModelPlan,
+    WorkspaceWorkbenchOperation,
+    WorkspaceWorkbenchOperationCreateRequest,
 )
 
 import pandas as pd
@@ -101,6 +103,11 @@ from backend.app.personal_data_model_service import (
 
 from backend.app.personal_data_model_studio_service import (
     build_personal_data_model_studio,
+)
+
+from backend.app.workspace_workbench_service import (
+    add_user_workbench_operation,
+    sync_data_quality_workbench_operations,
 )
 
 router = APIRouter()
@@ -186,6 +193,44 @@ def list_workspaces(
         learner_id=learner_id
     )
 
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/workbench/operations",
+    response_model=WorkspaceWorkbenchOperation,
+)
+def create_workspace_workbench_operation(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceWorkbenchOperationCreateRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id,
+        learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace not found.",
+        )
+
+    operation = add_user_workbench_operation(
+        existing_operations=(
+            workspace.workbench_operations
+        ),
+        request=request,
+    )
+
+    if operation.status == "active":
+        workspace.workbench_active_operation_id = (
+            operation.operation_id
+        )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return operation
 
 @router.post(
     "/workspaces/{learner_id}/{workspace_id}/plan",
@@ -424,7 +469,7 @@ def profile_workspace_data(
             detail="CSV dosyası geçersiz veya bozuk.",
         )
 
-        # ==================================================
+    # ==================================================
     # LOCAL DATA ANALYSIS
     # ==================================================
     #
@@ -438,7 +483,6 @@ def profile_workspace_data(
             df
         )
     )
-
 
     # ==================================================
     # SAFE PROFILE
@@ -456,7 +500,6 @@ def profile_workspace_data(
         for key, value in profile.items()
         if key != "sample_rows"
     }
-
 
     # ==================================================
     # DATA SECURITY POLICY
@@ -534,6 +577,16 @@ def profile_workspace_data(
     workspace.dataset_filename = file.filename
     workspace.dataset_profile = (
         safe_profile
+    )
+
+    (
+    workspace.workbench_operations,
+        workspace.workbench_active_operation_id,
+    ) = sync_data_quality_workbench_operations(
+        existing_operations=(
+            workspace.workbench_operations
+        ),
+        findings=analysis.findings,
     )
 
     workspace.dataset_analysis = (

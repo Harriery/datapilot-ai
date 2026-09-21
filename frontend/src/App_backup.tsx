@@ -14,7 +14,6 @@ import PersonalAnalysisPlan from "./PersonalAnalysisPlan";
 import TasksPage from "./TasksPage";
 import ProgressPage from "./ProgressPage";
 import WorkspaceModeCards from "./WorkspaceModeCards";
-import PersonalTransformSummary from "./PersonalTransformSummary";
 
 import {
   runDataFrameTransformation,
@@ -37,14 +36,6 @@ import PersonalKpiCandidates, {
 } from "./PersonalKpiCandidates";
 
 import PersonalDataModel from "./PersonalDataModel";
-
-import WorkspaceStageNavigation from "./WorkspaceStageNavigation";
-
-import {
-  type PersonalWorkspaceStage,
-  type PrepareStage,
-  type WorkspaceStageStatus,
-} from "./workspaceStages";
 
 type SkillProgressData = {
   skill_name: string;
@@ -842,77 +833,6 @@ df["age"] = df["age"].fillna(median_age)`);
     personalDataModelError,
     setPersonalDataModelError,
   ] = useState<string | null>(null);
-
-  const [
-    activeWorkspaceStage,
-    setActiveWorkspaceStage,
-  ] = useState<PersonalWorkspaceStage>(
-    "source"
-  );
-
-  const [
-    activePrepareStage,
-    setActivePrepareStage,
-  ] = useState<PrepareStage>(
-    "profile"
-  );
-
- 
-
-  function getPersonalWorkspaceStageStatus(
-    stage: PersonalWorkspaceStage
-  ): WorkspaceStageStatus {
-    if (!dashboardWorkspace) {
-      return stage === "source"
-        ? "current"
-        : "locked";
-    }
-
-    if (stage === "source") {
-      return dashboardWorkspace.dataset_filename
-        ? "completed"
-        : "current";
-    }
-
-    const deliverableCodeByStage: Record<
-      Exclude<PersonalWorkspaceStage, "source">,
-      string
-    > = {
-      prepare: "clean_dataset",
-      analysis: "analysis",
-      kpis: "kpi_definitions",
-      data_model: "data_model",
-      bi_dataset: "bi_ready_dataset",
-      dashboard: "dashboard",
-      insights: "insight_summary",
-      docs: "documentation",
-    };
-
-   
-    const deliverableCode =
-      deliverableCodeByStage[stage];
-
-    const deliverable =
-      dashboardWorkspace.project_deliverables?.find(
-        (item) =>
-          item.code === deliverableCode
-      );
-
-
-    if (!deliverable) {
-      return "locked";
-    }
-
-    if (deliverable.status === "completed") {
-      return "completed";
-    }
-
-    if (deliverable.status === "in_progress") {
-      return "current";
-    }
-
-    return "locked";
-  }
   
   useEffect(() => {
     async function loadDashboardData() {
@@ -3735,7 +3655,6 @@ async function restoreWorkspaceVersion(
                           {dashboardWorkspace.title}
                         </h2>
                       
-
                         <div className="workspace-overview-meta">
                           <span>
                             {dashboardWorkspace.usage_context === "personal"
@@ -3789,215 +3708,193 @@ async function restoreWorkspaceVersion(
                       </span>
                     </header>
                       
-                    {dashboardWorkspace.usage_context === "personal" && (
-                      <WorkspaceStageNavigation
-                        activeStage={activeWorkspaceStage}
-                        activePrepareStage={activePrepareStage}
-                        getStageStatus={getPersonalWorkspaceStageStatus}
-                        onStageChange={setActiveWorkspaceStage}
-                        onPrepareStageChange={setActivePrepareStage}
-                      />
-                    )}
 
-                    {dashboardWorkspace.usage_context !== "personal" && (
-                      <div className="workspace-flow">
-                        <div className="workspace-flow-step completed">
-                          <span>✓</span>
-                          <strong>{t.workspace.source}</strong>
-                        </div>
-
-                        <div className="workspace-flow-line completed" />
-
-                        <div
-                          className={
-                            workspaceDataProfile
-                              ? "workspace-flow-step completed"
-                              : "workspace-flow-step current"
-                          }
-                        >
-                          <span>
-                            {workspaceDataProfile ? "✓" : "2"}
-                          </span>
-                          <strong>{t.workspace.profile}</strong>
-                        </div>
-                        
-                        <div
-                          className={
-                            workspaceDataProfile
-                              ? "workspace-flow-line completed"
-                              : "workspace-flow-line"
-                          }
-                        />
-
-                        <div
-                          className={
-                            workspaceTask
-                              ? "workspace-flow-step completed"
-                              : workspaceDataProfile
-                                ? "workspace-flow-step current"
-                                : "workspace-flow-step"
-                          }
-                        >
-                          <span>
-                            {workspaceTask ? "✓" : "3"}
-                          </span>
-                        
-                          <strong>{t.workspace.plan}</strong>
-                        </div>
-                        
-                        <div
-                          className={
-                            workspaceTask
-                              ? "workspace-flow-line completed"
-                              : "workspace-flow-line"
-                          }
-                        />
-
-                        <div
-                          className={
-                            workspaceTask?.status === "completed"
-                              ? "workspace-flow-step completed"
-                              : workspaceTask
-                                ? "workspace-flow-step current"
-                                : "workspace-flow-step"
-                          }
-                        >
-                          <span>
-                            {workspaceTask?.status === "completed"
-                              ? "✓"
-                              : "4"}
-                          </span>
-                            
-                          <strong>{t.workspace.transform}</strong>
-                        </div>
-                            
-                        <div
-                          className={
-                            workspaceTask?.status === "completed"
-                              ? "workspace-flow-line completed"
-                              : "workspace-flow-line"
-                          }
-                        />
-
-                        <div
-                          className={
-                            workspaceValidation?.passed
-                              ? "workspace-flow-step completed"
-                              : workspaceTask?.status === "completed"
-                                ? "workspace-flow-step current"
-                                : "workspace-flow-step"
-                          }
-                        >
-                          <span>
-                            {workspaceValidation?.passed
-                              ? "✓"
-                              : "5"}
-                          </span>
-                            
-                          <strong>{t.workspace.validate}</strong>
-                        </div>
-                            
-                        <div
-                          className={
-                            workspaceValidation?.passed
-                              ? "workspace-flow-line completed"
-                              : "workspace-flow-line"
-                          }
-                        />
-
-                        <div
-                          className={
-                            workspaceReviewCompleted
-                              ? "workspace-flow-step completed"
-                              : workspaceValidation?.passed
-                                ? "workspace-flow-step current"
-                                : "workspace-flow-step"
-                          }
-                        >
-                          <span>
-                            {workspaceReviewCompleted
-                              ? "✓"
-                              : "6"}
-                          </span>
-                            
-                          <strong>{t.workspace.review}</strong>
-                        </div>
-                            
-                        <div
-                          className={
-                            workspaceReviewCompleted
-                              ? "workspace-flow-line completed"
-                              : "workspace-flow-line"
-                          }
-                        />
-
-                        <div
-                          className={
-                            workspaceHandoffCompleted
-                              ? "workspace-flow-step completed"
-                              : workspaceReviewCompleted
-                                ? "workspace-flow-step current"
-                                : "workspace-flow-step"
-                          }
-                        >
-                          <span>
-                            {workspaceHandoffCompleted
-                              ? "✓"
-                              : "7"}
-                          </span>
-                            
-                          <strong>{t.workspace.handoff}</strong>
-                        </div>
+                    <div className="workspace-flow">
+                      <div className="workspace-flow-step completed">
+                        <span>✓</span>
+                        <strong>{t.workspace.source}</strong>
                       </div>
-                    )}
 
-                    </div>
-                   
-                      
-                    <div className="workspace-overview-grid">
-                      <section
-                        className="workspace-overview-card"
-                        hidden={
-                          dashboardWorkspace.usage_context === "personal" &&
-                          activeWorkspaceStage !== "source"
+                      <div className="workspace-flow-line completed" />
+
+                      <div
+                        className={
+                          workspaceDataProfile
+                            ? "workspace-flow-step completed"
+                            : "workspace-flow-step current"
                         }
                       >
+                        <span>
+                          {workspaceDataProfile ? "✓" : "2"}
+                        </span>
+                        <strong>{t.workspace.profile}</strong>
+                      </div>
+                      
+                      <div
+                        className={
+                          workspaceDataProfile
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+
+                      <div
+                        className={
+                          workspaceTask
+                            ? "workspace-flow-step completed"
+                            : workspaceDataProfile
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
+                        }
+                      >
+                        <span>
+                          {workspaceTask ? "✓" : "3"}
+                        </span>
+                      
+                        <strong>{t.workspace.plan}</strong>
+                      </div>
+                      
+                      <div
+                        className={
+                          workspaceTask
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+                      
+                      <div
+                        className={
+                          workspaceTask?.status === "completed"
+                            ? "workspace-flow-step completed"
+                            : workspaceTask
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
+                        }
+                      >
+                        <span>
+                          {workspaceTask?.status === "completed"
+                            ? "✓"
+                            : "4"}
+                        </span>
+                          
+                        <strong>{t.workspace.transform}</strong>
+                      </div>
+                          
+                      <div
+                        className={
+                          workspaceTask?.status === "completed"
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+
+                      <div
+                        className={
+                          workspaceValidation?.passed
+                            ? "workspace-flow-step completed"
+                            : workspaceTask?.status === "completed"
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
+                        }
+                      >
+                        <span>
+                          {workspaceValidation?.passed
+                            ? "✓"
+                            : "5"}
+                        </span>
+                          
+                        <strong>{t.workspace.validate}</strong>
+                      </div>
+                          
+                      <div
+                        className={
+                          workspaceValidation?.passed
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+
+                      <div
+                        className={
+                          workspaceReviewCompleted
+                            ? "workspace-flow-step completed"
+                            : workspaceValidation?.passed
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
+                        }
+                      >
+                        <span>
+                          {workspaceReviewCompleted
+                            ? "✓"
+                            : "6"}
+                        </span>
+                          
+                        <strong>{t.workspace.review}</strong>
+                      </div>
+                      
+                      <div
+                        className={
+                          workspaceReviewCompleted
+                            ? "workspace-flow-line completed"
+                            : "workspace-flow-line"
+                        }
+                      />
+
+                      <div
+                        className={
+                          workspaceHandoffCompleted
+                            ? "workspace-flow-step completed"
+                            : workspaceReviewCompleted
+                              ? "workspace-flow-step current"
+                              : "workspace-flow-step"
+                        }
+                      >
+                        <span>
+                          {workspaceHandoffCompleted
+                            ? "✓"
+                            : "7"}
+                        </span>
+                          
+                        <strong>{t.workspace.handoff}</strong>
+                      </div>
+
+                    </div>
+                    </div>
+                      
+                    <div className="workspace-overview-grid">
+                      <section className="workspace-overview-card">
                         <span className="workspace-overview-label">
                           {dashboardWorkspace.usage_context === "personal"
                             ? "PROJECT GOAL"
                             : t.workspace.taskBrief}
                         </span>
-                          
+                      
                         <p>
                           {dashboardWorkspace.task_brief ??
                             t.workspace.noTaskBriefProvided}
                         </p>
                       </section>
                           
-                      <section
-                        className="workspace-overview-card"
-                        hidden={
-                          dashboardWorkspace.usage_context === "personal" &&
-                          activeWorkspaceStage !== "source"
-                        }
-                      >
+                      <section className="workspace-overview-card">
                         <span className="workspace-overview-label">
                           {t.workspace.expectedOutcome}
                         </span>
-                      
+                          
                         <p>
                           {dashboardWorkspace.desired_outcome ??
                             t.workspace.noExpectedOutcomeProvided}
                         </p>
                       </section>
-                          
-                      {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "source" &&
+
+                      {dashboardWorkspace.usage_context ===
+                        "personal" &&
                         dashboardWorkspace.project_deliverables &&
                         dashboardWorkspace.project_deliverables.length > 0 && (
                           <PersonalProjectDeliverables
                             language={language}
-                            projectType={dashboardWorkspace.project_type}
+                            projectType={
+                              dashboardWorkspace.project_type
+                            }
                             deliverables={
                               dashboardWorkspace.project_deliverables
                             }
@@ -4005,40 +3902,57 @@ async function restoreWorkspaceVersion(
                         )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "analysis" &&
                         dashboardWorkspace.analysis_plan && (
                           <PersonalAnalysisPlan
                             analysisPlan={
                               dashboardWorkspace.analysis_plan
                             }
+                          
                             analysisResult={
                               dashboardWorkspace.analysis_result
                             }
-                            loading={personalAnalysisLoading}
-                            error={personalAnalysisError}
-                            onRunAnalysis={runPersonalAnalysis}
+                          
+                            loading={
+                              personalAnalysisLoading
+                            }
+                          
+                            error={
+                              personalAnalysisError
+                            }
+                          
+                            onRunAnalysis={
+                              runPersonalAnalysis
+                            }
                           />
                         )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "kpis" &&
                         dashboardWorkspace.kpi_candidates &&
                         dashboardWorkspace.kpi_candidates.length > 0 && (
                           <PersonalKpiCandidates
                             candidates={
                               dashboardWorkspace.kpi_candidates
                             }
+                          
                             selectedDefinitions={
                               dashboardWorkspace.kpi_definitions ?? []
                             }
-                            loading={personalKpiLoading}
-                            error={personalKpiError}
-                            onSave={savePersonalKpis}
+                          
+                            loading={
+                              personalKpiLoading
+                            }
+                          
+                            error={
+                              personalKpiError
+                            }
+                          
+                            onSave={
+                              savePersonalKpis
+                            }
                           />
                         )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "data_model" &&
                         dashboardWorkspace.kpi_definitions &&
                         dashboardWorkspace.kpi_definitions.length > 0 && (
                           <PersonalDataModel
@@ -4054,16 +3968,12 @@ async function restoreWorkspaceVersion(
                           />
                         )}
 
-                      <section
-                        className="workspace-overview-card"
-                        hidden={
-                          dashboardWorkspace.usage_context === "personal"
-                        }
-                      >
+
+                      <section className="workspace-overview-card">
                         <span className="workspace-overview-label">
                           {t.workspace.progress}
                         </span>
-                      
+                          
                         <h3>
                           {resumeData?.checkpoint.current_focus ===
                           "Workspace completed"
@@ -4073,25 +3983,14 @@ async function restoreWorkspaceVersion(
                         </h3>
                           
                         <p>
-                          {resumeData?.checkpoint.completed_items.length
+                          {resumeData?.checkpoint.completed_items
+                            .length
                             ? `${resumeData.checkpoint.completed_items.length} ${t.workspace.stepsCompleted}`
                             : "No work has been completed yet."}
                         </p>
-                      </section>  
+                      </section>
                           
-                      <section
-                         className="workspace-overview-card workspace-data-card"
-                         hidden={
-                            dashboardWorkspace.usage_context === "personal" &&
-                            !(
-                              activeWorkspaceStage === "source" ||
-                              (
-                                activeWorkspaceStage === "prepare" &&
-                                activePrepareStage === "profile"
-                              )
-                            )
-                          }
-                      >                       
+                      <section className="workspace-overview-card workspace-data-card">
                         <button
                           type="button"
                           className="workspace-section-toggle"
@@ -4364,15 +4263,7 @@ async function restoreWorkspaceVersion(
 
                         </section>
 
-                        {workspaceTask &&
-                          (
-                            dashboardWorkspace.usage_context !== "personal" ||
-                            (
-                              activeWorkspaceStage === "prepare" &&
-                              activePrepareStage === "workbench" &&
-                              workspaceTask.status !== "completed"
-                            )
-                          ) && (
+                        {workspaceTask && (
                           <section className="workspace-overview-card workspace-plan-card">
                             <button
                               type="button"
@@ -4453,15 +4344,8 @@ async function restoreWorkspaceVersion(
                           </section>
                         )}
 
-                      {workspaceTask &&
-                        workspaceTask.status !== "completed" &&
-                        (
-                          dashboardWorkspace.usage_context !== "personal" ||
-                          (
-                            activeWorkspaceStage === "prepare" &&
-                            activePrepareStage === "workbench"
-                          )
-                        ) && (
+                      {workspaceTask && 
+                        workspaceTask.status !== "completed" && (
                         <section className="workspace-overview-card workspace-transform-card">
                           <div className="workspace-transform-header">
                             <div>
@@ -4748,27 +4632,8 @@ async function restoreWorkspaceVersion(
                         </section>
                       )}
 
-                      {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "prepare" &&
-                        activePrepareStage === "workbench" &&
-                        workspaceTask?.status === "completed" && (
-                          <PersonalTransformSummary
-                            steps={workspaceTask.steps}
-                            workingRowCount={
-                              workspaceWorkingData?.row_count ?? null
-                            }
-                          />
-                        )}
-
                       {workspaceTask &&
-                        workspaceTask.status === "completed" &&
-                        (
-                          dashboardWorkspace.usage_context !== "personal" ||
-                          (
-                            activeWorkspaceStage === "prepare" &&
-                            activePrepareStage === "validate"
-                          )
-                        ) && (
+                        workspaceTask.status === "completed" && (
                           <section className="workspace-overview-card">
                             <div className="workspace-plan-header">
                               <div>
@@ -4925,8 +4790,7 @@ async function restoreWorkspaceVersion(
                           </section>
                         )}
 
-                        {workspaceValidation?.passed &&
-                          dashboardWorkspace.usage_context !== "personal" && (
+                        {workspaceValidation?.passed && (
                           <section className="workspace-overview-card">
                             <div className="workspace-plan-header">
                               <div>
