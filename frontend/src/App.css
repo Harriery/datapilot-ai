@@ -4945,3 +4945,165 @@
     grid-template-columns: 1fr;
   }
 }
+
+.personal-data-model-studio {
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid #e1e8f0;
+}
+
+.personal-data-model-studio-header {
+  margin-bottom: 16px;
+}
+
+.personal-data-model-studio-header h3 {
+  margin: 8px 0 6px;
+  color: #20324d;
+  font-size: 17px;
+}
+
+.personal-data-model-studio-header p {
+  margin: 0;
+  color: #637895;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.personal-data-model-studio-tables {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(240px, 1fr)
+  );
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.personal-data-model-studio-table {
+  overflow: hidden;
+  border: 1px solid #dbe5f1;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.personal-data-model-studio-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid #e3eaf2;
+  background: #f6f9fc;
+}
+
+.personal-data-model-studio-table-header strong {
+  color: #20324d;
+  font-size: 14px;
+}
+
+.personal-data-model-studio-table-header span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e9f3ff;
+  color: #2876d2;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.personal-data-model-studio-columns {
+  display: grid;
+}
+
+.personal-data-model-studio-column {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.personal-data-model-studio-column:last-child {
+  border-bottom: 0;
+}
+
+.personal-data-model-studio-column > span {
+  color: #2e405d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.personal-data-model-studio-column small {
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: #f0f3f7;
+  color: #73859c;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.personal-data-model-studio-relationships {
+  margin-top: 20px;
+}
+
+.personal-data-model-studio-relationships h3 {
+  margin: 0 0 10px;
+  color: #20324d;
+  font-size: 15px;
+}
+
+.personal-data-model-studio-relationship {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 13px 14px;
+  border: 1px solid #dbe5f1;
+  border-radius: 10px;
+  background: #f9fbfd;
+}
+
+.personal-data-model-studio-relationship strong {
+  color: #2e405d;
+  font-size: 13px;
+}
+
+.personal-data-model-studio-relationship > span {
+  color: #2876d2;
+  font-weight: 700;
+}
+
+.personal-data-model-studio-relationship small {
+  margin-left: auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #2876d2;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.personal-data-model-studio-empty {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px dashed #bfd0e4;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.personal-data-model-studio-empty strong {
+  color: #20324d;
+}
+
+.personal-data-model-studio-empty p {
+  margin: 5px 0 0;
+  color: #637895;
+  font-size: 13px;
+}

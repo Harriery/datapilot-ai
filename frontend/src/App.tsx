@@ -205,6 +205,58 @@ type DashboardWorkspace = {
     source: "local";
   } | null;
 
+  data_model_studio?: {
+    tables: {
+      name: string;
+
+      table_type:
+        | "fact"
+        | "dimension"
+        | "bridge";
+
+      columns: {
+        name: string;
+        source_column: string | null;
+
+        role:
+          | "key"
+          | "foreign_key"
+          | "dimension"
+          | "measure"
+          | "attribute"
+          | "time";
+
+        aggregation:
+          | "count"
+          | "sum"
+          | "mean"
+          | "min"
+          | "max"
+          | null;
+      }[];
+    }[];
+
+    relationships: {
+      from_table: string;
+      from_column: string;
+
+      to_table: string;
+      to_column: string;
+
+      cardinality:
+        | "many_to_one"
+        | "one_to_many"
+        | "one_to_one";
+
+      active: boolean;
+    }[];
+
+    source:
+      | "local"
+      | "user";
+  } | null;
+
+
   usage_context: "work" | "personal";
 
   data_sensitivity:
@@ -223,6 +275,8 @@ type DashboardWorkspace = {
     | "analysis"
     | "pipeline";
 };
+
+
 
 type WorkspaceDataProfileResponse = {
   workspace_id: string;
@@ -3904,6 +3958,9 @@ async function restoreWorkspaceVersion(
                           <PersonalDataModel
                             dataModelPlan={
                               dashboardWorkspace.data_model_plan
+                            }
+                            dataModelStudio={
+                              dashboardWorkspace.data_model_studio
                             }
                             loading={personalDataModelLoading}
                             error={personalDataModelError}

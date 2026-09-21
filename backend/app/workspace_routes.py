@@ -99,6 +99,10 @@ from backend.app.personal_data_model_service import (
     build_personal_data_model_plan,
 )
 
+from backend.app.personal_data_model_studio_service import (
+    build_personal_data_model_studio,
+)
+
 router = APIRouter()
 
 
@@ -2020,6 +2024,12 @@ def build_personal_project_data_model(
 
     workspace.data_model_plan = (
         data_model_plan
+    )
+
+    workspace.data_model_studio = (
+        build_personal_data_model_studio(
+            data_model_plan=data_model_plan,
+        )
     )
 
     complete_and_advance_personal_project_deliverable(

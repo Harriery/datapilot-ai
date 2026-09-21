@@ -30,9 +30,16 @@ type PersonalDataModelPlan = {
   source: "local";
 };
 
+
+
 type PersonalDataModelProps = {
   dataModelPlan:
     | PersonalDataModelPlan
+    | null
+    | undefined;
+
+  dataModelStudio:
+    | PersonalDataModelStudio
     | null
     | undefined;
 
@@ -42,8 +49,58 @@ type PersonalDataModelProps = {
   onBuild: () => void;
 };
 
+type PersonalDataModelStudio = {
+  tables: {
+    name: string;
+
+    table_type:
+      | "fact"
+      | "dimension"
+      | "bridge";
+
+    columns: {
+      name: string;
+      source_column: string | null;
+
+      role:
+        | "key"
+        | "foreign_key"
+        | "dimension"
+        | "measure"
+        | "attribute"
+        | "time";
+
+      aggregation:
+        | "count"
+        | "sum"
+        | "mean"
+        | "min"
+        | "max"
+        | null;
+    }[];
+  }[];
+
+  relationships: {
+    from_table: string;
+    from_column: string;
+
+    to_table: string;
+    to_column: string;
+
+    cardinality:
+      | "many_to_one"
+      | "one_to_many"
+      | "one_to_one";
+
+    active: boolean;
+  }[];
+
+  source: "local" | "user";
+};
+
 function PersonalDataModel({
   dataModelPlan,
+  dataModelStudio,
   loading,
   error,
   onBuild,
@@ -213,11 +270,140 @@ function PersonalDataModel({
             )}
           </div>
 
-          <div className="personal-data-model-ready">
-            ✓ Data model plan created locally.
-            Ready for the Power BI-ready dataset
-            stage.
-          </div>
+          {dataModelStudio ? (
+            <div className="personal-data-model-studio">
+              <div className="personal-data-model-studio-header">
+                <div>
+                  <span className="personal-analysis-plan-source">
+                    MODEL STUDIO
+                  </span>
+                    
+                  <h3>
+                    Tables and relationships
+                  </h3>
+                    
+                  <p>
+                    This is the logical analytical model
+                    built from the validated dataset and
+                    confirmed KPIs.
+                  </p>
+                </div>
+              </div>
+                    
+              <div className="personal-data-model-studio-tables">
+                {dataModelStudio.tables.map(
+                  (table) => (
+                    <article
+                      key={table.name}
+                      className="personal-data-model-studio-table"
+                    >
+                      <div className="personal-data-model-studio-table-header">
+                        <strong>
+                          {table.name}
+                        </strong>
+                  
+                        <span>
+                          {table.table_type}
+                        </span>
+                      </div>
+                  
+                      <div className="personal-data-model-studio-columns">
+                        {table.columns.map(
+                          (column) => (
+                            <div
+                              key={
+                                `${table.name}-${column.name}`
+                              }
+                              className="personal-data-model-studio-column"
+                            >
+                              <span>
+                                {column.name}
+                              </span>
+                            
+                              <small>
+                                {column.role}
+                              </small>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </article>
+                  )
+                )}
+              </div>
+              
+              <div className="personal-data-model-studio-relationships">
+                <h3>Relationships</h3>
+              
+                {dataModelStudio.relationships.length >
+                0 ? (
+                  dataModelStudio.relationships.map(
+                    (relationship) => (
+                      <div
+                        key={
+                          `${relationship.from_table}-${relationship.from_column}-${relationship.to_table}-${relationship.to_column}`
+                        }
+                        className="personal-data-model-studio-relationship"
+                      >
+                        <strong>
+                          {relationship.from_table}.
+                          {relationship.from_column}
+                        </strong>
+                      
+                        <span>
+                          →
+                        </span>
+                      
+                        <strong>
+                          {relationship.to_table}.
+                          {relationship.to_column}
+                        </strong>
+                      
+                        <small>
+                          {relationship.cardinality}
+                        </small>
+                      </div>
+                    )
+                  )
+                ) : (
+                  <p>
+                    No relationships are defined yet.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="personal-data-model-studio-empty">
+              <div>
+                <strong>
+                  Data Model Studio is not initialized yet.
+                </strong>
+          
+                <p>
+                  Initialize it from the existing data
+                  model plan.
+                </p>
+              </div>
+          
+              <button
+                type="button"
+                className="new-workspace-button"
+                disabled={loading}
+                onClick={onBuild}
+              >
+                {loading
+                  ? "Initializing..."
+                  : "Initialize model studio"}
+              </button>
+            </div>
+          )}
+
+          {dataModelStudio && (
+            <div className="personal-data-model-ready">
+              ✓ Data model and model studio created
+              locally. Ready for the next stage.
+            </div>
+          )}
         </div>
       )}
     </section>

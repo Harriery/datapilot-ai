@@ -2183,3 +2183,59 @@ def test_build_personal_data_model_completes_deliverable(
         ]["base_table"]
         == "fact_test_quality"
     )
+
+    studio = updated_workspace[
+        "data_model_studio"
+    ]
+    
+    assert studio is not None
+    
+    assert [
+        table["name"]
+        for table in studio["tables"]
+    ] == [
+        "fact_test_quality",
+        "dim_city",
+    ]
+    
+    assert (
+        studio["tables"][0]["table_type"]
+        == "fact"
+    )
+    
+    assert (
+        studio["tables"][1]["table_type"]
+        == "dimension"
+    )
+    
+    assert len(
+        studio["relationships"]
+    ) == 1
+    
+    assert (
+        studio["relationships"][0][
+            "from_table"
+        ]
+        == "fact_test_quality"
+    )
+    
+    assert (
+        studio["relationships"][0][
+            "from_column"
+        ]
+        == "city"
+    )
+    
+    assert (
+        studio["relationships"][0][
+            "to_table"
+        ]
+        == "dim_city"
+    )
+    
+    assert (
+        studio["relationships"][0][
+            "to_column"
+        ]
+        == "city"
+    )

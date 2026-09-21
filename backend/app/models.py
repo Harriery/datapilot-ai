@@ -735,6 +735,43 @@ class PersonalProjectDataModelMeasure(BaseModel):
     dimension: str | None = None
 
 
+
+class ProjectDeliverable(BaseModel):
+    code: str
+    title: str
+
+    status: Literal[
+        "pending",
+        "in_progress",
+        "completed",
+    ] = "pending"
+
+    required: bool = True
+
+
+
+class WorkspaceCheckpoint(BaseModel):
+    # Junior'ın bu workspace içinde tamamladığı
+    # önemli adımlar.
+    completed_items: list[str] = Field(
+        default_factory=list
+    )
+
+    # Junior şu anda tam olarak ne üzerinde çalışıyor?
+    current_focus: str | None = None
+
+    # İlerlemeyi engelleyen bir problem varsa.
+    blocked_reason: str | None = None
+
+    # Son teknik hata.
+    last_error: str | None = None
+
+    # Junior geri geldiğinde önerilecek
+    # sıradaki küçük adımlar.
+    next_actions: list[str] = Field(
+        default_factory=list
+    )
+
 class PersonalProjectDataModelPlan(BaseModel):
     model_type: Literal[
         "single_table",
@@ -763,40 +800,74 @@ class PersonalProjectDataModelPlan(BaseModel):
         "local",
     ] = "local"
 
-class ProjectDeliverable(BaseModel):
-    code: str
-    title: str
+class PersonalProjectDataModelColumn(BaseModel):
+    name: str
 
-    status: Literal[
-        "pending",
-        "in_progress",
-        "completed",
-    ] = "pending"
+    source_column: str | None = None
 
-    required: bool = True
+    role: Literal[
+        "key",
+        "foreign_key",
+        "dimension",
+        "measure",
+        "attribute",
+        "time",
+    ]
+
+    aggregation: Literal[
+        "count",
+        "sum",
+        "mean",
+        "min",
+        "max",
+    ] | None = None
 
 
-class WorkspaceCheckpoint(BaseModel):
-    # Junior'ın bu workspace içinde tamamladığı
-    # önemli adımlar.
-    completed_items: list[str] = Field(
-        default_factory=list
-    )
+class PersonalProjectDataModelTable(BaseModel):
+    name: str
 
-    # Junior şu anda tam olarak ne üzerinde çalışıyor?
-    current_focus: str | None = None
+    table_type: Literal[
+        "fact",
+        "dimension",
+        "bridge",
+    ]
 
-    # İlerlemeyi engelleyen bir problem varsa.
-    blocked_reason: str | None = None
+    columns: list[
+        PersonalProjectDataModelColumn
+    ] = Field(default_factory=list)
 
-    # Son teknik hata.
-    last_error: str | None = None
 
-    # Junior geri geldiğinde önerilecek
-    # sıradaki küçük adımlar.
-    next_actions: list[str] = Field(
-        default_factory=list
-    )
+class PersonalProjectDataModelRelationship(BaseModel):
+    from_table: str
+    from_column: str
+
+    to_table: str
+    to_column: str
+
+    cardinality: Literal[
+        "many_to_one",
+        "one_to_many",
+        "one_to_one",
+    ] = "many_to_one"
+
+    active: bool = True
+
+
+class PersonalProjectDataModelStudio(BaseModel):
+    tables: list[
+        PersonalProjectDataModelTable
+    ] = Field(default_factory=list)
+
+    relationships: list[
+        PersonalProjectDataModelRelationship
+    ] = Field(default_factory=list)
+
+    source: Literal[
+        "local",
+        "user",
+    ] = "local"
+
+    
 
 
 class Workspace(BaseModel):
@@ -868,9 +939,13 @@ class Workspace(BaseModel):
         PersonalProjectDataModelPlan | None
     ) = None
 
+    data_model_studio: (
+        PersonalProjectDataModelStudio | None
+    ) = None
+
     # Çalışmanın genel veri mühendisliği akışı.
-    # "auto" ise ileride mentor task brief'e göre
-    # uygun workflow'u seçecek.
+        # "auto" ise ileride mentor task brief'e göre
+        # uygun workflow'u seçecek.
     workflow_type: Literal[
         "auto",
         "etl",
@@ -926,7 +1001,7 @@ class Workspace(BaseModel):
     checkpoint: WorkspaceCheckpoint = Field(
         default_factory=WorkspaceCheckpoint
     )
-
+    
 class TaskSummaryItem(BaseModel):
     workspace_id: str
     workspace_title: str
