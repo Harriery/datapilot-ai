@@ -37,7 +37,7 @@ def test_build_personal_data_model_plan():
         result.model_type
         == "star_schema_candidate"
     )
-
+    
     assert (
         result.base_table
         == "fact_test_quality"

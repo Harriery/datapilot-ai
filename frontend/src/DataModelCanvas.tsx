@@ -21,7 +21,9 @@ import {
 
 import "@xyflow/react/dist/style.css";
 
-
+import DataModelTableEditor
+  from "./DataModelTableEditor";
+  
 type DataModelColumn = {
   name: string;
 
@@ -87,6 +89,12 @@ export type DataModelStudioData = {
 
 type Props = {
   studio: DataModelStudioData;
+
+  onSaveStudio: (
+    studio: DataModelStudioData
+  ) => Promise<void>;
+
+  saving: boolean;
 };
 
 
@@ -433,6 +441,8 @@ function createEdges(
 
 function DataModelCanvas({
   studio,
+  onSaveStudio,
+  saving,
 }: Props) {
 
   const initialNodes =
@@ -534,6 +544,10 @@ function DataModelCanvas({
           )
     );
 
+  const [
+    tableEditorOpen,
+    setTableEditorOpen,
+  ] = useState(false);
 
   function focusTable(
     tableName: string,
@@ -589,6 +603,7 @@ function DataModelCanvas({
 
 
   return (
+  <>
     <div className="model-studio-workspace">
 
       {/* ==================================================
@@ -715,9 +730,32 @@ function DataModelCanvas({
           </div>
 
 
-          <span className="model-canvas-toolbar-hint">
-            Drag tables using ⋮⋮
-          </span>
+          <div className="model-canvas-toolbar-actions">
+
+            <span className="model-canvas-toolbar-hint">
+              Drag tables using ⋮⋮
+            </span>
+
+            <button
+              type="button"
+              className="model-canvas-action-button"
+              onClick={() =>
+                setTableEditorOpen(true)
+              }
+            >
+              + Table
+            </button>
+
+            <button
+              type="button"
+              className="model-canvas-action-button"
+              disabled
+              title="Relationship editor is next"
+            >
+              + Relationship
+            </button>
+
+          </div>
 
         </div>
 
@@ -800,7 +838,32 @@ function DataModelCanvas({
       </div>
 
     </div>
-  );
+
+
+    {tableEditorOpen && (
+      <DataModelTableEditor
+        studio={studio}
+        saving={saving}
+        onCancel={() =>
+          setTableEditorOpen(false)
+        }
+        onSave={async (
+          updatedStudio
+        ) => {
+          await onSaveStudio(
+            updatedStudio
+          );
+
+          setTableEditorOpen(
+            false
+          );
+        }}
+      />
+    )}
+
+  </>
+);
+
 }
 
 

@@ -1,4 +1,6 @@
-import DataModelCanvas from "./DataModelCanvas";
+import DataModelCanvas, {
+  type DataModelStudioData,
+} from "./DataModelCanvas";
 
 type PersonalDataModelPlan = {
   model_type:
@@ -50,6 +52,11 @@ type PersonalDataModelProps = {
   error: string | null;
 
   onBuild: () => void;
+  onSaveStudio: (
+    studio: DataModelStudioData
+  ) => Promise<void>;
+
+  studioSaving: boolean;
 };
 
 type PersonalDataModelStudio = {
@@ -107,6 +114,8 @@ function PersonalDataModel({
   loading,
   error,
   onBuild,
+  onSaveStudio,
+  studioSaving,
 }: PersonalDataModelProps) {
   return (
     <section className="personal-data-model-card">
@@ -297,6 +306,8 @@ function PersonalDataModel({
               
               <DataModelCanvas
                 studio={dataModelStudio}
+                onSaveStudio={onSaveStudio}
+                saving={studioSaving}
               />
                     
               <div className="personal-data-model-studio-tables">

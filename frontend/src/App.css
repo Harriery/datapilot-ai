@@ -8911,3 +8911,308 @@
     max-height: 180px;
   }
 }
+
+
+/* ==================================================
+   MODEL STUDIO ACTIONS
+   ================================================== */
+
+.model-canvas-toolbar-actions {
+  display: flex;
+  align-items: center;
+
+  gap: 6px;
+}
+
+
+.model-canvas-action-button {
+  padding: 5px 8px;
+
+  border: 1px solid #cfdae7;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #38516e;
+
+  font-size: 9px;
+  font-weight: 650;
+
+  cursor: pointer;
+}
+
+
+.model-canvas-action-button:hover:not(:disabled) {
+  border-color: #8db9eb;
+
+  background: #f0f7ff;
+}
+
+
+.model-canvas-action-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+
+/* ==================================================
+   MODEL EDITOR MODAL
+   ================================================== */
+
+.model-editor-backdrop {
+  position: fixed;
+  inset: 0;
+
+  z-index: 500;
+
+  display: grid;
+  place-items: center;
+
+  padding: 24px;
+
+  background:
+    rgba(20, 31, 45, 0.42);
+}
+
+
+.model-editor-modal {
+  width: min(
+    560px,
+    100%
+  );
+
+  max-height: min(
+    680px,
+    88vh
+  );
+
+  overflow: hidden;
+
+  border: 1px solid #d8e2ed;
+  border-radius: 14px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 22px 55px
+    rgba(25, 40, 60, 0.22);
+}
+
+
+.model-editor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  padding: 17px 18px 14px;
+
+  border-bottom: 1px solid #e5ebf2;
+}
+
+
+.model-editor-header h3 {
+  margin: 3px 0;
+
+  color: #253850;
+}
+
+
+.model-editor-header p {
+  margin: 0;
+
+  color: #7c8ca0;
+
+  font-size: 10px;
+}
+
+
+.model-editor-close {
+  display: grid;
+  place-items: center;
+
+  width: 28px;
+  height: 28px;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: transparent;
+  color: #7b8b9f;
+
+  cursor: pointer;
+
+  font-size: 18px;
+}
+
+
+.model-editor-close:hover {
+  background: #f0f3f7;
+}
+
+
+.model-editor-body {
+  display: grid;
+
+  gap: 14px;
+
+  max-height: 500px;
+
+  overflow-y: auto;
+
+  padding: 16px 18px;
+}
+
+
+.model-editor-field {
+  display: grid;
+
+  gap: 5px;
+}
+
+
+.model-editor-field > span {
+  color: #546981;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+
+.model-editor-field input,
+.model-editor-field select,
+.model-editor-column-row input,
+.model-editor-column-row select {
+  min-height: 34px;
+
+  padding: 7px 9px;
+
+  border: 1px solid #d4deea;
+  border-radius: 7px;
+
+  outline: none;
+
+  background: #ffffff;
+  color: #293d55;
+
+  font-size: 10px;
+}
+
+
+.model-editor-field input:focus,
+.model-editor-field select:focus,
+.model-editor-column-row input:focus,
+.model-editor-column-row select:focus {
+  border-color: #7fb1ec;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, 0.08);
+}
+
+
+.model-editor-columns {
+  display: grid;
+
+  gap: 7px;
+}
+
+
+.model-editor-columns-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
+.model-editor-columns-header strong {
+  color: #405773;
+
+  font-size: 10px;
+}
+
+
+.model-editor-columns-header button {
+  border: 0;
+
+  background: transparent;
+  color: #347fce;
+
+  cursor: pointer;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+
+.model-editor-column-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    135px
+    28px;
+
+  gap: 6px;
+}
+
+
+.model-editor-remove-column {
+  border: 1px solid #e0e6ed;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #8996a6;
+
+  cursor: pointer;
+}
+
+
+.model-editor-remove-column:hover:not(:disabled) {
+  border-color: #efb6b6;
+
+  background: #fff5f5;
+  color: #c75c5c;
+}
+
+
+.model-editor-remove-column:disabled {
+  opacity: 0.35;
+}
+
+
+.model-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 8px;
+
+  padding: 12px 18px;
+
+  border-top: 1px solid #e5ebf2;
+
+  background: #fafbfd;
+}
+
+
+.model-editor-cancel {
+  padding: 7px 11px;
+
+  border: 1px solid #d6e0ea;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #62748a;
+
+  cursor: pointer;
+
+  font-size: 10px;
+}
+
+.model-editor-field input::placeholder,
+.model-editor-column-row input::placeholder {
+  color: #aab5c3;
+  opacity: 1;
+  font-style: italic;
+}

@@ -54,6 +54,10 @@ import AddTransformationModal, {
   type WorkbenchOperationType,
 } from "./AddTransformationModal";
 
+import type {
+  DataModelStudioData,
+} from "./DataModelCanvas";
+
 type SkillProgressData = {
   skill_name: string;
   status: "new" | "learning" | "practicing" | "comfortable";
@@ -951,6 +955,10 @@ df["age"] = df["age"].fillna(median_age)`);
     "profile"
   );
 
+  const [
+    personalDataModelStudioSaving,
+    setPersonalDataModelStudioSaving,
+  ] = useState(false);
  
 
   function getPersonalWorkspaceStageStatus(
@@ -2154,6 +2162,114 @@ async function buildPersonalDataModel() {
     setPersonalDataModelLoading(false);
   }
 }
+
+async function savePersonalDataModelStudio(
+  studio: DataModelStudioData,
+) {
+  if (!dashboardWorkspace) {
+    return;
+  }
+
+  setPersonalDataModelStudioSaving(
+    true
+  );
+
+  setPersonalDataModelError(
+    null
+  );
+
+  try {
+    const learnerId =
+      "demo-learner";
+
+    const response = await fetch(
+      (
+        "http://127.0.0.1:8000" +
+        `/workspaces/${learnerId}/` +
+        `${dashboardWorkspace.workspace_id}` +
+        "/data-model/studio"
+      ),
+      {
+        method: "PUT",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify(
+          studio
+        ),
+      }
+    );
+
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Model Studio kaydedilemedi."
+      );
+    }
+
+
+    const savedStudio:
+      DataModelStudioData =
+        await response.json();
+
+
+    setDashboardWorkspace(
+      (previous) => {
+
+        if (!previous) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          data_model_studio:
+            savedStudio,
+        };
+      }
+    );
+
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            dashboardWorkspace.workspace_id
+              ? {
+                  ...workspace,
+                  data_model_studio:
+                    savedStudio,
+                }
+              : workspace
+        )
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    setPersonalDataModelError(
+      error instanceof Error
+        ? error.message
+        : "Model Studio kaydedilemedi."
+    );
+
+    throw error;
+
+  } finally {
+    setPersonalDataModelStudioSaving(
+      false
+    );
+  }
+}
+
+
   
 async function completeWorkspaceReview() {
     if (!workspaceId) {
@@ -4500,9 +4616,22 @@ async function restoreWorkspaceVersion(
                             dataModelStudio={
                               dashboardWorkspace.data_model_studio
                             }
-                            loading={personalDataModelLoading}
-                            error={personalDataModelError}
-                            onBuild={buildPersonalDataModel}
+                            loading={
+                              personalDataModelLoading
+                            }
+                            error={
+                              personalDataModelError
+                            }
+                            onBuild={
+                              buildPersonalDataModel
+                            }
+                            onSaveStudio={
+                              savePersonalDataModelStudio
+                            }
+                          
+                            studioSaving={
+                              personalDataModelStudioSaving
+                            }
                           />
                         )}
 
