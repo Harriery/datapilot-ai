@@ -30,6 +30,7 @@ from backend.app.models import (
     LearningEvidenceDecision,
     PersonalProjectAnalysisRequest,
     PersonalProjectAnalysisResult,
+    PersonalProjectAnalysisDeleteRequest,
     PersonalProjectKPISelectionRequest,
     PersonalProjectKPIDefinition,
     PersonalProjectDataModelPlan,
@@ -37,6 +38,7 @@ from backend.app.models import (
     WorkspaceWorkbenchOperationCreateRequest,
     WorkspaceWorkbenchTransformationRequest,
     WorkspaceWorkbenchTransformationResponse,
+    PersonalProjectDataModelStudio,
 )
 
 import pandas as pd
@@ -105,6 +107,7 @@ from backend.app.personal_data_model_service import (
 
 from backend.app.personal_data_model_studio_service import (
     build_personal_data_model_studio,
+    validate_personal_data_model_studio,
 )
 
 from backend.app.workspace_workbench_service import (
@@ -556,6 +559,7 @@ def transform_workspace_workbench_data(
 
     workspace.analysis_plan = None
     workspace.analysis_result = None
+    workspace.analysis_results = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1037,6 +1041,7 @@ def profile_workspace_data(
     workspace.validation_result = None
     workspace.analysis_plan = None
     workspace.analysis_result = None
+    workspace.analysis_results = []
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
 
@@ -1561,6 +1566,7 @@ def restore_workspace_version(
 
     workspace.analysis_plan = None
     workspace.analysis_result = None
+    workspace.analysis_results = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1844,6 +1850,7 @@ def transform_workspace_data(
             workspace.validation_result = None
             workspace.analysis_plan = None
             workspace.analysis_result = None
+            workspace.analysis_results = []
             workspace.kpi_candidates = []
             workspace.kpi_definitions = []
 
@@ -2322,6 +2329,13 @@ def run_personal_project_analysis(
                 dimension=request.dimension,
             )
         )
+        result = result.model_copy(
+            update={
+                "analysis_id": str(
+                    uuid.uuid4()
+                )
+            }
+        )
 
     except FileNotFoundError as exc:
         raise HTTPException(
@@ -2335,12 +2349,39 @@ def run_personal_project_analysis(
             detail=str(exc),
         )
 
+    # Son çalıştırılan analysis mevcut kodlarla
+    # uyumluluk için burada kalır.
     workspace.analysis_result = result
-
-    workspace.kpi_candidates = (
+    
+    # Bütün analysis sonuçlarını ayrıca saklıyoruz.
+    workspace.analysis_results.append(
+        result
+    )
+    
+    # Yeni analysis'ten KPI candidate üret.
+    new_kpi_candidates = (
         build_personal_kpi_candidates(
             result
         )
+    )
+    
+    # Daha önceki analysis'lerden gelen KPI'ları
+    # kaybetmeden birleştir.
+    #
+    # Aynı code tekrar oluşursa duplicate yaratma.
+    candidates_by_code = {
+        candidate.code: candidate
+        for candidate
+        in workspace.kpi_candidates
+    }
+    
+    for candidate in new_kpi_candidates:
+        candidates_by_code[
+            candidate.code
+        ] = candidate
+    
+    workspace.kpi_candidates = list(
+        candidates_by_code.values()
     )
 
     complete_and_advance_personal_project_deliverable(
@@ -2349,11 +2390,11 @@ def run_personal_project_analysis(
     )
 
     workspace.checkpoint.current_focus = (
-        "Review analysis results and define KPIs"
+        "Build analytical data model"
     )
 
     workspace.checkpoint.next_actions = [
-        "Define KPIs"
+        "Build data model"
     ]
 
     workspace.checkpoint.last_error = None
@@ -2363,6 +2404,113 @@ def run_personal_project_analysis(
     )
 
     return result
+
+
+@router.delete(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/analysis"
+    ),
+    response_model=Workspace,
+)
+def delete_personal_project_analysis(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectAnalysisDeleteRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Analysis silme yalnızca personal "
+                "workspace için kullanılabilir."
+            ),
+        )
+
+    existing_count = len(
+        workspace.analysis_results
+    )
+
+    workspace.analysis_results = [
+        result
+        for result
+        in workspace.analysis_results
+        if result.analysis_id
+        != request.analysis_id
+    ]
+
+    if (
+        len(workspace.analysis_results)
+        == existing_count
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis bulunamadı.",
+        )
+
+    # Latest analysis silindiyse son kalan
+    # analysis'i active/latest olarak kullan.
+    if (
+        workspace.analysis_result is not None
+        and workspace.analysis_result.analysis_id
+        == request.analysis_id
+    ):
+        workspace.analysis_result = (
+            workspace.analysis_results[-1]
+            if workspace.analysis_results
+            else None
+        )
+
+    # KPI candidate'ları kalan analysis
+    # sonuçlarından yeniden oluştur.
+    candidates_by_code = {}
+
+    for analysis_result in (
+        workspace.analysis_results
+    ):
+        for candidate in (
+            build_personal_kpi_candidates(
+                analysis_result
+            )
+        ):
+            candidates_by_code[
+                candidate.code
+            ] = candidate
+
+    workspace.kpi_candidates = list(
+        candidates_by_code.values()
+    )
+
+    # Daha önce seçilmiş ama artık candidate
+    # olmayan KPI'ları da temizle.
+    valid_codes = set(
+        candidates_by_code.keys()
+    )
+
+    workspace.kpi_definitions = [
+        definition
+        for definition
+        in workspace.kpi_definitions
+        if definition.code in valid_codes
+    ]
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
+
 
 @router.post(
     (
@@ -2398,12 +2546,23 @@ def select_personal_project_kpis(
             ),
         )
 
-    if workspace.analysis_result is None:
+    if (
+        not workspace.analysis_results
+        and workspace.analysis_result is None
+    ):
         raise HTTPException(
             status_code=400,
             detail=(
                 "KPI seçilmeden önce "
                 "analysis çalıştırılmalı."
+            ),
+        )
+    if workspace.data_model_plan is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "KPI seçilmeden önce "
+                "data model oluşturulmalı."
             ),
         )
 
@@ -2470,11 +2629,11 @@ def select_personal_project_kpis(
     )
 
     workspace.checkpoint.current_focus = (
-        "Build data model"
+        "Prepare Power BI-ready dataset"
     )
-
+    
     workspace.checkpoint.next_actions = [
-        "Build data model"
+        "Prepare Power BI-ready dataset"
     ]
 
     workspace.checkpoint.last_error = None
@@ -2526,14 +2685,7 @@ def build_personal_project_data_model(
             ),
         )
 
-    if not workspace.kpi_definitions:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Data model oluşturulmadan önce "
-                "KPI definitions seçilmeli."
-            ),
-        )
+    
 
     has_data_model_deliverable = any(
         deliverable.code == "data_model"
@@ -2558,9 +2710,6 @@ def build_personal_project_data_model(
             analysis_plan=(
                 workspace.analysis_plan
             ),
-            kpi_definitions=(
-                workspace.kpi_definitions
-            ),
         )
     )
 
@@ -2580,11 +2729,11 @@ def build_personal_project_data_model(
     )
 
     workspace.checkpoint.current_focus = (
-        "Prepare Power BI-ready dataset"
+        "Define project KPIs and measures"
     )
 
     workspace.checkpoint.next_actions = [
-        "Prepare Power BI-ready dataset"
+        "Define KPIs"
     ]
 
     workspace.checkpoint.last_error = None
@@ -2594,6 +2743,82 @@ def build_personal_project_data_model(
     )
 
     return data_model_plan
+
+
+@router.put(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data-model/studio"
+    ),
+    response_model=PersonalProjectDataModelStudio,
+)
+def update_personal_project_data_model_studio(
+    learner_id: str,
+    workspace_id: str,
+    studio: PersonalProjectDataModelStudio,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Model Studio yalnızca personal "
+                "workspace için düzenlenebilir."
+            ),
+        )
+
+    if workspace.data_model_plan is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Model Studio düzenlenmeden önce "
+                "data model oluşturulmalı."
+            ),
+        )
+
+    try:
+        validated_studio = (
+            validate_personal_data_model_studio(
+                studio
+            )
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    workspace.data_model_studio = (
+        validated_studio
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Review data model and define KPIs"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Review model relationships",
+        "Define KPIs",
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return validated_studio
 
 def complete_workspace_review(
     learner_id: str,

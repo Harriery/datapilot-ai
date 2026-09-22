@@ -172,3 +172,150 @@ def build_personal_data_model_studio(
         relationships=relationships,
         source="local",
     )
+
+def validate_personal_data_model_studio(
+    studio: PersonalProjectDataModelStudio,
+) -> PersonalProjectDataModelStudio:
+
+    table_names = [
+        table.name
+        for table in studio.tables
+    ]
+
+    if len(table_names) != len(
+        set(table_names)
+    ):
+        raise ValueError(
+            "Table names must be unique."
+        )
+
+    tables_by_name = {
+        table.name: table
+        for table in studio.tables
+    }
+
+    for table in studio.tables:
+
+        if not table.name.strip():
+            raise ValueError(
+                "Table name cannot be empty."
+            )
+
+        column_names = [
+            column.name
+            for column in table.columns
+        ]
+
+        if len(column_names) != len(
+            set(column_names)
+        ):
+            raise ValueError(
+                (
+                    "Column names must be unique "
+                    f"inside table: {table.name}"
+                )
+            )
+
+        for column in table.columns:
+            if not column.name.strip():
+                raise ValueError(
+                    (
+                        "Column name cannot be "
+                        f"empty in table: {table.name}"
+                    )
+                )
+
+    relationship_keys: set[
+        tuple[str, str, str, str]
+    ] = set()
+
+    for relationship in (
+        studio.relationships
+    ):
+
+        from_table = tables_by_name.get(
+            relationship.from_table
+        )
+
+        to_table = tables_by_name.get(
+            relationship.to_table
+        )
+
+        if from_table is None:
+            raise ValueError(
+                (
+                    "Relationship source table "
+                    "not found: "
+                    f"{relationship.from_table}"
+                )
+            )
+
+        if to_table is None:
+            raise ValueError(
+                (
+                    "Relationship target table "
+                    "not found: "
+                    f"{relationship.to_table}"
+                )
+            )
+
+        from_columns = {
+            column.name
+            for column in from_table.columns
+        }
+
+        to_columns = {
+            column.name
+            for column in to_table.columns
+        }
+
+        if (
+            relationship.from_column
+            not in from_columns
+        ):
+            raise ValueError(
+                (
+                    "Relationship source column "
+                    "not found: "
+                    f"{relationship.from_table}."
+                    f"{relationship.from_column}"
+                )
+            )
+
+        if (
+            relationship.to_column
+            not in to_columns
+        ):
+            raise ValueError(
+                (
+                    "Relationship target column "
+                    "not found: "
+                    f"{relationship.to_table}."
+                    f"{relationship.to_column}"
+                )
+            )
+
+        relationship_key = (
+            relationship.from_table,
+            relationship.from_column,
+            relationship.to_table,
+            relationship.to_column,
+        )
+
+        if (
+            relationship_key
+            in relationship_keys
+        ):
+            raise ValueError(
+                "Duplicate relationship."
+            )
+
+        relationship_keys.add(
+            relationship_key
+        )
+
+    return studio.model_copy(
+        update={
+            "source": "user",
+        }
+    )

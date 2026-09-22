@@ -20,6 +20,7 @@ from backend.app.models import (
     WorkspaceValidationResponse,
     PersonalProjectKPIDefinition,
     PersonalProjectAnalysisResult,
+    PersonalProjectDataModelPlan,
     
 )
 
@@ -1821,9 +1822,16 @@ def test_run_personal_analysis_completes_analysis_deliverable(
 
     assert (
         deliverables[
-            "kpi_definitions"
+            "data_model"
         ]["status"]
         == "in_progress"
+    )
+
+    assert (
+        deliverables[
+            "kpi_definitions"
+        ]["status"]
+        == "pending"
     )
 
     assert (
@@ -1907,6 +1915,27 @@ def test_select_personal_kpis_completes_kpi_deliverable(
         )
     )
 
+    workspace.data_model_plan = (
+        PersonalProjectDataModelPlan(
+            model_type="star_schema_candidate",
+            base_table="fact_test_quality",
+            grain=(
+                "One row per validated "
+                "source record."
+            ),
+            dimensions=[
+                "city",
+            ],
+            time_dimension=None,
+            measures=[],
+            recommended_dimension_tables=[
+                "dim_city",
+            ],
+            source="local",
+        )
+    )
+
+
     workspace.kpi_candidates = [
         PersonalProjectKPIDefinition(
             code="average_age",
@@ -1935,10 +1964,16 @@ def test_select_personal_kpis_completes_kpi_deliverable(
     for deliverable in (
         workspace.project_deliverables
     ):
-        if deliverable.code == "analysis":
+        if deliverable.code in {
+            "analysis",
+            "data_model",
+        }:
             deliverable.status = "completed"
-
-        if deliverable.code == "kpi_definitions":
+    
+        if (
+            deliverable.code
+            == "kpi_definitions"
+        ):
             deliverable.status = "in_progress"
 
     database.save_workspace(
@@ -1997,7 +2032,7 @@ def test_select_personal_kpis_completes_kpi_deliverable(
 
     assert (
         deliverables[
-            "data_model"
+            "bi_ready_dataset"
         ]["status"]
         == "in_progress"
     )
@@ -2061,38 +2096,11 @@ def test_build_personal_data_model_completes_deliverable(
         )
     )
 
-    workspace.kpi_definitions = [
-        PersonalProjectKPIDefinition(
-            code="average_age",
-            title="Average age",
-            measure="age",
-            aggregation="mean",
-            dimension=None,
-            description=(
-                "Average age across dataset."
-            ),
-            source="local",
-        ),
-        PersonalProjectKPIDefinition(
-            code="average_age_by_city",
-            title="Average age by city",
-            measure="age",
-            aggregation="mean",
-            dimension="city",
-            description=(
-                "Average age by city."
-            ),
-            source="local",
-        ),
-    ]
 
     for deliverable in (
         workspace.project_deliverables
     ):
-        if deliverable.code in {
-            "analysis",
-            "kpi_definitions",
-        }:
+        if deliverable.code == "analysis":
             deliverable.status = "completed"
 
         if deliverable.code == "data_model":
@@ -2132,9 +2140,15 @@ def test_build_personal_data_model_completes_deliverable(
         item["code"]
         for item in body["measures"]
     ] == [
-        "average_age",
-        "average_age_by_city",
+        "measure_age",
     ]
+
+    assert (
+        body["measures"][0][
+            "aggregation"
+        ]
+        is None
+    )
 
     assert (
         body[
@@ -2172,7 +2186,7 @@ def test_build_personal_data_model_completes_deliverable(
 
     assert (
         deliverables[
-            "bi_ready_dataset"
+            "kpi_definitions"
         ]["status"]
         == "in_progress"
     )

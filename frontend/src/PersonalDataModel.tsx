@@ -1,3 +1,7 @@
+import DataModelCanvas, {
+  type DataModelStudioData,
+} from "./DataModelCanvas";
+
 type PersonalDataModelPlan = {
   model_type:
     | "single_table"
@@ -20,7 +24,8 @@ type PersonalDataModelPlan = {
       | "sum"
       | "mean"
       | "min"
-      | "max";
+      | "max"
+      | null;
 
     dimension: string | null;
   }[];
@@ -47,6 +52,11 @@ type PersonalDataModelProps = {
   error: string | null;
 
   onBuild: () => void;
+  onSaveStudio: (
+    studio: DataModelStudioData
+  ) => Promise<void>;
+
+  studioSaving: boolean;
 };
 
 type PersonalDataModelStudio = {
@@ -104,6 +114,8 @@ function PersonalDataModel({
   loading,
   error,
   onBuild,
+  onSaveStudio,
+  studioSaving,
 }: PersonalDataModelProps) {
   return (
     <section className="personal-data-model-card">
@@ -118,9 +130,9 @@ function PersonalDataModel({
           </h2>
 
           <p>
-            Create a local model recommendation
-            from the validated dataset and your
-            confirmed KPI definitions.
+            Create a local analytical model from
+            the validated dataset and analysis
+            structure before defining final KPIs.
           </p>
         </div>
 
@@ -224,7 +236,8 @@ function PersonalDataModel({
                       </strong>
 
                       <span>
-                        {measure.aggregation}
+                        {measure.aggregation ??
+                         "Source measure"}
                       </span>
                     </div>
 
@@ -273,6 +286,7 @@ function PersonalDataModel({
           {dataModelStudio ? (
             <div className="personal-data-model-studio">
               <div className="personal-data-model-studio-header">
+
                 <div>
                   <span className="personal-analysis-plan-source">
                     MODEL STUDIO
@@ -285,10 +299,16 @@ function PersonalDataModel({
                   <p>
                     This is the logical analytical model
                     built from the validated dataset and
-                    confirmed KPIs.
+                    analysis structure.
                   </p>
                 </div>
               </div>
+              
+              <DataModelCanvas
+                studio={dataModelStudio}
+                onSaveStudio={onSaveStudio}
+                saving={studioSaving}
+              />
                     
               <div className="personal-data-model-studio-tables">
                 {dataModelStudio.tables.map(

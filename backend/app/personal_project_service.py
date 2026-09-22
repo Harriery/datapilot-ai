@@ -45,11 +45,12 @@ PERSONAL_PROJECT_DELIVERABLES = {
         ("data_profile", "Dataset profile"),
         ("clean_dataset", "Clean dataset"),
         ("analysis", "Data analysis"),
+        ("data_model", "Data model"),
         (
             "kpi_definitions",
             "KPI definitions",
         ),
-        ("data_model", "Data model"),
+        
         (
             "bi_ready_dataset",
             "Power BI-ready dataset",

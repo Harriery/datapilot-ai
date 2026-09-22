@@ -44,12 +44,12 @@ export const PERSONAL_WORKSPACE_STAGES: WorkspaceStageDefinition[] = [
     label: "Analysis",
   },
   {
-    code: "kpis",
-    label: "KPIs",
-  },
-  {
     code: "data_model",
     label: "Data Model",
+  },
+  {
+    code: "kpis",
+    label: "KPIs",
   },
   {
     code: "bi_dataset",

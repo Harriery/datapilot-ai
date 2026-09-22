@@ -3,6 +3,7 @@ import {
   useState,
 } from "react";
 
+import AnalysisWorkspace from "./AnalysisWorkspace";
 
 type AnalysisPlanData = {
   measure_candidates: string[];
@@ -13,7 +14,8 @@ type AnalysisPlanData = {
 };
 
 
-type AnalysisResultData = {
+export type AnalysisResultData = {
+  analysis_id: string | null;
   measure: string;
   dimension: string | null;
 
@@ -48,6 +50,7 @@ type Props = {
     | AnalysisResultData
     | null;
 
+  analysisResults?: AnalysisResultData[];
   loading: boolean;
 
   error:
@@ -58,15 +61,21 @@ type Props = {
     measure: string,
     dimension: string | null,
   ) => void;
+
+  onDeleteAnalysis: (
+    analysisId: string
+  ) => void;
 };
 
 
 function PersonalAnalysisPlan({
   analysisPlan,
   analysisResult,
+  analysisResults = [],
   loading,
   error,
   onRunAnalysis,
+  onDeleteAnalysis,
 }: Props) {
 
   const [
@@ -111,6 +120,12 @@ function PersonalAnalysisPlan({
     selectedDimension,
   ]);
 
+  const savedAnalysisResults =
+    analysisResults.length > 0
+      ? analysisResults
+      : analysisResult
+        ? [analysisResult]
+        : [];
 
   return (
     <section className="personal-analysis-plan">
@@ -328,117 +343,12 @@ function PersonalAnalysisPlan({
 
       </div>
 
-
-      {analysisResult && (
-        <div className="personal-analysis-results">
-
-          <div className="personal-analysis-results-header">
-            <div>
-              <span className="personal-analysis-plan-label">
-                Analysis result
-              </span>
-
-              <h3>
-                {analysisResult.measure}
-                {analysisResult.dimension
-                  ? ` by ${analysisResult.dimension}`
-                  : ""}
-              </h3>
-            </div>
-
-            <span className="personal-analysis-plan-source">
-              Local result
-            </span>
-          </div>
-
-
-          <div className="personal-analysis-summary">
-
-            <div>
-              <span>Count</span>
-              <strong>
-                {analysisResult.overall.count}
-              </strong>
-            </div>
-
-            <div>
-              <span>Mean</span>
-              <strong>
-                {analysisResult.overall.mean ??
-                  "—"}
-              </strong>
-            </div>
-
-            <div>
-              <span>Min</span>
-              <strong>
-                {analysisResult.overall.min ??
-                  "—"}
-              </strong>
-            </div>
-
-            <div>
-              <span>Max</span>
-              <strong>
-                {analysisResult.overall.max ??
-                  "—"}
-              </strong>
-            </div>
-
-          </div>
-
-
-          {analysisResult.grouped_results.length > 0 && (
-            <div className="personal-analysis-table-wrap">
-              <table className="personal-analysis-table">
-
-                <thead>
-                  <tr>
-                    <th>
-                      {analysisResult.dimension}
-                    </th>
-                    <th>Count</th>
-                    <th>Mean</th>
-                    <th>Min</th>
-                    <th>Max</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {analysisResult.grouped_results.map(
-                    (row, index) => (
-                      <tr key={index}>
-                        <td>
-                          {row.value === null
-                            ? "Missing"
-                            : String(row.value)}
-                        </td>
-
-                        <td>{row.count}</td>
-
-                        <td>
-                          {row.mean ?? "—"}
-                        </td>
-
-                        <td>
-                          {row.min ?? "—"}
-                        </td>
-
-                        <td>
-                          {row.max ?? "—"}
-                        </td>
-                      </tr>
-                    )
-                  )}
-                </tbody>
-
-              </table>
-            </div>
-          )}
-
-        </div>
-      )}
-
+  <AnalysisWorkspace
+    results={savedAnalysisResults}
+    onDeleteAnalysis={
+      onDeleteAnalysis
+    }
+  />
     </section>
   );
 }

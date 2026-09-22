@@ -10,7 +10,9 @@ import PersonalProjectDeliverables, {
   type ProjectDeliverableData,
 } from "./PersonalProjectDeliverables";
 
-import PersonalAnalysisPlan from "./PersonalAnalysisPlan";
+import PersonalAnalysisPlan, {
+  type AnalysisResultData,
+} from "./PersonalAnalysisPlan";
 import TasksPage from "./TasksPage";
 import ProgressPage from "./ProgressPage";
 import WorkspaceModeCards from "./WorkspaceModeCards";
@@ -51,6 +53,10 @@ import AddTransformationModal, {
   type WorkbenchOperationCreateData,
   type WorkbenchOperationType,
 } from "./AddTransformationModal";
+
+import type {
+  DataModelStudioData,
+} from "./DataModelCanvas";
 
 type SkillProgressData = {
   skill_name: string;
@@ -185,33 +191,11 @@ type DashboardWorkspace = {
     source: "local";
   } | null;
 
-  analysis_result?: {
-    measure: string;
-    dimension: string | null;
+  analysis_result?: AnalysisResultData | null;
 
-    overall: {
-      count: number;
-      mean: number | null;
-      min: number | null;
-      max: number | null;
-    };
+  analysis_results?: AnalysisResultData[];
 
-    grouped_results: {
-      value:
-        | string
-        | number
-        | boolean
-        | null;
-
-      count: number;
-      mean: number | null;
-      min: number | null;
-      max: number | null;
-    }[];
-
-    source: "local";
-  } | null;
-
+  
   kpi_candidates?: PersonalKpiData[];
 
   kpi_definitions?: PersonalKpiData[];
@@ -238,7 +222,8 @@ type DashboardWorkspace = {
         | "sum"
         | "mean"
         | "min"
-        | "max";
+        | "max"
+        | null;
 
       dimension: string | null;
     }[];
@@ -970,6 +955,10 @@ df["age"] = df["age"].fillna(median_age)`);
     "profile"
   );
 
+  const [
+    personalDataModelStudioSaving,
+    setPersonalDataModelStudioSaving,
+  ] = useState(false);
  
 
   function getPersonalWorkspaceStageStatus(
@@ -1965,6 +1954,73 @@ async function runPersonalAnalysis(
   }
 }
 
+async function deletePersonalAnalysis(
+  analysisId: string,
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  setPersonalAnalysisError(null);
+
+  try {
+    const response = await fetch(
+      (
+        `http://127.0.0.1:8000/workspaces/` +
+        `demo-learner/${workspaceId}/analysis`
+      ),
+      {
+        method: "DELETE",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          analysis_id: analysisId,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Analysis silinemedi."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await response.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+  } catch (error) {
+    setPersonalAnalysisError(
+      error instanceof Error
+        ? error.message
+        : "Analysis silinemedi."
+    );
+  }
+}
+
 async function savePersonalKpis(
   codes: string[],
 ) {
@@ -2106,6 +2162,114 @@ async function buildPersonalDataModel() {
     setPersonalDataModelLoading(false);
   }
 }
+
+async function savePersonalDataModelStudio(
+  studio: DataModelStudioData,
+) {
+  if (!dashboardWorkspace) {
+    return;
+  }
+
+  setPersonalDataModelStudioSaving(
+    true
+  );
+
+  setPersonalDataModelError(
+    null
+  );
+
+  try {
+    const learnerId =
+      "demo-learner";
+
+    const response = await fetch(
+      (
+        "http://127.0.0.1:8000" +
+        `/workspaces/${learnerId}/` +
+        `${dashboardWorkspace.workspace_id}` +
+        "/data-model/studio"
+      ),
+      {
+        method: "PUT",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify(
+          studio
+        ),
+      }
+    );
+
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Model Studio kaydedilemedi."
+      );
+    }
+
+
+    const savedStudio:
+      DataModelStudioData =
+        await response.json();
+
+
+    setDashboardWorkspace(
+      (previous) => {
+
+        if (!previous) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          data_model_studio:
+            savedStudio,
+        };
+      }
+    );
+
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            dashboardWorkspace.workspace_id
+              ? {
+                  ...workspace,
+                  data_model_studio:
+                    savedStudio,
+                }
+              : workspace
+        )
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    setPersonalDataModelError(
+      error instanceof Error
+        ? error.message
+        : "Model Studio kaydedilemedi."
+    );
+
+    throw error;
+
+  } finally {
+    setPersonalDataModelStudioSaving(
+      false
+    );
+  }
+}
+
+
   
 async function completeWorkspaceReview() {
     if (!workspaceId) {
@@ -4415,9 +4579,13 @@ async function restoreWorkspaceVersion(
                             analysisResult={
                               dashboardWorkspace.analysis_result
                             }
+                            analysisResults={
+                              dashboardWorkspace.analysis_results ?? []
+                            }
                             loading={personalAnalysisLoading}
                             error={personalAnalysisError}
                             onRunAnalysis={runPersonalAnalysis}
+                            onDeleteAnalysis={deletePersonalAnalysis}
                           />
                         )}
 
@@ -4440,8 +4608,7 @@ async function restoreWorkspaceVersion(
 
                       {dashboardWorkspace.usage_context === "personal" &&
                         activeWorkspaceStage === "data_model" &&
-                        dashboardWorkspace.kpi_definitions &&
-                        dashboardWorkspace.kpi_definitions.length > 0 && (
+                        dashboardWorkspace.analysis_plan && (
                           <PersonalDataModel
                             dataModelPlan={
                               dashboardWorkspace.data_model_plan
@@ -4449,9 +4616,22 @@ async function restoreWorkspaceVersion(
                             dataModelStudio={
                               dashboardWorkspace.data_model_studio
                             }
-                            loading={personalDataModelLoading}
-                            error={personalDataModelError}
-                            onBuild={buildPersonalDataModel}
+                            loading={
+                              personalDataModelLoading
+                            }
+                            error={
+                              personalDataModelError
+                            }
+                            onBuild={
+                              buildPersonalDataModel
+                            }
+                            onSaveStudio={
+                              savePersonalDataModelStudio
+                            }
+                          
+                            studioSaving={
+                              personalDataModelStudioSaving
+                            }
                           />
                         )}
 
