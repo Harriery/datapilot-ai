@@ -16,6 +16,7 @@ import {
   type Edge,
   type Node,
   type NodeProps,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
@@ -143,6 +144,7 @@ function getRelationshipLabel(
 
 function TableNode({
   data,
+  selected,
 }: NodeProps<TableFlowNode>) {
 
   const [
@@ -162,6 +164,10 @@ function TableNode({
           expanded
             ? "expanded"
             : ""
+        } ${
+          selected
+            ? "selected"
+            : ""
         }`
       }
     >
@@ -179,49 +185,62 @@ function TableNode({
       />
 
 
-      <button
-        type="button"
-        className="model-canvas-table-header nodrag"
-        onClick={() =>
-          setExpanded(
-            (previous) =>
-              !previous
-          )
-        }
-      >
+      <div className="model-canvas-table-header">
 
-        <span>
-          <strong>
-            {table.name}
-          </strong>
-
-          <small>
-            {table.columns.length} columns
-          </small>
+        {/* Sadece buradan sürüklenecek */}
+        <span
+          className="model-canvas-drag-handle"
+          title="Drag table"
+        >
+          ⋮⋮
         </span>
 
 
-        <span
-          className={
-            `model-canvas-table-type ${
-              table.table_type
-            }`
+        <button
+          type="button"
+          className="model-canvas-table-open nodrag"
+          onClick={() =>
+            setExpanded(
+              (previous) =>
+                !previous
+            )
           }
         >
-          {
-            table.table_type
-              .toUpperCase()
-          }
-        </span>
+
+          <span>
+            <strong>
+              {table.name}
+            </strong>
+
+            <small>
+              {table.columns.length} columns
+            </small>
+          </span>
 
 
-        <span className="model-canvas-chevron">
-          {expanded
-            ? "−"
-            : "+"}
-        </span>
+          <span
+            className={
+              `model-canvas-table-type ${
+                table.table_type
+              }`
+            }
+          >
+            {
+              table.table_type
+                .toUpperCase()
+            }
+          </span>
 
-      </button>
+
+          <span className="model-canvas-chevron">
+            {expanded
+              ? "−"
+              : "+"}
+          </span>
+
+        </button>
+
+      </div>
 
 
       {expanded && (
@@ -302,11 +321,18 @@ function createNodes(
 
         type: "tableNode",
 
+        /*
+         * Sadece bu class üzerinden
+         * node drag yapılacak.
+         */
+        dragHandle:
+          ".model-canvas-drag-handle",
+
         position: {
           x: 80,
           y:
             100 +
-            index * 230,
+            index * 220,
         },
 
         data: {
@@ -333,16 +359,19 @@ function createNodes(
 
         type: "tableNode",
 
+        dragHandle:
+          ".model-canvas-drag-handle",
+
         position: {
           x:
-            520 +
+            500 +
             columnIndex *
-              340,
+              320,
 
           y:
-            50 +
+            60 +
             rowIndex *
-              190,
+              180,
         },
 
         data: {
@@ -444,6 +473,31 @@ function DataModelCanvas({
   );
 
 
+  const [
+    flowInstance,
+    setFlowInstance,
+  ] = useState<
+    ReactFlowInstance<
+      TableFlowNode,
+      Edge
+    > | null
+  >(null);
+
+
+  const [
+    searchText,
+    setSearchText,
+  ] = useState("");
+
+
+  const [
+    selectedTableId,
+    setSelectedTableId,
+  ] = useState<string | null>(
+    null
+  );
+
+
   useEffect(() => {
     setNodes(
       createNodes(
@@ -468,60 +522,282 @@ function DataModelCanvas({
   ]);
 
 
+  const filteredTables =
+    studio.tables.filter(
+      (table) =>
+        table.name
+          .toLowerCase()
+          .includes(
+            searchText
+              .trim()
+              .toLowerCase()
+          )
+    );
+
+
+  function focusTable(
+    tableName: string,
+  ) {
+    setSelectedTableId(
+      tableName
+    );
+
+
+    setNodes(
+      (currentNodes) =>
+        currentNodes.map(
+          (node) => ({
+            ...node,
+
+            selected:
+              node.id ===
+              tableName,
+          })
+        )
+    );
+
+
+    if (!flowInstance) {
+      return;
+    }
+
+
+    const targetNode =
+      flowInstance.getNode(
+        tableName
+      );
+
+
+    if (!targetNode) {
+      return;
+    }
+
+
+    flowInstance.fitView({
+      nodes: [
+        targetNode,
+      ],
+
+      padding: 1.2,
+
+      minZoom: 0.8,
+      maxZoom: 1.25,
+
+      duration: 400,
+    });
+  }
+
+
   return (
-    <div className="model-canvas">
+    <div className="model-studio-workspace">
 
-      <ReactFlow<
-        TableFlowNode,
-        Edge
-      >
-        nodes={nodes}
-        edges={edges}
+      {/* ==================================================
+          TABLE BROWSER
+          ================================================== */}
 
-        nodeTypes={nodeTypes}
+      <aside className="model-table-browser">
 
-        onNodesChange={
-          onNodesChange
-        }
+        <div className="model-table-browser-header">
 
-        onEdgesChange={
-          onEdgesChange
-        }
+          <div>
+            <span className="workspace-overview-label">
+              TABLES
+            </span>
 
-        nodesConnectable={false}
+            <strong>
+              {studio.tables.length} tables
+            </strong>
+          </div>
 
-        deleteKeyCode={null}
+        </div>
 
-        fitView
 
-        fitViewOptions={{
-          padding: 0.25,
-          duration: 350,
-        }}
-
-        minZoom={0.25}
-        maxZoom={2}
-
-        proOptions={{
-          hideAttribution: true,
-        }}
-      >
-
-        <Background
-          gap={18}
-          size={1}
+        <input
+          type="search"
+          className="model-table-search"
+          placeholder="Search table..."
+          value={searchText}
+          onChange={(event) =>
+            setSearchText(
+              event.target.value
+            )
+          }
         />
 
-        <Controls
-          showInteractive={false}
-        />
 
-        <MiniMap
-          pannable
-          zoomable
-        />
+        <div className="model-table-list">
 
-      </ReactFlow>
+          {filteredTables.map(
+            (table) => (
+
+              <button
+                key={table.name}
+                type="button"
+                className={
+                  `model-table-list-item ${
+                    selectedTableId ===
+                    table.name
+                      ? "active"
+                      : ""
+                  }`
+                }
+                onClick={() =>
+                  focusTable(
+                    table.name
+                  )
+                }
+              >
+
+                <span>
+                  <strong>
+                    {table.name}
+                  </strong>
+
+                  <small>
+                    {table.columns.length}
+                    {" "}
+                    columns
+                  </small>
+                </span>
+
+
+                <span
+                  className={
+                    `model-table-list-type ${
+                      table.table_type
+                    }`
+                  }
+                >
+                  {
+                    table.table_type ===
+                    "dimension"
+                      ? "DIM"
+                      : table.table_type
+                          .toUpperCase()
+                  }
+                </span>
+
+              </button>
+
+            )
+          )}
+
+
+          {filteredTables.length === 0 && (
+            <div className="model-table-list-empty">
+              No table found.
+            </div>
+          )}
+
+        </div>
+
+      </aside>
+
+
+      {/* ==================================================
+          CANVAS
+          ================================================== */}
+
+      <div className="model-canvas-column-layout">
+
+        <div className="model-canvas-toolbar">
+
+          <div>
+            <strong>
+              Model canvas
+            </strong>
+
+            <span>
+              {studio.relationships.length}
+              {" "}
+              relationships
+            </span>
+          </div>
+
+
+          <span className="model-canvas-toolbar-hint">
+            Drag tables using ⋮⋮
+          </span>
+
+        </div>
+
+
+        <div className="model-canvas">
+
+          <ReactFlow<
+            TableFlowNode,
+            Edge
+          >
+            nodes={nodes}
+            edges={edges}
+
+            nodeTypes={nodeTypes}
+
+            onInit={
+              setFlowInstance
+            }
+
+            onNodesChange={
+              onNodesChange
+            }
+
+            onEdgesChange={
+              onEdgesChange
+            }
+
+            onNodeClick={(
+              _event,
+              node,
+            ) => {
+              setSelectedTableId(
+                node.id
+              );
+            }}
+
+            onPaneClick={() => {
+              setSelectedTableId(
+                null
+              );
+            }}
+
+            nodesConnectable={false}
+
+            deleteKeyCode={null}
+
+            fitView
+
+            fitViewOptions={{
+              padding: 0.3,
+              duration: 350,
+            }}
+
+            minZoom={0.3}
+            maxZoom={1.8}
+
+            proOptions={{
+              hideAttribution: true,
+            }}
+          >
+
+            <Background
+              gap={18}
+              size={1}
+            />
+
+            <Controls
+              showInteractive={false}
+            />
+
+            <MiniMap
+              pannable
+              zoomable
+            />
+
+          </ReactFlow>
+
+        </div>
+
+      </div>
 
     </div>
   );

@@ -1,136 +1,86 @@
 from backend.app.models import (
-    PersonalProjectDataModelMeasure,
-    PersonalProjectDataModelPlan,
+    PersonalProjectAnalysisPlan,
 )
 
-from backend.app.personal_data_model_studio_service import (
-    build_personal_data_model_studio,
+from backend.app.personal_data_model_service import (
+    build_personal_data_model_plan,
 )
 
 
-def test_build_personal_data_model_studio():
-    plan = PersonalProjectDataModelPlan(
-        model_type="star_schema_candidate",
-        base_table="fact_test_quality",
-        grain="One row per validated source record.",
-        dimensions=[
-            "city",
-        ],
-        time_dimension=None,
-        measures=[
-            PersonalProjectDataModelMeasure(
-                code="average_age",
-                title="Average age",
-                column="age",
-                aggregation="mean",
-                dimension=None,
-            ),
-            PersonalProjectDataModelMeasure(
-                code="average_age_by_city",
-                title="Average age by city",
-                column="age",
-                aggregation="mean",
-                dimension="city",
-            ),
-        ],
-        recommended_dimension_tables=[
-            "dim_city",
-        ],
-        source="local",
-    )
-
-    studio = (
-        build_personal_data_model_studio(
-            data_model_plan=plan,
+def test_build_personal_data_model_plan():
+    analysis_plan = (
+        PersonalProjectAnalysisPlan(
+            measure_candidates=[
+                "age",
+            ],
+            dimension_candidates=[
+                "city",
+            ],
+            time_candidates=[],
+            suggested_questions=[
+                "How does age vary by city?",
+            ],
+            source="local",
         )
     )
 
-    assert studio.source == "local"
-
-    assert len(studio.tables) == 2
-
-    fact_table = studio.tables[0]
-
-    assert (
-        fact_table.name
-        == "fact_test_quality"
-    )
-
-    assert fact_table.table_type == "fact"
-
-    assert [
-        column.name
-        for column in fact_table.columns
-    ] == [
-        "city",
-        "age",
-    ]
-
-    assert [
-        column.role
-        for column in fact_table.columns
-    ] == [
-        "foreign_key",
-        "measure",
-    ]
-
-    dimension_table = studio.tables[1]
-
-    assert (
-        dimension_table.name
-        == "dim_city"
+    result = (
+        build_personal_data_model_plan(
+            dataset_filename=(
+                "test_quality.csv"
+            ),
+            analysis_plan=analysis_plan,
+        )
     )
 
     assert (
-        dimension_table.table_type
-        == "dimension"
-    )
-
-    assert len(
-        dimension_table.columns
-    ) == 1
-
-    assert (
-        dimension_table.columns[0].name
-        == "city"
+        result.model_type
+        == "star_schema_candidate"
     )
 
     assert (
-        dimension_table.columns[0].role
-        == "key"
-    )
-
-    assert len(
-        studio.relationships
-    ) == 1
-
-    relationship = (
-        studio.relationships[0]
-    )
-
-    assert (
-        relationship.from_table
+        result.base_table
         == "fact_test_quality"
     )
 
     assert (
-        relationship.from_column
-        == "city"
+        result.grain
+        == (
+            "One row per validated "
+            "source record."
+        )
     )
 
     assert (
-        relationship.to_table
-        == "dim_city"
+        result.dimensions
+        == ["city"]
     )
 
     assert (
-        relationship.to_column
-        == "city"
+        result.time_dimension
+        is None
+    )
+
+    assert [
+        measure.code
+        for measure in result.measures
+    ] == [
+        "measure_age",
+    ]
+
+    assert (
+        result.measures[0].column
+        == "age"
     )
 
     assert (
-        relationship.cardinality
-        == "many_to_one"
+        result.measures[0].aggregation
+        is None
     )
 
-    assert relationship.active is True
+    assert (
+        result.recommended_dimension_tables
+        == ["dim_city"]
+    )
+
+    assert result.source == "local"

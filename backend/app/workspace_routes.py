@@ -38,6 +38,7 @@ from backend.app.models import (
     WorkspaceWorkbenchOperationCreateRequest,
     WorkspaceWorkbenchTransformationRequest,
     WorkspaceWorkbenchTransformationResponse,
+    PersonalProjectDataModelStudio,
 )
 
 import pandas as pd
@@ -106,6 +107,7 @@ from backend.app.personal_data_model_service import (
 
 from backend.app.personal_data_model_studio_service import (
     build_personal_data_model_studio,
+    validate_personal_data_model_studio,
 )
 
 from backend.app.workspace_workbench_service import (
@@ -2741,6 +2743,82 @@ def build_personal_project_data_model(
     )
 
     return data_model_plan
+
+
+@router.put(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data-model/studio"
+    ),
+    response_model=PersonalProjectDataModelStudio,
+)
+def update_personal_project_data_model_studio(
+    learner_id: str,
+    workspace_id: str,
+    studio: PersonalProjectDataModelStudio,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Model Studio yalnızca personal "
+                "workspace için düzenlenebilir."
+            ),
+        )
+
+    if workspace.data_model_plan is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Model Studio düzenlenmeden önce "
+                "data model oluşturulmalı."
+            ),
+        )
+
+    try:
+        validated_studio = (
+            validate_personal_data_model_studio(
+                studio
+            )
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+    workspace.data_model_studio = (
+        validated_studio
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Review data model and define KPIs"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Review model relationships",
+        "Define KPIs",
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return validated_studio
 
 def complete_workspace_review(
     learner_id: str,

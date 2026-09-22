@@ -755,7 +755,7 @@ class PersonalProjectDataModelMeasure(BaseModel):
         "mean",
         "min",
         "max",
-    ]
+    ]| None = None
 
     dimension: str | None = None
 
