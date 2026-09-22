@@ -1,3 +1,5 @@
+import DataModelCanvas from "./DataModelCanvas";
+
 type PersonalDataModelPlan = {
   model_type:
     | "single_table"
@@ -275,6 +277,7 @@ function PersonalDataModel({
           {dataModelStudio ? (
             <div className="personal-data-model-studio">
               <div className="personal-data-model-studio-header">
+
                 <div>
                   <span className="personal-analysis-plan-source">
                     MODEL STUDIO
@@ -291,6 +294,10 @@ function PersonalDataModel({
                   </p>
                 </div>
               </div>
+              
+              <DataModelCanvas
+                studio={dataModelStudio}
+              />
                     
               <div className="personal-data-model-studio-tables">
                 {dataModelStudio.tables.map(
