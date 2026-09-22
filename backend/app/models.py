@@ -727,7 +727,7 @@ class PersonalProjectKPIDefinition(BaseModel):
         "mean",
         "min",
         "max",
-    ]
+    ] | None = None
 
     dimension: str | None = None
 

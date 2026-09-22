@@ -20,7 +20,8 @@ type PersonalDataModelPlan = {
       | "sum"
       | "mean"
       | "min"
-      | "max";
+      | "max"
+      | null;
 
     dimension: string | null;
   }[];
@@ -118,9 +119,9 @@ function PersonalDataModel({
           </h2>
 
           <p>
-            Create a local model recommendation
-            from the validated dataset and your
-            confirmed KPI definitions.
+            Create a local analytical model from
+            the validated dataset and analysis
+            structure before defining final KPIs.
           </p>
         </div>
 
@@ -224,7 +225,8 @@ function PersonalDataModel({
                       </strong>
 
                       <span>
-                        {measure.aggregation}
+                        {measure.aggregation ??
+                         "Source measure"}
                       </span>
                     </div>
 
@@ -285,7 +287,7 @@ function PersonalDataModel({
                   <p>
                     This is the logical analytical model
                     built from the validated dataset and
-                    confirmed KPIs.
+                    analysis structure.
                   </p>
                 </div>
               </div>

@@ -2388,11 +2388,11 @@ def run_personal_project_analysis(
     )
 
     workspace.checkpoint.current_focus = (
-        "Review analysis results and define KPIs"
+        "Build analytical data model"
     )
 
     workspace.checkpoint.next_actions = [
-        "Define KPIs"
+        "Build data model"
     ]
 
     workspace.checkpoint.last_error = None
@@ -2555,6 +2555,14 @@ def select_personal_project_kpis(
                 "analysis çalıştırılmalı."
             ),
         )
+    if workspace.data_model_plan is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "KPI seçilmeden önce "
+                "data model oluşturulmalı."
+            ),
+        )
 
     has_kpi_deliverable = any(
         deliverable.code == "kpi_definitions"
@@ -2619,11 +2627,11 @@ def select_personal_project_kpis(
     )
 
     workspace.checkpoint.current_focus = (
-        "Build data model"
+        "Prepare Power BI-ready dataset"
     )
-
+    
     workspace.checkpoint.next_actions = [
-        "Build data model"
+        "Prepare Power BI-ready dataset"
     ]
 
     workspace.checkpoint.last_error = None
@@ -2675,14 +2683,7 @@ def build_personal_project_data_model(
             ),
         )
 
-    if not workspace.kpi_definitions:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Data model oluşturulmadan önce "
-                "KPI definitions seçilmeli."
-            ),
-        )
+    
 
     has_data_model_deliverable = any(
         deliverable.code == "data_model"
@@ -2707,9 +2708,6 @@ def build_personal_project_data_model(
             analysis_plan=(
                 workspace.analysis_plan
             ),
-            kpi_definitions=(
-                workspace.kpi_definitions
-            ),
         )
     )
 
@@ -2729,11 +2727,11 @@ def build_personal_project_data_model(
     )
 
     workspace.checkpoint.current_focus = (
-        "Prepare Power BI-ready dataset"
+        "Define project KPIs and measures"
     )
 
     workspace.checkpoint.next_actions = [
-        "Prepare Power BI-ready dataset"
+        "Define KPIs"
     ]
 
     workspace.checkpoint.last_error = None

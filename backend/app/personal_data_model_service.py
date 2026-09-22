@@ -41,35 +41,32 @@ def _build_base_table_name(
 def build_personal_data_model_plan(
     dataset_filename: str | None,
     analysis_plan: PersonalProjectAnalysisPlan,
-    kpi_definitions: list[
-        PersonalProjectKPIDefinition
-    ],
 ) -> PersonalProjectDataModelPlan:
 
-    dimensions: list[str] = []
+    dimensions = list(
+        dict.fromkeys(
+            analysis_plan.dimension_candidates
+        )
+    )
 
     measures: list[
         PersonalProjectDataModelMeasure
     ] = []
 
-    for kpi in kpi_definitions:
-
-        if (
-            kpi.dimension
-            and kpi.dimension
-            not in dimensions
-        ):
-            dimensions.append(
-                kpi.dimension
-            )
+    for measure in (
+        analysis_plan.measure_candidates
+    ):
+        normalized = _normalize_name(
+            measure
+        )
 
         measures.append(
             PersonalProjectDataModelMeasure(
-                code=kpi.code,
-                title=kpi.title,
-                column=kpi.measure,
-                aggregation=kpi.aggregation,
-                dimension=kpi.dimension,
+                code=f"measure_{normalized}",
+                title=measure,
+                column=measure,
+                aggregation=None,
+                dimension=None,
             )
         )
 

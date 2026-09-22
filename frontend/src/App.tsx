@@ -218,7 +218,8 @@ type DashboardWorkspace = {
         | "sum"
         | "mean"
         | "min"
-        | "max";
+        | "max"
+        | null;
 
       dimension: string | null;
     }[];
@@ -4491,8 +4492,7 @@ async function restoreWorkspaceVersion(
 
                       {dashboardWorkspace.usage_context === "personal" &&
                         activeWorkspaceStage === "data_model" &&
-                        dashboardWorkspace.kpi_definitions &&
-                        dashboardWorkspace.kpi_definitions.length > 0 && (
+                        dashboardWorkspace.analysis_plan && (
                           <PersonalDataModel
                             dataModelPlan={
                               dashboardWorkspace.data_model_plan
