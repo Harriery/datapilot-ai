@@ -13,7 +13,8 @@ type AnalysisPlanData = {
 };
 
 
-type AnalysisResultData = {
+export type AnalysisResultData = {
+  analysis_id: string | null;
   measure: string;
   dimension: string | null;
 
@@ -48,6 +49,7 @@ type Props = {
     | AnalysisResultData
     | null;
 
+  analysisResults?: AnalysisResultData[];
   loading: boolean;
 
   error:
@@ -64,6 +66,7 @@ type Props = {
 function PersonalAnalysisPlan({
   analysisPlan,
   analysisResult,
+  analysisResults = [],
   loading,
   error,
   onRunAnalysis,
@@ -111,6 +114,12 @@ function PersonalAnalysisPlan({
     selectedDimension,
   ]);
 
+  const savedAnalysisResults =
+    analysisResults.length > 0
+      ? analysisResults
+      : analysisResult
+        ? [analysisResult]
+        : [];
 
   return (
     <section className="personal-analysis-plan">
@@ -328,74 +337,77 @@ function PersonalAnalysisPlan({
 
       </div>
 
-
-      {analysisResult && (
-        <div className="personal-analysis-results">
-
+    {savedAnalysisResults.map(
+      (result, resultIndex) => (
+        <div
+          className="personal-analysis-results"
+          key={
+            result.analysis_id ??
+            `${result.measure}-${result.dimension ?? "overall"}-${resultIndex}`
+          }
+        >
+        
           <div className="personal-analysis-results-header">
             <div>
               <span className="personal-analysis-plan-label">
                 Analysis result
               </span>
-
+        
               <h3>
-                {analysisResult.measure}
-                {analysisResult.dimension
-                  ? ` by ${analysisResult.dimension}`
+                {result.measure}
+                {result.dimension
+                  ? ` by ${result.dimension}`
                   : ""}
               </h3>
             </div>
-
+                
             <span className="personal-analysis-plan-source">
               Local result
             </span>
           </div>
-
-
+                
+                
           <div className="personal-analysis-summary">
-
+                
             <div>
               <span>Count</span>
               <strong>
-                {analysisResult.overall.count}
+                {result.overall.count}
               </strong>
             </div>
-
+                
             <div>
               <span>Mean</span>
               <strong>
-                {analysisResult.overall.mean ??
-                  "—"}
+                {result.overall.mean ?? "—"}
               </strong>
             </div>
-
+                
             <div>
               <span>Min</span>
               <strong>
-                {analysisResult.overall.min ??
-                  "—"}
+                {result.overall.min ?? "—"}
               </strong>
             </div>
-
+                
             <div>
               <span>Max</span>
               <strong>
-                {analysisResult.overall.max ??
-                  "—"}
+                {result.overall.max ?? "—"}
               </strong>
             </div>
-
+                
           </div>
-
-
-          {analysisResult.grouped_results.length > 0 && (
+                
+                
+          {result.grouped_results.length > 0 && (
             <div className="personal-analysis-table-wrap">
               <table className="personal-analysis-table">
-
+          
                 <thead>
                   <tr>
                     <th>
-                      {analysisResult.dimension}
+                      {result.dimension}
                     </th>
                     <th>Count</th>
                     <th>Mean</th>
@@ -403,9 +415,9 @@ function PersonalAnalysisPlan({
                     <th>Max</th>
                   </tr>
                 </thead>
-
+          
                 <tbody>
-                  {analysisResult.grouped_results.map(
+                  {result.grouped_results.map(
                     (row, index) => (
                       <tr key={index}>
                         <td>
@@ -413,17 +425,17 @@ function PersonalAnalysisPlan({
                             ? "Missing"
                             : String(row.value)}
                         </td>
-
+                          
                         <td>{row.count}</td>
-
+                          
                         <td>
                           {row.mean ?? "—"}
                         </td>
-
+                          
                         <td>
                           {row.min ?? "—"}
                         </td>
-
+                          
                         <td>
                           {row.max ?? "—"}
                         </td>
@@ -431,13 +443,14 @@ function PersonalAnalysisPlan({
                     )
                   )}
                 </tbody>
-
+                
               </table>
             </div>
           )}
 
         </div>
-      )}
+      )
+    )} 
 
     </section>
   );

@@ -686,6 +686,13 @@ class PersonalProjectAnalysisPlan(BaseModel):
 
 class PersonalProjectAnalysisResult(BaseModel):
 
+    # Her kaydedilmiş analysis sonucunun
+    # benzersiz kimliği.
+    #
+    # Eski workspace kayıtlarının bozulmaması
+    # için şimdilik None kabul ediyoruz.
+    analysis_id: str | None = None
+
     measure: str
     dimension: str | None = None
 
@@ -700,7 +707,6 @@ class PersonalProjectAnalysisResult(BaseModel):
     source: Literal[
         "local",
     ] = "local"
-
 class PersonalProjectAnalysisRequest(BaseModel):
     measure: str
     dimension: str | None = None
@@ -1055,6 +1061,15 @@ class Workspace(BaseModel):
     analysis_result: (
         PersonalProjectAnalysisResult | None
     ) = None
+
+    # Personal project içinde oluşturulan
+    # bütün analysis sonuçlarını saklar.
+    #
+    # analysis_result ise backward compatibility
+    # için son çalıştırılan sonucu göstermeye devam eder.
+    analysis_results: list[
+        PersonalProjectAnalysisResult
+    ] = Field(default_factory=list)
 
     kpi_candidates: list[
         PersonalProjectKPIDefinition

@@ -10,7 +10,9 @@ import PersonalProjectDeliverables, {
   type ProjectDeliverableData,
 } from "./PersonalProjectDeliverables";
 
-import PersonalAnalysisPlan from "./PersonalAnalysisPlan";
+import PersonalAnalysisPlan, {
+  type AnalysisResultData,
+} from "./PersonalAnalysisPlan";
 import TasksPage from "./TasksPage";
 import ProgressPage from "./ProgressPage";
 import WorkspaceModeCards from "./WorkspaceModeCards";
@@ -185,33 +187,11 @@ type DashboardWorkspace = {
     source: "local";
   } | null;
 
-  analysis_result?: {
-    measure: string;
-    dimension: string | null;
+  analysis_result?: AnalysisResultData | null;
 
-    overall: {
-      count: number;
-      mean: number | null;
-      min: number | null;
-      max: number | null;
-    };
+  analysis_results?: AnalysisResultData[];
 
-    grouped_results: {
-      value:
-        | string
-        | number
-        | boolean
-        | null;
-
-      count: number;
-      mean: number | null;
-      min: number | null;
-      max: number | null;
-    }[];
-
-    source: "local";
-  } | null;
-
+  
   kpi_candidates?: PersonalKpiData[];
 
   kpi_definitions?: PersonalKpiData[];
@@ -4414,6 +4394,9 @@ async function restoreWorkspaceVersion(
                             }
                             analysisResult={
                               dashboardWorkspace.analysis_result
+                            }
+                            analysisResults={
+                              dashboardWorkspace.analysis_results ?? []
                             }
                             loading={personalAnalysisLoading}
                             error={personalAnalysisError}

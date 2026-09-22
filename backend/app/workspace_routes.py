@@ -556,6 +556,7 @@ def transform_workspace_workbench_data(
 
     workspace.analysis_plan = None
     workspace.analysis_result = None
+    workspace.analysis_results = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1037,6 +1038,7 @@ def profile_workspace_data(
     workspace.validation_result = None
     workspace.analysis_plan = None
     workspace.analysis_result = None
+    workspace.analysis_results = []
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
 
@@ -1561,6 +1563,7 @@ def restore_workspace_version(
 
     workspace.analysis_plan = None
     workspace.analysis_result = None
+    workspace.analysis_results = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1844,6 +1847,7 @@ def transform_workspace_data(
             workspace.validation_result = None
             workspace.analysis_plan = None
             workspace.analysis_result = None
+            workspace.analysis_results = []
             workspace.kpi_candidates = []
             workspace.kpi_definitions = []
 
@@ -2322,6 +2326,13 @@ def run_personal_project_analysis(
                 dimension=request.dimension,
             )
         )
+        result = result.model_copy(
+            update={
+                "analysis_id": str(
+                    uuid.uuid4()
+                )
+            }
+        )
 
     except FileNotFoundError as exc:
         raise HTTPException(
@@ -2335,12 +2346,39 @@ def run_personal_project_analysis(
             detail=str(exc),
         )
 
+    # Son çalıştırılan analysis mevcut kodlarla
+    # uyumluluk için burada kalır.
     workspace.analysis_result = result
-
-    workspace.kpi_candidates = (
+    
+    # Bütün analysis sonuçlarını ayrıca saklıyoruz.
+    workspace.analysis_results.append(
+        result
+    )
+    
+    # Yeni analysis'ten KPI candidate üret.
+    new_kpi_candidates = (
         build_personal_kpi_candidates(
             result
         )
+    )
+    
+    # Daha önceki analysis'lerden gelen KPI'ları
+    # kaybetmeden birleştir.
+    #
+    # Aynı code tekrar oluşursa duplicate yaratma.
+    candidates_by_code = {
+        candidate.code: candidate
+        for candidate
+        in workspace.kpi_candidates
+    }
+    
+    for candidate in new_kpi_candidates:
+        candidates_by_code[
+            candidate.code
+        ] = candidate
+    
+    workspace.kpi_candidates = list(
+        candidates_by_code.values()
     )
 
     complete_and_advance_personal_project_deliverable(
@@ -2398,7 +2436,10 @@ def select_personal_project_kpis(
             ),
         )
 
-    if workspace.analysis_result is None:
+    if (
+        not workspace.analysis_results
+        and workspace.analysis_result is None
+    ):
         raise HTTPException(
             status_code=400,
             detail=(
