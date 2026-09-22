@@ -180,15 +180,66 @@ function TableNode({
       }
     >
 
+      {/* LEFT */}
       <Handle
+        id="target-left"
         type="target"
         position={Position.Left}
         className="model-canvas-handle"
       />
 
       <Handle
+        id="source-left"
+        type="source"
+        position={Position.Left}
+        className="model-canvas-handle"
+      />
+
+
+      {/* RIGHT */}
+      <Handle
+        id="target-right"
+        type="target"
+        position={Position.Right}
+        className="model-canvas-handle"
+      />
+
+      <Handle
+        id="source-right"
         type="source"
         position={Position.Right}
+        className="model-canvas-handle"
+      />
+
+
+      {/* TOP */}
+      <Handle
+        id="target-top"
+        type="target"
+        position={Position.Top}
+        className="model-canvas-handle"
+      />
+
+      <Handle
+        id="source-top"
+        type="source"
+        position={Position.Top}
+        className="model-canvas-handle"
+      />
+
+
+      {/* BOTTOM */}
+      <Handle
+        id="target-bottom"
+        type="target"
+        position={Position.Bottom}
+        className="model-canvas-handle"
+      />
+
+      <Handle
+        id="source-bottom"
+        type="source"
+        position={Position.Bottom}
         className="model-canvas-handle"
       />
 
@@ -394,47 +445,188 @@ function createNodes(
 }
 
 
+function getRelationshipHandles(
+  sourceNode: TableFlowNode,
+  targetNode: TableFlowNode,
+) {
+  const sourceWidth =
+    sourceNode.measured?.width ?? 220;
+
+  const sourceHeight =
+    sourceNode.measured?.height ?? 70;
+
+  const targetWidth =
+    targetNode.measured?.width ?? 220;
+
+  const targetHeight =
+    targetNode.measured?.height ?? 70;
+
+
+  const sourceCenterX =
+    sourceNode.position.x +
+    sourceWidth / 2;
+
+  const sourceCenterY =
+    sourceNode.position.y +
+    sourceHeight / 2;
+
+
+  const targetCenterX =
+    targetNode.position.x +
+    targetWidth / 2;
+
+  const targetCenterY =
+    targetNode.position.y +
+    targetHeight / 2;
+
+
+  const dx =
+    targetCenterX -
+    sourceCenterX;
+
+  const dy =
+    targetCenterY -
+    sourceCenterY;
+
+
+  /*
+   * Yatay fark daha büyükse
+   * LEFT / RIGHT kullan.
+   */
+  if (
+    Math.abs(dx) >=
+    Math.abs(dy)
+  ) {
+    if (dx >= 0) {
+      return {
+        sourceHandle:
+          "source-right",
+
+        targetHandle:
+          "target-left",
+      };
+    }
+
+    return {
+      sourceHandle:
+        "source-left",
+
+      targetHandle:
+        "target-right",
+    };
+  }
+
+
+  /*
+   * Dikey fark daha büyükse
+   * TOP / BOTTOM kullan.
+   */
+  if (dy >= 0) {
+    return {
+      sourceHandle:
+        "source-bottom",
+
+      targetHandle:
+        "target-top",
+    };
+  }
+
+
+  return {
+    sourceHandle:
+      "source-top",
+
+    targetHandle:
+      "target-bottom",
+  };
+}
+
+
 function createEdges(
   relationships:
     DataModelRelationship[],
+
+  nodes:
+    TableFlowNode[],
 ): Edge[] {
 
   return relationships.map(
     (
       relationship,
       index,
-    ) => ({
-      id:
-        `relationship-${index}`,
+    ) => {
 
-      source:
-        relationship.from_table,
+      const sourceNode =
+        nodes.find(
+          (node) =>
+            node.id ===
+            relationship.from_table
+        );
 
-      target:
-        relationship.to_table,
 
-      type:
-        "smoothstep",
+      const targetNode =
+        nodes.find(
+          (node) =>
+            node.id ===
+            relationship.to_table
+        );
 
-      label:
-        getRelationshipLabel(
-          relationship.cardinality
-        ),
 
-      data: {
-        from_column:
-          relationship.from_column,
+      const handles =
+        sourceNode &&
+        targetNode
+          ? getRelationshipHandles(
+              sourceNode,
+              targetNode,
+            )
+          : {
+              sourceHandle:
+                "source-right",
 
-        to_column:
-          relationship.to_column,
+              targetHandle:
+                "target-left",
+            };
 
-        cardinality:
-          relationship.cardinality,
 
-        active:
-          relationship.active,
-      },
-    })
+      return {
+        id:
+          `relationship-${index}`,
+
+        source:
+          relationship.from_table,
+
+        target:
+          relationship.to_table,
+
+        sourceHandle:
+          handles.sourceHandle,
+
+        targetHandle:
+          handles.targetHandle,
+
+        type:
+          "smoothstep",
+
+        label:
+          getRelationshipLabel(
+            relationship.cardinality
+          ),
+
+        data: {
+          from_column:
+            relationship.from_column,
+
+          to_column:
+            relationship.to_column,
+
+          cardinality:
+            relationship.cardinality,
+
+          active:
+            relationship.active,
+        },
+      };
+    }
   );
 }
 
@@ -459,9 +651,13 @@ function DataModelCanvas({
     useMemo(
       () =>
         createEdges(
-          studio.relationships
+          studio.relationships,
+          initialNodes,
         ),
-      [studio.relationships]
+      [
+        studio.relationships,
+        initialNodes,
+      ]
     );
 
 
@@ -523,11 +719,13 @@ function DataModelCanvas({
   useEffect(() => {
     setEdges(
       createEdges(
-        studio.relationships
+        studio.relationships,
+        nodes,
       )
     );
   }, [
     studio.relationships,
+    nodes,
     setEdges,
   ]);
 
