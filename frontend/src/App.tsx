@@ -1945,6 +1945,73 @@ async function runPersonalAnalysis(
   }
 }
 
+async function deletePersonalAnalysis(
+  analysisId: string,
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  setPersonalAnalysisError(null);
+
+  try {
+    const response = await fetch(
+      (
+        `http://127.0.0.1:8000/workspaces/` +
+        `demo-learner/${workspaceId}/analysis`
+      ),
+      {
+        method: "DELETE",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          analysis_id: analysisId,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Analysis silinemedi."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await response.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+  } catch (error) {
+    setPersonalAnalysisError(
+      error instanceof Error
+        ? error.message
+        : "Analysis silinemedi."
+    );
+  }
+}
+
 async function savePersonalKpis(
   codes: string[],
 ) {
@@ -4401,6 +4468,7 @@ async function restoreWorkspaceVersion(
                             loading={personalAnalysisLoading}
                             error={personalAnalysisError}
                             onRunAnalysis={runPersonalAnalysis}
+                            onDeleteAnalysis={deletePersonalAnalysis}
                           />
                         )}
 

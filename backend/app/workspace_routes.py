@@ -30,6 +30,7 @@ from backend.app.models import (
     LearningEvidenceDecision,
     PersonalProjectAnalysisRequest,
     PersonalProjectAnalysisResult,
+    PersonalProjectAnalysisDeleteRequest,
     PersonalProjectKPISelectionRequest,
     PersonalProjectKPIDefinition,
     PersonalProjectDataModelPlan,
@@ -2401,6 +2402,113 @@ def run_personal_project_analysis(
     )
 
     return result
+
+
+@router.delete(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/analysis"
+    ),
+    response_model=Workspace,
+)
+def delete_personal_project_analysis(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectAnalysisDeleteRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Analysis silme yalnızca personal "
+                "workspace için kullanılabilir."
+            ),
+        )
+
+    existing_count = len(
+        workspace.analysis_results
+    )
+
+    workspace.analysis_results = [
+        result
+        for result
+        in workspace.analysis_results
+        if result.analysis_id
+        != request.analysis_id
+    ]
+
+    if (
+        len(workspace.analysis_results)
+        == existing_count
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis bulunamadı.",
+        )
+
+    # Latest analysis silindiyse son kalan
+    # analysis'i active/latest olarak kullan.
+    if (
+        workspace.analysis_result is not None
+        and workspace.analysis_result.analysis_id
+        == request.analysis_id
+    ):
+        workspace.analysis_result = (
+            workspace.analysis_results[-1]
+            if workspace.analysis_results
+            else None
+        )
+
+    # KPI candidate'ları kalan analysis
+    # sonuçlarından yeniden oluştur.
+    candidates_by_code = {}
+
+    for analysis_result in (
+        workspace.analysis_results
+    ):
+        for candidate in (
+            build_personal_kpi_candidates(
+                analysis_result
+            )
+        ):
+            candidates_by_code[
+                candidate.code
+            ] = candidate
+
+    workspace.kpi_candidates = list(
+        candidates_by_code.values()
+    )
+
+    # Daha önce seçilmiş ama artık candidate
+    # olmayan KPI'ları da temizle.
+    valid_codes = set(
+        candidates_by_code.keys()
+    )
+
+    workspace.kpi_definitions = [
+        definition
+        for definition
+        in workspace.kpi_definitions
+        if definition.code in valid_codes
+    ]
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
+
 
 @router.post(
     (

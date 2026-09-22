@@ -61,6 +61,10 @@ type Props = {
     measure: string,
     dimension: string | null,
   ) => void;
+
+  onDeleteAnalysis: (
+    analysisId: string
+  ) => void;
 };
 
 
@@ -71,6 +75,7 @@ function PersonalAnalysisPlan({
   loading,
   error,
   onRunAnalysis,
+  onDeleteAnalysis,
 }: Props) {
 
   const [
@@ -340,6 +345,9 @@ function PersonalAnalysisPlan({
 
   <AnalysisWorkspace
     results={savedAnalysisResults}
+    onDeleteAnalysis={
+      onDeleteAnalysis
+    }
   />
     </section>
   );

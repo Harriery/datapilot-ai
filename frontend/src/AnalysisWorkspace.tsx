@@ -11,6 +11,10 @@ import type {
 
 type Props = {
   results: AnalysisResultData[];
+
+  onDeleteAnalysis: (
+    analysisId: string
+  ) => void;
 };
 
 
@@ -45,6 +49,7 @@ function getAnalysisId(
 
 function AnalysisWorkspace({
   results,
+  onDeleteAnalysis,
 }: Props) {
 
   const items = useMemo<AnalysisItem[]>(
@@ -322,9 +327,8 @@ function AnalysisWorkspace({
                   );
 
                 return (
-                  <button
+                  <div
                     key={id}
-                    type="button"
                     className={
                       `analysis-library-item ${
                         visible
@@ -332,40 +336,58 @@ function AnalysisWorkspace({
                           : ""
                       }`
                     }
-                    onClick={() =>
-                      visible
-                        ? toggleCollapsed(
-                            id
-                          )
-                        : addToWorkspace(
-                            id
-                          )
-                    }
                   >
-
-                    <span>
-                      <strong>
-                        {result.measure}
-                        {result.dimension
-                          ? ` by ${result.dimension}`
-                          : ""}
-                      </strong>
-
-                      <small>
-                        Local analysis
-                      </small>
-                    </span>
-
-                    <span
-                      className="analysis-library-status"
+                
+                    <button
+                      type="button"
+                      className="analysis-library-open"
+                      onClick={() =>
+                        visible
+                          ? toggleCollapsed(id)
+                          : addToWorkspace(id)
+                      }
                     >
-                      {visible
-                        ? "✓"
-                        : "+"}
-                    </span>
-
-                  </button>
+                      <span>
+                        <strong>
+                          {result.measure}
+                          {result.dimension
+                            ? ` by ${result.dimension}`
+                            : ""}
+                        </strong>
+                        
+                        <small>
+                          Local analysis
+                        </small>
+                      </span>
+                        
+                      <span
+                        className="analysis-library-status"
+                      >
+                        {visible
+                          ? "✓"
+                          : "+"}
+                      </span>
+                    </button>
+                        
+                        
+                    {result.analysis_id && (
+                      <button
+                        type="button"
+                        className="analysis-library-delete"
+                        title="Delete analysis"
+                        onClick={() =>
+                          onDeleteAnalysis(
+                            result.analysis_id!
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    )}
+                
+                  </div>
                 );
+                
               }
             )}
 

@@ -711,6 +711,9 @@ class PersonalProjectAnalysisRequest(BaseModel):
     measure: str
     dimension: str | None = None
 
+class PersonalProjectAnalysisDeleteRequest(BaseModel):
+    analysis_id: str
+
 
 class PersonalProjectKPIDefinition(BaseModel):
     code: str
