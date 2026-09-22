@@ -7906,3 +7906,330 @@
 .analysis-board-card-title {
   flex: 1;
 }
+
+/* ==================================================
+   KPI MASTER / DETAIL WORKSPACE
+   ================================================== */
+
+.personal-kpi-workspace {
+  display: grid;
+
+  grid-template-columns:
+    minmax(280px, 0.75fr)
+    minmax(0, 1.25fr);
+
+  gap: 12px;
+}
+
+
+/* =========================
+   MASTER LIST
+   ========================= */
+
+.personal-kpi-master {
+  min-width: 0;
+
+  overflow: hidden;
+
+  border: 1px solid #dbe5f1;
+  border-radius: 11px;
+
+  background: #f8fafc;
+}
+
+.personal-kpi-master-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  padding: 11px 12px;
+
+  border-bottom: 1px solid #e1e8f0;
+}
+
+.personal-kpi-master-header strong {
+  display: block;
+
+  margin-top: 2px;
+
+  color: #233750;
+
+  font-size: 13px;
+}
+
+.personal-kpi-selected-count {
+  padding: 4px 7px;
+
+  border-radius: 999px;
+
+  background: #eaf3ff;
+  color: #2877d4;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.personal-kpi-compact-list {
+  max-height: 430px;
+
+  overflow-y: auto;
+
+  padding: 6px;
+}
+
+.personal-kpi-compact-item {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  min-width: 0;
+
+  margin-bottom: 4px;
+
+  padding: 6px 7px;
+
+  border: 1px solid transparent;
+  border-radius: 8px;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.personal-kpi-compact-item:last-child {
+  margin-bottom: 0;
+}
+
+.personal-kpi-compact-item:hover {
+  background: #ffffff;
+}
+
+.personal-kpi-compact-item.active {
+  border-color: #b9d4f4;
+
+  background: #ffffff;
+}
+
+.personal-kpi-compact-item.selected {
+  background: #eef6ff;
+}
+
+.personal-kpi-compact-item.active.selected {
+  border-color: #84b8f3;
+}
+
+.personal-kpi-compact-item input {
+  flex-shrink: 0;
+
+  width: 15px;
+  height: 15px;
+
+  cursor: pointer;
+}
+
+.personal-kpi-compact-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  flex: 1;
+  min-width: 0;
+
+  gap: 8px;
+
+  padding: 3px 0;
+
+  border: 0;
+
+  background: transparent;
+
+  text-align: left;
+  cursor: pointer;
+}
+
+.personal-kpi-compact-title {
+  overflow: hidden;
+
+  color: #263951;
+
+  font-size: 11px;
+  font-weight: 650;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personal-kpi-compact-type {
+  flex-shrink: 0;
+
+  padding: 3px 6px;
+
+  border-radius: 999px;
+
+  background: #eaf3ff;
+  color: #2876d2;
+
+  font-size: 8px;
+  font-weight: 700;
+}
+
+
+/* =========================
+   DETAIL PANEL
+   ========================= */
+
+.personal-kpi-detail {
+  min-width: 0;
+
+  padding: 14px;
+
+  border: 1px solid #dbe5f1;
+  border-radius: 11px;
+
+  background: #ffffff;
+}
+
+.personal-kpi-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 10px;
+}
+
+.personal-kpi-detail-header h3 {
+  margin: 3px 0 0;
+
+  color: #1d304c;
+
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.personal-kpi-detail-aggregation {
+  flex-shrink: 0;
+
+  padding: 5px 8px;
+
+  border-radius: 999px;
+
+  background: #eaf3ff;
+  color: #2876d2;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.personal-kpi-detail-description {
+  margin: 0 0 14px;
+
+  color: #637895;
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.personal-kpi-detail-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 8px;
+}
+
+.personal-kpi-detail-grid > div {
+  display: flex;
+  flex-direction: column;
+
+  gap: 3px;
+
+  padding: 9px 10px;
+
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+
+  background: #f8fafc;
+}
+
+.personal-kpi-detail-grid span {
+  color: #8292a6;
+
+  font-size: 9px;
+}
+
+.personal-kpi-detail-grid strong {
+  color: #293c55;
+
+  font-size: 11px;
+}
+
+.personal-kpi-detail-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-top: 14px;
+  padding-top: 12px;
+
+  border-top: 1px solid #e3eaf2;
+}
+
+.personal-kpi-detail-selection > span {
+  color: #667a94;
+
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.personal-kpi-detail-selection button {
+  padding: 7px 10px;
+
+  font-size: 11px;
+}
+
+.personal-kpi-detail-empty {
+  display: grid;
+
+  place-items: center;
+
+  min-height: 200px;
+
+  text-align: center;
+}
+
+.personal-kpi-detail-empty strong {
+  color: #2b3d56;
+
+  font-size: 13px;
+}
+
+.personal-kpi-detail-empty p {
+  margin: 5px 0 0;
+
+  color: #8392a5;
+
+  font-size: 11px;
+}
+
+
+/* =========================
+   RESPONSIVE
+   ========================= */
+
+@media (max-width: 900px) {
+  .personal-kpi-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-kpi-compact-list {
+    max-height: 260px;
+  }
+}

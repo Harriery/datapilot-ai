@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -56,6 +57,14 @@ function PersonalKpiCandidates({
   ] = useState<string[]>([]);
 
 
+  const [
+    activeCode,
+    setActiveCode,
+  ] = useState<string | null>(
+    null
+  );
+
+
   useEffect(() => {
     setSelectedCodes(
       selectedDefinitions.map(
@@ -63,6 +72,55 @@ function PersonalKpiCandidates({
       )
     );
   }, [selectedDefinitions]);
+
+
+  useEffect(() => {
+    if (candidates.length === 0) {
+      setActiveCode(null);
+      return;
+    }
+
+    if (
+      activeCode &&
+      candidates.some(
+        (candidate) =>
+          candidate.code === activeCode
+      )
+    ) {
+      return;
+    }
+
+    const firstSelected =
+      candidates.find(
+        (candidate) =>
+          selectedCodes.includes(
+            candidate.code
+          )
+      );
+
+    setActiveCode(
+      firstSelected?.code ??
+      candidates[0].code
+    );
+  }, [
+    candidates,
+    selectedCodes,
+    activeCode,
+  ]);
+
+
+  const activeCandidate =
+    useMemo(
+      () =>
+        candidates.find(
+          (candidate) =>
+            candidate.code === activeCode
+        ) ?? null,
+      [
+        candidates,
+        activeCode,
+      ]
+    );
 
 
   function toggleKpi(
@@ -87,6 +145,7 @@ function PersonalKpiCandidates({
     <section className="personal-kpi-card">
 
       <div className="personal-kpi-header">
+
         <div>
           <span className="workspace-overview-label">
             KPI DEFINITIONS
@@ -97,91 +156,281 @@ function PersonalKpiCandidates({
           </h2>
 
           <p>
-            DataPilot generated KPI candidates
-            from the validated analysis result.
-            Select the metrics that are meaningful
-            for this project.
+            Review KPI candidates and select the
+            metrics that are meaningful for this
+            project.
           </p>
         </div>
 
         <span className="personal-analysis-plan-source">
           Local candidates
         </span>
+
       </div>
 
 
-      <div className="personal-kpi-list">
+      <div className="personal-kpi-workspace">
 
-        {candidates.map(
-          (candidate) => {
+        {/* =========================================
+            LEFT: KPI LIST
+            ========================================= */}
 
-            const selected =
-              selectedCodes.includes(
-                candidate.code
-              );
+        <div className="personal-kpi-master">
 
-            return (
-              <label
-                key={candidate.code}
-                className={
-                  `personal-kpi-item ${
-                    selected
-                      ? "selected"
-                      : ""
-                  }`
-                }
-              >
+          <div className="personal-kpi-master-header">
 
-                <input
-                  type="checkbox"
-                  checked={selected}
-                  onChange={() =>
-                    toggleKpi(
-                      candidate.code
-                    )
-                  }
-                />
+            <div>
+              <span className="workspace-overview-label">
+                CANDIDATES
+              </span>
 
-                <div className="personal-kpi-content">
+              <strong>
+                {candidates.length} KPIs
+              </strong>
+            </div>
 
-                  <div className="personal-kpi-title-row">
-                    <strong>
-                      {candidate.title}
-                    </strong>
+            <span className="personal-kpi-selected-count">
+              {selectedCodes.length} selected
+            </span>
 
-                    <span className="personal-kpi-aggregation">
-                      {candidate.aggregation}
-                    </span>
-                  </div>
+          </div>
 
-                  <p>
-                    {candidate.description}
-                  </p>
 
-                  <div className="personal-kpi-meta">
+          <div className="personal-kpi-compact-list">
 
-                    {candidate.measure && (
-                      <span>
-                        Measure:{" "}
-                        {candidate.measure}
+            {candidates.map(
+              (candidate) => {
+
+                const selected =
+                  selectedCodes.includes(
+                    candidate.code
+                  );
+
+                const active =
+                  candidate.code ===
+                  activeCode;
+
+
+                return (
+                  <div
+                    key={candidate.code}
+                    className={
+                      `personal-kpi-compact-item ${
+                        active
+                          ? "active"
+                          : ""
+                      } ${
+                        selected
+                          ? "selected"
+                          : ""
+                      }`
+                    }
+                  >
+
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() =>
+                        toggleKpi(
+                          candidate.code
+                        )
+                      }
+                      aria-label={
+                        `Select ${candidate.title}`
+                      }
+                    />
+
+
+                    <button
+                      type="button"
+                      className="personal-kpi-compact-open"
+                      onClick={() =>
+                        setActiveCode(
+                          candidate.code
+                        )
+                      }
+                    >
+
+                      <span className="personal-kpi-compact-title">
+                        {candidate.title}
                       </span>
-                    )}
 
-                    {candidate.dimension && (
-                      <span>
-                        Dimension:{" "}
-                        {candidate.dimension}
+                      <span className="personal-kpi-compact-type">
+                        {
+                          candidate
+                            .aggregation
+                            .toUpperCase()
+                        }
                       </span>
-                    )}
+
+                    </button>
 
                   </div>
+                );
+              }
+            )}
 
+          </div>
+
+        </div>
+
+
+        {/* =========================================
+            RIGHT: KPI DETAIL
+            ========================================= */}
+
+        <div className="personal-kpi-detail">
+
+          {activeCandidate ? (
+            <>
+
+              <div className="personal-kpi-detail-header">
+
+                <div>
+                  <span className="workspace-overview-label">
+                    KPI DETAILS
+                  </span>
+
+                  <h3>
+                    {activeCandidate.title}
+                  </h3>
                 </div>
 
-              </label>
-            );
-          }
-        )}
+
+                <span className="personal-kpi-detail-aggregation">
+                  {
+                    activeCandidate
+                      .aggregation
+                      .toUpperCase()
+                  }
+                </span>
+
+              </div>
+
+
+              <p className="personal-kpi-detail-description">
+                {activeCandidate.description}
+              </p>
+
+
+              <div className="personal-kpi-detail-grid">
+
+                <div>
+                  <span>
+                    Measure
+                  </span>
+
+                  <strong>
+                    {
+                      activeCandidate.measure ??
+                      "—"
+                    }
+                  </strong>
+                </div>
+
+
+                <div>
+                  <span>
+                    Dimension
+                  </span>
+
+                  <strong>
+                    {
+                      activeCandidate.dimension ??
+                      "None"
+                    }
+                  </strong>
+                </div>
+
+
+                <div>
+                  <span>
+                    Aggregation
+                  </span>
+
+                  <strong>
+                    {
+                      activeCandidate
+                        .aggregation
+                        .toUpperCase()
+                    }
+                  </strong>
+                </div>
+
+
+                <div>
+                  <span>
+                    Source
+                  </span>
+
+                  <strong>
+                    {
+                      activeCandidate.source ===
+                      "local"
+                        ? "Local analysis"
+                        : "User defined"
+                    }
+                  </strong>
+                </div>
+
+              </div>
+
+
+              <div className="personal-kpi-detail-selection">
+
+                <span>
+                  {
+                    selectedCodes.includes(
+                      activeCandidate.code
+                    )
+                      ? "Selected for project"
+                      : "Not selected"
+                  }
+                </span>
+
+                <button
+                  type="button"
+                  className={
+                    selectedCodes.includes(
+                      activeCandidate.code
+                    )
+                      ? "secondary-button"
+                      : "new-workspace-button"
+                  }
+                  onClick={() =>
+                    toggleKpi(
+                      activeCandidate.code
+                    )
+                  }
+                >
+                  {
+                    selectedCodes.includes(
+                      activeCandidate.code
+                    )
+                      ? "Remove KPI"
+                      : "Select KPI"
+                  }
+                </button>
+
+              </div>
+
+            </>
+          ) : (
+            <div className="personal-kpi-detail-empty">
+
+              <strong>
+                No KPI selected
+              </strong>
+
+              <p>
+                Choose a KPI candidate to review
+                its details.
+              </p>
+
+            </div>
+          )}
+
+        </div>
 
       </div>
 
