@@ -3,6 +3,7 @@ import {
   useState,
 } from "react";
 
+import AnalysisWorkspace from "./AnalysisWorkspace";
 
 type AnalysisPlanData = {
   measure_candidates: string[];
@@ -337,121 +338,9 @@ function PersonalAnalysisPlan({
 
       </div>
 
-    {savedAnalysisResults.map(
-      (result, resultIndex) => (
-        <div
-          className="personal-analysis-results"
-          key={
-            result.analysis_id ??
-            `${result.measure}-${result.dimension ?? "overall"}-${resultIndex}`
-          }
-        >
-        
-          <div className="personal-analysis-results-header">
-            <div>
-              <span className="personal-analysis-plan-label">
-                Analysis result
-              </span>
-        
-              <h3>
-                {result.measure}
-                {result.dimension
-                  ? ` by ${result.dimension}`
-                  : ""}
-              </h3>
-            </div>
-                
-            <span className="personal-analysis-plan-source">
-              Local result
-            </span>
-          </div>
-                
-                
-          <div className="personal-analysis-summary">
-                
-            <div>
-              <span>Count</span>
-              <strong>
-                {result.overall.count}
-              </strong>
-            </div>
-                
-            <div>
-              <span>Mean</span>
-              <strong>
-                {result.overall.mean ?? "—"}
-              </strong>
-            </div>
-                
-            <div>
-              <span>Min</span>
-              <strong>
-                {result.overall.min ?? "—"}
-              </strong>
-            </div>
-                
-            <div>
-              <span>Max</span>
-              <strong>
-                {result.overall.max ?? "—"}
-              </strong>
-            </div>
-                
-          </div>
-                
-                
-          {result.grouped_results.length > 0 && (
-            <div className="personal-analysis-table-wrap">
-              <table className="personal-analysis-table">
-          
-                <thead>
-                  <tr>
-                    <th>
-                      {result.dimension}
-                    </th>
-                    <th>Count</th>
-                    <th>Mean</th>
-                    <th>Min</th>
-                    <th>Max</th>
-                  </tr>
-                </thead>
-          
-                <tbody>
-                  {result.grouped_results.map(
-                    (row, index) => (
-                      <tr key={index}>
-                        <td>
-                          {row.value === null
-                            ? "Missing"
-                            : String(row.value)}
-                        </td>
-                          
-                        <td>{row.count}</td>
-                          
-                        <td>
-                          {row.mean ?? "—"}
-                        </td>
-                          
-                        <td>
-                          {row.min ?? "—"}
-                        </td>
-                          
-                        <td>
-                          {row.max ?? "—"}
-                        </td>
-                      </tr>
-                    )
-                  )}
-                </tbody>
-                
-              </table>
-            </div>
-          )}
-
-        </div>
-      )
-    )} 
-
+  <AnalysisWorkspace
+    results={savedAnalysisResults}
+  />
     </section>
   );
 }
