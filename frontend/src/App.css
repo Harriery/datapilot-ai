@@ -6092,3 +6092,1206 @@
     width: 100%;
   }
 }
+
+/* ==================================================
+   DATAPILOT LAPTOP DENSITY
+   --------------------------------------------------
+   Laptop ekranlarında uygulamayı daha kompakt yapar.
+   Büyük masaüstü ekranların mevcut görünümünü bozmaz.
+   ================================================== */
+
+@media (min-width: 1000px) and (max-height: 950px) {
+
+  /* ================================================
+     MAIN PAGE
+     ================================================ */
+
+  .main-content {
+    padding: 18px 20px;
+  }
+
+  .page-header {
+    margin-bottom: 16px;
+  }
+
+  .page-header h2,
+  .tasks-page-header h2,
+  .progress-page-header h2 {
+    font-size: 24px;
+  }
+
+  .page-header p,
+  .tasks-page-header > div > p:last-child,
+  .progress-page-header > div > p:last-child {
+    font-size: 12px;
+  }
+
+
+  /* ================================================
+     COMMON CARDS
+     ================================================ */
+
+  .card,
+  .workspace-overview-card,
+  .workspace-mode-card,
+  .workspace-create-card,
+  .workspace-mentor-guide,
+  .personal-analysis-plan,
+  .personal-kpi-card,
+  .personal-data-model-card,
+  .personal-transform-summary {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .dashboard-grid,
+  .workspace-mode-grid {
+    gap: 14px;
+  }
+
+
+  /* ================================================
+     COMMON BUTTONS
+     ================================================ */
+
+  .primary-button,
+  .secondary-button,
+  .new-workspace-button,
+  .run-button,
+  .submit-button,
+  .hint-button,
+  .complete-workspace-button {
+    padding: 7px 11px;
+
+    border-radius: 8px;
+
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+
+  /* ================================================
+     WORKSPACE STICKY HEADER
+     Fix top scroll leak
+     ================================================ */
+
+  .workspace-sticky-shell {
+    /*
+      main-content 18px top padding kullanıyor.
+      Negatif margin sticky shell'i viewport'un
+      en üstüne taşır.
+    */
+    margin-top: -18px;
+
+    padding-top: 8px;
+    padding-bottom: 3px;
+
+    top: 0;
+
+    background: #f5f8fc;
+
+    box-shadow:
+      0 1px 0 rgba(210, 220, 232, 0.65);
+  }
+
+  .workspace-compact-header {
+    min-height: 30px;
+
+    margin-bottom: 2px;
+  }
+
+  .workspace-compact-header h2 {
+    font-size: 18px;
+  }
+
+  .workspace-compact-back {
+    font-size: 10px;
+  }
+
+  .workspace-sticky-shell
+    .workspace-stage-navigation {
+    margin-top: 0;
+    margin-bottom: 2px;
+  }
+
+
+  /* ================================================
+     TRANSFORM WORKBENCH
+     ================================================ */
+
+  .workspace-transform-card {
+    padding: 16px;
+  }
+
+  .workspace-transform-header {
+    margin-bottom: 10px;
+  }
+
+  .workspace-transform-header h3 {
+    font-size: 14px;
+  }
+
+  .workspace-version-history {
+    margin-bottom: 10px;
+
+    padding: 9px 11px;
+  }
+
+  .workspace-version-list {
+    gap: 5px;
+  }
+
+  .workspace-version-item {
+    padding: 7px 9px;
+  }
+
+  .workspace-version-item p {
+    font-size: 10px;
+  }
+
+  .workspace-version-restore {
+    padding: 5px 8px;
+
+    font-size: 9px;
+  }
+
+  .workspace-working-table th,
+  .workspace-working-table td {
+    padding: 7px 10px;
+  }
+
+  .workspace-working-table {
+    font-size: 11px;
+  }
+
+  .workspace-transform-editor-grid {
+    gap: 10px;
+
+    margin-top: 10px;
+  }
+
+  .workspace-transform-editor-panel,
+  .workspace-transform-result-panel {
+    padding: 10px 12px;
+  }
+
+  .workspace-transform-editor {
+    height: 145px;
+
+    padding: 10px;
+
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .workspace-transform-actions {
+    gap: 7px;
+
+    margin-top: 8px;
+  }
+
+  .workspace-transform-actions span {
+    font-size: 9px;
+    line-height: 1.35;
+  }
+
+
+  /* ================================================
+     TRANSFORMATION SUMMARY
+     ================================================ */
+
+  .personal-transform-summary-header {
+    gap: 14px;
+
+    margin-bottom: 14px;
+  }
+
+  .personal-transform-summary-header h3 {
+    margin: 4px 0 5px;
+
+    font-size: 18px;
+  }
+
+  .personal-transform-summary-header p {
+    font-size: 12px;
+  }
+
+  .personal-transform-summary-steps {
+    gap: 8px;
+  }
+
+  .personal-transform-summary-step {
+    gap: 10px;
+
+    padding: 10px 12px;
+
+    border-radius: 9px;
+  }
+
+  .personal-transform-summary-check {
+    width: 19px;
+    height: 19px;
+
+    flex-basis: 19px;
+
+    font-size: 10px;
+  }
+
+  .personal-transform-summary-step strong {
+    font-size: 12px;
+  }
+
+  .personal-transform-summary-step p {
+    margin-top: 3px;
+
+    font-size: 10px;
+  }
+
+  .personal-transform-summary-result {
+    margin-top: 10px;
+
+    padding: 10px 12px;
+  }
+
+  .personal-transform-summary-result span {
+    font-size: 11px;
+  }
+
+  .personal-transform-summary-result strong {
+    font-size: 13px;
+  }
+
+
+  /* ================================================
+     KPI PAGE
+     ================================================ */
+
+  .personal-kpi-header {
+    gap: 14px;
+
+    margin-bottom: 14px;
+  }
+
+  .personal-kpi-header h2 {
+    margin: 4px 0 5px;
+
+    font-size: 19px;
+  }
+
+  .personal-kpi-header p {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .personal-kpi-list {
+    gap: 8px;
+  }
+
+  .personal-kpi-item {
+    gap: 10px;
+
+    padding: 11px 12px;
+
+    border-radius: 9px;
+  }
+
+  .personal-kpi-title-row {
+    gap: 7px;
+  }
+
+  .personal-kpi-title-row strong {
+    font-size: 14px;
+  }
+
+  .personal-kpi-aggregation {
+    padding: 3px 6px;
+
+    font-size: 9px;
+  }
+
+  .personal-kpi-content p {
+    margin: 4px 0 6px;
+
+    font-size: 11px;
+  }
+
+  .personal-kpi-meta span {
+    font-size: 10px;
+  }
+
+  .personal-kpi-actions {
+    margin-top: 12px;
+  }
+
+
+  /* ================================================
+     DATA MODEL
+     ================================================ */
+
+  .personal-data-model-header {
+    gap: 14px;
+
+    margin-bottom: 14px;
+  }
+
+  .personal-data-model-header h2 {
+    margin: 4px 0 5px;
+
+    font-size: 19px;
+  }
+
+  .personal-data-model-header p {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .personal-data-model-result {
+    gap: 14px;
+  }
+
+  .personal-data-model-summary {
+    gap: 8px;
+  }
+
+  .personal-data-model-summary > div {
+    gap: 4px;
+
+    padding: 10px 12px;
+  }
+
+  .personal-data-model-summary span {
+    font-size: 10px;
+  }
+
+  .personal-data-model-summary strong {
+    font-size: 12px;
+  }
+
+  .personal-data-model-section h3 {
+    margin-bottom: 7px;
+
+    font-size: 13px;
+  }
+
+  .personal-data-model-measures {
+    gap: 7px;
+  }
+
+  .personal-data-model-measure {
+    padding: 10px 12px;
+  }
+
+  .personal-data-model-studio {
+    padding-top: 14px;
+  }
+
+
+  /* ================================================
+     ANALYSIS
+     ================================================ */
+
+  .personal-analysis-plan-header {
+    gap: 14px;
+
+    margin-bottom: 14px;
+  }
+
+  .personal-analysis-table-wrap {
+    margin-top: 12px;
+  }
+
+  .personal-analysis-table th,
+  .personal-analysis-table td {
+    padding: 8px 10px;
+  }
+
+  .personal-analysis-table th {
+    font-size: 10px;
+  }
+
+  .personal-analysis-table td {
+    font-size: 12px;
+  }
+
+
+  /* ================================================
+     TASKS
+     ================================================ */
+
+  .tasks-page-header {
+    margin-bottom: 12px;
+  }
+
+  .task-status-grid {
+    margin-bottom: 12px;
+  }
+
+  .task-status-summary {
+    padding: 10px 12px;
+  }
+
+  .task-status-summary strong {
+    font-size: 17px;
+  }
+
+  .task-item-card {
+    gap: 12px;
+
+    padding: 12px 14px;
+  }
+
+  .task-detail-grid {
+    margin-top: 9px;
+  }
+
+
+  /* ================================================
+     PROGRESS
+     ================================================ */
+
+  .progress-page-header {
+    margin-bottom: 12px;
+  }
+
+  .progress-kpi-grid {
+    margin-bottom: 12px;
+  }
+
+  .progress-kpi-card {
+    padding: 11px 13px;
+  }
+
+  .progress-kpi-card strong {
+    font-size: 18px;
+  }
+
+  .progress-sections {
+    gap: 8px;
+  }
+
+  .progress-panel {
+    padding: 12px 14px;
+
+    border-radius: 10px;
+  }
+
+  .progress-panel-content {
+    gap: 12px;
+
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+
+  .overall-readiness-panel {
+    margin-bottom: 12px;
+
+    padding: 14px;
+  }
+
+
+  /* ================================================
+     NEW WORKSPACE
+     ================================================ */
+
+  .new-workspace-topbar {
+    margin-bottom: 8px;
+  }
+
+  .new-workspace-header {
+    margin-bottom: 12px;
+  }
+
+  .new-workspace-header h2 {
+    font-size: 24px;
+  }
+
+  .new-workspace-header > div > p:last-child {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .workspace-form-section {
+    margin-bottom: 12px;
+  }
+
+  .workspace-form-label {
+    margin-bottom: 4px;
+
+    font-size: 11px;
+  }
+
+  .workspace-form-input,
+  .workspace-form-select {
+    height: 36px;
+
+    font-size: 12px;
+  }
+
+  .workspace-form-textarea {
+    min-height: 85px;
+
+    font-size: 12px;
+  }
+
+
+  /* ================================================
+     MODALS
+     ================================================ */
+
+  .workspace-modal {
+    width: min(660px, 100%);
+
+    padding: 18px;
+
+    border-radius: 14px;
+  }
+
+  .workspace-modal-header {
+    padding-bottom: 12px;
+  }
+
+  .workspace-modal-header h3 {
+    font-size: 17px;
+  }
+
+  .workspace-modal-header p {
+    font-size: 11px;
+  }
+
+  .workspace-modal-body {
+    gap: 12px;
+
+    padding: 14px 0;
+  }
+
+  .workspace-modal-field input,
+  .workspace-modal-field textarea,
+  .workspace-modal-field select {
+    padding: 8px 10px;
+
+    font-size: 12px;
+  }
+
+  .workspace-modal-field input,
+  .workspace-modal-field select {
+    min-height: 36px;
+  }
+
+  .workspace-modal-field textarea {
+    min-height: 78px;
+  }
+
+  .workspace-modal-footer {
+    padding-top: 12px;
+  }
+}
+
+
+/* ==================================================
+   FINAL WORKSPACE DENSITY SYSTEM
+   Source / Profile / Validate / Analysis / KPI /
+   Data Model için ortak ölçüler.
+   ================================================== */
+
+/* Main content padding bilgisini sticky header da kullanır */
+.main-content {
+  --workspace-page-padding: 34px;
+}
+
+@media (max-width: 1400px) {
+  .main-content {
+    --workspace-page-padding: 22px;
+  }
+}
+
+@media (max-width: 900px) {
+  .main-content {
+    --workspace-page-padding: 16px;
+  }
+}
+
+
+/* ==================================================
+   SIDEBAR
+   ================================================== */
+
+.sidebar {
+  background: #f1f4f8;
+  border-right-color: #d5deea;
+}
+
+.sidebar.collapsed {
+  background: #f1f4f8;
+}
+
+.language-switch {
+  background: #e9eef5;
+  border-color: #d4dde8;
+}
+
+.nav-item:hover {
+  background: #e8eef6;
+}
+
+.nav-item.active {
+  background: #e1ecfa;
+}
+
+
+/* ==================================================
+   STICKY WORKSPACE HEADER
+   Arkadan içerik görünmesini engeller.
+   ================================================== */
+
+/* Workspace sayfasında scroll alanının
+   üstünde açık boşluk bırakma */
+.main-content.workspace-main {
+  padding-top: 0;
+}
+
+
+/* Sticky alan scroll viewport'un en üstünden başlar */
+.workspace-overview-page .workspace-sticky-shell {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+
+  margin-top: 0;
+
+  padding-top: var(--workspace-page-padding);
+  padding-bottom: 5px;
+
+  background: #f5f8fc;
+
+  border-bottom: 1px solid #dce5ef;
+
+  box-shadow:
+    0 5px 10px
+    rgba(20, 33, 61, 0.04);
+}
+
+
+/* ==================================================
+   COMMON WORKSPACE SPACING
+   ================================================== */
+
+.workspace-overview-page {
+  gap: 8px;
+}
+
+.workspace-overview-page
+  .workspace-overview-grid {
+  gap: 10px;
+}
+
+.workspace-overview-page
+  .workspace-overview-card,
+.workspace-overview-page
+  .personal-deliverables-card,
+.workspace-overview-page
+  .personal-analysis-plan,
+.workspace-overview-page
+  .personal-kpi-card,
+.workspace-overview-page
+  .personal-data-model-card {
+  padding: 14px;
+
+  border-radius: 12px;
+}
+
+
+/* Küçük section label */
+.workspace-overview-page
+  .workspace-overview-label {
+  margin-bottom: 6px;
+
+  font-size: 10px;
+}
+
+
+/* Ortak ana başlıklar */
+.workspace-overview-page
+  .personal-analysis-plan-header h2,
+.workspace-overview-page
+  .personal-kpi-header h2,
+.workspace-overview-page
+  .personal-data-model-header h2 {
+  margin: 3px 0 5px;
+
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+
+/* Ortak açıklama */
+.workspace-overview-page
+  .personal-analysis-plan-header p,
+.workspace-overview-page
+  .personal-kpi-header p,
+.workspace-overview-page
+  .personal-data-model-header p {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+
+/* ==================================================
+   SOURCE
+   ================================================== */
+
+.workspace-overview-page
+  .personal-deliverables-header {
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.workspace-overview-page
+  .personal-deliverables-header h3 {
+  margin: 3px 0 5px;
+
+  font-size: 17px;
+}
+
+.workspace-overview-page
+  .personal-deliverables-progress strong {
+  font-size: 16px;
+}
+
+.workspace-overview-page
+  .personal-deliverables-progress span {
+  font-size: 10px;
+}
+
+.workspace-overview-page
+  .personal-project-outcome {
+  gap: 8px;
+
+  margin-bottom: 11px;
+  padding: 9px 11px;
+}
+
+.workspace-overview-page
+  .personal-project-outcome p {
+  margin-top: 3px;
+
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.workspace-overview-page
+  .personal-deliverables-list {
+  gap: 7px;
+}
+
+.workspace-overview-page
+  .personal-deliverable-item {
+  gap: 7px;
+
+  padding: 7px 9px;
+
+  font-size: 11px;
+}
+
+
+/* ==================================================
+   PROFILE
+   ================================================== */
+
+.workspace-overview-page
+  .workspace-data-card
+  .workspace-collapsible-content {
+  margin-top: 10px;
+}
+
+.workspace-overview-page
+  .workspace-profile-layout {
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.workspace-overview-page
+  .workspace-profile-summary,
+.workspace-overview-page
+  .workspace-findings-panel {
+  padding: 11px;
+
+  border-radius: 10px;
+}
+
+.workspace-overview-page
+  .workspace-profile-stats {
+  gap: 7px;
+
+  margin-bottom: 10px;
+}
+
+.workspace-overview-page
+  .workspace-profile-stats > div {
+  padding: 8px 9px;
+
+  border-radius: 8px;
+}
+
+.workspace-overview-page
+  .workspace-profile-stats strong {
+  font-size: 15px;
+}
+
+.workspace-overview-page
+  .workspace-profile-stats span {
+  font-size: 10px;
+}
+
+.workspace-overview-page
+  .workspace-column-list {
+  gap: 4px;
+}
+
+.workspace-overview-page
+  .workspace-column-item {
+  padding: 5px 8px;
+
+  font-size: 10px;
+}
+
+.workspace-overview-page
+  .workspace-finding summary {
+  padding: 8px 10px;
+}
+
+
+/* ==================================================
+   VALIDATE
+   ================================================== */
+
+.workspace-validation-card {
+  grid-column: 1 / -1;
+}
+
+.workspace-validation-card
+  .workspace-plan-header {
+  margin-bottom: 10px;
+}
+
+.workspace-validation-card
+  .workspace-plan-header h3 {
+  margin: 3px 0 4px;
+
+  font-size: 16px;
+}
+
+.workspace-validation-card
+  .workspace-plan-header p {
+  margin: 4px 0 0;
+
+  color: #607188;
+
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.workspace-validation-card
+  .workspace-profile-stats {
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 8px;
+
+  margin: 0 0 8px;
+}
+
+.workspace-validation-card
+  .workspace-plan-steps {
+  margin-top: 5px;
+}
+
+.workspace-validation-card
+  .workspace-plan-step {
+  gap: 9px;
+
+  padding: 7px 0;
+}
+
+.workspace-validation-card
+  .workspace-plan-step-number {
+  width: 20px;
+  height: 20px;
+
+  flex-basis: 20px;
+
+  font-size: 9px;
+}
+
+.workspace-validation-card
+  .workspace-plan-step:not(:last-child)::after {
+  top: 27px;
+  left: 9px;
+}
+
+.workspace-validation-card
+  .workspace-plan-step > div > strong {
+  color: #253650;
+
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.workspace-validation-card
+  .workspace-plan-step > div > p {
+  margin: 3px 0 0;
+
+  color: #6b7d94;
+
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+
+/* ==================================================
+   ANALYSIS
+   ================================================== */
+
+.workspace-overview-page
+  .personal-analysis-plan-header {
+  gap: 12px;
+
+  margin-bottom: 12px;
+}
+
+.workspace-overview-page
+  .personal-analysis-plan-grid {
+  gap: 9px;
+}
+
+.workspace-overview-page
+  .personal-analysis-plan-group {
+  padding: 11px;
+
+  border-radius: 9px;
+}
+
+.workspace-overview-page
+  .personal-analysis-plan-label {
+  margin-bottom: 7px;
+
+  font-size: 10px;
+}
+
+.workspace-overview-page
+  .personal-analysis-plan-tags {
+  gap: 5px;
+}
+
+.workspace-overview-page
+  .personal-analysis-plan-tag {
+  padding: 5px 7px;
+
+  font-size: 11px;
+}
+
+.workspace-overview-page
+  .personal-analysis-questions,
+.workspace-overview-page
+  .personal-analysis-run,
+.workspace-overview-page
+  .personal-analysis-results {
+  margin-top: 10px;
+  padding: 11px;
+}
+
+.workspace-overview-page
+  .personal-analysis-questions li {
+  margin: 5px 0;
+
+  font-size: 12px;
+}
+
+.workspace-overview-page
+  .personal-analysis-controls {
+  gap: 9px;
+}
+
+.workspace-overview-page
+  .personal-analysis-controls select {
+  min-height: 35px;
+
+  padding: 6px 9px;
+
+  font-size: 12px;
+}
+
+
+/* ==================================================
+   KPI
+   ================================================== */
+
+.workspace-overview-page
+  .personal-kpi-header {
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.workspace-overview-page
+  .personal-kpi-list {
+  gap: 8px;
+}
+
+.workspace-overview-page
+  .personal-kpi-item {
+  gap: 9px;
+
+  padding: 10px 11px;
+
+  border-radius: 9px;
+}
+
+.workspace-overview-page
+  .personal-kpi-title-row strong {
+  font-size: 13px;
+}
+
+.workspace-overview-page
+  .personal-kpi-content p {
+  margin: 4px 0 6px;
+
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.workspace-overview-page
+  .personal-kpi-meta {
+  gap: 8px;
+}
+
+.workspace-overview-page
+  .personal-kpi-meta span {
+  font-size: 10px;
+}
+
+.workspace-overview-page
+  .personal-kpi-actions {
+  margin-top: 11px;
+
+  gap: 10px;
+}
+
+.workspace-overview-page
+  .personal-kpi-actions > span {
+  font-size: 11px;
+}
+
+
+/* ==================================================
+   DATA MODEL
+   ================================================== */
+
+.workspace-overview-page
+  .personal-data-model-header {
+  gap: 12px;
+
+  margin-bottom: 12px;
+}
+
+.workspace-overview-page
+  .personal-data-model-result {
+  gap: 12px;
+}
+
+.workspace-overview-page
+  .personal-data-model-summary {
+  gap: 8px;
+}
+
+.workspace-overview-page
+  .personal-data-model-summary > div {
+  gap: 3px;
+
+  padding: 9px 10px;
+
+  border-radius: 9px;
+}
+
+.workspace-overview-page
+  .personal-data-model-summary span {
+  font-size: 10px;
+}
+
+.workspace-overview-page
+  .personal-data-model-summary strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.workspace-overview-page
+  .personal-data-model-section h3 {
+  margin-bottom: 6px;
+
+  font-size: 13px;
+}
+
+.workspace-overview-page
+  .personal-data-model-section > p {
+  font-size: 11px;
+}
+
+.workspace-overview-page
+  .personal-data-model-measures {
+  gap: 7px;
+}
+
+.workspace-overview-page
+  .personal-data-model-measure {
+  padding: 9px 10px;
+
+  border-radius: 9px;
+}
+
+.workspace-overview-page
+  .personal-data-model-measure > div {
+  gap: 7px;
+
+  margin-bottom: 4px;
+}
+
+.workspace-overview-page
+  .personal-data-model-measure strong {
+  font-size: 13px;
+}
+
+.workspace-overview-page
+  .personal-data-model-measure p {
+  font-size: 10px;
+}
+
+.workspace-overview-page
+  .personal-data-model-studio {
+  margin-top: 5px;
+
+  padding-top: 12px;
+}
+
+
+/* ==================================================
+   WORKSPACE BUTTONS
+   ================================================== */
+
+.workspace-overview-page
+  .new-workspace-button {
+  gap: 5px;
+
+  padding: 7px 10px;
+
+  border-radius: 8px;
+
+  font-size: 11px;
+}
+
+
+/* Validation stats dar ekranlarda tekrar 2 kolon */
+@media (max-width: 850px) {
+  .workspace-validation-card
+    .workspace-profile-stats {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}

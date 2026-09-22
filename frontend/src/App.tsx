@@ -3035,7 +3035,13 @@ async function restoreWorkspaceVersion(
       </nav>    
     </aside>
 
-      <main className="main-content">
+      <main
+        className={
+          currentView === "workspace"
+            ? "main-content workspace-main"
+            : "main-content"
+        }
+      >
         {currentView === "dashboard" ? (
           <>
             <header className="page-header">
@@ -5252,7 +5258,7 @@ async function restoreWorkspaceVersion(
                             activePrepareStage === "validate"
                           )
                         ) && (
-                          <section className="workspace-overview-card">
+                          <section className="workspace-overview-card workspace-validation-card">
                             <div className="workspace-plan-header">
                               <div>
                                 <span className="workspace-overview-label">
