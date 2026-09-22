@@ -23,6 +23,9 @@ import "@xyflow/react/dist/style.css";
 
 import DataModelTableEditor
   from "./DataModelTableEditor";
+
+import DataModelRelationshipEditor
+  from "./DataModelRelationshipEditor";
   
 type DataModelColumn = {
   name: string;
@@ -703,6 +706,11 @@ function DataModelCanvas({
     null
   );
 
+  const [
+    selectedRelationshipIndex,
+    setSelectedRelationshipIndex,
+  ] = useState<number | null>(null);
+
 
   useEffect(() => {
     setNodes(
@@ -745,6 +753,11 @@ function DataModelCanvas({
   const [
     tableEditorOpen,
     setTableEditorOpen,
+  ] = useState(false);
+
+  const [
+    relationshipEditorOpen,
+    setRelationshipEditorOpen,
   ] = useState(false);
 
   function focusTable(
@@ -947,8 +960,14 @@ function DataModelCanvas({
             <button
               type="button"
               className="model-canvas-action-button"
-              disabled
-              title="Relationship editor is next"
+              onClick={() =>
+                setRelationshipEditorOpen(
+                  true
+                )
+              }
+              disabled={
+                studio.tables.length < 2
+              }
             >
               + Relationship
             </button>
@@ -994,6 +1013,29 @@ function DataModelCanvas({
               setSelectedTableId(
                 null
               );
+            
+              setSelectedRelationshipIndex(
+                null
+              );
+            }}
+
+            onEdgeClick={(
+              _event,
+              edge,
+            ) => {
+              const index =
+                Number(
+                  edge.id.replace(
+                    "relationship-",
+                    ""
+                  )
+                );
+              
+              if (!Number.isNaN(index)) {
+                setSelectedRelationshipIndex(
+                  index
+                );
+              }
             }}
 
             nodesConnectable={false}
@@ -1036,6 +1078,148 @@ function DataModelCanvas({
       </div>
 
     </div>
+    
+    {selectedRelationshipIndex !== null &&
+      studio.relationships[
+        selectedRelationshipIndex
+      ] && (
+        <div
+          className="model-editor-backdrop"
+          role="presentation"
+        >
+          <section
+            className="model-editor-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Relationship details"
+          >
+            <header className="model-editor-header">
+              <div>
+                <span className="workspace-overview-label">
+                  RELATIONSHIP
+                </span>
+      
+                <h3>
+                  Relationship details
+                </h3>
+              </div>
+      
+              <button
+                type="button"
+                className="model-editor-close"
+                onClick={() =>
+                  setSelectedRelationshipIndex(
+                    null
+                  )
+                }
+              >
+                ×
+              </button>
+            </header>
+              
+            <div className="model-editor-body">
+              <div className="model-relationship-detail">
+                <span>From</span>
+              
+                <strong>
+                  {
+                    studio.relationships[
+                      selectedRelationshipIndex
+                    ].from_table
+                  }
+                  .
+                  {
+                    studio.relationships[
+                      selectedRelationshipIndex
+                    ].from_column
+                  }
+                </strong>
+              </div>
+                
+              <div className="model-relationship-detail">
+                <span>To</span>
+                
+                <strong>
+                  {
+                    studio.relationships[
+                      selectedRelationshipIndex
+                    ].to_table
+                  }
+                  .
+                  {
+                    studio.relationships[
+                      selectedRelationshipIndex
+                    ].to_column
+                  }
+                </strong>
+              </div>
+                
+              <div className="model-relationship-detail">
+                <span>Cardinality</span>
+                
+                <strong>
+                  {
+                    studio.relationships[
+                      selectedRelationshipIndex
+                    ].cardinality
+                  }
+                </strong>
+              </div>
+            </div>
+                
+            <footer className="model-editor-footer">
+              <button
+                type="button"
+                className="model-editor-cancel"
+                onClick={() =>
+                  setSelectedRelationshipIndex(
+                    null
+                  )
+                }
+              >
+                Cancel
+              </button>
+              
+              <button
+                type="button"
+                className="model-relationship-delete-button"
+                disabled={saving}
+                onClick={async () => {
+                  const updatedStudio = {
+                    ...studio,
+                  
+                    source:
+                      "user" as const,
+                  
+                    relationships:
+                      studio.relationships.filter(
+                        (
+                          _relationship,
+                          index,
+                        ) =>
+                          index !==
+                          selectedRelationshipIndex
+                      ),
+                  };
+                
+                  await onSaveStudio(
+                    updatedStudio
+                  );
+                
+                  setSelectedRelationshipIndex(
+                    null
+                  );
+                }}
+              >
+                {saving
+                  ? "Deleting..."
+                  : "Delete relationship"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
 
 
     {tableEditorOpen && (
@@ -1051,8 +1235,30 @@ function DataModelCanvas({
           await onSaveStudio(
             updatedStudio
           );
+        
+          setTableEditorOpen(false);
+        }}
+      />
+    )}
 
-          setTableEditorOpen(
+
+    {relationshipEditorOpen && (
+      <DataModelRelationshipEditor
+        studio={studio}
+        saving={saving}
+        onCancel={() =>
+          setRelationshipEditorOpen(
+            false
+          )
+        }
+        onSave={async (
+          updatedStudio
+        ) => {
+          await onSaveStudio(
+            updatedStudio
+          );
+        
+          setRelationshipEditorOpen(
             false
           );
         }}
