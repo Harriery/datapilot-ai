@@ -2,6 +2,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type DragEvent,
 } from "react";
 
 import type {
@@ -92,6 +93,15 @@ function AnalysisWorkspace({
     Record<string, number>
   >({});
 
+  const [
+    draggingId,
+     setDraggingId,
+  ] = useState<string | null>(null);
+
+  const [
+    dragOverId,
+    setDragOverId,
+  ] = useState<string | null>(null);
 
   /*
    * Yeni analysis oluştuğunda otomatik olarak
@@ -174,6 +184,62 @@ function AnalysisWorkspace({
             ]
     );
   }
+
+  function moveVisibleItem(
+     draggedId: string,
+     targetId: string,
+   ) {
+     if (draggedId === targetId) {
+       return;
+     }
+   
+     setVisibleIds(
+       (previous) => {
+         const fromIndex =
+           previous.indexOf(draggedId);
+       
+         const toIndex =
+           previous.indexOf(targetId);
+       
+         if (
+           fromIndex === -1 ||
+           toIndex === -1
+         ) {
+           return previous;
+         }
+       
+         const next = [...previous];
+       
+         const [movedItem] =
+           next.splice(fromIndex, 1);
+       
+         next.splice(
+           toIndex,
+           0,
+           movedItem,
+         );
+       
+         return next;
+       }
+     );
+   }
+   
+   function handleDrop(
+     event: DragEvent<HTMLElement>,
+     targetId: string,
+   ) {
+     event.preventDefault();
+   
+     if (draggingId) {
+       moveVisibleItem(
+         draggingId,
+         targetId,
+       );
+     }
+   
+     setDraggingId(null);
+     setDragOverId(null);
+   }
 
 
   function shrinkCard(
@@ -384,7 +450,7 @@ function AnalysisWorkspace({
                         ×
                       </button>
                     )}
-                
+
                   </div>
                 );
                 
@@ -439,19 +505,70 @@ function AnalysisWorkspace({
 
             return (
               <article
-                key={id}
-                className={
-                  `analysis-board-card ${
-                    `size-${size}`
-                  } ${
-                    collapsed
-                      ? "collapsed"
-                      : ""
-                  }`
-                }
-              >
+                  key={id}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                
+                    if (
+                      draggingId &&
+                      draggingId !== id
+                    ) {
+                      setDragOverId(id);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverId === id) {
+                      setDragOverId(null);
+                    }
+                  }}
+                  onDrop={(event) =>
+                    handleDrop(
+                      event,
+                      id,
+                    )
+                  }
+                  className={
+                    `analysis-board-card ${
+                      `size-${size}`
+                    } ${
+                      collapsed
+                        ? "collapsed"
+                        : ""
+                    } ${
+                      dragOverId === id
+                        ? "drag-over"
+                        : ""
+                    } ${
+                      draggingId === id
+                        ? "dragging"
+                        : ""
+                    }`
+                  }
+                >
 
                 <header className="analysis-board-card-header">
+                  <span
+                      className="analysis-drag-handle"
+                      draggable
+                      title="Drag to reorder"
+                      onDragStart={(event) => {
+                        setDraggingId(id);
+                    
+                        event.dataTransfer.effectAllowed =
+                          "move";
+                    
+                        event.dataTransfer.setData(
+                          "text/plain",
+                          id,
+                        );
+                      }}
+                      onDragEnd={() => {
+                        setDraggingId(null);
+                        setDragOverId(null);
+                      }}
+                    >
+                      ⋮⋮
+                    </span>  
 
                   <button
                     type="button"

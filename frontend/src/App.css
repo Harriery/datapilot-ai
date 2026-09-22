@@ -7867,3 +7867,42 @@
   background: #fff1f1;
   color: #c43d3d;
 }
+
+.analysis-drag-handle {
+  display: grid;
+  place-items: center;
+
+  flex: 0 0 22px;
+
+  width: 22px;
+  height: 26px;
+
+  color: #94a3b5;
+
+  cursor: grab;
+
+  user-select: none;
+
+  font-size: 14px;
+  letter-spacing: -3px;
+}
+
+.analysis-drag-handle:active {
+  cursor: grabbing;
+}
+
+.analysis-board-card.dragging {
+  opacity: 0.45;
+}
+
+.analysis-board-card.drag-over {
+  border-color: #2f80ed;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, 0.12);
+}
+
+.analysis-board-card-title {
+  flex: 1;
+}
