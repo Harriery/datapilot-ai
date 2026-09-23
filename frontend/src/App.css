@@ -9924,3 +9924,159 @@
     width: 100%;
   }
 }
+
+
+/* ==================================================
+   WORKBENCH COLUMN ACTIONS
+   ================================================== */
+
+.data-preview-column-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: inherit;
+  text-align: left;
+}
+
+.data-preview-column-button:hover {
+  color: #2f80ed;
+}
+
+.data-preview-column-selected {
+  background: #edf6ff;
+}
+
+.column-inspector {
+  display: grid;
+  gap: 12px;
+
+  margin-top: 10px;
+  padding: 13px;
+
+  border: 1px solid #d9e4ef;
+  border-radius: 10px;
+
+  background: #fbfdff;
+}
+
+.column-inspector-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 12px;
+}
+
+.column-inspector-header h4 {
+  margin: 3px 0 0;
+
+  color: #243950;
+  font-size: 13px;
+}
+
+.column-inspector-header > button {
+  display: grid;
+  place-items: center;
+
+  width: 26px;
+  height: 26px;
+
+  border: 0;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #7f90a5;
+
+  cursor: pointer;
+  font-size: 17px;
+}
+
+.column-inspector-header > button:hover {
+  background: #eef3f8;
+}
+
+.column-inspector-warning {
+  padding: 8px 10px;
+
+  border: 1px solid #eadbb8;
+  border-radius: 7px;
+
+  background: #fff9ed;
+  color: #8b6828;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.column-inspector-field {
+  display: grid;
+  gap: 5px;
+}
+
+.column-inspector-field > span {
+  color: #596d84;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.column-inspector-field input,
+.column-inspector-field select {
+  min-height: 34px;
+
+  padding: 7px 9px;
+
+  border: 1px solid #d3deea;
+  border-radius: 7px;
+
+  outline: none;
+
+  background: #ffffff;
+  color: #2d4058;
+
+  font-size: 10px;
+}
+
+.column-inspector-field input:focus,
+.column-inspector-field select:focus {
+  border-color: #7fb1ec;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, 0.08);
+}
+
+.column-inspector-two {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.column-inspector-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 7px;
+
+  padding-top: 2px;
+}
+
+@media (max-width: 650px) {
+  .column-inspector-two {
+    grid-template-columns: 1fr;
+  }
+
+  .column-inspector-actions {
+    justify-content: stretch;
+  }
+
+  .column-inspector-actions button {
+    flex: 1;
+  }
+}
