@@ -3408,3 +3408,205 @@ def test_development_sample_rebuilds_working_data_and_resets_state(
         ]
         is None
     )
+
+
+
+def test_apply_pipeline_to_full_dataset_uses_source_and_disables_sample(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Full Pipeline Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.development_sample_enabled = True
+    workspace.development_sample_row_count = 2
+
+    workspace.workbench_operations = [
+        WorkspaceWorkbenchOperation(
+            operation_id="rename-city",
+            title="Rename city",
+            goal="Rename city.",
+            operation_type="schema",
+            origin="user",
+            status="completed",
+            source_columns=["city"],
+            expected_columns=["location"],
+            code="generated",
+            pipeline_action=(
+                WorkspacePipelineAction(
+                    action="rename",
+                    column="city",
+                    new_name="location",
+                )
+            ),
+        ),
+    ]
+
+    workspace.workbench_active_operation_id = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    source_df = pd.DataFrame(
+        {
+            "city": [
+                "Den Haag",
+                "Rotterdam",
+                "Delft",
+            ],
+            "value": [
+                10,
+                20,
+                30,
+            ],
+        }
+    )
+
+    saved: dict[
+        str,
+        pd.DataFrame,
+    ] = {}
+
+    versions_cleared = {
+        "called": False,
+    }
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_source_dataframe",
+        lambda workspace_id: (
+            source_df.copy()
+        ),
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "save_workspace_working_dataframe",
+        lambda workspace_id, df: (
+            saved.update(
+                {
+                    workspace_id:
+                        df.copy()
+                }
+            )
+        ),
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "clear_workspace_versions",
+        lambda workspace_id: (
+            versions_cleared.update(
+                {
+                    "called": True
+                }
+            )
+        ),
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/apply-pipeline-full"
+        )
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body[
+        "source_row_count"
+    ] == 3
+
+    assert body[
+        "working_row_count"
+    ] == 3
+
+    assert body[
+        "applied_operation_ids"
+    ] == [
+        "rename-city",
+    ]
+
+    assert body[
+        "development_sample_disabled"
+    ] is True
+
+    assert (
+        saved[
+            workspace_id
+        ].columns.tolist()
+        == [
+            "location",
+            "value",
+        ]
+    )
+
+    assert (
+        versions_cleared[
+            "called"
+        ]
+        is True
+    )
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert workspace_response.status_code == 200
+
+    updated_workspace = (
+        workspace_response.json()
+    )
+
+    assert (
+        updated_workspace[
+            "development_sample_enabled"
+        ]
+        is False
+    )
+
+    assert (
+        updated_workspace[
+            "development_sample_row_count"
+        ]
+        == 3
+    )
+
+    assert (
+        updated_workspace[
+            "checkpoint"
+        ][
+            "current_focus"
+        ]
+        == "Validate full prepared dataset"
+    )
