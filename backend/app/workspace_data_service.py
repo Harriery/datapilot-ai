@@ -155,6 +155,26 @@ def save_workspace_working_dataframe(
     )
 
 
+def clear_workspace_versions(
+    workspace_id: str,
+) -> None:
+    versions_dir = (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+        / "versions"
+    )
+
+    if not versions_dir.exists():
+        return
+
+    for path in versions_dir.glob(
+        "version_*.*"
+    ):
+        if path.is_file():
+            path.unlink()
+
+
 def create_workspace_version(
     workspace_id: str,
     df: pd.DataFrame,
