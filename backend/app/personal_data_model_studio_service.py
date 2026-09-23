@@ -164,12 +164,38 @@ def build_personal_data_model_studio(
         )
     )
 
+    tables = [
+        fact_table,
+        *dimension_tables,
+    ]
+
+    node_positions = {
+        fact_table.name: {
+            "x": 80.0,
+            "y": 100.0,
+        }
+    }
+
+    for index, table in enumerate(
+        dimension_tables
+    ):
+        node_positions[
+            table.name
+        ] = {
+            "x": (
+                500.0
+                + (index % 2) * 320.0
+            ),
+            "y": (
+                60.0
+                + (index // 2) * 180.0
+            ),
+        }
+
     return PersonalProjectDataModelStudio(
-        tables=[
-            fact_table,
-            *dimension_tables,
-        ],
+        tables=tables,
         relationships=relationships,
+        node_positions=node_positions,
         source="local",
     )
 
@@ -193,6 +219,25 @@ def validate_personal_data_model_studio(
         table.name: table
         for table in studio.tables
     }
+
+    unknown_position_tables = [
+        table_name
+        for table_name
+        in studio.node_positions
+        if table_name
+        not in tables_by_name
+    ]
+
+    if unknown_position_tables:
+        raise ValueError(
+            (
+                "Canvas position references unknown "
+                "table(s): "
+                + ", ".join(
+                    unknown_position_tables
+                )
+            )
+        )
 
     for table in studio.tables:
 
