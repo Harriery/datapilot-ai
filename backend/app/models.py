@@ -564,6 +564,25 @@ class WorkspaceWorkingDataResponse(
     row_count: int
     rows: list[dict]
 
+
+class WorkspaceDataPreviewResponse(BaseModel):
+    dataset: Literal[
+        "source",
+        "working",
+    ]
+
+    columns: list[str]
+
+    total_row_count: int
+    filtered_row_count: int
+
+    page: int
+    page_size: int
+    total_pages: int
+
+    rows: list[dict]
+
+
 class WorkspaceTransformationRequest(BaseModel):
     after_rows: list[dict]
 
