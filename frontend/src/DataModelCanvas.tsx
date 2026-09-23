@@ -84,6 +84,14 @@ export type DataModelStudioData = {
   relationships:
     DataModelRelationship[];
 
+  node_positions?: Record<
+    string,
+    {
+      x: number;
+      y: number;
+    }
+  >;
+
   source:
     | "local"
     | "user";
@@ -354,6 +362,7 @@ const nodeTypes = {
 
 function createNodes(
   tables: DataModelTable[],
+  positions: DataModelStudioData["node_positions"] = {},
 ): TableFlowNode[] {
 
   const factTables =
@@ -390,12 +399,13 @@ function createNodes(
         dragHandle:
           ".model-canvas-drag-handle",
 
-        position: {
-          x: 80,
-          y:
-            100 +
-            index * 220,
-        },
+        position:
+          positions?.[table.name] ?? {
+            x: 80,
+            y:
+              100 +
+              index * 220,
+          },
 
         data: {
           table,
@@ -424,17 +434,18 @@ function createNodes(
         dragHandle:
           ".model-canvas-drag-handle",
 
-        position: {
-          x:
-            500 +
-            columnIndex *
-              320,
+        position:
+          positions?.[table.name] ?? {
+            x:
+              500 +
+              columnIndex *
+                320,
 
-          y:
-            60 +
-            rowIndex *
-              180,
-        },
+            y:
+              60 +
+              rowIndex *
+                180,
+          },
 
         data: {
           table,
@@ -648,9 +659,13 @@ function DataModelCanvas({
     useMemo(
       () =>
         createNodes(
-          studio.tables
+          studio.tables,
+          studio.node_positions,
         ),
-      [studio.tables]
+      [
+        studio.tables,
+        studio.node_positions,
+      ]
     );
 
 
@@ -725,11 +740,13 @@ function DataModelCanvas({
   useEffect(() => {
     setNodes(
       createNodes(
-        studio.tables
+        studio.tables,
+        studio.node_positions,
       )
     );
   }, [
     studio.tables,
+    studio.node_positions,
     setNodes,
   ]);
 
@@ -1048,6 +1065,30 @@ function DataModelCanvas({
               setSelectedTableId(
                 node.id
               );
+
+              setSelectedRelationshipIndex(
+                null
+              );
+            }}
+
+            onNodeDragStop={async (
+              _event,
+              node,
+            ) => {
+              const nextPositions = {
+                ...(studio.node_positions ?? {}),
+                [node.id]: {
+                  x: node.position.x,
+                  y: node.position.y,
+                },
+              };
+
+              await onSaveStudio({
+                ...studio,
+                source: "user",
+                node_positions:
+                  nextPositions,
+              });
             }}
 
             onPaneClick={() => {
@@ -1075,6 +1116,10 @@ function DataModelCanvas({
               if (!Number.isNaN(index)) {
                 setSelectedRelationshipIndex(
                   index
+                );
+
+                setSelectedTableId(
+                  null
                 );
               }
             }}
@@ -1118,189 +1163,187 @@ function DataModelCanvas({
 
       </div>
 
-    </div>
-    
-    {selectedRelationshipIndex !== null &&
-      studio.relationships[
-        selectedRelationshipIndex
-      ] && (
-        <div
-          className="model-editor-backdrop"
-          role="presentation"
-        >
-          <section
-            className="model-editor-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Relationship details"
-          >
-            <header className="model-editor-header">
-              <div>
-                <span className="workspace-overview-label">
-                  RELATIONSHIP
-                </span>
-      
-                <h3>
-                  Relationship details
-                </h3>
-              </div>
-      
-              <button
-                type="button"
-                className="model-editor-close"
-                onClick={() =>
-                  setSelectedRelationshipIndex(
-                    null
-                  )
-                }
-              >
-                ×
-              </button>
-            </header>
-              
-            <div className="model-editor-body">
-              <div className="model-relationship-detail">
-                <span>From</span>
-              
-                <strong>
-                  {
-                    studio.relationships[
-                      selectedRelationshipIndex
-                    ].from_table
-                  }
-                  .
-                  {
-                    studio.relationships[
-                      selectedRelationshipIndex
-                    ].from_column
-                  }
-                </strong>
-              </div>
-                
-              <div className="model-relationship-detail">
-                <span>To</span>
-                
-                <strong>
-                  {
-                    studio.relationships[
-                      selectedRelationshipIndex
-                    ].to_table
-                  }
-                  .
-                  {
-                    studio.relationships[
-                      selectedRelationshipIndex
-                    ].to_column
-                  }
-                </strong>
-              </div>
-                
-              <div className="model-relationship-detail">
-                <span>Cardinality</span>
-                
-                <strong>
-                  {
-                    studio.relationships[
-                      selectedRelationshipIndex
-                    ].cardinality
-                  }
-                </strong>
-              </div>
-              <div className="model-relationship-detail">
-                <span>Status</span>
+      <aside className="model-inspector">
+        <div className="model-inspector-header">
+          <span className="workspace-overview-label">
+            INSPECTOR
+          </span>
 
-                <strong
-                  className={
-                    studio.relationships[
-                      selectedRelationshipIndex
-                    ].active
-                      ? "model-relationship-status active"
-                      : "model-relationship-status inactive"
-                  }
-                >
-                  {
-                    studio.relationships[
-                      selectedRelationshipIndex
-                    ].active
-                      ? "ACTIVE"
-                      : "INACTIVE"
-                  }
-                </strong>
+          <strong>
+            {selectedTableId
+              ? "Table"
+              : selectedRelationshipIndex !== null
+                ? "Relationship"
+                : "Selection"}
+          </strong>
+        </div>
+
+        {selectedTableId ? (() => {
+          const table =
+            studio.tables.find(
+              (item) =>
+                item.name === selectedTableId
+            );
+
+          if (!table) {
+            return (
+              <p className="model-inspector-empty">
+                Select a table or relationship.
+              </p>
+            );
+          }
+
+          const connectedRelationships =
+            studio.relationships.filter(
+              (relationship) =>
+                relationship.from_table === table.name ||
+                relationship.to_table === table.name
+            ).length;
+
+          return (
+            <div className="model-inspector-content">
+              <div className="model-inspector-detail">
+                <span>Name</span>
+                <strong>{table.name}</strong>
               </div>
-            </div>
-                
-            <footer className="model-editor-footer">
+
+              <div className="model-inspector-detail">
+                <span>Type</span>
+                <strong>{table.table_type}</strong>
+              </div>
+
+              <div className="model-inspector-detail">
+                <span>Columns</span>
+                <strong>{table.columns.length}</strong>
+              </div>
+
+              <div className="model-inspector-detail">
+                <span>Relationships</span>
+                <strong>{connectedRelationships}</strong>
+              </div>
+
+              <div className="model-inspector-columns">
+                {table.columns.map(
+                  (column) => (
+                    <div key={column.name}>
+                      <span>{column.name}</span>
+                      <small>
+                        {getRoleLabel(column.role)}
+                      </small>
+                    </div>
+                  )
+                )}
+              </div>
+
               <button
                 type="button"
                 className="model-canvas-action-button"
                 onClick={() => {
-                  setEditingRelationshipIndex(
-                    selectedRelationshipIndex
-                  );
-                
-                  setSelectedRelationshipIndex(
-                    null
-                  );
-                
-                  setRelationshipEditorOpen(
-                    true
+                  setEditingTableName(
+                    table.name
                   );
                 }}
               >
-                Edit relationship
-              </button>    
-                  
-              <button
-                type="button"
-                className="model-editor-cancel"
-                onClick={() =>
-                  setSelectedRelationshipIndex(
-                    null
-                  )
-                }
-              >
-                Cancel
+                Edit table
               </button>
-              
-              <button
-                type="button"
-                className="model-relationship-delete-button"
-                disabled={saving}
-                onClick={async () => {
-                  const updatedStudio = {
-                    ...studio,
-                  
-                    source:
-                      "user" as const,
-                  
-                    relationships:
-                      studio.relationships.filter(
-                        (
-                          _relationship,
-                          index,
-                        ) =>
-                          index !==
-                          selectedRelationshipIndex
-                      ),
-                  };
-                
-                  await onSaveStudio(
-                    updatedStudio
-                  );
-                
-                  setSelectedRelationshipIndex(
-                    null
-                  );
-                }}
-              >
-                {saving
-                  ? "Deleting..."
-                  : "Delete relationship"}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
+            </div>
+          );
+        })() : selectedRelationshipIndex !== null &&
+          studio.relationships[
+            selectedRelationshipIndex
+          ] ? (() => {
+            const relationship =
+              studio.relationships[
+                selectedRelationshipIndex
+              ];
+
+            return (
+              <div className="model-inspector-content">
+                <div className="model-inspector-detail">
+                  <span>From</span>
+                  <strong>
+                    {relationship.from_table}.
+                    {relationship.from_column}
+                  </strong>
+                </div>
+
+                <div className="model-inspector-detail">
+                  <span>To</span>
+                  <strong>
+                    {relationship.to_table}.
+                    {relationship.to_column}
+                  </strong>
+                </div>
+
+                <div className="model-inspector-detail">
+                  <span>Cardinality</span>
+                  <strong>
+                    {getRelationshipLabel(
+                      relationship.cardinality
+                    )}
+                  </strong>
+                </div>
+
+                <div className="model-inspector-detail">
+                  <span>Status</span>
+                  <strong>
+                    {relationship.active
+                      ? "Active"
+                      : "Inactive"}
+                  </strong>
+                </div>
+
+                <div className="model-inspector-actions">
+                  <button
+                    type="button"
+                    className="model-canvas-action-button"
+                    onClick={() => {
+                      setEditingRelationshipIndex(
+                        selectedRelationshipIndex
+                      );
+                      setRelationshipEditorOpen(
+                        true
+                      );
+                    }}
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    type="button"
+                    className="model-relationship-delete-button"
+                    disabled={saving}
+                    onClick={async () => {
+                      await onSaveStudio({
+                        ...studio,
+                        source: "user",
+                        relationships:
+                          studio.relationships.filter(
+                            (_item, index) =>
+                              index !==
+                              selectedRelationshipIndex
+                          ),
+                      });
+
+                      setSelectedRelationshipIndex(
+                        null
+                      );
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })() : (
+          <p className="model-inspector-empty">
+            Select a table or relationship on the canvas.
+          </p>
+        )}
+      </aside>
+
+    </div>
+    
 
 
 
