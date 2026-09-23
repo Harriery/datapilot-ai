@@ -21,6 +21,8 @@ from backend.app.models import (
     PersonalProjectKPIDefinition,
     PersonalProjectAnalysisResult,
     PersonalProjectDataModelPlan,
+    WorkspaceWorkbenchOperation,
+    WorkspacePipelineAction,
     
 )
 
