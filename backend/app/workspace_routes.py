@@ -2179,7 +2179,10 @@ def validate_workspace_result(
 
             workspace.analysis_plan = (
                 build_personal_analysis_plan(
-                    working_profile
+                    working_profile,
+                    dataset_filename=(
+                        workspace.dataset_filename
+                    ),
                 )
             )
 
