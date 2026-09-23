@@ -413,19 +413,64 @@ def validate_personal_kpi_definitions(
                     )
                 )
 
-            if definition.dimension:
-                if not any(
-                    column.name
-                    == definition.dimension
-                    for column
-                    in dimension_table.columns
-                ):
-                    raise ValueError(
-                        (
-                            "KPI dimension column not found: "
-                            f"{definition.dimension}"
-                        )
+            if not definition.dimension:
+                raise ValueError(
+                    (
+                        "KPI dimension column is required "
+                        "when dimension_table is selected."
                     )
+                )
+
+            if not any(
+                column.name
+                == definition.dimension
+                for column
+                in dimension_table.columns
+            ):
+                raise ValueError(
+                    (
+                        "KPI dimension column not found: "
+                        f"{definition.dimension}"
+                    )
+                )
+
+            connected = any(
+                relationship.active
+                and {
+                    relationship.from_table,
+                    relationship.to_table,
+                }
+                == {
+                    definition.fact_table,
+                    definition.dimension_table,
+                }
+                for relationship
+                in studio.relationships
+            )
+
+            if not connected:
+                raise ValueError(
+                    (
+                        "KPI dimension table is not "
+                        "actively related to fact table: "
+                        f"{definition.dimension_table}"
+                    )
+                )
+
+        if (
+            definition.filter_value
+            is not None
+            and (
+                not definition.dimension_table
+                or not definition.dimension
+            )
+        ):
+            raise ValueError(
+                (
+                    "KPI filter context requires "
+                    "a dimension table and column."
+                )
+            )
 
         formula = (
             f"{definition.aggregation.upper()}"
