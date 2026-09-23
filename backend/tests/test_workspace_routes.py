@@ -23,6 +23,7 @@ from backend.app.models import (
     PersonalProjectDataModelPlan,
     WorkspaceWorkbenchOperation,
     WorkspacePipelineAction,
+    WorkspaceProcessedDataset,
     
 )
 
@@ -2069,6 +2070,15 @@ def test_build_personal_data_model_completes_deliverable(
 
     workspace.dataset_filename = (
         "test_quality.csv"
+    )
+
+    workspace.validation_result = (
+        WorkspaceValidationResponse(
+            passed=True,
+            source_row_count=2,
+            working_row_count=2,
+            checks=[],
+        )
     )
 
     workspace.analysis_plan = (
