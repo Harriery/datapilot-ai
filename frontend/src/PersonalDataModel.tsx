@@ -9,33 +9,7 @@ type PersonalDataModelPlan = {
 
   base_table: string;
   grain: string;
-
-  dimensions: string[];
-
-  time_dimension: string | null;
-
-  measures: {
-    code: string;
-    title: string;
-    column: string | null;
-
-    aggregation:
-      | "count"
-      | "sum"
-      | "mean"
-      | "min"
-      | "max"
-      | null;
-
-    dimension: string | null;
-  }[];
-
-  recommended_dimension_tables: string[];
-
-  source: "local";
 };
-
-
 
 type PersonalDataModelProps = {
   dataModelPlan:
@@ -44,7 +18,7 @@ type PersonalDataModelProps = {
     | undefined;
 
   dataModelStudio:
-    | PersonalDataModelStudio
+    | DataModelStudioData
     | null
     | undefined;
 
@@ -52,60 +26,14 @@ type PersonalDataModelProps = {
   error: string | null;
 
   onBuild: () => void;
+
   onSaveStudio: (
     studio: DataModelStudioData
   ) => Promise<void>;
 
+  onExport: () => void;
+
   studioSaving: boolean;
-};
-
-type PersonalDataModelStudio = {
-  tables: {
-    name: string;
-
-    table_type:
-      | "fact"
-      | "dimension"
-      | "bridge";
-
-    columns: {
-      name: string;
-      source_column: string | null;
-
-      role:
-        | "key"
-        | "foreign_key"
-        | "dimension"
-        | "measure"
-        | "attribute"
-        | "time";
-
-      aggregation:
-        | "count"
-        | "sum"
-        | "mean"
-        | "min"
-        | "max"
-        | null;
-    }[];
-  }[];
-
-  relationships: {
-    from_table: string;
-    from_column: string;
-
-    to_table: string;
-    to_column: string;
-
-    cardinality:
-      | "many_to_one"
-      | "one_to_many"
-      | "one_to_one";
-
-    active: boolean;
-  }[];
-
-  source: "local" | "user";
 };
 
 function PersonalDataModel({
@@ -115,8 +43,36 @@ function PersonalDataModel({
   error,
   onBuild,
   onSaveStudio,
+  onExport,
   studioSaving,
 }: PersonalDataModelProps) {
+  const tableCount =
+    dataModelStudio?.tables.length ?? 0;
+
+  const factCount =
+    dataModelStudio?.tables.filter(
+      (table) =>
+        table.table_type === "fact"
+    ).length ?? 0;
+
+  const dimensionCount =
+    dataModelStudio?.tables.filter(
+      (table) =>
+        table.table_type === "dimension"
+    ).length ?? 0;
+
+  const bridgeCount =
+    dataModelStudio?.tables.filter(
+      (table) =>
+        table.table_type === "bridge"
+    ).length ?? 0;
+
+  const activeRelationshipCount =
+    dataModelStudio?.relationships.filter(
+      (relationship) =>
+        relationship.active
+    ).length ?? 0;
+
   return (
     <section className="personal-data-model-card">
       <div className="personal-data-model-header">
@@ -126,28 +82,40 @@ function PersonalDataModel({
           </span>
 
           <h2>
-            Build analytical data model
+            Design the logical data model
           </h2>
 
           <p>
-            Create a local analytical model from
-            the validated dataset and analysis
-            structure before defining final KPIs.
+            Define tables, roles and relationships.
+            This stage changes model metadata only;
+            dataset values remain untouched.
           </p>
         </div>
 
-        {!dataModelPlan && (
-          <button
-            type="button"
-            className="new-workspace-button"
-            disabled={loading}
-            onClick={onBuild}
-          >
-            {loading
-              ? "Building model..."
-              : "Build data model"}
-          </button>
-        )}
+        <div className="personal-data-model-header-actions">
+          {dataModelStudio && (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={onExport}
+            >
+              Export JSON
+            </button>
+          )}
+
+          {!dataModelPlan && (
+            <button
+              type="button"
+              className="new-workspace-button"
+              disabled={loading}
+              onClick={onBuild}
+            >
+              {loading
+                ? "Building model..."
+                : "Build data model"}
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -160,19 +128,23 @@ function PersonalDataModel({
         <div className="personal-data-model-result">
           <div className="personal-data-model-summary">
             <div>
-              <span>Model type</span>
+              <span>Tables</span>
               <strong>
-                {dataModelPlan.model_type ===
-                "star_schema_candidate"
-                  ? "Star schema candidate"
-                  : "Single table"}
+                {tableCount}
               </strong>
             </div>
 
             <div>
-              <span>Base table</span>
+              <span>Fact / Dim / Bridge</span>
               <strong>
-                {dataModelPlan.base_table}
+                {factCount} / {dimensionCount} / {bridgeCount}
+              </strong>
+            </div>
+
+            <div>
+              <span>Active relationships</span>
+              <strong>
+                {activeRelationshipCount}
               </strong>
             </div>
 
@@ -184,132 +156,30 @@ function PersonalDataModel({
             </div>
           </div>
 
-          <div className="personal-data-model-section">
-            <h3>Dimensions</h3>
-
-            {dataModelPlan.dimensions.length >
-            0 ? (
-              <div className="personal-analysis-tags">
-                {dataModelPlan.dimensions.map(
-                  (dimension) => (
-                    <span key={dimension}>
-                      {dimension}
-                    </span>
-                  )
-                )}
-              </div>
-            ) : (
-              <p>
-                No dimensions selected from the
-                confirmed KPIs.
-              </p>
-            )}
-          </div>
-
-          {dataModelPlan.time_dimension && (
-            <div className="personal-data-model-section">
-              <h3>Time dimension</h3>
-
-              <div className="personal-analysis-tags">
-                <span>
-                  {
-                    dataModelPlan.time_dimension
-                  }
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="personal-data-model-section">
-            <h3>Measures</h3>
-
-            <div className="personal-data-model-measures">
-              {dataModelPlan.measures.map(
-                (measure) => (
-                  <div
-                    key={measure.code}
-                    className="personal-data-model-measure"
-                  >
-                    <div>
-                      <strong>
-                        {measure.title}
-                      </strong>
-
-                      <span>
-                        {measure.aggregation ??
-                         "Source measure"}
-                      </span>
-                    </div>
-
-                    <p>
-                      Column:{" "}
-                      {measure.column ?? "—"}
-                    </p>
-
-                    {measure.dimension && (
-                      <p>
-                        Dimension:{" "}
-                        {measure.dimension}
-                      </p>
-                    )}
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-
-          <div className="personal-data-model-section">
-            <h3>
-              Recommended dimension tables
-            </h3>
-
-            {dataModelPlan
-              .recommended_dimension_tables
-              .length > 0 ? (
-              <div className="personal-analysis-tags">
-                {dataModelPlan
-                  .recommended_dimension_tables
-                  .map((table) => (
-                    <span key={table}>
-                      {table}
-                    </span>
-                  ))}
-              </div>
-            ) : (
-              <p>
-                No separate dimension tables are
-                currently recommended.
-              </p>
-            )}
-          </div>
-
           {dataModelStudio ? (
             <div className="personal-data-model-studio">
               <div className="personal-data-model-studio-header">
-
                 <div>
                   <span className="personal-analysis-plan-source">
                     MODEL STUDIO
                   </span>
-                    
+
                   <h3>
-                    Tables and relationships
+                    Logical model canvas
                   </h3>
-                    
+
                   <p>
-                    This is the logical analytical model
-                    built from the validated dataset and
-                    analysis structure.
+                    The summary above is generated from
+                    the current editable studio state.
                   </p>
                 </div>
               </div>
-              
+
               <DataModelCanvas
                 studio={dataModelStudio}
                 onSaveStudio={onSaveStudio}
                 saving={studioSaving}
               />
-              
             </div>
           ) : (
             <div className="personal-data-model-studio-empty">
@@ -317,13 +187,13 @@ function PersonalDataModel({
                 <strong>
                   Data Model Studio is not initialized yet.
                 </strong>
-          
+
                 <p>
-                  Initialize it from the existing data
-                  model plan.
+                  Initialize it from the current
+                  model-discovery result.
                 </p>
               </div>
-          
+
               <button
                 type="button"
                 className="new-workspace-button"
@@ -339,8 +209,8 @@ function PersonalDataModel({
 
           {dataModelStudio && (
             <div className="personal-data-model-ready">
-              ✓ Data model and model studio created
-              locally. Ready for the next stage.
+              ✓ Logical model is persisted and ready
+              for KPI definition.
             </div>
           )}
         </div>
