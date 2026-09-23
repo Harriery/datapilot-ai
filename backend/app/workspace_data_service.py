@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from uuid import UUID
 
@@ -34,6 +35,22 @@ def _get_workspace_data_dir(
         WORKSPACE_DATA_ROOT
         / safe_workspace_id
     )
+
+
+def delete_workspace_data(
+    workspace_id: str,
+) -> None:
+    workspace_dir = (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+    )
+
+    if workspace_dir.exists():
+        shutil.rmtree(
+            workspace_dir,
+            ignore_errors=True,
+        )
 
 
 def save_workspace_dataset(
