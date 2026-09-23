@@ -47,13 +47,15 @@ function WorkbenchColumnInspector({
 
   if (!column) return null;
 
+  const selectedColumn = column;
+
   async function handlePrepare() {
     setError(null);
 
     try {
       const draft: ColumnActionDraft = {
         action,
-        column,
+        column: selectedColumn,
         newName,
         dataType,
         fillStrategy,
