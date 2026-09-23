@@ -14,6 +14,10 @@ type WorkspaceStageNavigationProps = {
     stage: PersonalWorkspaceStage
   ) => WorkspaceStageStatus;
 
+  getPrepareStageStatus: (
+    stage: PrepareStage
+  ) => WorkspaceStageStatus;
+
   onStageChange: (
     stage: PersonalWorkspaceStage
   ) => void;
@@ -27,6 +31,7 @@ function WorkspaceStageNavigation({
   activeStage,
   activePrepareStage,
   getStageStatus,
+  getPrepareStageStatus,
   onStageChange,
   onPrepareStageChange,
 }: WorkspaceStageNavigationProps) {
@@ -115,12 +120,18 @@ function WorkspaceStageNavigation({
                       activePrepareStage ===
                       stage.code;
 
+                    const status =
+                      getPrepareStageStatus(
+                        stage.code
+                      );
+
                     return (
                       <button
                         key={stage.code}
                         type="button"
                         className={[
                           "workspace-stage-subnav-button",
+                          `status-${status}`,
                           isActive
                             ? "active"
                             : "",
@@ -133,6 +144,9 @@ function WorkspaceStageNavigation({
                             index * 55
                           }ms`,
                         }}
+                        disabled={
+                          status === "locked"
+                        }
                         onClick={() =>
                           onPrepareStageChange(
                             stage.code
