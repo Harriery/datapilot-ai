@@ -859,16 +859,6 @@ df["age"] = df["age"].fillna(median_age)`);
   ] = useState(1000);
 
   const [
-    developmentSampleLoading,
-    setDevelopmentSampleLoading,
-  ] = useState(false);
-
-  const [
-    developmentSampleError,
-    setDevelopmentSampleError,
-  ] = useState<string | null>(null);
-
-  const [
     fullPipelineLoading,
     setFullPipelineLoading,
   ] = useState(false);
@@ -1837,6 +1827,13 @@ async function uploadWorkspaceData(
 
       formData.append("file", file);
 
+      formData.append(
+        "development_sample_size",
+        String(
+          developmentSampleSize
+        )
+      );
+
       const response = await fetch(
         `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/profile`,
         {
@@ -1909,150 +1906,6 @@ async function uploadWorkspaceData(
       setWorkspaceDataLoading(false);
     }
   }
-
-async function createDevelopmentSample() {
-  if (!workspaceId) {
-    return;
-  }
-
-  setDevelopmentSampleLoading(
-    true
-  );
-
-  setDevelopmentSampleError(
-    null
-  );
-
-  try {
-    const response = await fetch(
-      (
-        "http://127.0.0.1:8000" +
-        `/workspaces/demo-learner/${workspaceId}` +
-        "/development-sample"
-      ),
-      {
-        method: "POST",
-
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-
-        body: JSON.stringify({
-          sample_size:
-            developmentSampleSize,
-
-          strategy:
-            "random",
-
-          random_seed:
-            42,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData =
-        await response.json();
-
-      throw new Error(
-        errorData.detail ||
-          "Development sample oluşturulamadı."
-      );
-    }
-
-    await response.json();
-
-    const [
-      workspaceResponse,
-      workingResponse,
-    ] = await Promise.all([
-      fetch(
-        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
-      ),
-      fetch(
-        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/working`
-      ),
-    ]);
-
-    if (
-      !workspaceResponse.ok ||
-      !workingResponse.ok
-    ) {
-      throw new Error(
-        "Sample oluşturuldu fakat workspace yenilenemedi."
-      );
-    }
-
-    const updatedWorkspace:
-      DashboardWorkspace =
-        await workspaceResponse.json();
-
-    const updatedWorking:
-      WorkspaceWorkingData =
-        await workingResponse.json();
-
-    setDashboardWorkspace(
-      updatedWorkspace
-    );
-
-    setDashboardWorkspaces(
-      (previous) =>
-        previous.map(
-          (workspace) =>
-            workspace.workspace_id ===
-            updatedWorkspace.workspace_id
-              ? updatedWorkspace
-              : workspace
-        )
-    );
-
-    setWorkspaceWorkingData(
-      updatedWorking
-    );
-
-    setWorkspaceTask(
-      null
-    );
-
-    setWorkspaceValidation(
-      null
-    );
-
-    setResultRows(
-      null
-    );
-
-    setPreparedPipelineAction(
-      null
-    );
-
-    setPreparedPipelineCode(
-      null
-    );
-
-    setWorkspacePreviewRevision(
-      (previous) =>
-        previous + 1
-    );
-
-    await loadWorkspaceVersions(
-      workspaceId
-    );
-
-  } catch (error) {
-    setDevelopmentSampleError(
-      error instanceof Error
-        ? error.message
-        : "Development sample oluşturulamadı."
-    );
-  } finally {
-    setDevelopmentSampleLoading(
-      false
-    );
-  }
-}
-
 
 async function applyPipelineToFullDataset() {
   if (!workspaceId) {
@@ -5668,47 +5521,56 @@ async function restoreWorkspaceVersion(
                               before creating the execution plan.
                             </p>
                         
-                            <label className="new-workspace-button workspace-upload-label">
-                              <Plus
-                                size={17}
-                                aria-hidden="true"
-                              />
+                            <div className="workspace-upload-settings">
+                              <label>
+                                <span>
+                                  Development rows
+                                </span>
 
-                              {workspaceDataLoading
-                                ? "Profiling..."
-                                : "Attach CSV"}
+                                <select
+                                  value={
+                                    developmentSampleSize
+                                  }
+                                  disabled={
+                                    workspaceDataLoading
+                                  }
+                                  onChange={(event) => {
+                                    setDevelopmentSampleSize(
+                                      Number(
+                                        event.target.value
+                                      )
+                                    );
+                                  }}
+                                >
+                                  <option value={1000}>
+                                    1,000 rows
+                                  </option>
+                                  <option value={2500}>
+                                    2,500 rows
+                                  </option>
+                                  <option value={5000}>
+                                    5,000 rows
+                                  </option>
+                                  <option value={0}>
+                                    Full dataset
+                                  </option>
+                                </select>
 
-                              <input
-                                type="file"
-                                accept=".csv,text/csv"
-                                disabled={workspaceDataLoading}
-                                onChange={(event) => {
-                                  const file =
-                                    event.target.files?.[0] ?? null;
-                                
-                                  void uploadWorkspaceData(file);
-                                
-                                  event.currentTarget.value = "";
-                                }}
-                              />
-                            </label>
-                          </>
-                        ) : (
-                          <>
-                            <div className="workspace-dataset-heading">
-                              <div>
-                                <h3>
-                                  {workspaceDataProfile.filename}
-                                </h3>
-                        
-                                <p>
-                                  {t.workspace.datasetProfiled}
-                                </p>
-                              </div>
-                        
-                              <label className="workspace-replace-data">
-                                {t.workspace.replaceCsv}
-                        
+                                <small>
+                                  Raw CSV stays complete. Workbench starts with this many rows.
+                                </small>
+                              </label>
+
+                              <label className="new-workspace-button workspace-upload-label">
+                                <Plus
+                                  size={17}
+                                  aria-hidden="true"
+                                />
+
+                                {workspaceDataLoading
+                                  ? "Profiling..."
+                                  : "Attach CSV"}
+
                                 <input
                                   type="file"
                                   accept=".csv,text/csv"
@@ -5723,6 +5585,75 @@ async function restoreWorkspaceVersion(
                                   }}
                                 />
                               </label>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="workspace-dataset-heading">
+                              <div>
+                                <h3>
+                                  {workspaceDataProfile.filename}
+                                </h3>
+                        
+                                <p>
+                                  {t.workspace.datasetProfiled}
+                                </p>
+                              </div>
+                        
+                              <div className="workspace-replace-controls">
+                                <label className="workspace-replace-sample">
+                                  <span>
+                                    Development rows
+                                  </span>
+
+                                  <select
+                                    value={
+                                      developmentSampleSize
+                                    }
+                                    disabled={
+                                      workspaceDataLoading
+                                    }
+                                    onChange={(event) => {
+                                      setDevelopmentSampleSize(
+                                        Number(
+                                          event.target.value
+                                        )
+                                      );
+                                    }}
+                                  >
+                                    <option value={1000}>
+                                      1,000
+                                    </option>
+                                    <option value={2500}>
+                                      2,500
+                                    </option>
+                                    <option value={5000}>
+                                      5,000
+                                    </option>
+                                    <option value={0}>
+                                      Full
+                                    </option>
+                                  </select>
+                                </label>
+
+                                <label className="workspace-replace-data">
+                                  {t.workspace.replaceCsv}
+                          
+                                  <input
+                                    type="file"
+                                    accept=".csv,text/csv"
+                                    disabled={workspaceDataLoading}
+                                    onChange={(event) => {
+                                      const file =
+                                        event.target.files?.[0] ?? null;
+                                    
+                                      void uploadWorkspaceData(file);
+                                    
+                                      event.currentTarget.value = "";
+                                    }}
+                                  />
+                                </label>
+                              </div>
                             </div>
                                 
                             <div className="workspace-profile-layout">
@@ -5863,75 +5794,20 @@ async function restoreWorkspaceVersion(
                               </div>
                             </div>
 
-                            <div className="development-sample-card">
-                              <div>
-                                <span className="workspace-overview-label">
-                                  DEVELOPMENT SAMPLE
-                                </span>
+                            <div className="workspace-sample-status">
+                              <span className="workspace-overview-label">
+                                WORKING DATASET
+                              </span>
 
-                                <strong>
-                                  {dashboardWorkspace
-                                    .development_sample_enabled
-                                    ? `${dashboardWorkspace.development_sample_row_count ?? 0} sampled rows`
-                                    : "Full dataset is currently the working dataset"}
-                                </strong>
+                              <strong>
+                                {dashboardWorkspace.development_sample_enabled
+                                  ? `${dashboardWorkspace.development_sample_row_count ?? 0} development rows from ${workspaceDataProfile.profile.row_count} source rows`
+                                  : `Full dataset · ${workspaceDataProfile.profile.row_count} rows`}
+                              </strong>
 
-                                <p>
-                                  Build transformations on a reproducible random sample while the raw source stays unchanged.
-                                </p>
-                              </div>
-
-                              <div className="development-sample-actions">
-                                <label>
-                                  <span>
-                                    Sample size
-                                  </span>
-
-                                  <select
-                                    value={
-                                      developmentSampleSize
-                                    }
-                                    onChange={(event) => {
-                                      setDevelopmentSampleSize(
-                                        Number(
-                                          event.target.value
-                                        )
-                                      );
-                                    }}
-                                  >
-                                    <option value={1000}>
-                                      1,000 rows
-                                    </option>
-                                    <option value={2500}>
-                                      2,500 rows
-                                    </option>
-                                    <option value={5000}>
-                                      5,000 rows
-                                    </option>
-                                  </select>
-                                </label>
-
-                                <button
-                                  type="button"
-                                  className="new-workspace-button"
-                                  disabled={
-                                    developmentSampleLoading
-                                  }
-                                  onClick={() => {
-                                    void createDevelopmentSample();
-                                  }}
-                                >
-                                  {developmentSampleLoading
-                                    ? "Creating..."
-                                    : "Create random sample"}
-                                </button>
-                              </div>
-
-                              {developmentSampleError && (
-                                <div className="workspace-form-error">
-                                  {developmentSampleError}
-                                </div>
-                              )}
+                              <span>
+                                Raw source remains unchanged and is used again when the pipeline is applied to the full dataset.
+                              </span>
                             </div>
 
                             <DataPreview
