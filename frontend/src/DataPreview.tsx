@@ -138,6 +138,7 @@ function DataPreview({
     learnerId,
     workspaceId,
     query,
+    refreshToken,
   ]);
 
   function submitSearch() {
