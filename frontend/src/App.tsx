@@ -148,6 +148,11 @@ type WorkbenchOperationData = {
   expected_columns: string[];
 
   code: string | null;
+
+  pipeline_action:
+    | WorkbenchPipelineActionData
+    | null;
+
   result_version_id: string | null;
 };
 
@@ -830,6 +835,16 @@ df["age"] = df["age"].fillna(median_age)`);
   const [
     developmentSampleError,
     setDevelopmentSampleError,
+  ] = useState<string | null>(null);
+
+  const [
+    fullPipelineLoading,
+    setFullPipelineLoading,
+  ] = useState(false);
+
+  const [
+    fullPipelineError,
+    setFullPipelineError,
   ] = useState<string | null>(null);
   
   const [
@@ -1873,6 +1888,124 @@ async function createDevelopmentSample() {
     );
   } finally {
     setDevelopmentSampleLoading(
+      false
+    );
+  }
+}
+
+
+async function applyPipelineToFullDataset() {
+  if (!workspaceId) {
+    return;
+  }
+
+  setFullPipelineLoading(
+    true
+  );
+
+  setFullPipelineError(
+    null
+  );
+
+  try {
+    const response = await fetch(
+      (
+        "http://127.0.0.1:8000" +
+        `/workspaces/demo-learner/${workspaceId}` +
+        "/apply-pipeline-full"
+      ),
+      {
+        method: "POST",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Pipeline full dataset'e uygulanamadı."
+      );
+    }
+
+    await response.json();
+
+    const workspaceResponse =
+      await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+      );
+
+    if (!workspaceResponse.ok) {
+      throw new Error(
+        "Full pipeline tamamlandı fakat workspace yenilenemedi."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await workspaceResponse.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+    setWorkspaceWorkingData(
+      null
+    );
+
+    setWorkspaceValidation(
+      null
+    );
+
+    setResultRows(
+      null
+    );
+
+    setPreparedPipelineAction(
+      null
+    );
+
+    setPreparedPipelineCode(
+      null
+    );
+
+    setSelectedWorkbenchColumn(
+      null
+    );
+
+    setWorkspacePreviewRevision(
+      (previous) =>
+        previous + 1
+    );
+
+    await loadWorkspaceVersions(
+      workspaceId
+    );
+
+    setActivePrepareStage(
+      "validate"
+    );
+
+  } catch (error) {
+    setFullPipelineError(
+      error instanceof Error
+        ? error.message
+        : "Pipeline full dataset'e uygulanamadı."
+    );
+  } finally {
+    setFullPipelineLoading(
       false
     );
   }
@@ -5607,6 +5740,70 @@ async function restoreWorkspaceVersion(
                             </div>
                           )}
 
+
+                          {dashboardWorkspace
+                            .development_sample_enabled && (
+                              <div className="full-pipeline-card">
+                                <div>
+                                  <span className="workspace-overview-label">
+                                    FULL DATASET PIPELINE
+                                  </span>
+
+                                  <strong>
+                                    Apply validated structured steps to the full source dataset
+                                  </strong>
+
+                                  <p>
+                                    DataPilot replays only completed structured column actions server-side. Custom or edited Python is intentionally blocked.
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  className="new-workspace-button"
+                                  disabled={
+                                    fullPipelineLoading ||
+                                    !dashboardWorkspace
+                                      .workbench_operations
+                                      ?.length ||
+                                    dashboardWorkspace
+                                      .workbench_operations
+                                      ?.some(
+                                        (operation) =>
+                                          operation.status !==
+                                            "completed" ||
+                                          !operation.pipeline_action
+                                      )
+                                  }
+                                  onClick={() => {
+                                    void applyPipelineToFullDataset();
+                                  }}
+                                >
+                                  {fullPipelineLoading
+                                    ? "Applying..."
+                                    : "Apply pipeline to full dataset"}
+                                </button>
+
+                                {dashboardWorkspace
+                                  .workbench_operations
+                                  ?.some(
+                                    (operation) =>
+                                      operation.status !==
+                                        "completed" ||
+                                      !operation.pipeline_action
+                                  ) && (
+                                    <span className="full-pipeline-blocker">
+                                      Finish every Workbench step and keep generated column-action code unchanged before full replay.
+                                    </span>
+                                  )}
+
+                                {fullPipelineError && (
+                                  <div className="workspace-form-error">
+                                    {fullPipelineError}
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                           {workspaceWorkingDataLoading ? (
                             <p className="muted">
