@@ -1,6 +1,7 @@
 import type {
   WorkbenchOperationCreateData,
   WorkbenchOperationType,
+  WorkbenchPipelineActionData,
 } from "./AddTransformationModal";
 
 export type ColumnActionKind =
@@ -28,22 +29,48 @@ export type ColumnActionDraft = {
 export type PreparedColumnAction = {
   operation: WorkbenchOperationCreateData;
   code: string;
+  pipelineAction:
+    WorkbenchPipelineActionData;
 };
 
 function pyString(value: string): string {
   return JSON.stringify(value);
 }
 
-function pyLiteral(value: string): string {
+function parseLiteral(
+  value: string
+): string | number | boolean | null {
   const trimmed = value.trim();
 
-  if (!trimmed) return '""';
-  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return trimmed;
-  if (trimmed.toLowerCase() === "true") return "True";
-  if (trimmed.toLowerCase() === "false") return "False";
-  if (["none", "null"].includes(trimmed.toLowerCase())) return "None";
+  if (!trimmed) return "";
 
-  return pyString(trimmed);
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+
+  if (trimmed.toLowerCase() === "true") {
+    return true;
+  }
+
+  if (trimmed.toLowerCase() === "false") {
+    return false;
+  }
+
+  if (["none", "null"].includes(trimmed.toLowerCase())) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function pyLiteral(value: string): string {
+  const parsed = parseLiteral(value);
+
+  if (parsed === null) return "None";
+  if (typeof parsed === "number") return String(parsed);
+  if (typeof parsed === "boolean") return parsed ? "True" : "False";
+
+  return pyString(parsed);
 }
 
 function operationTypeFor(
@@ -74,6 +101,12 @@ export function prepareColumnAction(
   let code = "";
   let expectedColumns = [column];
 
+  const pipelineAction:
+    WorkbenchPipelineActionData = {
+      action: draft.action,
+      column,
+    };
+
   if (draft.action === "rename") {
     const newName = draft.newName?.trim();
 
@@ -85,6 +118,7 @@ export function prepareColumnAction(
     goal = "Rename the column without changing its values.";
     code = `df = df.rename(columns={${pyString(column)}: ${pyString(newName)}})`;
     expectedColumns = [newName];
+    pipelineAction.new_name = newName;
   }
 
   if (draft.action === "remove") {
@@ -110,6 +144,8 @@ export function prepareColumnAction(
     };
 
     code = targetCode[draft.dataType];
+    pipelineAction.data_type =
+      draft.dataType;
   }
 
   if (draft.action === "fill_missing") {
@@ -129,6 +165,16 @@ export function prepareColumnAction(
     };
 
     code = strategyCode[draft.fillStrategy];
+
+    pipelineAction.fill_strategy =
+      draft.fillStrategy;
+
+    if (draft.fillStrategy === "value") {
+      pipelineAction.fill_value =
+        parseLiteral(
+          draft.fillValue ?? ""
+        );
+    }
   }
 
   if (draft.action === "replace_values") {
@@ -139,6 +185,12 @@ export function prepareColumnAction(
     title = `Replace values in ${column}`;
     goal = `Replace a specific value in ${column} while preserving other values.`;
     code = `df[${pyString(column)}] = df[${pyString(column)}].replace(${pyLiteral(draft.oldValue)}, ${pyLiteral(draft.newValue)})`;
+
+    pipelineAction.old_value =
+      parseLiteral(draft.oldValue);
+
+    pipelineAction.new_value =
+      parseLiteral(draft.newValue);
   }
 
   if (draft.action === "derived") {
@@ -153,6 +205,12 @@ export function prepareColumnAction(
     goal = `Create ${derivedName} from ${column} using a reusable transformation.`;
     expectedColumns = [column, derivedName];
 
+    pipelineAction.derived_name =
+      derivedName;
+
+    pipelineAction.derived_operation =
+      operation;
+
     if (operation === "copy") {
       code = `df[${pyString(derivedName)}] = df[${pyString(column)}]`;
     } else if (operation === "uppercase") {
@@ -162,6 +220,11 @@ export function prepareColumnAction(
     } else {
       const operator = operation === "add" ? "+" : "*";
       code = `df[${pyString(derivedName)}] = df[${pyString(column)}] ${operator} ${pyLiteral(draft.derivedValue ?? "")}`;
+
+      pipelineAction.derived_value =
+        parseLiteral(
+          draft.derivedValue ?? ""
+        );
     }
   }
 
@@ -176,7 +239,10 @@ export function prepareColumnAction(
       operation_type: operationTypeFor(draft.action),
       source_columns: [column],
       expected_columns: expectedColumns,
+      pipeline_action:
+        pipelineAction,
     },
     code,
+    pipelineAction,
   };
 }
