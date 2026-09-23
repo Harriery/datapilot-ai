@@ -4226,3 +4226,101 @@ def test_save_personal_kpi_builder_definitions(
         ]["status"]
         == "in_progress"
     )
+
+
+
+def test_delete_workspace_removes_workspace_and_session(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Delete Me",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace = create_response.json()
+
+    workspace_id = workspace[
+        "workspace_id"
+    ]
+
+    session_id = workspace[
+        "mentor_session_id"
+    ]
+
+    assert (
+        database.get_session_by_id(
+            session_id
+        )
+        is not None
+    )
+
+    deleted_data = {
+        "workspace_id": None,
+    }
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "delete_workspace_data",
+        lambda workspace_id: (
+            deleted_data.update(
+                {
+                    "workspace_id":
+                        workspace_id
+                }
+            )
+        ),
+    )
+
+    response = client.delete(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert response.status_code == 204
+
+    assert (
+        database.get_workspace(
+            workspace_id=workspace_id,
+            learner_id="learner-001",
+        )
+        is None
+    )
+
+    assert (
+        database.get_session_by_id(
+            session_id
+        )
+        is None
+    )
+
+    assert (
+        deleted_data[
+            "workspace_id"
+        ]
+        == workspace_id
+    )
+
+    missing_response = client.delete(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert (
+        missing_response.status_code
+        == 404
+    )
