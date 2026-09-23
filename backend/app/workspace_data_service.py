@@ -155,6 +155,65 @@ def save_workspace_working_dataframe(
     )
 
 
+def save_workspace_processed_dataset(
+    workspace_id: str,
+    dataset_id: str,
+    df: pd.DataFrame,
+) -> None:
+    processed_dir = (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+        / "processed_datasets"
+    )
+
+    processed_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    final_path = (
+        processed_dir
+        / f"{dataset_id}.csv"
+    )
+
+    temporary_path = (
+        processed_dir
+        / f"{dataset_id}.tmp.csv"
+    )
+
+    df.to_csv(
+        temporary_path,
+        index=False,
+    )
+
+    temporary_path.replace(
+        final_path
+    )
+
+
+def load_workspace_processed_dataset(
+    workspace_id: str,
+    dataset_id: str,
+) -> pd.DataFrame:
+    path = (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+        / "processed_datasets"
+        / f"{dataset_id}.csv"
+    )
+
+    if not path.exists():
+        raise FileNotFoundError(
+            "Processed dataset bulunamadı."
+        )
+
+    return pd.read_csv(
+        path
+    )
+
+
 def clear_workspace_versions(
     workspace_id: str,
 ) -> None:
