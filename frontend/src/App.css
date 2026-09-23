@@ -9494,3 +9494,251 @@
   font-size: 10px;
   line-height: 1.45;
 }
+
+/* ==================================================
+   MODEL DISCOVERY / UNDERSTAND
+   ================================================== */
+
+.understanding-card {
+  display: grid;
+  gap: 16px;
+}
+
+.understanding-card .personal-analysis-plan-header {
+  margin-bottom: 0;
+}
+
+.understanding-model-summary {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 1.2fr)
+    auto
+    minmax(220px, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dce6f1;
+  border-radius: 11px;
+  background: #f8fbff;
+}
+
+.understanding-model-summary-main strong {
+  display: block;
+  color: #203a59;
+  font-size: 16px;
+}
+
+.understanding-model-summary-main p {
+  margin: 4px 0 0;
+  color: #667c96;
+  font-size: 11px;
+}
+
+.understanding-confidence {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.understanding-confidence > span {
+  color: #8595a9;
+  font-size: 9px;
+}
+
+.understanding-confidence strong,
+.understanding-column-confidence {
+  width: fit-content;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.confidence-high {
+  background: #e7f7ee;
+  color: #287c55;
+}
+
+.confidence-medium {
+  background: #fff4dd;
+  color: #9a691d;
+}
+
+.confidence-low {
+  background: #eef2f6;
+  color: #6f7f91;
+}
+
+.understanding-dimension-suggestions {
+  min-width: 0;
+}
+
+.understanding-reasoning {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 0 0 18px;
+  border-top: 1px solid #e3eaf2;
+  color: #687d96;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.understanding-candidate-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.understanding-candidate-group {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e0e8f2;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.understanding-columns {
+  display: grid;
+  gap: 9px;
+}
+
+.understanding-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.understanding-section-header strong {
+  display: block;
+  color: #2c4058;
+  font-size: 12px;
+}
+
+.understanding-section-header > span {
+  color: #8a98aa;
+  font-size: 9px;
+}
+
+.understanding-column-list {
+  display: grid;
+  gap: 6px;
+}
+
+.understanding-column-row {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, 0.9fr)
+    minmax(180px, 1.2fr)
+    minmax(130px, 0.9fr)
+    minmax(220px, 1.5fr)
+    auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid #e3eaf2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.understanding-column-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.understanding-column-identity strong {
+  overflow: hidden;
+  color: #2c4058;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.understanding-column-identity span,
+.understanding-column-metrics span,
+.understanding-column-evidence span {
+  color: #7b8da4;
+  font-size: 9px;
+}
+
+.understanding-column-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.understanding-column-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.understanding-role {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #edf5ff;
+  color: #2f73c5;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.understanding-role.muted-role {
+  background: #f1f3f6;
+  color: #8290a1;
+}
+
+.understanding-column-evidence {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.understanding-column-evidence span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+  .understanding-candidate-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .understanding-column-row {
+    grid-template-columns:
+      minmax(130px, 1fr)
+      minmax(160px, 1fr)
+      minmax(120px, 1fr)
+      auto;
+  }
+
+  .understanding-column-evidence {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .understanding-model-summary,
+  .understanding-candidate-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .understanding-confidence {
+    align-items: flex-start;
+  }
+
+  .understanding-column-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .understanding-column-metrics,
+  .understanding-column-roles,
+  .understanding-column-evidence {
+    grid-column: 1 / -1;
+  }
+}
