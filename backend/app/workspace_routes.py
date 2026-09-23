@@ -44,6 +44,7 @@ from backend.app.models import (
     WorkspaceWorkbenchTransformationResponse,
     WorkspaceDevelopmentSampleRequest,
     WorkspaceDevelopmentSampleResponse,
+    WorkspaceFullPipelineResponse,
     PersonalProjectDataModelStudio,
 )
 
@@ -127,6 +128,10 @@ from backend.app.workspace_workbench_service import (
 
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
+)
+
+from backend.app.workspace_pipeline_service import (
+    apply_replayable_workbench_pipeline,
 )
 
 router = APIRouter()
@@ -681,6 +686,160 @@ def transform_workspace_workbench_data(
         )
     )
 
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/apply-pipeline-full"
+    ),
+    response_model=(
+        WorkspaceFullPipelineResponse
+    ),
+)
+def apply_workspace_pipeline_to_full_dataset(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    try:
+        source_df = (
+            load_workspace_source_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    if not workspace.workbench_operations:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Full dataset'e uygulanacak "
+                "Workbench pipeline bulunamadı."
+            ),
+        )
+
+    try:
+        (
+            full_df,
+            applied_operation_ids,
+        ) = apply_replayable_workbench_pipeline(
+            source_df=source_df,
+            operations=(
+                workspace.workbench_operations
+            ),
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    if full_df.empty:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Pipeline full dataset içindeki "
+                "bütün satırları silemez."
+            ),
+        )
+
+    save_workspace_working_dataframe(
+        workspace_id=workspace_id,
+        df=full_df,
+    )
+
+    clear_workspace_versions(
+        workspace_id=workspace_id
+    )
+
+    workspace.development_sample_enabled = False
+    workspace.development_sample_row_count = len(
+        full_df
+    )
+
+    workspace.validation_result = None
+    workspace.analysis_plan = None
+    workspace.analysis_result = None
+    workspace.analysis_results = []
+
+    workspace.kpi_candidates = []
+    workspace.kpi_definitions = []
+
+    workspace.data_model_plan = None
+    workspace.data_model_studio = None
+
+    workspace.checkpoint.completed_items = [
+        item
+        for item
+        in workspace.checkpoint.completed_items
+        if item not in {
+            "Validation passed",
+            "Final review completed",
+            "Handoff completed",
+        }
+    ]
+
+    workspace.checkpoint.current_focus = (
+        "Validate full prepared dataset"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Validate full prepared dataset"
+    ]
+
+    workspace.checkpoint.blocked_reason = None
+    workspace.checkpoint.last_error = None
+
+    if workspace.usage_context == "personal":
+        invalidate_started = False
+
+        for deliverable in (
+            workspace.project_deliverables
+        ):
+            if deliverable.code == "clean_dataset":
+                deliverable.status = "in_progress"
+                invalidate_started = True
+                continue
+
+            if invalidate_started:
+                deliverable.status = "pending"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceFullPipelineResponse(
+        source_row_count=len(
+            source_df
+        ),
+        working_row_count=len(
+            full_df
+        ),
+        applied_operation_ids=(
+            applied_operation_ids
+        ),
+        applied_operation_count=len(
+            applied_operation_ids
+        ),
+        development_sample_disabled=True,
+    )
 
 
 @router.post(
