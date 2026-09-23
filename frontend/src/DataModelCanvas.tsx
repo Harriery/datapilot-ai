@@ -594,6 +594,10 @@ function createEdges(
       return {
         id:
           `relationship-${index}`,
+        className:
+          relationship.active
+            ? "model-edge-active"
+            : "model-edge-inactive",
 
         source:
           relationship.from_table,
@@ -710,7 +714,13 @@ function DataModelCanvas({
     selectedRelationshipIndex,
     setSelectedRelationshipIndex,
   ] = useState<number | null>(null);
-
+  
+  const [
+    editingRelationshipIndex,
+    setEditingRelationshipIndex,
+  ] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     setNodes(
@@ -987,11 +997,15 @@ function DataModelCanvas({
             <button
               type="button"
               className="model-canvas-action-button"
-              onClick={() =>
+              onClick={() => {
+                setEditingRelationshipIndex(
+                  null
+                );
+              
                 setRelationshipEditorOpen(
                   true
-                )
-              }
+                );
+              }}
               disabled={
                 studio.tables.length < 2
               }
@@ -1192,9 +1206,50 @@ function DataModelCanvas({
                   }
                 </strong>
               </div>
+              <div className="model-relationship-detail">
+                <span>Status</span>
+
+                <strong
+                  className={
+                    studio.relationships[
+                      selectedRelationshipIndex
+                    ].active
+                      ? "model-relationship-status active"
+                      : "model-relationship-status inactive"
+                  }
+                >
+                  {
+                    studio.relationships[
+                      selectedRelationshipIndex
+                    ].active
+                      ? "ACTIVE"
+                      : "INACTIVE"
+                  }
+                </strong>
+              </div>
             </div>
                 
             <footer className="model-editor-footer">
+              <button
+                type="button"
+                className="model-canvas-action-button"
+                onClick={() => {
+                  setEditingRelationshipIndex(
+                    selectedRelationshipIndex
+                  );
+                
+                  setSelectedRelationshipIndex(
+                    null
+                  );
+                
+                  setRelationshipEditorOpen(
+                    true
+                  );
+                }}
+              >
+                Edit relationship
+              </button>    
+                  
               <button
                 type="button"
                 className="model-editor-cancel"
@@ -1313,13 +1368,24 @@ function DataModelCanvas({
 
     {relationshipEditorOpen && (
       <DataModelRelationshipEditor
+        key={
+          editingRelationshipIndex ??
+          "new-relationship"
+        }
         studio={studio}
+        editingRelationshipIndex={
+          editingRelationshipIndex
+        }
         saving={saving}
-        onCancel={() =>
+        onCancel={() => {
           setRelationshipEditorOpen(
             false
-          )
-        }
+          );
+        
+          setEditingRelationshipIndex(
+            null
+          );
+        }}
         onSave={async (
           updatedStudio
         ) => {
@@ -1330,10 +1396,13 @@ function DataModelCanvas({
           setRelationshipEditorOpen(
             false
           );
+        
+          setEditingRelationshipIndex(
+            null
+          );
         }}
       />
     )}
-
   </>
 );
 

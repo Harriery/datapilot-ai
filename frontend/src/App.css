@@ -9352,3 +9352,108 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ==================================================
+   RELATIONSHIP STATUS
+   ================================================== */
+
+.model-relationship-status {
+  display: inline-flex;
+  align-items: center;
+
+  width: fit-content;
+
+  padding: 4px 8px;
+
+  border-radius: 999px;
+
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+
+.model-relationship-status.active {
+  background: #e9f8ef;
+  color: #218653;
+}
+
+
+.model-relationship-status.inactive {
+  background: #eef2f6;
+  color: #6f7f91;
+}
+
+
+/* =========================
+   ACTIVE RELATIONSHIP
+   ========================= */
+
+.model-canvas
+  .react-flow__edge.model-edge-active
+  .react-flow__edge-path {
+
+  stroke: #2f9b63;
+  stroke-width: 1.5;
+
+  opacity: 1;
+
+  filter:
+    drop-shadow(
+      0 0 2px
+      rgba(47, 155, 99, 0.65)
+    )
+    drop-shadow(
+      0 0 5px
+      rgba(47, 155, 99, 0.22)
+    );
+
+  transition:
+    stroke 0.15s ease,
+    opacity 0.15s ease,
+    filter 0.15s ease;
+}
+
+
+/* =========================
+   INACTIVE RELATIONSHIP
+   ========================= */
+
+.model-canvas
+  .react-flow__edge.model-edge-inactive
+  .react-flow__edge-path {
+
+  stroke: #7f8c9b;
+  stroke-width: 1.7;
+
+  stroke-dasharray: 7 5;
+
+  opacity: 0.68;
+
+  filter: none;
+
+  transition:
+    stroke 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.model-canvas
+  .react-flow__edge.model-edge-active
+  .react-flow__edge-text {
+
+  fill: #247d50;
+
+  font-weight: 800;
+}
+
+
+.model-canvas
+  .react-flow__edge.model-edge-inactive
+  .react-flow__edge-text {
+
+  fill: #778493;
+
+  opacity: 0.8;
+
+  font-weight: 700;
+}

@@ -21,6 +21,9 @@ type Cardinality =
 type Props = {
   studio: DataModelStudioData;
 
+  editingRelationshipIndex?:
+    number | null;
+
   saving: boolean;
 
   onCancel: () => void;
@@ -33,12 +36,26 @@ type Props = {
 
 function DataModelRelationshipEditor({
   studio,
+  editingRelationshipIndex = null,
   saving,
   onCancel,
   onSave,
 }: Props) {
 
+  const editingRelationship =
+    editingRelationshipIndex !== null
+      ? (
+          studio.relationships[
+            editingRelationshipIndex
+          ] ?? null
+        )
+      : null;
+
+  const isEditing =
+    editingRelationship !== null;
+
   const defaultFromTable =
+    editingRelationship?.from_table ??
     studio.tables.find(
       (table) =>
         table.table_type === "fact"
@@ -48,6 +65,7 @@ function DataModelRelationshipEditor({
 
 
   const defaultToTable =
+    editingRelationship?.to_table ??
     studio.tables.find(
       (table) =>
         table.table_type === "dimension"
@@ -67,7 +85,10 @@ function DataModelRelationshipEditor({
   const [
     fromColumn,
     setFromColumn,
-  ] = useState("");
+  ] = useState(
+    editingRelationship?.from_column ??
+    ""
+  );
 
 
   const [
@@ -81,13 +102,17 @@ function DataModelRelationshipEditor({
   const [
     toColumn,
     setToColumn,
-  ] = useState("");
+  ] = useState(
+    editingRelationship?.to_column ??
+    ""
+  );
 
 
   const [
     cardinality,
     setCardinality,
   ] = useState<Cardinality>(
+    editingRelationship?.cardinality ??
     "many_to_one"
   );
 
@@ -95,7 +120,10 @@ function DataModelRelationshipEditor({
   const [
     active,
     setActive,
-  ] = useState(true);
+  ] = useState(
+    editingRelationship?.active ??
+    true
+  );
 
 
   const [
@@ -190,21 +218,55 @@ function DataModelRelationshipEditor({
 
     const duplicate =
       studio.relationships.some(
-        (relationship) =>
-          relationship.from_table ===
-            fromTable &&
-          relationship.from_column ===
-            fromColumn &&
-          relationship.to_table ===
-            toTable &&
-          relationship.to_column ===
-            toColumn
+        (
+          relationship,
+          index,
+        ) => {
+        
+          if (
+            editingRelationshipIndex ===
+            index
+          ) {
+            return false;
+          }
+        
+        
+          const sameDirection =
+            relationship.from_table ===
+              fromTable &&
+            relationship.from_column ===
+              fromColumn &&
+            relationship.to_table ===
+              toTable &&
+            relationship.to_column ===
+              toColumn;
+        
+        
+          const reverseDirection =
+            relationship.from_table ===
+              toTable &&
+            relationship.from_column ===
+              toColumn &&
+            relationship.to_table ===
+              fromTable &&
+            relationship.to_column ===
+              fromColumn;
+        
+        
+          return (
+            sameDirection ||
+            reverseDirection
+          );
+        }
       );
 
 
     if (duplicate) {
       setError(
-        "This relationship already exists."
+        (
+          "A relationship between these " +
+          "columns already exists."
+        )
       );
 
       return;
@@ -318,17 +380,34 @@ function DataModelRelationshipEditor({
     };
 
 
+    const updatedRelationships =
+      isEditing &&
+      editingRelationshipIndex !== null
+        ? studio.relationships.map(
+            (
+              currentRelationship,
+              index,
+            ) =>
+              index ===
+              editingRelationshipIndex
+                ? relationship
+                : currentRelationship
+          )
+        : [
+            ...studio.relationships,
+            relationship,
+          ];
+        
+        
     const updatedStudio:
       DataModelStudioData = {
-
+      
       ...studio,
-
+      
       source: "user",
-
-      relationships: [
-        ...studio.relationships,
-        relationship,
-      ],
+      
+      relationships:
+        updatedRelationships,
     };
 
 
@@ -359,12 +438,21 @@ function DataModelRelationshipEditor({
             </span>
 
             <h3>
-              Create relationship
+              {isEditing
+                ? "Edit relationship"
+                : "Create relationship"}
             </h3>
 
             <p>
-              Connect columns between
-              model tables.
+              {isEditing
+                ? (
+                    "Update columns, cardinality " +
+                    "or relationship status."
+                  )
+                : (
+                    "Connect columns between " +
+                    "model tables."
+                  )}
             </p>
           </div>
 
@@ -593,8 +681,10 @@ function DataModelRelationshipEditor({
             disabled={saving}
           >
             {saving
-              ? "Creating..."
-              : "Create relationship"}
+              ? "Saving..."
+              : isEditing
+                ? "Save changes"
+                : "Create relationship"}
           </button>
 
         </footer>

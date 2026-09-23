@@ -226,7 +226,10 @@ def validate_personal_data_model_studio(
                 )
 
     relationship_keys: set[
-        tuple[str, str, str, str]
+        tuple[
+            tuple[str, str],
+            tuple[str, str],
+        ]
     ] = set()
 
     for relationship in (
@@ -295,21 +298,36 @@ def validate_personal_data_model_studio(
                 )
             )
 
-        relationship_key = (
+        from_endpoint = (
             relationship.from_table,
             relationship.from_column,
+        )
+        
+        to_endpoint = (
             relationship.to_table,
             relationship.to_column,
         )
-
+        
+        relationship_key = tuple(
+            sorted(
+                (
+                    from_endpoint,
+                    to_endpoint,
+                )
+            )
+        )
+        
         if (
             relationship_key
             in relationship_keys
         ):
             raise ValueError(
-                "Duplicate relationship."
+                (
+                    "A relationship between these "
+                    "columns already exists."
+                )
             )
-
+        
         relationship_keys.add(
             relationship_key
         )
