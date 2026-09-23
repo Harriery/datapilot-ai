@@ -90,6 +90,7 @@ from backend.app.local_data_quality_mentor_service import (
 from backend.app.personal_project_service import (
     build_personal_project_deliverables,
     complete_and_advance_personal_project_deliverable,
+    reconcile_personal_project_deliverables,
 )
 
 from backend.app.personal_analysis_service import (
@@ -98,7 +99,7 @@ from backend.app.personal_analysis_service import (
 )
 
 from backend.app.personal_kpi_service import (
-    build_personal_kpi_candidates,
+    build_personal_kpi_candidates_from_plan,
 )
 
 from backend.app.personal_data_model_service import (
@@ -200,9 +201,19 @@ def list_workspaces(
             detail="Learner bulunamadı.",
         )
 
-    return database.get_workspaces_by_learner(
+    workspaces = database.get_workspaces_by_learner(
         learner_id=learner_id
     )
+
+    for workspace in workspaces:
+        if reconcile_personal_project_deliverables(
+            workspace
+        ):
+            database.save_workspace(
+                workspace=workspace
+            )
+
+    return workspaces
 
 
 @router.post(
@@ -2172,6 +2183,12 @@ def validate_workspace_result(
                 )
             )
 
+            workspace.kpi_candidates = (
+                build_personal_kpi_candidates_from_plan(
+                    workspace.analysis_plan
+                )
+            )
+
         if (
             "Validation passed"
             not in workspace.checkpoint.completed_items
@@ -2358,31 +2375,6 @@ def run_personal_project_analysis(
         result
     )
     
-    # Yeni analysis'ten KPI candidate üret.
-    new_kpi_candidates = (
-        build_personal_kpi_candidates(
-            result
-        )
-    )
-    
-    # Daha önceki analysis'lerden gelen KPI'ları
-    # kaybetmeden birleştir.
-    #
-    # Aynı code tekrar oluşursa duplicate yaratma.
-    candidates_by_code = {
-        candidate.code: candidate
-        for candidate
-        in workspace.kpi_candidates
-    }
-    
-    for candidate in new_kpi_candidates:
-        candidates_by_code[
-            candidate.code
-        ] = candidate
-    
-    workspace.kpi_candidates = list(
-        candidates_by_code.values()
-    )
 
     complete_and_advance_personal_project_deliverable(
         workspace=workspace,
@@ -2472,38 +2464,6 @@ def delete_personal_project_analysis(
             else None
         )
 
-    # KPI candidate'ları kalan analysis
-    # sonuçlarından yeniden oluştur.
-    candidates_by_code = {}
-
-    for analysis_result in (
-        workspace.analysis_results
-    ):
-        for candidate in (
-            build_personal_kpi_candidates(
-                analysis_result
-            )
-        ):
-            candidates_by_code[
-                candidate.code
-            ] = candidate
-
-    workspace.kpi_candidates = list(
-        candidates_by_code.values()
-    )
-
-    # Daha önce seçilmiş ama artık candidate
-    # olmayan KPI'ları da temizle.
-    valid_codes = set(
-        candidates_by_code.keys()
-    )
-
-    workspace.kpi_definitions = [
-        definition
-        for definition
-        in workspace.kpi_definitions
-        if definition.code in valid_codes
-    ]
 
     database.save_workspace(
         workspace=workspace
@@ -2546,17 +2506,6 @@ def select_personal_project_kpis(
             ),
         )
 
-    if (
-        not workspace.analysis_results
-        and workspace.analysis_result is None
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "KPI seçilmeden önce "
-                "analysis çalıştırılmalı."
-            ),
-        )
     if workspace.data_model_plan is None:
         raise HTTPException(
             status_code=400,
@@ -3050,6 +2999,13 @@ def get_workspace(
         raise HTTPException(
             status_code=404,
             detail="Workspace bulunamadı.",
+        )
+
+    if reconcile_personal_project_deliverables(
+        workspace
+    ):
+        database.save_workspace(
+            workspace=workspace
         )
 
     return workspace

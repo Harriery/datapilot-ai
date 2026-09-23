@@ -41,47 +41,24 @@ PERSONAL_PROJECT_DELIVERABLES = {
         ),
     ],
 
-   "bi_dashboard": [
-        (
-            "data_profile",
-            "Dataset profile",
-        ),
-    
-        (
-            "clean_dataset",
-            "Clean dataset",
-        ),
-    
-        (
-            "data_model",
-            "Data model",
-        ),
-    
+    "bi_dashboard": [
+        ("data_profile", "Dataset profile"),
+        ("clean_dataset", "Clean dataset"),
+        ("data_model", "Data model"),
         (
             "kpi_definitions",
             "KPI definitions",
         ),
-    
         (
             "bi_ready_dataset",
             "BI semantic model",
         ),
-    
-        (
-            "analysis",
-            "Data analysis",
-        ),
-    
-        (
-            "dashboard",
-            "Dashboard",
-        ),
-    
+        ("analysis", "Data analysis"),
+        ("dashboard", "Dashboard"),
         (
             "insight_summary",
             "Insight summary",
         ),
-    
         (
             "documentation",
             "Project documentation",
@@ -161,6 +138,96 @@ def build_personal_project_deliverables(
         for code, title in template
     ]
 
+def reconcile_personal_project_deliverables(
+    workspace: Workspace,
+) -> bool:
+    """
+    Align persisted personal-project deliverables with the
+    current template without losing completed work.
+
+    This keeps existing local workspaces usable when the
+    product workflow order changes.
+    """
+
+    if (
+        workspace.usage_context != "personal"
+        or workspace.project_type is None
+    ):
+        return False
+
+    template = PERSONAL_PROJECT_DELIVERABLES.get(
+        workspace.project_type
+    )
+
+    if template is None:
+        return False
+
+    existing_by_code = {
+        deliverable.code: deliverable
+        for deliverable in workspace.project_deliverables
+    }
+
+    had_in_progress = any(
+        deliverable.status == "in_progress"
+        for deliverable in workspace.project_deliverables
+    )
+
+    reconciled: list[ProjectDeliverable] = []
+
+    for code, title in template:
+        existing = existing_by_code.get(code)
+
+        reconciled.append(
+            ProjectDeliverable(
+                code=code,
+                title=title,
+                status=(
+                    existing.status
+                    if existing is not None
+                    else "pending"
+                ),
+                required=(
+                    existing.required
+                    if existing is not None
+                    else True
+                ),
+            )
+        )
+
+    # If an older workflow had an active step, move the
+    # active marker to the earliest unfinished step in the
+    # new order. Completed work remains completed.
+    if had_in_progress:
+        active_assigned = False
+
+        for deliverable in reconciled:
+            if deliverable.status == "completed":
+                continue
+
+            if not active_assigned:
+                deliverable.status = "in_progress"
+                active_assigned = True
+            else:
+                deliverable.status = "pending"
+
+    previous_state = [
+        item.model_dump()
+        for item in workspace.project_deliverables
+    ]
+
+    next_state = [
+        item.model_dump()
+        for item in reconciled
+    ]
+
+    if previous_state == next_state:
+        return False
+
+    workspace.project_deliverables = reconciled
+
+    return True
+
+
 def update_personal_project_deliverable(
     workspace: Workspace,
     code: str,
@@ -189,6 +256,10 @@ def complete_and_advance_personal_project_deliverable(
 
     if workspace.usage_context != "personal":
         return False
+
+    reconcile_personal_project_deliverables(
+        workspace
+    )
 
     completed_index = None
 
