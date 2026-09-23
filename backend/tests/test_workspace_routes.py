@@ -1720,6 +1720,15 @@ def test_run_personal_analysis_completes_analysis_deliverable(
         )
     )
 
+    workspace.validation_result = (
+        WorkspaceValidationResponse(
+            passed=True,
+            source_row_count=2,
+            working_row_count=2,
+            checks=[],
+        )
+    )
+
     workspace.analysis_plan = (
         PersonalProjectAnalysisPlan(
             measure_candidates=[
@@ -3882,3 +3891,146 @@ def test_processed_dataset_create_activate_and_export(
         "Den Haag"
         in export_response.text
     )
+
+
+
+def test_data_model_uses_active_processed_dataset_name(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Active Dataset Model",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.dataset_filename = "raw_source.csv"
+
+    workspace.validation_result = (
+        WorkspaceValidationResponse(
+            passed=True,
+            source_row_count=2,
+            working_row_count=2,
+            checks=[],
+        )
+    )
+
+    workspace.analysis_plan = (
+        PersonalProjectAnalysisPlan(
+            numeric_candidates=["price"],
+            measure_candidates=["price"],
+            dimension_candidates=["city"],
+            source="local",
+        )
+    )
+
+    processed = WorkspaceProcessedDataset(
+        dataset_id="processed-001",
+        name="housing_clean_v1",
+        row_count=2,
+        column_count=2,
+        created_at="2026-09-23T12:00:00+00:00",
+    )
+
+    workspace.processed_datasets = [
+        processed
+    ]
+
+    workspace.active_processed_dataset_id = (
+        processed.dataset_id
+    )
+
+    for deliverable in workspace.project_deliverables:
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+        }:
+            deliverable.status = "completed"
+
+        if deliverable.code == "data_model":
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data-model/build"
+        )
+    )
+
+    assert response.status_code == 200
+
+    assert (
+        response.json()["base_table"]
+        == "fact_housing_clean_v1"
+    )
+
+
+def test_data_model_requires_current_validation(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Validation Guard",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.analysis_plan = (
+        PersonalProjectAnalysisPlan(
+            numeric_candidates=["price"],
+            measure_candidates=["price"],
+            source="local",
+        )
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data-model/build"
+        )
+    )
+
+    assert response.status_code == 400
+    assert "validation" in response.json()["detail"].lower()
