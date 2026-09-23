@@ -53,8 +53,13 @@ def build_personal_data_model_plan(
         PersonalProjectDataModelMeasure
     ] = []
 
+    numeric_candidates = (
+        analysis_plan.numeric_candidates
+        or analysis_plan.measure_candidates
+    )
+
     for measure in (
-        analysis_plan.measure_candidates
+        numeric_candidates
     ):
         normalized = _normalize_name(
             measure
@@ -80,6 +85,18 @@ def build_personal_data_model_plan(
         f"dim_{_normalize_name(dimension)}"
         for dimension in dimensions
     ]
+
+    discovery = analysis_plan.model_discovery
+
+    if (
+        discovery is not None
+        and discovery.dimension_table_candidates
+    ):
+        recommended_dimension_tables = list(
+            dict.fromkeys(
+                discovery.dimension_table_candidates
+            )
+        )
 
     if time_dimension is not None:
         time_table = (
@@ -107,13 +124,15 @@ def build_personal_data_model_plan(
         model_type=model_type,
 
         base_table=(
-            _build_base_table_name(
-                dataset_filename
-            )
+            discovery.fact_table_candidate
+            if discovery is not None
+            else _build_base_table_name(dataset_filename)
         ),
 
         grain=(
-            "One row per validated source record."
+            discovery.grain
+            if discovery is not None
+            else "One row per validated source record."
         ),
 
         dimensions=dimensions,
