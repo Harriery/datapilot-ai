@@ -756,6 +756,12 @@ function DataModelCanvas({
   ] = useState(false);
 
   const [
+    editingTableName,
+    setEditingTableName,
+  ] = useState<string | null>(
+    null
+  );
+  const [
     relationshipEditorOpen,
     setRelationshipEditorOpen,
   ] = useState(false);
@@ -950,12 +956,33 @@ function DataModelCanvas({
             <button
               type="button"
               className="model-canvas-action-button"
-              onClick={() =>
-                setTableEditorOpen(true)
-              }
+              onClick={() => {
+                setEditingTableName(
+                  null
+                );
+              
+                setTableEditorOpen(
+                  true
+                );
+              }}
             >
               + Table
             </button>
+
+            <button
+              type="button"
+              className="model-canvas-action-button"
+              disabled={
+                !selectedTableId
+              }
+              onClick={() =>
+                setEditingTableName(
+                  selectedTableId
+                )
+              }
+            >
+              Edit table
+            </button>  
 
             <button
               type="button"
@@ -1222,21 +1249,63 @@ function DataModelCanvas({
 
 
 
-    {tableEditorOpen && (
+    {(
+      tableEditorOpen ||
+      editingTableName !== null
+    ) && (
       <DataModelTableEditor
-        studio={studio}
-        saving={saving}
-        onCancel={() =>
-          setTableEditorOpen(false)
+        key={
+          editingTableName ??
+          "new-table"
         }
+        studio={studio}
+        editingTableName={
+          editingTableName
+        }
+        saving={saving}
+        onCancel={() => {
+          setTableEditorOpen(
+            false
+          );
+        
+          setEditingTableName(
+            null
+          );
+        }}
         onSave={async (
           updatedStudio
         ) => {
+        
           await onSaveStudio(
             updatedStudio
           );
         
-          setTableEditorOpen(false);
+        
+          /*
+           * Seçili tablo silindiyse
+           * eski selection kalmasın.
+           */
+          if (
+            selectedTableId &&
+            !updatedStudio.tables.some(
+              (table) =>
+                table.name ===
+                selectedTableId
+            )
+          ) {
+            setSelectedTableId(
+              null
+            );
+          }
+        
+        
+          setTableEditorOpen(
+            false
+          );
+        
+          setEditingTableName(
+            null
+          );
         }}
       />
     )}

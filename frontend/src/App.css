@@ -9317,3 +9317,38 @@
 .model-relationship-delete-button:hover:not(:disabled) {
   background: #ffecec;
 }
+
+/* ==================================================
+   TABLE EDIT / DELETE
+   ================================================== */
+
+.model-editor-footer-spacer {
+  flex: 1;
+}
+
+
+.model-table-delete-button {
+  padding: 7px 11px;
+
+  border: 1px solid #efbaba;
+  border-radius: 7px;
+
+  background: #fff5f5;
+  color: #bd4f4f;
+
+  cursor: pointer;
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+
+.model-table-delete-button:hover:not(:disabled) {
+  background: #ffecec;
+}
+
+
+.model-table-delete-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

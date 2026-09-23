@@ -7,19 +7,50 @@ import type {
 } from "./DataModelCanvas";
 
 
+type TableData =
+  DataModelStudioData[
+    "tables"
+  ][number];
+
+
+type ColumnData =
+  TableData[
+    "columns"
+  ][number];
+
+
 type ColumnRole =
-  DataModelStudioData["tables"][number]["columns"][number]["role"];
+  ColumnData["role"];
 
 
 type DraftColumn = {
   id: string;
+
+  /*
+   * Mevcut kolon edit ediliyorsa
+   * eski adını burada tutuyoruz.
+   *
+   * Böylece rename sırasında
+   * relationship'i de güncelleyebiliriz.
+   */
+  originalName: string | null;
+
   name: string;
+
   role: ColumnRole;
+
+  sourceColumn: string | null;
+
+  aggregation:
+    ColumnData["aggregation"];
 };
 
 
 type Props = {
   studio: DataModelStudioData;
+
+  editingTableName?:
+    string | null;
 
   onCancel: () => void;
 
@@ -33,15 +64,30 @@ type Props = {
 
 function DataModelTableEditor({
   studio,
+  editingTableName = null,
   onCancel,
   onSave,
   saving,
 }: Props) {
 
+  const editingTable =
+    studio.tables.find(
+      (table) =>
+        table.name ===
+        editingTableName
+    ) ?? null;
+
+
+  const isEditing =
+    editingTable !== null;
+
+
   const [
     tableName,
     setTableName,
-  ] = useState("");
+  ] = useState(
+    editingTable?.name ?? ""
+  );
 
 
   const [
@@ -51,19 +97,60 @@ function DataModelTableEditor({
     "fact" |
     "dimension" |
     "bridge"
-  >("dimension");
+  >(
+    editingTable?.table_type ??
+      "dimension"
+  );
 
 
   const [
     columns,
     setColumns,
-  ] = useState<DraftColumn[]>([
-    {
-      id: crypto.randomUUID(),
-      name: "",
-      role: "key",
-    },
-  ]);
+  ] = useState<DraftColumn[]>(
+    editingTable
+      ? editingTable.columns.map(
+          (column) => ({
+            id:
+              crypto.randomUUID(),
+
+            originalName:
+              column.name,
+
+            name:
+              column.name,
+
+            role:
+              column.role,
+
+            sourceColumn:
+              column.source_column,
+
+            aggregation:
+              column.aggregation,
+          })
+        )
+      : [
+          {
+            id:
+              crypto.randomUUID(),
+
+            originalName:
+              null,
+
+            name:
+              "",
+
+            role:
+              "key",
+
+            sourceColumn:
+              null,
+
+            aggregation:
+              null,
+          },
+        ]
+  );
 
 
   const [
@@ -78,10 +165,25 @@ function DataModelTableEditor({
     setColumns(
       (previous) => [
         ...previous,
+
         {
-          id: crypto.randomUUID(),
-          name: "",
-          role: "attribute",
+          id:
+            crypto.randomUUID(),
+
+          originalName:
+            null,
+
+          name:
+            "",
+
+          role:
+            "attribute",
+
+          sourceColumn:
+            null,
+
+          aggregation:
+            null,
         },
       ]
     );
@@ -139,16 +241,19 @@ function DataModelTableEditor({
   }
 
 
-  async function createTable() {
+  async function saveTable() {
     setError(null);
+
 
     const cleanTableName =
       tableName.trim();
+
 
     if (!cleanTableName) {
       setError(
         "Table name is required."
       );
+
       return;
     }
 
@@ -156,14 +261,20 @@ function DataModelTableEditor({
     const tableAlreadyExists =
       studio.tables.some(
         (table) =>
-          table.name.toLowerCase() ===
-          cleanTableName.toLowerCase()
+          table.name
+            .toLowerCase() ===
+            cleanTableName
+              .toLowerCase() &&
+          table.name !==
+            editingTableName
       );
+
 
     if (tableAlreadyExists) {
       setError(
         "A table with this name already exists."
       );
+
       return;
     }
 
@@ -173,7 +284,9 @@ function DataModelTableEditor({
         .map(
           (column) => ({
             ...column,
-            name: column.name.trim(),
+
+            name:
+              column.name.trim(),
           })
         )
         .filter(
@@ -188,6 +301,7 @@ function DataModelTableEditor({
       setError(
         "Add at least one column."
       );
+
       return;
     }
 
@@ -200,12 +314,294 @@ function DataModelTableEditor({
 
 
     if (
-      new Set(columnNames).size !==
+      new Set(
+        columnNames
+      ).size !==
       columnNames.length
     ) {
       setError(
         "Column names must be unique."
       );
+
+      return;
+    }
+
+
+    /*
+     * Edit modundaysak:
+     * silinen kolonlardan herhangi biri
+     * relationship tarafından kullanılıyor mu?
+     */
+    if (editingTable) {
+
+      const retainedOriginalNames =
+        new Set(
+          cleanColumns
+            .map(
+              (column) =>
+                column.originalName
+            )
+            .filter(
+              (
+                value,
+              ): value is string =>
+                value !== null
+            )
+        );
+
+
+      const removedColumns =
+        editingTable.columns
+          .map(
+            (column) =>
+              column.name
+          )
+          .filter(
+            (name) =>
+              !retainedOriginalNames.has(
+                name
+              )
+          );
+
+
+      const usedRemovedColumn =
+        removedColumns.find(
+          (columnName) =>
+            studio.relationships.some(
+              (relationship) =>
+                (
+                  relationship.from_table ===
+                    editingTable.name &&
+                  relationship.from_column ===
+                    columnName
+                ) ||
+                (
+                  relationship.to_table ===
+                    editingTable.name &&
+                  relationship.to_column ===
+                    columnName
+                )
+            )
+        );
+
+
+      if (usedRemovedColumn) {
+        setError(
+          (
+            `"${usedRemovedColumn}" is used ` +
+            "by a relationship. Delete the " +
+            "relationship before removing " +
+            "this column."
+          )
+        );
+
+        return;
+      }
+    }
+
+
+    const updatedTable:
+      TableData = {
+
+      name:
+        cleanTableName,
+
+      table_type:
+        tableType,
+
+      columns:
+        cleanColumns.map(
+          (column) => ({
+
+            name:
+              column.name,
+
+            source_column:
+              column.sourceColumn,
+
+            role:
+              column.role,
+
+            aggregation:
+              column.aggregation,
+          })
+        ),
+    };
+
+
+    /*
+     * CREATE
+     */
+    if (!editingTable) {
+
+      const updatedStudio:
+        DataModelStudioData = {
+
+        ...studio,
+
+        source:
+          "user",
+
+        tables: [
+          ...studio.tables,
+          updatedTable,
+        ],
+      };
+
+
+      await onSave(
+        updatedStudio
+      );
+
+      return;
+    }
+
+
+    /*
+     * EDIT
+     *
+     * Kolon rename map:
+     *
+     * customer → customer_id
+     */
+    const columnRenameMap =
+      new Map<
+        string,
+        string
+      >();
+
+
+    cleanColumns.forEach(
+      (column) => {
+
+        if (
+          column.originalName &&
+          column.originalName !==
+            column.name
+        ) {
+          columnRenameMap.set(
+            column.originalName,
+            column.name
+          );
+        }
+      }
+    );
+
+
+    const updatedRelationships =
+      studio.relationships.map(
+        (relationship) => {
+
+          let nextRelationship = {
+            ...relationship,
+          };
+
+
+          if (
+            relationship.from_table ===
+            editingTable.name
+          ) {
+            nextRelationship = {
+              ...nextRelationship,
+
+              from_table:
+                cleanTableName,
+
+              from_column:
+                columnRenameMap.get(
+                  relationship.from_column
+                ) ??
+                relationship.from_column,
+            };
+          }
+
+
+          if (
+            relationship.to_table ===
+            editingTable.name
+          ) {
+            nextRelationship = {
+              ...nextRelationship,
+
+              to_table:
+                cleanTableName,
+
+              to_column:
+                columnRenameMap.get(
+                  relationship.to_column
+                ) ??
+                relationship.to_column,
+            };
+          }
+
+
+          return nextRelationship;
+        }
+      );
+
+
+    const updatedStudio:
+      DataModelStudioData = {
+
+      ...studio,
+
+      source:
+        "user",
+
+      tables:
+        studio.tables.map(
+          (table) =>
+            table.name ===
+            editingTable.name
+              ? updatedTable
+              : table
+        ),
+
+      relationships:
+        updatedRelationships,
+    };
+
+
+    await onSave(
+      updatedStudio
+    );
+  }
+
+
+  async function deleteTable() {
+
+    if (!editingTable) {
+      return;
+    }
+
+
+    const relationshipCount =
+      studio.relationships.filter(
+        (relationship) =>
+          relationship.from_table ===
+            editingTable.name ||
+          relationship.to_table ===
+            editingTable.name
+      ).length;
+
+
+    const message =
+      relationshipCount > 0
+        ? (
+            `Delete "${editingTable.name}"? ` +
+            `${relationshipCount} connected ` +
+            "relationship(s) will also be deleted."
+          )
+        : (
+            `Delete "${editingTable.name}"?`
+          );
+
+
+    if (
+      !window.confirm(
+        message
+      )
+    ) {
       return;
     }
 
@@ -215,35 +611,24 @@ function DataModelTableEditor({
 
       ...studio,
 
-      source: "user",
+      source:
+        "user",
 
-      tables: [
-        ...studio.tables,
+      tables:
+        studio.tables.filter(
+          (table) =>
+            table.name !==
+            editingTable.name
+        ),
 
-        {
-          name: cleanTableName,
-
-          table_type:
-            tableType,
-
-          columns:
-            cleanColumns.map(
-              (column) => ({
-                name:
-                  column.name,
-
-                source_column:
-                  null,
-
-                role:
-                  column.role,
-
-                aggregation:
-                  null,
-              })
-            ),
-        },
-      ],
+      relationships:
+        studio.relationships.filter(
+          (relationship) =>
+            relationship.from_table !==
+              editingTable.name &&
+            relationship.to_table !==
+              editingTable.name
+        ),
     };
 
 
@@ -263,7 +648,11 @@ function DataModelTableEditor({
         className="model-editor-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Create table"
+        aria-label={
+          isEditing
+            ? "Edit table"
+            : "Create table"
+        }
       >
 
         <header className="model-editor-header">
@@ -274,12 +663,21 @@ function DataModelTableEditor({
             </span>
 
             <h3>
-              Create table
+              {isEditing
+                ? "Edit table"
+                : "Create table"}
             </h3>
 
             <p>
-              Add a fact, dimension or
-              bridge table to the model.
+              {isEditing
+                ? (
+                    "Edit table structure, " +
+                    "columns and model roles."
+                  )
+                : (
+                    "Add a fact, dimension or " +
+                    "bridge table to the model."
+                  )}
             </p>
           </div>
 
@@ -299,7 +697,10 @@ function DataModelTableEditor({
         <div className="model-editor-body">
 
           <label className="model-editor-field">
-            <span>Table name</span>
+
+            <span>
+              Table name
+            </span>
 
             <input
               type="text"
@@ -311,11 +712,15 @@ function DataModelTableEditor({
                 )
               }
             />
+
           </label>
 
 
           <label className="model-editor-field">
-            <span>Table type</span>
+
+            <span>
+              Table type
+            </span>
 
             <select
               value={tableType}
@@ -328,6 +733,7 @@ function DataModelTableEditor({
                 )
               }
             >
+
               <option value="fact">
                 Fact
               </option>
@@ -339,13 +745,16 @@ function DataModelTableEditor({
               <option value="bridge">
                 Bridge
               </option>
+
             </select>
+
           </label>
 
 
           <div className="model-editor-columns">
 
             <div className="model-editor-columns-header">
+
               <strong>
                 Columns
               </strong>
@@ -356,6 +765,7 @@ function DataModelTableEditor({
               >
                 + Column
               </button>
+
             </div>
 
 
@@ -381,14 +791,16 @@ function DataModelTableEditor({
 
 
                   <select
-                      value={column.role}
-                      onChange={(event) =>
-                        updateColumnRole(
-                          column.id,
-                          event.target.value as ColumnRole
-                        )
-                      }
-                    >
+                    value={column.role}
+                    onChange={(event) =>
+                      updateColumnRole(
+                        column.id,
+                        event.target.value as
+                          ColumnRole
+                      )
+                    }
+                  >
+
                     <option value="key">
                       Key
                     </option>
@@ -412,6 +824,7 @@ function DataModelTableEditor({
                     <option value="time">
                       Time
                     </option>
+
                   </select>
 
 
@@ -450,6 +863,21 @@ function DataModelTableEditor({
 
         <footer className="model-editor-footer">
 
+          {isEditing && (
+            <button
+              type="button"
+              className="model-table-delete-button"
+              onClick={deleteTable}
+              disabled={saving}
+            >
+              Delete table
+            </button>
+          )}
+
+
+          <div className="model-editor-footer-spacer" />
+
+
           <button
             type="button"
             className="model-editor-cancel"
@@ -463,12 +891,14 @@ function DataModelTableEditor({
           <button
             type="button"
             className="new-workspace-button"
-            onClick={createTable}
+            onClick={saveTable}
             disabled={saving}
           >
             {saving
-              ? "Creating..."
-              : "Create table"}
+              ? "Saving..."
+              : isEditing
+                ? "Save changes"
+                : "Create table"}
           </button>
 
         </footer>
