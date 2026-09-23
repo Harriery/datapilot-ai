@@ -1008,6 +1008,11 @@ class WorkspaceWorkbenchOperationCreateRequest(BaseModel):
         default_factory=list
     )
 
+    pipeline_action: (
+        WorkspacePipelineAction | None
+    ) = None
+
+
 class WorkspaceWorkbenchOperation(BaseModel):
     operation_id: str
 
