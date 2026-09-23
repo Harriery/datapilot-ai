@@ -5631,7 +5631,11 @@ async function restoreWorkspaceVersion(
                           aria-expanded={workspaceDataOpen}
                         >
                           <span className="workspace-overview-label">
-                            {t.workspace.dataSource}
+                            {dashboardWorkspace.usage_context === "personal" &&
+                            activeWorkspaceStage === "prepare" &&
+                            activePrepareStage === "profile"
+                              ? t.workspace.dataProfile
+                              : t.workspace.dataSource}
                           </span>
                         
                           <span className="workspace-plan-chevron">
@@ -5731,6 +5735,8 @@ async function restoreWorkspaceVersion(
                                 </p>
                               </div>
                         
+                              {(dashboardWorkspace.usage_context !== "personal" ||
+                                activeWorkspaceStage === "source") && (
                               <div className="workspace-replace-controls">
                                 <label className="workspace-replace-sample">
                                   <span>
@@ -5811,8 +5817,14 @@ async function restoreWorkspaceVersion(
                                   />
                                 </label>
                               </div>
+                              )}
                             </div>
-                                
+
+                            {(dashboardWorkspace.usage_context !== "personal" ||
+                              (
+                                activeWorkspaceStage === "prepare" &&
+                                activePrepareStage === "profile"
+                              )) && (
                             <div className="workspace-profile-layout">
                               <div className="workspace-profile-summary">
                                 <span className="workspace-overview-label">
@@ -5950,7 +5962,11 @@ async function restoreWorkspaceVersion(
                                 </div>
                               </div>
                             </div>
+                            )}
 
+                            {(dashboardWorkspace.usage_context !== "personal" ||
+                              activeWorkspaceStage === "source") && (
+                            <>
                             <div className="workspace-sample-status">
                               <span className="workspace-overview-label">
                                 WORKING DATASET
@@ -5974,8 +5990,17 @@ async function restoreWorkspaceVersion(
                               title="Raw source preview"
                               description="The full raw source is preserved, but only a small paginated preview is sent to the browser. Workbench uses the development dataset shown above."
                             />
-                                
-                       {!workspaceTask && (
+                            </>
+                            )}
+
+                       {!workspaceTask &&
+                        (
+                          dashboardWorkspace.usage_context !== "personal" ||
+                          (
+                            activeWorkspaceStage === "prepare" &&
+                            activePrepareStage === "profile"
+                          )
+                        ) && (
                         <div className="workspace-profile-next">
                           <button
                             type="button"
