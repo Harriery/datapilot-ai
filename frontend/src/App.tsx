@@ -2930,21 +2930,13 @@ async function prepareWorkbenchColumnAction(
     return false;
   }
 
-  const hasActiveOperation =
+  const activeOperation =
     dashboardWorkspace
       .workbench_operations
-      ?.some(
+      ?.find(
         (operation) =>
           operation.status === "active"
-      ) ?? false;
-
-  if (hasActiveOperation) {
-    setAddTransformationError(
-      "Finish the active Workbench operation before adding a column action."
-    );
-
-    return false;
-  }
+      ) ?? null;
 
   try {
     const prepared =
@@ -2952,13 +2944,37 @@ async function prepareWorkbenchColumnAction(
         draft
       );
 
-    const created =
-      await createWorkbenchOperation(
-        prepared.operation
+    const canUseActiveQualityOperation =
+      (
+        activeOperation?.origin ===
+          "data_quality" &&
+        activeOperation
+          .source_columns
+          .includes(
+            draft.column
+          )
       );
 
-    if (!created) {
+    if (
+      activeOperation &&
+      !canUseActiveQualityOperation
+    ) {
+      setAddTransformationError(
+        "Finish the active Workbench operation before adding another column action."
+      );
+
       return false;
+    }
+
+    if (!activeOperation) {
+      const created =
+        await createWorkbenchOperation(
+          prepared.operation
+        );
+
+      if (!created) {
+        return false;
+      }
     }
 
     setTransformationCode(
@@ -5836,17 +5852,35 @@ async function restoreWorkspaceVersion(
                                 column={
                                   selectedWorkbenchColumn
                                 }
-                                disabledReason={
-                                  dashboardWorkspace
-                                    .workbench_operations
-                                    ?.some(
-                                      (operation) =>
-                                        operation.status ===
-                                        "active"
-                                    )
-                                    ? "Finish the active Workbench operation before adding another column action."
-                                    : null
-                                }
+                                disabledReason={(() => {
+                                  const activeOperation =
+                                    dashboardWorkspace
+                                      .workbench_operations
+                                      ?.find(
+                                        (operation) =>
+                                          operation.status ===
+                                          "active"
+                                      );
+
+                                  if (!activeOperation) {
+                                    return null;
+                                  }
+
+                                  if (
+                                    activeOperation.origin ===
+                                      "data_quality" &&
+                                    activeOperation
+                                      .source_columns
+                                      .includes(
+                                        selectedWorkbenchColumn ??
+                                          ""
+                                      )
+                                  ) {
+                                    return null;
+                                  }
+
+                                  return "Finish the active Workbench operation before adding another column action.";
+                                })()}
                                 onClose={() => {
                                   setSelectedWorkbenchColumn(
                                     null
