@@ -915,6 +915,11 @@ class PersonalProjectDataModelRelationship(BaseModel):
     active: bool = True
 
 
+class PersonalProjectDataModelNodePosition(BaseModel):
+    x: float
+    y: float
+
+
 class PersonalProjectDataModelStudio(BaseModel):
     tables: list[
         PersonalProjectDataModelTable
@@ -923,6 +928,11 @@ class PersonalProjectDataModelStudio(BaseModel):
     relationships: list[
         PersonalProjectDataModelRelationship
     ] = Field(default_factory=list)
+
+    node_positions: dict[
+        str,
+        PersonalProjectDataModelNodePosition,
+    ] = Field(default_factory=dict)
 
     source: Literal[
         "local",
