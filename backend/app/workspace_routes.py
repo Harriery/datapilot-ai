@@ -4,6 +4,7 @@ from typing import Literal
 
 from fastapi import (
     APIRouter,
+    Form,
     HTTPException,
     Query,
     UploadFile,
@@ -1285,6 +1286,11 @@ def profile_workspace_data(
     learner_id: str,
     workspace_id: str,
     file: UploadFile,
+    development_sample_size: int = Form(
+        default=1000,
+        ge=0,
+        le=5000,
+    ),
 ):
     workspace = database.get_workspace(
         workspace_id=workspace_id,
@@ -1429,11 +1435,54 @@ def profile_workspace_data(
 
     workspace.dataset_filename = file.filename
 
-    workspace.development_sample_size = None
-    workspace.development_sample_strategy = None
-    workspace.development_sample_seed = None
-    workspace.development_sample_row_count = len(df)
-    workspace.development_sample_enabled = False
+    requested_sample_size = (
+        development_sample_size
+    )
+
+    use_full_working_dataset = (
+        requested_sample_size == 0
+        or requested_sample_size >= len(df)
+    )
+
+    if use_full_working_dataset:
+        working_df = (
+            df.copy()
+            .reset_index(drop=True)
+        )
+    else:
+        working_df = (
+            df.sample(
+                n=requested_sample_size,
+                random_state=42,
+            )
+            .reset_index(drop=True)
+        )
+
+    workspace.development_sample_size = (
+        None
+        if use_full_working_dataset
+        else requested_sample_size
+    )
+
+    workspace.development_sample_strategy = (
+        None
+        if use_full_working_dataset
+        else "random"
+    )
+
+    workspace.development_sample_seed = (
+        None
+        if use_full_working_dataset
+        else 42
+    )
+
+    workspace.development_sample_row_count = (
+        len(working_df)
+    )
+
+    workspace.development_sample_enabled = (
+        not use_full_working_dataset
+    )
 
     workspace.dataset_profile = (
         safe_profile
@@ -1502,7 +1551,13 @@ def profile_workspace_data(
     )
 
     workspace.checkpoint.current_focus = (
-        "Review dataset profile and build execution plan"
+        (
+            "Review development sample and build execution plan"
+        )
+        if workspace.development_sample_enabled
+        else (
+            "Review dataset profile and build execution plan"
+        )
     )
 
     workspace.checkpoint.next_actions = [
@@ -1516,6 +1571,12 @@ def profile_workspace_data(
         workspace_id=workspace_id,
         content=content,
     )
+
+    if workspace.development_sample_enabled:
+        save_workspace_working_dataframe(
+            workspace_id=workspace_id,
+            df=working_df,
+        )
 
     database.save_workspace(
         workspace=workspace
