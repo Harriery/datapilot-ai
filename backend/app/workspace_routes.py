@@ -541,6 +541,9 @@ def transform_workspace_workbench_data(
             rollback_version_number=(
                 version_number
             ),
+            pipeline_action=(
+                request.pipeline_action
+            ),
         )
 
     except ValueError as exc:
