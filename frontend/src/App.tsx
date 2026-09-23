@@ -355,6 +355,14 @@ type DashboardWorkspace = {
       active: boolean;
     }[];
 
+  node_positions?: Record<
+    string,
+    {
+      x: number;
+      y: number;
+    }
+  >;
+
   source:
       | "local"
       | "user";
@@ -2795,6 +2803,64 @@ async function buildPersonalDataModel() {
     setPersonalDataModelLoading(false);
   }
 }
+
+async function downloadLogicalDataModel() {
+  if (!workspaceId) {
+    return;
+  }
+
+  setPersonalDataModelError(
+    null
+  );
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data-model/export`
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Logical model indirilemedi."
+      );
+    }
+
+    const blob =
+      await response.blob();
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+    link.download =
+      "datapilot_logical_model.json";
+
+    document.body.appendChild(
+      link
+    );
+
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(
+      url
+    );
+
+  } catch (error) {
+    setPersonalDataModelError(
+      error instanceof Error
+        ? error.message
+        : "Logical model indirilemedi."
+    );
+  }
+}
+
 
 async function savePersonalDataModelStudio(
   studio: DataModelStudioData,
@@ -5374,6 +5440,9 @@ async function restoreWorkspaceVersion(
                           
                             studioSaving={
                               personalDataModelStudioSaving
+                            }
+                            onExport={
+                              downloadLogicalDataModel
                             }
                           />
                         )}
