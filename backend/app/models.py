@@ -756,6 +756,8 @@ class PersonalProjectKPIDefinition(BaseModel):
     code: str
     title: str
 
+    fact_table: str | None = None
+
     measure: str | None = None
 
     aggregation: Literal[
@@ -766,14 +768,34 @@ class PersonalProjectKPIDefinition(BaseModel):
         "max",
     ] | None = None
 
+    dimension_table: str | None = None
     dimension: str | None = None
+
+    filter_value: (
+        str | int | float | bool | None
+    ) = None
+
+    formula_mode: Literal[
+        "safe_aggregation",
+    ] | None = None
+
+    formula: str | None = None
 
     description: str
 
     source: Literal[
         "local",
         "user",
-    ] = "local"   
+    ] = "local"
+
+
+class PersonalProjectKPIBuilderRequest(BaseModel):
+    definitions: list[
+        PersonalProjectKPIDefinition
+    ] = Field(
+        min_length=1
+    )
+
 
 class PersonalProjectKPISelectionRequest(BaseModel):
     codes: list[str] = Field(
