@@ -176,6 +176,7 @@ type DashboardWorkspace = {
   dataset_filename?: string | null;
 
   development_sample_size?: number | null;
+  development_sample_max_size?: number | null;
   development_sample_strategy?:
     | "random"
     | null;
@@ -1711,6 +1712,12 @@ async function openSelectedWorkspace(
       latestWorkspace
     );
 
+    setDevelopmentSampleSize(
+      latestWorkspace.development_sample_size ??
+      latestWorkspace.development_sample_row_count ??
+      1000
+    );
+
     setWorkspaceValidation(
       latestWorkspace.validation_result ?? null
     );
@@ -1871,6 +1878,12 @@ async function uploadWorkspaceData(
         setDashboardWorkspace(
           updatedWorkspace
         );
+
+        setDevelopmentSampleSize(
+          updatedWorkspace.development_sample_size ??
+          updatedWorkspace.development_sample_row_count ??
+          developmentSampleSize
+        );
       
         setDashboardWorkspaces(
           (previous) =>
@@ -1906,6 +1919,124 @@ async function uploadWorkspaceData(
       setWorkspaceDataLoading(false);
     }
   }
+
+async function resizeDevelopmentSample(
+  nextSize: number
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  setWorkspaceDataLoading(true);
+  setWorkspaceDataError(null);
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/development-sample`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          sample_size: nextSize,
+          strategy: "random",
+          random_seed: 42,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Development sample değiştirilemedi."
+      );
+    }
+
+    await response.json();
+
+    const [
+      workspaceResponse,
+      workingResponse,
+    ] = await Promise.all([
+      fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+      ),
+      fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/working`
+      ),
+    ]);
+
+    if (
+      !workspaceResponse.ok ||
+      !workingResponse.ok
+    ) {
+      throw new Error(
+        "Sample güncellendi fakat workspace yenilenemedi."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await workspaceResponse.json();
+
+    const updatedWorking:
+      WorkspaceWorkingData =
+        await workingResponse.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+    setWorkspaceWorkingData(
+      updatedWorking
+    );
+
+    setDevelopmentSampleSize(
+      nextSize
+    );
+
+    setWorkspaceTask(null);
+    setWorkspaceValidation(null);
+    setResultRows(null);
+    setPreparedPipelineAction(null);
+    setPreparedPipelineCode(null);
+
+    setWorkspacePreviewRevision(
+      (previous) =>
+        previous + 1
+    );
+
+    await loadWorkspaceVersions(
+      workspaceId
+    );
+
+  } catch (error) {
+    setWorkspaceDataError(
+      error instanceof Error
+        ? error.message
+        : "Development sample değiştirilemedi."
+    );
+  } finally {
+    setWorkspaceDataLoading(false);
+  }
+}
+
 
 async function applyPipelineToFullDataset() {
   if (!workspaceId) {
@@ -5542,6 +5673,9 @@ async function restoreWorkspaceVersion(
                                     );
                                   }}
                                 >
+                                  <option value={500}>
+                                    500 rows
+                                  </option>
                                   <option value={1000}>
                                     1,000 rows
                                   </option>
@@ -5550,9 +5684,6 @@ async function restoreWorkspaceVersion(
                                   </option>
                                   <option value={5000}>
                                     5,000 rows
-                                  </option>
-                                  <option value={0}>
-                                    Full dataset
                                   </option>
                                 </select>
 
@@ -5614,26 +5745,52 @@ async function restoreWorkspaceVersion(
                                       workspaceDataLoading
                                     }
                                     onChange={(event) => {
-                                      setDevelopmentSampleSize(
+                                      void resizeDevelopmentSample(
                                         Number(
                                           event.target.value
                                         )
                                       );
                                     }}
                                   >
-                                    <option value={1000}>
-                                      1,000
-                                    </option>
-                                    <option value={2500}>
-                                      2,500
-                                    </option>
-                                    <option value={5000}>
-                                      5,000
-                                    </option>
-                                    <option value={0}>
-                                      Full
-                                    </option>
+                                    {[
+                                      500,
+                                      1000,
+                                      2500,
+                                      5000,
+                                    ]
+                                      .filter(
+                                        (size) =>
+                                          size <=
+                                          (
+                                            dashboardWorkspace
+                                              .development_sample_max_size ??
+                                            dashboardWorkspace
+                                              .development_sample_size ??
+                                            1000
+                                          )
+                                      )
+                                      .map(
+                                        (size) => (
+                                          <option
+                                            key={size}
+                                            value={size}
+                                          >
+                                            {size.toLocaleString()}
+                                          </option>
+                                        )
+                                      )}
                                   </select>
+
+                                  <small>
+                                    Max{" "}
+                                    {(
+                                      dashboardWorkspace
+                                        .development_sample_max_size ??
+                                      dashboardWorkspace
+                                        .development_sample_size ??
+                                      developmentSampleSize
+                                    ).toLocaleString()} rows
+                                  </small>
                                 </label>
 
                                 <label className="workspace-replace-data">
