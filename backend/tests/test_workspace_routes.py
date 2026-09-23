@@ -3612,3 +3612,273 @@ def test_apply_pipeline_to_full_dataset_uses_source_and_disables_sample(
         ]
         == "Validate full prepared dataset"
     )
+
+
+
+def test_processed_dataset_requires_successful_validation(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Processed Dataset Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/processed-datasets"
+        ),
+        json={
+            "name": "clean_v1",
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_processed_dataset_create_activate_and_export(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Processed Dataset Flow",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.validation_result = (
+        WorkspaceValidationResponse(
+            passed=True,
+            source_row_count=2,
+            working_row_count=2,
+            checks=[],
+        )
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    current_working = pd.DataFrame(
+        {
+            "city": [
+                "Den Haag",
+                "Rotterdam",
+            ],
+            "value": [
+                10,
+                20,
+            ],
+        }
+    )
+
+    saved_snapshots: dict[
+        str,
+        pd.DataFrame,
+    ] = {}
+
+    saved_working: dict[
+        str,
+        pd.DataFrame,
+    ] = {}
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_working_dataframe",
+        lambda workspace_id: (
+            current_working.copy()
+        ),
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "save_workspace_processed_dataset",
+        (
+            lambda workspace_id, dataset_id, df:
+            saved_snapshots.update(
+                {
+                    dataset_id:
+                        df.copy()
+                }
+            )
+        ),
+    )
+
+    create_dataset_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/processed-datasets"
+        ),
+        json={
+            "name": "clean_v1",
+        },
+    )
+
+    assert (
+        create_dataset_response.status_code
+        == 200
+    )
+
+    created = (
+        create_dataset_response.json()
+    )
+
+    dataset_id = created[
+        "dataset_id"
+    ]
+
+    assert created["name"] == "clean_v1"
+    assert created["row_count"] == 2
+    assert created["column_count"] == 2
+
+    assert dataset_id in saved_snapshots
+
+    list_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/processed-datasets"
+        )
+    )
+
+    assert list_response.status_code == 200
+    assert len(list_response.json()) == 1
+
+    replacement_df = pd.DataFrame(
+        {
+            "city": [
+                "Delft",
+            ],
+            "value": [
+                99,
+            ],
+        }
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_processed_dataset",
+        (
+            lambda workspace_id, dataset_id:
+            replacement_df.copy()
+        ),
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "save_workspace_working_dataframe",
+        (
+            lambda workspace_id, df:
+            saved_working.update(
+                {
+                    workspace_id:
+                        df.copy()
+                }
+            )
+        ),
+    )
+
+    activate_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            f"/processed-datasets/{dataset_id}"
+            "/activate"
+        )
+    )
+
+    assert activate_response.status_code == 200
+
+    activated = activate_response.json()
+
+    assert (
+        activated[
+            "active_processed_dataset_id"
+        ]
+        == dataset_id
+    )
+
+    assert (
+        activated[
+            "validation_result"
+        ]
+        is None
+    )
+
+    assert (
+        saved_working[
+            workspace_id
+        ]["city"].tolist()
+        == ["Delft"]
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_processed_dataset",
+        (
+            lambda workspace_id, dataset_id:
+            current_working.copy()
+        ),
+    )
+
+    export_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            f"/processed-datasets/{dataset_id}"
+            "/export"
+        )
+    )
+
+    assert export_response.status_code == 200
+
+    assert (
+        "text/csv"
+        in export_response.headers[
+            "content-type"
+        ]
+    )
+
+    assert (
+        "clean_v1.csv"
+        in export_response.headers[
+            "content-disposition"
+        ]
+    )
+
+    assert (
+        "Den Haag"
+        in export_response.text
+    )
