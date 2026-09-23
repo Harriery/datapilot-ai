@@ -1156,6 +1156,30 @@ class WorkspaceFullPipelineResponse(BaseModel):
     development_sample_disabled: bool = True
 
 
+class WorkspaceProcessedDatasetCreateRequest(
+    BaseModel
+):
+    name: str = Field(
+        min_length=1,
+        max_length=80,
+    )
+
+
+class WorkspaceProcessedDataset(BaseModel):
+    dataset_id: str
+
+    name: str
+
+    row_count: int
+    column_count: int
+
+    created_at: str
+
+    source: Literal[
+        "working_snapshot",
+    ] = "working_snapshot"
+
+
 class Workspace(BaseModel):
     workspace_id: str
     learner_id: str
@@ -1273,6 +1297,14 @@ class Workspace(BaseModel):
     development_sample_row_count: int | None = None
 
     development_sample_enabled: bool = False
+
+    processed_datasets: list[
+        WorkspaceProcessedDataset
+    ] = Field(default_factory=list)
+
+    active_processed_dataset_id: (
+        str | None
+    ) = None
 
     dataset_profile: dict | None = None
 
