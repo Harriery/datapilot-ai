@@ -26,6 +26,11 @@ type Props = {
   title: string;
   description?: string;
   pageSize?: number;
+  selectedColumn?: string | null;
+  refreshToken?: number;
+  onColumnClick?: (
+    column: string
+  ) => void;
 };
 
 function DataPreview({
@@ -35,6 +40,9 @@ function DataPreview({
   title,
   description,
   pageSize = 25,
+  selectedColumn = null,
+  refreshToken = 0,
+  onColumnClick,
 }: Props) {
   const [data, setData] =
     useState<DataPreviewResponse | null>(null);
@@ -74,6 +82,7 @@ function DataPreview({
     page,
     pageSize,
     search,
+    refreshToken,
   ]);
 
   useEffect(() => {
@@ -234,8 +243,29 @@ function DataPreview({
                 <tr>
                   {data.columns.map(
                     (column) => (
-                      <th key={column}>
-                        {column}
+                      <th
+                        key={column}
+                        className={
+                          selectedColumn === column
+                            ? "data-preview-column-selected"
+                            : undefined
+                        }
+                      >
+                        {onColumnClick ? (
+                          <button
+                            type="button"
+                            className="data-preview-column-button"
+                            onClick={() => {
+                              onColumnClick(
+                                column
+                              );
+                            }}
+                          >
+                            {column}
+                          </button>
+                        ) : (
+                          column
+                        )}
                       </th>
                     )
                   )}
