@@ -662,26 +662,44 @@ class DataEngineeringTaskCreateRequest(BaseModel):
 #
 # workspace'e özel kalır.
 
+class PersonalProjectColumnIntelligence(BaseModel):
+    name: str
+    data_type: str = "unknown"
+    null_count: int = 0
+    null_percentage: float = 0.0
+    distinct_count: int = 0
+    cardinality_ratio: float = 0.0
+    examples: list[str] = Field(default_factory=list)
+    minimum: float | None = None
+    maximum: float | None = None
+    role_candidates: list[
+        Literal["key", "numeric", "dimension", "time"]
+    ] = Field(default_factory=list)
+    confidence: Literal["low", "medium", "high"] = "medium"
+    reasoning: list[str] = Field(default_factory=list)
+
+
+class PersonalProjectModelDiscovery(BaseModel):
+    grain: str
+    fact_table_candidate: str
+    dimension_table_candidates: list[str] = Field(default_factory=list)
+    confidence: Literal["low", "medium", "high"] = "medium"
+    reasoning: list[str] = Field(default_factory=list)
+
+
 class PersonalProjectAnalysisPlan(BaseModel):
-    measure_candidates: list[str] = Field(
+    # Legacy name kept for downstream/backward compatibility.
+    measure_candidates: list[str] = Field(default_factory=list)
+    numeric_candidates: list[str] = Field(default_factory=list)
+    key_candidates: list[str] = Field(default_factory=list)
+    dimension_candidates: list[str] = Field(default_factory=list)
+    time_candidates: list[str] = Field(default_factory=list)
+    column_intelligence: list[PersonalProjectColumnIntelligence] = Field(
         default_factory=list
     )
-
-    dimension_candidates: list[str] = Field(
-        default_factory=list
-    )
-
-    time_candidates: list[str] = Field(
-        default_factory=list
-    )
-
-    suggested_questions: list[str] = Field(
-        default_factory=list
-    )
-
-    source: Literal[
-        "local",
-    ] = "local"
+    model_discovery: PersonalProjectModelDiscovery | None = None
+    suggested_questions: list[str] = Field(default_factory=list)
+    source: Literal["local"] = "local"
 
 
 class PersonalProjectAnalysisResult(BaseModel):
