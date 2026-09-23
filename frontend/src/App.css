@@ -10386,3 +10386,165 @@
     justify-content: space-between;
   }
 }
+
+
+/* ==================================================
+   DATA MODEL CLEANUP / INSPECTOR
+   ================================================== */
+
+.personal-data-model-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-studio-workspace {
+  grid-template-columns:
+    190px
+    minmax(0, 1fr)
+    220px;
+}
+
+.model-inspector {
+  min-width: 0;
+  height: 380px;
+  overflow: auto;
+
+  border: 1px solid #d8e3ef;
+  border-radius: 11px;
+
+  background: #f8fafc;
+}
+
+.model-inspector-header {
+  padding: 10px;
+
+  border-bottom: 1px solid #e1e8f0;
+}
+
+.model-inspector-header strong {
+  display: block;
+  margin-top: 2px;
+
+  color: #263950;
+  font-size: 12px;
+}
+
+.model-inspector-content {
+  display: grid;
+  gap: 9px;
+
+  padding: 10px;
+}
+
+.model-inspector-detail {
+  display: grid;
+  gap: 2px;
+
+  padding: 8px;
+
+  border-radius: 7px;
+
+  background: #ffffff;
+}
+
+.model-inspector-detail span {
+  color: #8492a4;
+
+  font-size: 8px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+}
+
+.model-inspector-detail strong {
+  overflow-wrap: anywhere;
+
+  color: #354b65;
+  font-size: 10px;
+}
+
+.model-inspector-columns {
+  display: grid;
+  gap: 4px;
+}
+
+.model-inspector-columns > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  padding: 6px 7px;
+
+  border: 1px solid #e4eaf1;
+  border-radius: 6px;
+
+  background: #ffffff;
+}
+
+.model-inspector-columns span {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #43566e;
+  font-size: 9px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-inspector-columns small {
+  flex-shrink: 0;
+
+  color: #7d8da0;
+
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.model-inspector-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.model-inspector-empty {
+  margin: 0;
+  padding: 12px 10px;
+
+  color: #8492a4;
+
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1120px) {
+  .model-studio-workspace {
+    grid-template-columns:
+      170px
+      minmax(0, 1fr);
+  }
+
+  .model-inspector {
+    grid-column: 1 / -1;
+    height: auto;
+    max-height: 240px;
+  }
+}
+
+@media (max-width: 760px) {
+  .personal-data-model-header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .model-studio-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .model-inspector {
+    grid-column: auto;
+  }
+}
