@@ -2663,7 +2663,7 @@ async function deletePersonalAnalysis(
 }
 
 async function savePersonalKpis(
-  codes: string[],
+  definitions: PersonalKpiData[],
 ) {
   if (!workspaceId) {
     return;
@@ -2674,7 +2674,7 @@ async function savePersonalKpis(
 
   try {
     const response = await fetch(
-      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/kpis/select`,
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/kpis/save`,
       {
         method: "POST",
 
@@ -2683,7 +2683,7 @@ async function savePersonalKpis(
         },
 
         body: JSON.stringify({
-          codes,
+          definitions,
         }),
       }
     );
@@ -5400,11 +5400,13 @@ async function restoreWorkspaceVersion(
 
                       {dashboardWorkspace.usage_context === "personal" &&
                         activeWorkspaceStage === "kpis" &&
-                        dashboardWorkspace.kpi_candidates &&
-                        dashboardWorkspace.kpi_candidates.length > 0 && (
+                        dashboardWorkspace.data_model_studio && (
                           <PersonalKpiCandidates
+                            studio={
+                              dashboardWorkspace.data_model_studio
+                            }
                             candidates={
-                              dashboardWorkspace.kpi_candidates
+                              dashboardWorkspace.kpi_candidates ?? []
                             }
                             selectedDefinitions={
                               dashboardWorkspace.kpi_definitions ?? []
