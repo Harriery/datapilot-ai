@@ -1398,11 +1398,17 @@ def test_bi_dashboard_project_gets_deliverables(
         for item in deliverables
     ]
 
-    assert "clean_dataset" in deliverable_codes
-    assert "kpi_definitions" in deliverable_codes
-    assert "data_model" in deliverable_codes
-    assert "bi_ready_dataset" in deliverable_codes
-    assert "dashboard" in deliverable_codes
+    assert deliverable_codes == [
+        "data_profile",
+        "clean_dataset",
+        "data_model",
+        "kpi_definitions",
+        "bi_ready_dataset",
+        "analysis",
+        "dashboard",
+        "insight_summary",
+        "documentation",
+    ]
 
     assert all(
         item["status"] == "pending"
@@ -1635,8 +1641,13 @@ def test_successful_personal_validation_completes_clean_dataset(
     )
 
     assert (
-        deliverables["analysis"]["status"]
+        deliverables["data_model"]["status"]
         == "in_progress"
+    )
+
+    assert (
+        deliverables["analysis"]["status"]
+        == "pending"
     )
 
     analysis_plan = (
@@ -1723,10 +1734,19 @@ def test_run_personal_analysis_completes_analysis_deliverable(
         )
     )
 
-    # Analysis aşamasını aktif duruma getiriyoruz.
+    # Analysis is downstream of model/KPI/BI model.
     for deliverable in (
         workspace.project_deliverables
     ):
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+            "data_model",
+            "kpi_definitions",
+            "bi_ready_dataset",
+        }:
+            deliverable.status = "completed"
+
         if deliverable.code == "analysis":
             deliverable.status = "in_progress"
 
@@ -1802,12 +1822,6 @@ def test_run_personal_analysis_completes_analysis_deliverable(
         workspace_response.json()
     )
 
-    kpi_candidates = (
-        updated_workspace[
-            "kpi_candidates"
-        ]
-    )
-
     deliverables = {
         item["code"]: item
         for item in updated_workspace[
@@ -1822,16 +1836,9 @@ def test_run_personal_analysis_completes_analysis_deliverable(
 
     assert (
         deliverables[
-            "data_model"
+            "dashboard"
         ]["status"]
         == "in_progress"
-    )
-
-    assert (
-        deliverables[
-            "kpi_definitions"
-        ]["status"]
-        == "pending"
     )
 
     assert (
@@ -1847,19 +1854,6 @@ def test_run_personal_analysis_completes_analysis_deliverable(
         ]["dimension"]
         == "city"
     )
-
-    assert len(kpi_candidates) == 5
-
-    assert [
-        item["code"]
-        for item in kpi_candidates
-    ] == [
-        "average_age",
-        "count_age",
-        "minimum_age",
-        "maximum_age",
-        "average_age_by_city",
-    ]
 
     assert (
         updated_workspace[
@@ -1899,21 +1893,6 @@ def test_select_personal_kpis_completes_kpi_deliverable(
     )
 
     assert workspace is not None
-
-    workspace.analysis_result = (
-        PersonalProjectAnalysisResult(
-            measure="age",
-            dimension="city",
-            overall={
-                "count": 4,
-                "mean": 29.5,
-                "min": 28.0,
-                "max": 31.0,
-            },
-            grouped_results=[],
-            source="local",
-        )
-    )
 
     workspace.data_model_plan = (
         PersonalProjectDataModelPlan(
@@ -1965,7 +1944,8 @@ def test_select_personal_kpis_completes_kpi_deliverable(
         workspace.project_deliverables
     ):
         if deliverable.code in {
-            "analysis",
+            "data_profile",
+            "clean_dataset",
             "data_model",
         }:
             deliverable.status = "completed"
@@ -2100,7 +2080,10 @@ def test_build_personal_data_model_completes_deliverable(
     for deliverable in (
         workspace.project_deliverables
     ):
-        if deliverable.code == "analysis":
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+        }:
             deliverable.status = "completed"
 
         if deliverable.code == "data_model":

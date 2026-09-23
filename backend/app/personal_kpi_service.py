@@ -1,4 +1,5 @@
 from backend.app.models import (
+    PersonalProjectAnalysisPlan,
     PersonalProjectAnalysisResult,
     PersonalProjectKPIDefinition,
 )
@@ -16,12 +17,10 @@ def _normalize_code_part(
     )
 
 
-def build_personal_kpi_candidates(
-    analysis_result: PersonalProjectAnalysisResult,
+def _build_candidates_for_measure(
+    measure: str,
+    dimension: str | None = None,
 ) -> list[PersonalProjectKPIDefinition]:
-
-    measure = analysis_result.measure
-    dimension = analysis_result.dimension
 
     measure_code = _normalize_code_part(
         measure
@@ -42,7 +41,6 @@ def build_personal_kpi_candidates(
             ),
             source="local",
         ),
-
         PersonalProjectKPIDefinition(
             code=f"count_{measure_code}",
             title=f"Count of {measure}",
@@ -55,7 +53,6 @@ def build_personal_kpi_candidates(
             ),
             source="local",
         ),
-
         PersonalProjectKPIDefinition(
             code=f"minimum_{measure_code}",
             title=f"Minimum {measure}",
@@ -68,7 +65,6 @@ def build_personal_kpi_candidates(
             ),
             source="local",
         ),
-
         PersonalProjectKPIDefinition(
             code=f"maximum_{measure_code}",
             title=f"Maximum {measure}",
@@ -84,11 +80,8 @@ def build_personal_kpi_candidates(
     ]
 
     if dimension is not None:
-
-        dimension_code = (
-            _normalize_code_part(
-                dimension
-            )
+        dimension_code = _normalize_code_part(
+            dimension
         )
 
         candidates.append(
@@ -113,3 +106,55 @@ def build_personal_kpi_candidates(
         )
 
     return candidates
+
+
+def build_personal_kpi_candidates_from_plan(
+    analysis_plan: PersonalProjectAnalysisPlan,
+) -> list[PersonalProjectKPIDefinition]:
+    """
+    Build deterministic KPI suggestions from validated
+    dataset discovery metadata.
+
+    The KPI stage therefore no longer depends on running
+    Analysis first. The first discovered dimension is used
+    as a lightweight grouped suggestion until the dedicated
+    KPI Builder is implemented.
+    """
+
+    first_dimension = (
+        analysis_plan.dimension_candidates[0]
+        if analysis_plan.dimension_candidates
+        else None
+    )
+
+    candidates_by_code: dict[
+        str,
+        PersonalProjectKPIDefinition,
+    ] = {}
+
+    for measure in analysis_plan.measure_candidates:
+        for candidate in _build_candidates_for_measure(
+            measure=measure,
+            dimension=first_dimension,
+        ):
+            candidates_by_code[
+                candidate.code
+            ] = candidate
+
+    return list(
+        candidates_by_code.values()
+    )
+
+
+def build_personal_kpi_candidates(
+    analysis_result: PersonalProjectAnalysisResult,
+) -> list[PersonalProjectKPIDefinition]:
+    """
+    Backward-compatible helper for callers that already
+    have an analysis result.
+    """
+
+    return _build_candidates_for_measure(
+        measure=analysis_result.measure,
+        dimension=analysis_result.dimension,
+    )

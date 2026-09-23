@@ -40,10 +40,6 @@ export const PERSONAL_WORKSPACE_STAGES: WorkspaceStageDefinition[] = [
     label: "Prepare",
   },
   {
-    code: "analysis",
-    label: "Analysis",
-  },
-  {
     code: "data_model",
     label: "Data Model",
   },
@@ -53,7 +49,11 @@ export const PERSONAL_WORKSPACE_STAGES: WorkspaceStageDefinition[] = [
   },
   {
     code: "bi_dataset",
-    label: "BI Dataset",
+    label: "BI Model",
+  },
+  {
+    code: "analysis",
+    label: "Analysis",
   },
   {
     code: "dashboard",
