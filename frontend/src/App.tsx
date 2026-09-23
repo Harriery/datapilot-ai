@@ -15,6 +15,8 @@ import PersonalAnalysisPlan, {
 } from "./PersonalAnalysisPlan";
 import PersonalDataUnderstanding
   from "./PersonalDataUnderstanding";
+import DataPreview
+  from "./DataPreview";
 
 import TasksPage from "./TasksPage";
 import ProgressPage from "./ProgressPage";
@@ -4936,6 +4938,14 @@ async function restoreWorkspaceVersion(
                                 </div>
                               </div>
                             </div>
+
+                            <DataPreview
+                              learnerId="demo-learner"
+                              workspaceId={dashboardWorkspace.workspace_id}
+                              dataset="source"
+                              title="Source dataset sample"
+                              description="Raw source data is read-only. Search and page through a limited server-side preview."
+                            />
                                 
                        {!workspaceTask && (
                         <div className="workspace-profile-next">
@@ -5244,42 +5254,13 @@ async function restoreWorkspaceVersion(
                               {workspaceWorkingDataError}
                             </div>
                           ) : workspaceWorkingData ? (
-                            <div className="workspace-working-table-wrap">
-                              <table className="workspace-working-table">
-                                <thead>
-                                  <tr>
-                                    {workspaceWorkingData.columns.map(
-                                      (column) => (
-                                        <th key={column}>
-                                          {column}
-                                        </th>
-                                      )
-                                    )}
-                                  </tr>
-                                </thead>
-                                  
-                                <tbody>
-                                  {workspaceWorkingData.rows.map(
-                                    (row, rowIndex) => (
-                                      <tr key={rowIndex}>
-                                        {workspaceWorkingData.columns.map(
-                                          (column) => (
-                                            <td
-                                              key={`${rowIndex}-${column}`}
-                                            >
-                                              {row[column] === null ||
-                                              row[column] === undefined
-                                                ? "—"
-                                                : String(row[column])}
-                                            </td>
-                                          )
-                                        )}
-                                      </tr>
-                                    )
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
+                            <DataPreview
+                              learnerId="demo-learner"
+                              workspaceId={dashboardWorkspace.workspace_id}
+                              dataset="working"
+                              title="Working dataset sample"
+                              description="This preview reflects the current working dataset while transformations remain in Workbench."
+                            />
                           ) : (
                             <p className="muted">
                               Working dataset is not available.
@@ -5527,6 +5508,14 @@ async function restoreWorkspaceVersion(
                               </div>
                             ) : (
                               <>
+                                <DataPreview
+                                  learnerId="demo-learner"
+                                  workspaceId={dashboardWorkspace.workspace_id}
+                                  dataset="working"
+                                  title="Validated dataset sample"
+                                  description="Preview the working dataset that passed the current validation checks."
+                                />
+
                                 <div className="workspace-profile-stats">
                                   <div>
                                     <strong>
@@ -5636,13 +5625,21 @@ async function restoreWorkspaceVersion(
                           activeWorkspaceStage === "prepare" &&
                           activePrepareStage === "understand" &&
                           dashboardWorkspace.analysis_plan && (
-                          
+                          <>
+                            <DataPreview
+                              learnerId="demo-learner"
+                              workspaceId={dashboardWorkspace.workspace_id}
+                              dataset="working"
+                              title="Processed dataset sample"
+                              description="This is the validated working dataset used for model discovery."
+                            />
+
                             <PersonalDataUnderstanding
                               plan={
                                 dashboardWorkspace.analysis_plan
                               }
                             />
-                            
+                          </>
                         )}
 
                         {workspaceValidation?.passed &&
