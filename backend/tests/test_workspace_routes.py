@@ -4324,3 +4324,141 @@ def test_delete_workspace_removes_workspace_and_session(
         missing_response.status_code
         == 404
     )
+
+
+
+def test_profile_upload_can_create_development_sample_immediately(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Upload Sample Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    rows = [
+        "row_id,value"
+    ]
+
+    rows.extend(
+        f"{index},{index * 10}"
+        for index in range(1500)
+    )
+
+    csv_content = (
+        "\n".join(rows)
+        + "\n"
+    )
+
+    saved_working: dict[
+        str,
+        pd.DataFrame,
+    ] = {}
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "save_workspace_dataset",
+        lambda workspace_id, content: None,
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "save_workspace_working_dataframe",
+        lambda workspace_id, df: (
+            saved_working.update(
+                {
+                    workspace_id:
+                        df.copy()
+                }
+            )
+        ),
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/profile"
+        ),
+        files={
+            "file": (
+                "large.csv",
+                csv_content,
+                "text/csv",
+            )
+        },
+        data={
+            "development_sample_size":
+                "1000",
+        },
+    )
+
+    assert response.status_code == 200
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert (
+        workspace_response.status_code
+        == 200
+    )
+
+    workspace = (
+        workspace_response.json()
+    )
+
+    assert (
+        workspace[
+            "development_sample_enabled"
+        ]
+        is True
+    )
+
+    assert (
+        workspace[
+            "development_sample_row_count"
+        ]
+        == 1000
+    )
+
+    assert (
+        workspace[
+            "development_sample_size"
+        ]
+        == 1000
+    )
+
+    assert (
+        len(
+            saved_working[
+                workspace_id
+            ]
+        )
+        == 1000
+    )
+
+    assert (
+        response.json()[
+            "profile"
+        ][
+            "row_count"
+        ]
+        == 1500
+    )
