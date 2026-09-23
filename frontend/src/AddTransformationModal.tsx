@@ -17,6 +17,70 @@ export type WorkbenchOperationType =
   | "custom";
 
 
+export type WorkbenchPipelineActionData = {
+  action:
+    | "rename"
+    | "remove"
+    | "change_type"
+    | "fill_missing"
+    | "replace_values"
+    | "derived";
+
+  column: string;
+
+  new_name?: string | null;
+
+  data_type?:
+    | "string"
+    | "integer"
+    | "float"
+    | "datetime"
+    | null;
+
+  fill_strategy?:
+    | "value"
+    | "mean"
+    | "median"
+    | "mode"
+    | "zero"
+    | null;
+
+  fill_value?:
+    | string
+    | number
+    | boolean
+    | null;
+
+  old_value?:
+    | string
+    | number
+    | boolean
+    | null;
+
+  new_value?:
+    | string
+    | number
+    | boolean
+    | null;
+
+  derived_name?: string | null;
+
+  derived_operation?:
+    | "copy"
+    | "uppercase"
+    | "lowercase"
+    | "add"
+    | "multiply"
+    | null;
+
+  derived_value?:
+    | string
+    | number
+    | boolean
+    | null;
+};
+
+
 export type WorkbenchOperationCreateData = {
   title: string;
   goal: string;
@@ -26,6 +90,9 @@ export type WorkbenchOperationCreateData = {
 
   source_columns: string[];
   expected_columns: string[];
+
+  pipeline_action?:
+    WorkbenchPipelineActionData | null;
 };
 
 
