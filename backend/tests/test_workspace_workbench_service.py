@@ -2,11 +2,13 @@ from backend.app.models import (
     DataQualityFinding,
     WorkspaceWorkbenchOperation,
     WorkspaceWorkbenchOperationCreateRequest,
+    WorkspacePipelineAction,
 )
 
 from backend.app.workspace_workbench_service import (
     add_user_workbench_operation,
     build_workbench_operations_from_findings,
+    complete_workbench_operation,
     sync_data_quality_workbench_operations,
 )
 
@@ -425,3 +427,52 @@ def test_sync_quality_operations_replaces_old_quality_tasks():
     ]
 
     assert len(active_operations) == 1
+
+
+def test_completed_workbench_operation_persists_pipeline_action():
+    operation = WorkspaceWorkbenchOperation(
+        operation_id="user-rename",
+        title="Rename city",
+        goal="Rename the city column.",
+        operation_type="schema",
+        origin="user",
+        status="active",
+        source_columns=["city"],
+        expected_columns=["location"],
+    )
+
+    pipeline_action = (
+        WorkspacePipelineAction(
+            action="rename",
+            column="city",
+            new_name="location",
+        )
+    )
+
+    (
+        completed,
+        next_operation_id,
+    ) = complete_workbench_operation(
+        operations=[operation],
+        operation_id="user-rename",
+        code=(
+            'df = df.rename('
+            'columns={"city": "location"})'
+        ),
+        rollback_version_number=1,
+        pipeline_action=pipeline_action,
+    )
+
+    assert completed.status == "completed"
+
+    assert (
+        completed.pipeline_action
+        == pipeline_action
+    )
+
+    assert (
+        completed.rollback_version_number
+        == 1
+    )
+
+    assert next_operation_id is None
