@@ -4462,3 +4462,142 @@ def test_profile_upload_can_create_development_sample_immediately(
         ]
         == 1500
     )
+
+
+
+def test_development_sample_cannot_exceed_initial_upload_limit(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Sample Limit Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    source_df = pd.DataFrame(
+        {
+            "row_id": list(
+                range(6000)
+            ),
+            "value": list(
+                range(6000)
+            ),
+        }
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.development_sample_size = 2500
+    workspace.development_sample_max_size = 2500
+    workspace.development_sample_row_count = 2500
+    workspace.development_sample_enabled = True
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_source_dataframe",
+        lambda workspace_id: (
+            source_df.copy()
+        ),
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "save_workspace_working_dataframe",
+        lambda workspace_id, df: None,
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "clear_workspace_versions",
+        lambda workspace_id: None,
+    )
+
+    too_large_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/development-sample"
+        ),
+        json={
+            "sample_size": 5000,
+            "strategy": "random",
+            "random_seed": 42,
+        },
+    )
+
+    assert (
+        too_large_response.status_code
+        == 400
+    )
+
+    assert "2500" in (
+        too_large_response.json()[
+            "detail"
+        ]
+    )
+
+    smaller_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/development-sample"
+        ),
+        json={
+            "sample_size": 1000,
+            "strategy": "random",
+            "random_seed": 42,
+        },
+    )
+
+    assert (
+        smaller_response.status_code
+        == 200
+    )
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    updated_workspace = (
+        workspace_response.json()
+    )
+
+    assert (
+        updated_workspace[
+            "development_sample_size"
+        ]
+        == 1000
+    )
+
+    assert (
+        updated_workspace[
+            "development_sample_max_size"
+        ]
+        == 2500
+    )
