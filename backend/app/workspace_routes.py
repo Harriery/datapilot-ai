@@ -1,8 +1,11 @@
 import uuid
 from io import BytesIO
+from typing import Literal
+
 from fastapi import (
     APIRouter,
     HTTPException,
+    Query,
     UploadFile,
     Response,
 )
@@ -18,6 +21,7 @@ from backend.app.models import (
     WorkspaceExecutionPlanRequest,
     WorkspaceExecutionPlanResponse,
     WorkspaceWorkingDataResponse,
+    WorkspaceDataPreviewResponse,
     WorkspaceTransformationRequest,
     DataEngineeringTaskTransformationResponse,
     WorkspaceVersionSummary,
@@ -1417,6 +1421,136 @@ def review_workspace_finding_attempt(
         mentor_response=mentor_response,
         evidence=evidence,
         source="local",
+    )
+
+
+@router.get(
+    "/workspaces/{learner_id}/{workspace_id}/data/preview",
+    response_model=WorkspaceDataPreviewResponse,
+)
+def get_workspace_data_preview(
+    learner_id: str,
+    workspace_id: str,
+    dataset: Literal[
+        "source",
+        "working",
+    ] = "working",
+    page: int = Query(
+        default=1,
+        ge=1,
+    ),
+    page_size: int = Query(
+        default=25,
+        ge=5,
+        le=100,
+    ),
+    search: str | None = Query(
+        default=None,
+        max_length=200,
+    ),
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    try:
+        df = (
+            load_workspace_source_dataframe(
+                workspace_id
+            )
+            if dataset == "source"
+            else load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        )
+
+    total_row_count = len(df)
+
+    filtered_df = df
+
+    normalized_search = (
+        search.strip()
+        if search is not None
+        else ""
+    )
+
+    if normalized_search:
+        row_matches = pd.Series(
+            False,
+            index=df.index,
+        )
+
+        for column in df.columns:
+            row_matches = (
+                row_matches
+                | df[column]
+                .astype(str)
+                .str.contains(
+                    normalized_search,
+                    case=False,
+                    na=False,
+                    regex=False,
+                )
+            )
+
+        filtered_df = df.loc[
+            row_matches
+        ]
+
+    filtered_row_count = len(
+        filtered_df
+    )
+
+    total_pages = max(
+        1,
+        (
+            filtered_row_count
+            + page_size
+            - 1
+        )
+        // page_size,
+    )
+
+    effective_page = min(
+        page,
+        total_pages,
+    )
+
+    start = (
+        effective_page - 1
+    ) * page_size
+
+    page_df = filtered_df.iloc[
+        start:
+        start + page_size
+    ]
+
+    return WorkspaceDataPreviewResponse(
+        dataset=dataset,
+        columns=df.columns.tolist(),
+        total_row_count=total_row_count,
+        filtered_row_count=(
+            filtered_row_count
+        ),
+        page=effective_page,
+        page_size=page_size,
+        total_pages=total_pages,
+        rows=dataframe_to_records(
+            page_df
+        ),
     )
 
 
