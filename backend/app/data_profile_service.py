@@ -75,6 +75,25 @@ def build_data_profile(df: pd.DataFrame) -> dict:
     for column, count in raw_null_counts.items():
         null_counts[column] = int(count)
 
+    distinct_counts = {
+        column: int(df[column].nunique(dropna=True))
+        for column in columns
+    }
+
+    column_examples = {
+        column: [
+            str(value)
+            for value in (
+                df[column]
+                .dropna()
+                .drop_duplicates()
+                .head(3)
+                .tolist()
+            )
+        ]
+        for column in columns
+    }
+
 
 
 # df.duplicated() → bir satır daha önce aynen görülmüş mü kontrol eder.
@@ -210,6 +229,8 @@ def build_data_profile(df: pd.DataFrame) -> dict:
         "columns": columns,
         "data_types": data_types,
         "null_counts": null_counts,
+        "distinct_counts": distinct_counts,
+        "column_examples": column_examples,
         "duplicate_count": duplicate_count,
         "sample_rows": sample_rows,
         "numeric_columns": numeric_columns,
