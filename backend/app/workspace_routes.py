@@ -3719,6 +3719,26 @@ def update_personal_project_data_model_studio(
 
     workspace.kpi_definitions = []
 
+    if workspace.usage_context == "personal":
+        invalidate_started = False
+
+        for deliverable in (
+            workspace.project_deliverables
+        ):
+            if (
+                deliverable.code
+                == "kpi_definitions"
+            ):
+                deliverable.status = (
+                    "in_progress"
+                )
+
+                invalidate_started = True
+                continue
+
+            if invalidate_started:
+                deliverable.status = "pending"
+
     workspace.checkpoint.current_focus = (
         "Review data model and define KPIs"
     )
