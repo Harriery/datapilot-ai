@@ -42,6 +42,8 @@ from backend.app.models import (
     WorkspaceWorkbenchOperationCreateRequest,
     WorkspaceWorkbenchTransformationRequest,
     WorkspaceWorkbenchTransformationResponse,
+    WorkspaceDevelopmentSampleRequest,
+    WorkspaceDevelopmentSampleResponse,
     PersonalProjectDataModelStudio,
 )
 
@@ -67,6 +69,7 @@ from backend.app.workspace_data_service import (
     list_workspace_versions,
     load_workspace_version,
     load_workspace_source_dataframe,
+    clear_workspace_versions,
 
 )
 
@@ -681,6 +684,202 @@ def transform_workspace_workbench_data(
 
 
 @router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/development-sample"
+    ),
+    response_model=(
+        WorkspaceDevelopmentSampleResponse
+    ),
+)
+def create_workspace_development_sample(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceDevelopmentSampleRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    try:
+        source_df = (
+            load_workspace_source_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    source_row_count = len(
+        source_df
+    )
+
+    if source_row_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Source dataset boş.",
+        )
+
+    sample_size = min(
+        request.sample_size,
+        source_row_count,
+    )
+
+    sampled = (
+        sample_size
+        < source_row_count
+    )
+
+    if sampled:
+        working_df = (
+            source_df.sample(
+                n=sample_size,
+                random_state=(
+                    request.random_seed
+                ),
+            )
+            .reset_index(drop=True)
+        )
+    else:
+        working_df = (
+            source_df.copy()
+            .reset_index(drop=True)
+        )
+
+    save_workspace_working_dataframe(
+        workspace_id=workspace_id,
+        df=working_df,
+    )
+
+    clear_workspace_versions(
+        workspace_id=workspace_id
+    )
+
+    # A different development sample invalidates
+    # previous transformation results and downstream
+    # state. Rebuild only trusted quality operations.
+    findings = (
+        workspace.dataset_analysis.findings
+        if workspace.dataset_analysis
+        is not None
+        else []
+    )
+
+    (
+        workspace.workbench_operations,
+        workspace.workbench_active_operation_id,
+    ) = sync_data_quality_workbench_operations(
+        existing_operations=[],
+        findings=findings,
+    )
+
+    workspace.workbench_preview = None
+
+    workspace.development_sample_size = (
+        request.sample_size
+    )
+
+    workspace.development_sample_strategy = (
+        request.strategy
+    )
+
+    workspace.development_sample_seed = (
+        request.random_seed
+    )
+
+    workspace.development_sample_row_count = (
+        len(working_df)
+    )
+
+    workspace.development_sample_enabled = (
+        sampled
+    )
+
+    workspace.validation_result = None
+
+    workspace.analysis_plan = None
+    workspace.analysis_result = None
+    workspace.analysis_results = []
+
+    workspace.kpi_candidates = []
+    workspace.kpi_definitions = []
+
+    workspace.data_model_plan = None
+    workspace.data_model_studio = None
+
+    workspace.current_task_id = None
+
+    workspace.checkpoint.completed_items = [
+        item
+        for item
+        in workspace.checkpoint.completed_items
+        if item not in {
+            "Execution plan created",
+            "Validation passed",
+            "Final review completed",
+            "Handoff completed",
+        }
+    ]
+
+    workspace.checkpoint.current_focus = (
+        "Review development sample and build execution plan"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Build execution plan"
+    ]
+
+    workspace.checkpoint.blocked_reason = None
+    workspace.checkpoint.last_error = None
+
+    if workspace.usage_context == "personal":
+        invalidate_started = False
+
+        for deliverable in (
+            workspace.project_deliverables
+        ):
+            if deliverable.code == "data_profile":
+                deliverable.status = "completed"
+                continue
+
+            if deliverable.code == "clean_dataset":
+                deliverable.status = "in_progress"
+                invalidate_started = True
+                continue
+
+            if invalidate_started:
+                deliverable.status = "pending"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceDevelopmentSampleResponse(
+        source_row_count=source_row_count,
+        working_row_count=len(
+            working_df
+        ),
+        requested_sample_size=(
+            request.sample_size
+        ),
+        strategy=request.strategy,
+        random_seed=request.random_seed,
+        sampled=sampled,
+    )
+
+
+@router.post(
     "/workspaces/{learner_id}/{workspace_id}/plan",
     response_model=WorkspaceExecutionPlanResponse,
 )
@@ -1023,6 +1222,13 @@ def profile_workspace_data(
         analysis_source = "local"
 
     workspace.dataset_filename = file.filename
+
+    workspace.development_sample_size = None
+    workspace.development_sample_strategy = None
+    workspace.development_sample_seed = None
+    workspace.development_sample_row_count = len(df)
+    workspace.development_sample_enabled = False
+
     workspace.dataset_profile = (
         safe_profile
     )
