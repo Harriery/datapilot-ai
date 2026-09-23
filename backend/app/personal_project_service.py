@@ -162,6 +162,37 @@ def reconcile_personal_project_deliverables(
     if template is None:
         return False
 
+    existing_structure = [
+        (
+            deliverable.code,
+            deliverable.title,
+        )
+        for deliverable in workspace.project_deliverables
+    ]
+
+    template_structure = list(template)
+
+    # Reconciliation is a migration concern, not a
+    # runtime state transition. If this workspace already
+    # uses the current template, preserve its statuses
+    # exactly as they are.
+    if existing_structure == template_structure:
+        return False
+
+    existing_codes = [
+        deliverable.code
+        for deliverable in workspace.project_deliverables
+    ]
+
+    template_codes = [
+        code
+        for code, _ in template
+    ]
+
+    order_changed = (
+        existing_codes != template_codes
+    )
+
     existing_by_code = {
         deliverable.code: deliverable
         for deliverable in workspace.project_deliverables
@@ -197,7 +228,7 @@ def reconcile_personal_project_deliverables(
     # If an older workflow had an active step, move the
     # active marker to the earliest unfinished step in the
     # new order. Completed work remains completed.
-    if had_in_progress:
+    if order_changed and had_in_progress:
         active_assigned = False
 
         for deliverable in reconciled:
