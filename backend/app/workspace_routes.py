@@ -76,6 +76,7 @@ from backend.app.workspace_data_service import (
     clear_workspace_versions,
     save_workspace_processed_dataset,
     load_workspace_processed_dataset,
+    delete_workspace_data,
 
 )
 
@@ -233,6 +234,45 @@ def list_workspaces(
             )
 
     return workspaces
+
+
+@router.delete(
+    "/workspaces/{learner_id}/{workspace_id}",
+    status_code=204,
+)
+def delete_workspace(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    deleted = database.delete_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    delete_workspace_data(
+        workspace_id=workspace_id
+    )
+
+    return Response(
+        status_code=204
+    )
 
 
 @router.post(
