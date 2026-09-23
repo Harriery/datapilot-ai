@@ -5814,8 +5814,8 @@ async function restoreWorkspaceVersion(
                               learnerId="demo-learner"
                               workspaceId={dashboardWorkspace.workspace_id}
                               dataset="source"
-                              title="Source dataset sample"
-                              description="Raw source data is read-only. Search and page through a limited server-side preview."
+                              title="Raw source preview"
+                              description="The full raw source is preserved, but only a small paginated preview is sent to the browser. Workbench uses the development dataset shown above."
                             />
                                 
                        {!workspaceTask && (
