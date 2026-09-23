@@ -158,6 +158,15 @@ type WorkbenchOperationData = {
 
 
 
+type ProcessedDatasetData = {
+  dataset_id: string;
+  name: string;
+  row_count: number;
+  column_count: number;
+  created_at: string;
+  source: "working_snapshot";
+};
+
 type DashboardWorkspace = {
   workspace_id: string;
   title: string;
@@ -172,6 +181,12 @@ type DashboardWorkspace = {
   development_sample_seed?: number | null;
   development_sample_row_count?: number | null;
   development_sample_enabled?: boolean;
+
+  processed_datasets?:
+    ProcessedDatasetData[];
+
+  active_processed_dataset_id?:
+    string | null;
 
   dataset_profile?:
     | WorkspaceDataProfileResponse["profile"]
@@ -946,6 +961,21 @@ df["age"] = df["age"].fillna(median_age)`);
   const [
     workspaceValidationError,
     setWorkspaceValidationError,
+  ] = useState<string | null>(null);
+
+  const [
+    processedDatasetName,
+    setProcessedDatasetName,
+  ] = useState("");
+
+  const [
+    processedDatasetLoading,
+    setProcessedDatasetLoading,
+  ] = useState(false);
+
+  const [
+    processedDatasetError,
+    setProcessedDatasetError,
   ] = useState<string | null>(null);
 
   const [
@@ -2178,6 +2208,239 @@ async function createNewWorkspace() {
       setWorkspaceCreating(false);
     }
   }
+
+async function createProcessedDataset() {
+  if (!workspaceId) {
+    return;
+  }
+
+  const name =
+    processedDatasetName.trim();
+
+  if (!name) {
+    setProcessedDatasetError(
+      "Enter a dataset name."
+    );
+    return;
+  }
+
+  setProcessedDatasetLoading(
+    true
+  );
+  setProcessedDatasetError(
+    null
+  );
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/processed-datasets`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          name,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Processed dataset kaydedilemedi."
+      );
+    }
+
+    await response.json();
+
+    const workspaceResponse =
+      await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+      );
+
+    if (!workspaceResponse.ok) {
+      throw new Error(
+        "Dataset kaydedildi fakat workspace yenilenemedi."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await workspaceResponse.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+    setProcessedDatasetName("");
+
+  } catch (error) {
+    setProcessedDatasetError(
+      error instanceof Error
+        ? error.message
+        : "Processed dataset kaydedilemedi."
+    );
+  } finally {
+    setProcessedDatasetLoading(
+      false
+    );
+  }
+}
+
+
+async function activateProcessedDataset(
+  datasetId: string
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  setProcessedDatasetLoading(
+    true
+  );
+  setProcessedDatasetError(
+    null
+  );
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/processed-datasets/${datasetId}/activate`,
+      {
+        method: "POST",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Processed dataset aktif edilemedi."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await response.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+    setWorkspaceValidation(
+      null
+    );
+
+    setWorkspaceWorkingData(
+      null
+    );
+
+    setWorkspacePreviewRevision(
+      (previous) =>
+        previous + 1
+    );
+
+  } catch (error) {
+    setProcessedDatasetError(
+      error instanceof Error
+        ? error.message
+        : "Processed dataset aktif edilemedi."
+    );
+  } finally {
+    setProcessedDatasetLoading(
+      false
+    );
+  }
+}
+
+
+async function downloadProcessedDataset(
+  dataset: ProcessedDatasetData
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  setProcessedDatasetError(
+    null
+  );
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/processed-datasets/${dataset.dataset_id}/export`
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Processed dataset indirilemedi."
+      );
+    }
+
+    const blob =
+      await response.blob();
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+    link.download =
+      `${dataset.name}.csv`;
+
+    document.body.appendChild(
+      link
+    );
+
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(
+      url
+    );
+
+  } catch (error) {
+    setProcessedDatasetError(
+      error instanceof Error
+        ? error.message
+        : "Processed dataset indirilemedi."
+    );
+  }
+}
+
 
 async function runWorkspaceValidation() {
     if (!workspaceId) {
@@ -6197,6 +6460,125 @@ async function restoreWorkspaceVersion(
                                   </div>
                                 </div>
                                     
+                                {workspaceValidation.passed && (
+                                  <div className="processed-dataset-panel">
+                                    <div className="processed-dataset-header">
+                                      <div>
+                                        <span className="workspace-overview-label">
+                                          PROCESSED DATASETS
+                                        </span>
+
+                                        <strong>
+                                          Save this validated result as a named dataset
+                                        </strong>
+
+                                        <p>
+                                          Downstream stages use the active processed dataset through working.csv.
+                                        </p>
+                                      </div>
+
+                                      <div className="processed-dataset-create">
+                                        <input
+                                          value={processedDatasetName}
+                                          placeholder="e.g. housing_clean_v1"
+                                          onChange={(event) => {
+                                            setProcessedDatasetName(
+                                              event.target.value
+                                            );
+                                          }}
+                                        />
+
+                                        <button
+                                          type="button"
+                                          className="new-workspace-button"
+                                          disabled={
+                                            processedDatasetLoading
+                                          }
+                                          onClick={() => {
+                                            void createProcessedDataset();
+                                          }}
+                                        >
+                                          {processedDatasetLoading
+                                            ? "Saving..."
+                                            : "Save dataset"}
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {(dashboardWorkspace.processed_datasets ?? []).length > 0 && (
+                                      <div className="processed-dataset-list">
+                                        {(dashboardWorkspace.processed_datasets ?? []).map(
+                                          (dataset) => {
+                                            const active =
+                                              dashboardWorkspace.active_processed_dataset_id ===
+                                              dataset.dataset_id;
+
+                                            return (
+                                              <div
+                                                key={dataset.dataset_id}
+                                                className={
+                                                  active
+                                                    ? "processed-dataset-item active"
+                                                    : "processed-dataset-item"
+                                                }
+                                              >
+                                                <div>
+                                                  <strong>
+                                                    {dataset.name}
+                                                  </strong>
+
+                                                  <span>
+                                                    {dataset.row_count} rows · {dataset.column_count} columns
+                                                  </span>
+                                                </div>
+
+                                                <div className="processed-dataset-item-actions">
+                                                  {active ? (
+                                                    <span className="workspace-list-status completed">
+                                                      Active
+                                                    </span>
+                                                  ) : (
+                                                    <button
+                                                      type="button"
+                                                      className="secondary-button"
+                                                      disabled={processedDatasetLoading}
+                                                      onClick={() => {
+                                                        void activateProcessedDataset(
+                                                          dataset.dataset_id
+                                                        );
+                                                      }}
+                                                    >
+                                                      Set active
+                                                    </button>
+                                                  )}
+
+                                                  <button
+                                                    type="button"
+                                                    className="secondary-button"
+                                                    onClick={() => {
+                                                      void downloadProcessedDataset(
+                                                        dataset
+                                                      );
+                                                    }}
+                                                  >
+                                                    Export CSV
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            );
+                                          }
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {processedDatasetError && (
+                                      <div className="workspace-form-error">
+                                        {processedDatasetError}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
                                 <div className="workspace-plan-steps">
                                   {workspaceValidation.checks.map(
                                     (check, index) => {
