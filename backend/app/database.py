@@ -1287,6 +1287,101 @@ def get_workspace(
     )
 
 
+def delete_workspace(
+    workspace_id: str,
+    learner_id: str,
+) -> bool:
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT workspace_json
+        FROM workspaces
+        WHERE workspace_id = ?
+        AND learner_id = ?
+        """,
+        (
+            workspace_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    if row is None:
+        connection.close()
+        return False
+
+    workspace = Workspace.model_validate_json(
+        row["workspace_json"]
+    )
+
+    try:
+        connection.execute(
+            """
+            DELETE FROM documents
+            WHERE workspace_id = ?
+            """,
+            (workspace_id,),
+        )
+
+        if workspace.current_task_id:
+            connection.execute(
+                """
+                DELETE FROM data_engineering_tasks
+                WHERE task_id = ?
+                AND learner_id = ?
+                """,
+                (
+                    workspace.current_task_id,
+                    learner_id,
+                ),
+            )
+
+        connection.execute(
+            """
+            DELETE FROM workspaces
+            WHERE workspace_id = ?
+            AND learner_id = ?
+            """,
+            (
+                workspace_id,
+                learner_id,
+            ),
+        )
+
+        if workspace.mentor_session_id:
+            connection.execute(
+                """
+                UPDATE learning_evidence
+                SET session_id = NULL
+                WHERE session_id = ?
+                """,
+                (
+                    workspace.mentor_session_id,
+                ),
+            )
+
+            connection.execute(
+                """
+                DELETE FROM sessions
+                WHERE session_id = ?
+                """,
+                (
+                    workspace.mentor_session_id,
+                ),
+            )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        connection.close()
+        raise
+
+    connection.close()
+
+    return True
+
+
 def get_workspaces_by_learner(
     learner_id: str,
 ) -> list[Workspace]:
