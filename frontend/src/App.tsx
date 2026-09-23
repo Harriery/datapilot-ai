@@ -17,6 +17,12 @@ import PersonalDataUnderstanding
   from "./PersonalDataUnderstanding";
 import DataPreview
   from "./DataPreview";
+import WorkbenchColumnInspector
+  from "./WorkbenchColumnInspector";
+import {
+  prepareColumnAction,
+  type ColumnActionDraft,
+} from "./workbenchColumnActions";
 
 import TasksPage from "./TasksPage";
 import ProgressPage from "./ProgressPage";
@@ -829,6 +835,16 @@ df["age"] = df["age"].fillna(median_age)`);
     showAddTransformationModal,
     setShowAddTransformationModal,
   ] = useState(false);
+
+  const [
+    selectedWorkbenchColumn,
+    setSelectedWorkbenchColumn,
+  ] = useState<string | null>(null);
+
+  const [
+    workspacePreviewRevision,
+    setWorkspacePreviewRevision,
+  ] = useState(0);
 
   const [
     addTransformationLoading,
@@ -2592,6 +2608,67 @@ async function createWorkbenchOperation(
 }
 
 
+async function prepareWorkbenchColumnAction(
+  draft: ColumnActionDraft
+): Promise<boolean> {
+  if (!dashboardWorkspace) {
+    return false;
+  }
+
+  const hasActiveOperation =
+    dashboardWorkspace
+      .workbench_operations
+      ?.some(
+        (operation) =>
+          operation.status === "active"
+      ) ?? false;
+
+  if (hasActiveOperation) {
+    setAddTransformationError(
+      "Finish the active Workbench operation before adding a column action."
+    );
+
+    return false;
+  }
+
+  try {
+    const prepared =
+      prepareColumnAction(
+        draft
+      );
+
+    const created =
+      await createWorkbenchOperation(
+        prepared.operation
+      );
+
+    if (!created) {
+      return false;
+    }
+
+    setTransformationCode(
+      prepared.code
+    );
+
+    setResultRows(null);
+    setPythonError(null);
+    setValidationMessage(
+      "Column action prepared. Run it to preview the result, then submit to save it."
+    );
+
+    return true;
+  } catch (error) {
+    setAddTransformationError(
+      error instanceof Error
+        ? error.message
+        : "Column action could not be prepared."
+    );
+
+    return false;
+  }
+}
+
+
 async function runTransformation() {
     if (!transformationCode.trim()) {
       setPythonError(
@@ -2731,6 +2808,14 @@ async function submitWorkspaceTransformation() {
 
       setWorkspaceWorkingData(
         data.working_data
+      );
+
+      setWorkspacePreviewRevision(
+        (previous) => previous + 1
+      );
+
+      setSelectedWorkbenchColumn(
+        null
       );
 
       const workspaceResponse =
@@ -5254,13 +5339,49 @@ async function restoreWorkspaceVersion(
                               {workspaceWorkingDataError}
                             </div>
                           ) : workspaceWorkingData ? (
-                            <DataPreview
-                              learnerId="demo-learner"
-                              workspaceId={dashboardWorkspace.workspace_id}
-                              dataset="working"
-                              title="Working dataset sample"
-                              description="This preview reflects the current working dataset while transformations remain in Workbench."
-                            />
+                            <>
+                              <DataPreview
+                                learnerId="demo-learner"
+                                workspaceId={dashboardWorkspace.workspace_id}
+                                dataset="working"
+                                title="Working dataset sample"
+                                description="Click a column name to prepare a safe Workbench transformation."
+                                selectedColumn={
+                                  selectedWorkbenchColumn
+                                }
+                                refreshToken={
+                                  workspacePreviewRevision
+                                }
+                                onColumnClick={
+                                  setSelectedWorkbenchColumn
+                                }
+                              />
+
+                              <WorkbenchColumnInspector
+                                column={
+                                  selectedWorkbenchColumn
+                                }
+                                disabledReason={
+                                  dashboardWorkspace
+                                    .workbench_operations
+                                    ?.some(
+                                      (operation) =>
+                                        operation.status ===
+                                        "active"
+                                    )
+                                    ? "Finish the active Workbench operation before adding another column action."
+                                    : null
+                                }
+                                onClose={() => {
+                                  setSelectedWorkbenchColumn(
+                                    null
+                                  );
+                                }}
+                                onPrepare={
+                                  prepareWorkbenchColumnAction
+                                }
+                              />
+                            </>
                           ) : (
                             <p className="muted">
                               Working dataset is not available.
@@ -5393,7 +5514,9 @@ async function restoreWorkspaceVersion(
                                       <table className="workspace-working-table">
                                         <thead>
                                           <tr>
-                                            {workspaceWorkingData.columns.map(
+                                            {Object.keys(
+                                              resultRows[0] ?? {}
+                                            ).map(
                                               (column) => (
                                                 <th key={column}>
                                                   {column}
@@ -5407,7 +5530,9 @@ async function restoreWorkspaceVersion(
                                           {resultRows.map(
                                             (row, rowIndex) => (
                                               <tr key={rowIndex}>
-                                                {workspaceWorkingData.columns.map(
+                                                {Object.keys(
+                                                  resultRows[0] ?? {}
+                                                ).map(
                                                   (column) => (
                                                     <td
                                                       key={`${rowIndex}-${column}`}
