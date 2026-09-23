@@ -63,6 +63,7 @@ import {
 import AddTransformationModal, {
   type WorkbenchOperationCreateData,
   type WorkbenchOperationType,
+  type WorkbenchPipelineActionData,
 } from "./AddTransformationModal";
 
 import type {
@@ -693,6 +694,20 @@ age_stats = df["age"].describe()
 median_age = df["age"].median()
 
 df["age"] = df["age"].fillna(median_age)`);
+
+  const [
+    preparedPipelineAction,
+    setPreparedPipelineAction,
+  ] = useState<WorkbenchPipelineActionData | null>(
+    null
+  );
+
+  const [
+    preparedPipelineCode,
+    setPreparedPipelineCode,
+  ] = useState<string | null>(
+    null
+  );
 
   const [resultRows, setResultRows] = useState<
     Record<string, unknown>[] | null
@@ -2650,6 +2665,14 @@ async function prepareWorkbenchColumnAction(
       prepared.code
     );
 
+    setPreparedPipelineAction(
+      prepared.pipelineAction
+    );
+
+    setPreparedPipelineCode(
+      prepared.code
+    );
+
     setResultRows(null);
     setPythonError(null);
     setValidationMessage(
@@ -2776,6 +2799,15 @@ async function submitWorkspaceTransformation() {
 
             after_rows:
               resultRows,
+
+            pipeline_action:
+              (
+                preparedPipelineAction &&
+                preparedPipelineCode ===
+                  transformationCode
+              )
+                ? preparedPipelineAction
+                : null,
           }),
         }
       );
@@ -2866,6 +2898,14 @@ async function submitWorkspaceTransformation() {
           "# df is already loaded.\n" +
           "# Write your pandas transformation below.\n"
         )
+      );
+
+      setPreparedPipelineAction(
+        null
+      );
+
+      setPreparedPipelineCode(
+        null
       );
 
       if (
@@ -5409,9 +5449,21 @@ async function restoreWorkspaceVersion(
                                   value={transformationCode}
                                   spellCheck={false}
                                   onChange={(event) => {
+                                    const nextCode =
+                                      event.target.value;
+
                                     setTransformationCode(
-                                      event.target.value
+                                      nextCode
                                     );
+
+                                    if (
+                                      preparedPipelineCode !==
+                                      nextCode
+                                    ) {
+                                      setPreparedPipelineAction(
+                                        null
+                                      );
+                                    }
                                   
                                     setResultRows(null);
                                     setPythonError(null);
