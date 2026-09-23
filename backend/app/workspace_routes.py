@@ -45,6 +45,8 @@ from backend.app.models import (
     WorkspaceDevelopmentSampleRequest,
     WorkspaceDevelopmentSampleResponse,
     WorkspaceFullPipelineResponse,
+    WorkspaceProcessedDatasetCreateRequest,
+    WorkspaceProcessedDataset,
     PersonalProjectDataModelStudio,
 )
 
@@ -71,6 +73,8 @@ from backend.app.workspace_data_service import (
     load_workspace_version,
     load_workspace_source_dataframe,
     clear_workspace_versions,
+    save_workspace_processed_dataset,
+    load_workspace_processed_dataset,
 
 )
 
@@ -1789,6 +1793,314 @@ def review_workspace_finding_attempt(
         mentor_response=mentor_response,
         evidence=evidence,
         source="local",
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/processed-datasets"
+    ),
+    response_model=WorkspaceProcessedDataset,
+)
+def create_workspace_processed_dataset(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceProcessedDatasetCreateRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if (
+        workspace.validation_result is None
+        or not workspace.validation_result.passed
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Processed dataset kaydetmeden önce "
+                "validation başarılı olmalı."
+            ),
+        )
+
+    normalized_name = request.name.strip()
+
+    if not normalized_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Dataset adı boş olamaz.",
+        )
+
+    if any(
+        item.name.lower()
+        == normalized_name.lower()
+        for item
+        in workspace.processed_datasets
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Bu isimde processed dataset zaten var.",
+        )
+
+    try:
+        working_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    dataset_id = str(
+        uuid.uuid4()
+    )
+
+    save_workspace_processed_dataset(
+        workspace_id=workspace_id,
+        dataset_id=dataset_id,
+        df=working_df,
+    )
+
+    dataset = WorkspaceProcessedDataset(
+        dataset_id=dataset_id,
+        name=normalized_name,
+        row_count=len(working_df),
+        column_count=len(
+            working_df.columns
+        ),
+        created_at=pd.Timestamp.utcnow().isoformat(),
+    )
+
+    workspace.processed_datasets.append(
+        dataset
+    )
+
+    workspace.active_processed_dataset_id = (
+        dataset.dataset_id
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return dataset
+
+
+@router.get(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/processed-datasets"
+    ),
+    response_model=list[
+        WorkspaceProcessedDataset
+    ],
+)
+def list_workspace_processed_datasets(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    return workspace.processed_datasets
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/processed-datasets/{dataset_id}/activate"
+    ),
+    response_model=Workspace,
+)
+def activate_workspace_processed_dataset(
+    learner_id: str,
+    workspace_id: str,
+    dataset_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    dataset = next(
+        (
+            item
+            for item
+            in workspace.processed_datasets
+            if item.dataset_id == dataset_id
+        ),
+        None,
+    )
+
+    if dataset is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Processed dataset bulunamadı.",
+        )
+
+    try:
+        df = load_workspace_processed_dataset(
+            workspace_id=workspace_id,
+            dataset_id=dataset_id,
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    save_workspace_working_dataframe(
+        workspace_id=workspace_id,
+        df=df,
+    )
+
+    workspace.active_processed_dataset_id = (
+        dataset_id
+    )
+
+    workspace.validation_result = None
+
+    workspace.analysis_plan = None
+    workspace.analysis_result = None
+    workspace.analysis_results = []
+
+    workspace.kpi_candidates = []
+    workspace.kpi_definitions = []
+
+    workspace.data_model_plan = None
+    workspace.data_model_studio = None
+
+    if workspace.usage_context == "personal":
+        invalidate_started = False
+
+        for deliverable in workspace.project_deliverables:
+            if deliverable.code == "clean_dataset":
+                deliverable.status = "in_progress"
+                invalidate_started = True
+                continue
+
+            if invalidate_started:
+                deliverable.status = "pending"
+
+    workspace.checkpoint.current_focus = (
+        "Validate active processed dataset"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Validate active processed dataset"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
+
+
+@router.get(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/processed-datasets/{dataset_id}/export"
+    )
+)
+def export_workspace_processed_dataset(
+    learner_id: str,
+    workspace_id: str,
+    dataset_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    dataset = next(
+        (
+            item
+            for item
+            in workspace.processed_datasets
+            if item.dataset_id == dataset_id
+        ),
+        None,
+    )
+
+    if dataset is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Processed dataset bulunamadı.",
+        )
+
+    try:
+        df = load_workspace_processed_dataset(
+            workspace_id=workspace_id,
+            dataset_id=dataset_id,
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    safe_name = "".join(
+        character
+        if (
+            character.isalnum()
+            or character in {
+                "-",
+                "_",
+            }
+        )
+        else "_"
+        for character
+        in dataset.name.strip()
+    ) or "processed_dataset"
+
+    return Response(
+        content=df.to_csv(
+            index=False
+        ),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                'attachment; '
+                f'filename="{safe_name}.csv"'
+            )
+        },
     )
 
 
