@@ -28,6 +28,11 @@ def test_build_personal_analysis_plan_for_housing_data():
     )
 
     assert (
+        result.numeric_candidates
+        == ["price"]
+    )
+
+    assert (
         result.dimension_candidates
         == ["region"]
     )
@@ -133,3 +138,85 @@ def test_build_personal_analysis_result_by_city():
     ) == 4
 
     assert result.source == "local"
+
+
+def test_analysis_plan_builds_model_discovery():
+    profile = {
+        "row_count": 3,
+        "columns": [
+            "property_id",
+            "region",
+            "sale_date",
+            "price",
+        ],
+        "data_types": {
+            "property_id": "int64",
+            "region": "object",
+            "sale_date": "object",
+            "price": "float64",
+        },
+        "null_counts": {
+            "property_id": 0,
+            "region": 0,
+            "sale_date": 0,
+            "price": 0,
+        },
+        "distinct_counts": {
+            "property_id": 3,
+            "region": 2,
+            "sale_date": 3,
+            "price": 3,
+        },
+        "column_examples": {
+            "property_id": ["1", "2", "3"],
+            "region": ["West", "East"],
+            "sale_date": ["2026-01-01", "2026-01-02"],
+            "price": ["350000", "420000"],
+        },
+        "numeric_columns": [
+            "property_id",
+            "price",
+        ],
+        "numeric_summary": {
+            "property_id": {
+                "count": 3,
+                "mean": 2.0,
+                "min": 1.0,
+                "max": 3.0,
+            },
+            "price": {
+                "count": 3,
+                "mean": 390000.0,
+                "min": 350000.0,
+                "max": 420000.0,
+            },
+        },
+    }
+
+    result = build_personal_analysis_plan(
+        profile,
+        dataset_filename="housing.csv",
+    )
+
+    assert result.key_candidates == ["property_id"]
+    assert result.numeric_candidates == ["price"]
+    assert result.dimension_candidates == ["region"]
+    assert result.time_candidates == ["sale_date"]
+
+    assert result.model_discovery is not None
+    assert result.model_discovery.grain == "One row per property_id."
+    assert result.model_discovery.fact_table_candidate == "fact_housing"
+    assert result.model_discovery.dimension_table_candidates == [
+        "dim_region",
+        "dim_sale_date",
+    ]
+
+    intelligence = {
+        item.name: item
+        for item in result.column_intelligence
+    }
+
+    assert intelligence["property_id"].role_candidates == ["key"]
+    assert intelligence["price"].role_candidates == ["numeric"]
+    assert intelligence["price"].minimum == 350000.0
+    assert intelligence["region"].distinct_count == 2
