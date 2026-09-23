@@ -188,8 +188,42 @@ type DashboardWorkspace = {
 
   analysis_plan?: {
     measure_candidates: string[];
+    numeric_candidates?: string[];
+    key_candidates?: string[];
     dimension_candidates: string[];
     time_candidates: string[];
+    column_intelligence?: {
+      name: string;
+      data_type: string;
+      null_count: number;
+      null_percentage: number;
+      distinct_count: number;
+      cardinality_ratio: number;
+      examples: string[];
+      minimum: number | null;
+      maximum: number | null;
+      role_candidates: (
+        | "key"
+        | "numeric"
+        | "dimension"
+        | "time"
+      )[];
+      confidence:
+        | "low"
+        | "medium"
+        | "high";
+      reasoning: string[];
+    }[];
+    model_discovery?: {
+      grain: string;
+      fact_table_candidate: string;
+      dimension_table_candidates: string[];
+      confidence:
+        | "low"
+        | "medium"
+        | "high";
+      reasoning: string[];
+    } | null;
     suggested_questions: string[];
     source: "local";
   } | null;
