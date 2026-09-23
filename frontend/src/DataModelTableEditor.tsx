@@ -540,6 +540,30 @@ function DataModelTableEditor({
       );
 
 
+    const nextNodePositions = {
+      ...(studio.node_positions ?? {}),
+    };
+
+    if (
+      editingTable.name !==
+      cleanTableName
+    ) {
+      const previousPosition =
+        nextNodePositions[
+          editingTable.name
+        ];
+
+      delete nextNodePositions[
+        editingTable.name
+      ];
+
+      if (previousPosition) {
+        nextNodePositions[
+          cleanTableName
+        ] = previousPosition;
+      }
+    }
+
     const updatedStudio:
       DataModelStudioData = {
 
@@ -547,6 +571,9 @@ function DataModelTableEditor({
 
       source:
         "user",
+
+      node_positions:
+        nextNodePositions,
 
       tables:
         studio.tables.map(
@@ -606,6 +633,14 @@ function DataModelTableEditor({
     }
 
 
+    const nextNodePositions = {
+      ...(studio.node_positions ?? {}),
+    };
+
+    delete nextNodePositions[
+      editingTable.name
+    ];
+
     const updatedStudio:
       DataModelStudioData = {
 
@@ -613,6 +648,9 @@ function DataModelTableEditor({
 
       source:
         "user",
+
+      node_positions:
+        nextNodePositions,
 
       tables:
         studio.tables.filter(
