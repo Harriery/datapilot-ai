@@ -10758,3 +10758,75 @@
     flex-direction: column;
   }
 }
+
+
+/* ==================================================
+   PREPARE STAGE LOCKS + DASHBOARD WORKSPACE DELETE
+   ================================================== */
+
+.workspace-stage-subnav-button:disabled {
+  color: #aab6c5;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.workspace-stage-subnav-button:disabled:hover {
+  background: transparent;
+  color: #aab6c5;
+}
+
+.workspace-stage-subnav-button:disabled
+  .workspace-stage-subnav-dot {
+  border-color: #c7d1dc;
+  background: #f4f6f8;
+  box-shadow: none;
+}
+
+.dashboard-workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 10px;
+}
+
+.workspace-delete-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 7px 10px;
+
+  border: 1px solid #ead1d1;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #a94b4b;
+
+  cursor: pointer;
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.workspace-delete-button:hover:not(:disabled) {
+  border-color: #dbaaaa;
+  background: #fff6f6;
+}
+
+.workspace-delete-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .dashboard-workspace-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-workspace-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}
