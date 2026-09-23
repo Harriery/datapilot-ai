@@ -132,7 +132,12 @@ def build_personal_kpi_candidates_from_plan(
         PersonalProjectKPIDefinition,
     ] = {}
 
-    for measure in analysis_plan.measure_candidates:
+    numeric_candidates = (
+        analysis_plan.numeric_candidates
+        or analysis_plan.measure_candidates
+    )
+
+    for measure in numeric_candidates:
         for candidate in _build_candidates_for_measure(
             measure=measure,
             dimension=first_dimension,
