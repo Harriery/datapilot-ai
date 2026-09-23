@@ -42,6 +42,7 @@ import {
   Plus,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserRound,
 } from "lucide-react";
 
@@ -775,6 +776,13 @@ df["age"] = df["age"].fillna(median_age)`);
   const [dashboardWorkspaces, setDashboardWorkspaces] =
   useState<DashboardWorkspace[]>([]);
 
+  const [
+    deletingWorkspaceId,
+    setDeletingWorkspaceId,
+  ] = useState<string | null>(
+    null
+  );
+
   const [newWorkspaceTitle, setNewWorkspaceTitle] =
     useState("");
 
@@ -1107,6 +1115,62 @@ df["age"] = df["age"].fillna(median_age)`);
   ] = useState(false);
  
 
+  function getPrepareStageStatus(
+    stage: PrepareStage
+  ): WorkspaceStageStatus {
+    if (!dashboardWorkspace) {
+      return stage === "profile"
+        ? "current"
+        : "locked";
+    }
+
+    if (stage === "profile") {
+      return dashboardWorkspace.dataset_filename
+        ? "completed"
+        : "current";
+    }
+
+    if (stage === "workbench") {
+      if (!workspaceTask) {
+        return "locked";
+      }
+
+      return workspaceTask.status === "completed"
+        ? "completed"
+        : "current";
+    }
+
+    if (stage === "validate") {
+      if (
+        !workspaceTask ||
+        workspaceTask.status !== "completed"
+      ) {
+        return "locked";
+      }
+
+      return (
+        workspaceValidation?.passed ||
+        dashboardWorkspace.validation_result?.passed
+      )
+        ? "completed"
+        : "current";
+    }
+
+    if (
+      !(
+        workspaceValidation?.passed ||
+        dashboardWorkspace.validation_result?.passed
+      )
+    ) {
+      return "locked";
+    }
+
+    return dashboardWorkspace.analysis_plan
+      ? "completed"
+      : "current";
+  }
+
+
   function getPersonalWorkspaceStageStatus(
     stage: PersonalWorkspaceStage
   ): WorkspaceStageStatus {
@@ -1162,6 +1226,64 @@ df["age"] = df["age"].fillna(median_age)`);
     return "locked";
   }
   
+  async function deleteDashboardWorkspace(
+    workspace: DashboardWorkspace
+  ) {
+    const confirmed = window.confirm(
+      `Delete "${workspace.title}"? This permanently removes its workspace data and history.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingWorkspaceId(
+      workspace.workspace_id
+    );
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspace.workspace_id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData =
+          await response.json().catch(
+            () => null
+          );
+
+        throw new Error(
+          errorData?.detail ||
+            "Workspace silinemedi."
+        );
+      }
+
+      setDashboardWorkspaces(
+        (previous) =>
+          previous.filter(
+            (item) =>
+              item.workspace_id !==
+              workspace.workspace_id
+          )
+      );
+
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Workspace silinemedi."
+      );
+    } finally {
+      setDeletingWorkspaceId(
+        null
+      );
+    }
+  }
+
+
   useEffect(() => {
     async function loadDashboardData() {
       try {
@@ -4145,14 +4267,40 @@ async function restoreWorkspaceVersion(
                                 {workspace.workflow_type}
                               </span>
                             </div>
-                            <button
-                              className="workspace-open-button"
-                              onClick={() =>
-                                openSelectedWorkspace(workspace)
-                              }
-                            >
-                              Open workspace →
-                            </button>
+                            <div className="dashboard-workspace-actions">
+                              <button
+                                className="workspace-open-button"
+                                onClick={() =>
+                                  openSelectedWorkspace(workspace)
+                                }
+                              >
+                                Open workspace →
+                              </button>
+
+                              <button
+                                type="button"
+                                className="workspace-delete-button"
+                                disabled={
+                                  deletingWorkspaceId ===
+                                  workspace.workspace_id
+                                }
+                                onClick={() => {
+                                  void deleteDashboardWorkspace(
+                                    workspace
+                                  );
+                                }}
+                              >
+                                <Trash2
+                                  size={14}
+                                  aria-hidden="true"
+                                />
+
+                                {deletingWorkspaceId ===
+                                workspace.workspace_id
+                                  ? "Deleting..."
+                                  : "Delete"}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )
@@ -5168,6 +5316,7 @@ async function restoreWorkspaceVersion(
                         activeStage={activeWorkspaceStage}
                         activePrepareStage={activePrepareStage}
                         getStageStatus={getPersonalWorkspaceStageStatus}
+                        getPrepareStageStatus={getPrepareStageStatus}
                         onStageChange={setActiveWorkspaceStage}
                         onPrepareStageChange={setActivePrepareStage}
                       />
