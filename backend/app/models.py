@@ -1320,6 +1320,8 @@ class Workspace(BaseModel):
 
     development_sample_size: int | None = None
 
+    development_sample_max_size: int | None = None
+
     development_sample_strategy: Literal[
         "random",
     ] | None = None
