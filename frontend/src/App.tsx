@@ -13,6 +13,9 @@ import PersonalProjectDeliverables, {
 import PersonalAnalysisPlan, {
   type AnalysisResultData,
 } from "./PersonalAnalysisPlan";
+import PersonalDataUnderstanding
+  from "./PersonalDataUnderstanding";
+
 import TasksPage from "./TasksPage";
 import ProgressPage from "./ProgressPage";
 import WorkspaceModeCards from "./WorkspaceModeCards";
@@ -5592,6 +5595,20 @@ async function restoreWorkspaceVersion(
                               </div>
                             )}
                           </section>
+                        )}
+
+                        {dashboardWorkspace.usage_context ===
+                          "personal" &&
+                          activeWorkspaceStage === "prepare" &&
+                          activePrepareStage === "understand" &&
+                          dashboardWorkspace.analysis_plan && (
+                          
+                            <PersonalDataUnderstanding
+                              plan={
+                                dashboardWorkspace.analysis_plan
+                              }
+                            />
+                            
                         )}
 
                         {workspaceValidation?.passed &&

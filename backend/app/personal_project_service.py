@@ -41,25 +41,47 @@ PERSONAL_PROJECT_DELIVERABLES = {
         ),
     ],
 
-    "bi_dashboard": [
-        ("data_profile", "Dataset profile"),
-        ("clean_dataset", "Clean dataset"),
-        ("analysis", "Data analysis"),
-        ("data_model", "Data model"),
+   "bi_dashboard": [
+        (
+            "data_profile",
+            "Dataset profile",
+        ),
+    
+        (
+            "clean_dataset",
+            "Clean dataset",
+        ),
+    
+        (
+            "data_model",
+            "Data model",
+        ),
+    
         (
             "kpi_definitions",
             "KPI definitions",
         ),
-        
+    
         (
             "bi_ready_dataset",
-            "Power BI-ready dataset",
+            "BI semantic model",
         ),
-        ("dashboard", "Dashboard"),
+    
+        (
+            "analysis",
+            "Data analysis",
+        ),
+    
+        (
+            "dashboard",
+            "Dashboard",
+        ),
+    
         (
             "insight_summary",
             "Insight summary",
         ),
+    
         (
             "documentation",
             "Project documentation",
