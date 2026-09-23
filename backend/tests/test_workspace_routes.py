@@ -3127,3 +3127,106 @@ def test_workbench_submit_version_and_restore_flow(
             "full_name",
         ]
     )
+
+
+def test_workspace_data_preview_paginates_and_searches(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Preview Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    source_df = pd.DataFrame(
+        {
+            "city": [
+                "Den Haag",
+                "Rotterdam",
+                "Delft",
+                "Utrecht",
+                "Leiden",
+                "Amsterdam",
+            ],
+            "value": [
+                10,
+                20,
+                30,
+                40,
+                50,
+                60,
+            ],
+        }
+    )
+
+    working_df = source_df.copy()
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_source_dataframe",
+        lambda workspace_id: source_df,
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_working_dataframe",
+        lambda workspace_id: working_df,
+    )
+
+    response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/preview"
+            "?dataset=source&page=1&page_size=5"
+        )
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["dataset"] == "source"
+    assert body["total_row_count"] == 6
+    assert body["filtered_row_count"] == 6
+    assert body["page"] == 1
+    assert body["page_size"] == 5
+    assert body["total_pages"] == 2
+    assert len(body["rows"]) == 5
+
+    search_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/preview"
+            "?dataset=working&page=1&page_size=5"
+            "&search=delft"
+        )
+    )
+
+    assert search_response.status_code == 200
+
+    search_body = search_response.json()
+
+    assert search_body["dataset"] == "working"
+    assert search_body["total_row_count"] == 6
+    assert search_body["filtered_row_count"] == 1
+    assert search_body["total_pages"] == 1
+    assert search_body["rows"] == [
+        {
+            "city": "Delft",
+            "value": 30,
+        }
+    ]
