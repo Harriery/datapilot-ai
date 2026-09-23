@@ -3623,6 +3623,14 @@ def build_personal_project_data_model(
         )
     )
 
+    workspace.kpi_candidates = (
+        build_personal_kpi_candidates_from_studio(
+            workspace.data_model_studio
+        )
+    )
+
+    workspace.kpi_definitions = []
+
     complete_and_advance_personal_project_deliverable(
         workspace=workspace,
         code="data_model",
