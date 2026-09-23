@@ -1114,6 +1114,35 @@ class WorkspaceWorkbenchTransformationResponse(BaseModel):
 
     working_data: WorkspaceWorkingDataResponse
 
+
+class WorkspaceDevelopmentSampleRequest(BaseModel):
+    sample_size: int = Field(
+        ge=1,
+        le=5000,
+    )
+
+    strategy: Literal[
+        "random",
+    ] = "random"
+
+    random_seed: int = 42
+
+
+class WorkspaceDevelopmentSampleResponse(BaseModel):
+    source_row_count: int
+    working_row_count: int
+
+    requested_sample_size: int
+
+    strategy: Literal[
+        "random",
+    ]
+
+    random_seed: int
+
+    sampled: bool
+
+
 class Workspace(BaseModel):
     workspace_id: str
     learner_id: str
@@ -1219,6 +1248,18 @@ class Workspace(BaseModel):
     ] = "auto"
 
     dataset_filename: str | None = None
+
+    development_sample_size: int | None = None
+
+    development_sample_strategy: Literal[
+        "random",
+    ] | None = None
+
+    development_sample_seed: int | None = None
+
+    development_sample_row_count: int | None = None
+
+    development_sample_enabled: bool = False
 
     dataset_profile: dict | None = None
 
