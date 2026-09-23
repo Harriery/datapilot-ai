@@ -1143,6 +1143,19 @@ class WorkspaceDevelopmentSampleResponse(BaseModel):
     sampled: bool
 
 
+class WorkspaceFullPipelineResponse(BaseModel):
+    source_row_count: int
+    working_row_count: int
+
+    applied_operation_ids: list[str] = Field(
+        default_factory=list
+    )
+
+    applied_operation_count: int
+
+    development_sample_disabled: bool = True
+
+
 class Workspace(BaseModel):
     workspace_id: str
     learner_id: str
