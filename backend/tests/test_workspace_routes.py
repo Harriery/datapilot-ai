@@ -21,6 +21,10 @@ from backend.app.models import (
     PersonalProjectKPIDefinition,
     PersonalProjectAnalysisResult,
     PersonalProjectDataModelPlan,
+    PersonalProjectDataModelColumn,
+    PersonalProjectDataModelRelationship,
+    PersonalProjectDataModelStudio,
+    PersonalProjectDataModelTable,
     WorkspaceWorkbenchOperation,
     WorkspacePipelineAction,
     WorkspaceProcessedDataset,
@@ -4044,3 +4048,181 @@ def test_data_model_requires_current_validation(
 
     assert response.status_code == 400
     assert "validation" in response.json()["detail"].lower()
+
+
+
+def test_save_personal_kpi_builder_definitions(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "KPI Builder Project",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.data_model_studio = (
+        PersonalProjectDataModelStudio(
+            tables=[
+                PersonalProjectDataModelTable(
+                    name="fact_sales",
+                    table_type="fact",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="region_id",
+                            source_column="region",
+                            role="foreign_key",
+                        ),
+                        PersonalProjectDataModelColumn(
+                            name="amount",
+                            source_column="amount",
+                            role="measure",
+                        ),
+                    ],
+                ),
+                PersonalProjectDataModelTable(
+                    name="dim_region",
+                    table_type="dimension",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="region",
+                            source_column="region",
+                            role="key",
+                        ),
+                    ],
+                ),
+            ],
+            relationships=[
+                PersonalProjectDataModelRelationship(
+                    from_table="fact_sales",
+                    from_column="region_id",
+                    to_table="dim_region",
+                    to_column="region",
+                    cardinality="many_to_one",
+                    active=True,
+                ),
+            ],
+            source="user",
+        )
+    )
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+            "data_model",
+        }:
+            deliverable.status = "completed"
+
+        if (
+            deliverable.code
+            == "kpi_definitions"
+        ):
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/kpis/save"
+        ),
+        json={
+            "definitions": [
+                {
+                    "code": "revenue_by_region",
+                    "title": "Revenue by region",
+                    "fact_table": "fact_sales",
+                    "measure": "amount",
+                    "aggregation": "sum",
+                    "dimension_table": "dim_region",
+                    "dimension": "region",
+                    "filter_value": "West",
+                    "description": (
+                        "Revenue grouped by region."
+                    ),
+                    "source": "user",
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert len(body) == 1
+
+    assert (
+        body[0]["formula"]
+        == (
+            "SUM(fact_sales.amount) "
+            "BY dim_region.region "
+            "FILTER=West"
+        )
+    )
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert (
+        workspace_response.status_code
+        == 200
+    )
+
+    updated_workspace = (
+        workspace_response.json()
+    )
+
+    assert (
+        updated_workspace[
+            "kpi_definitions"
+        ][0]["fact_table"]
+        == "fact_sales"
+    )
+
+    deliverables = {
+        item["code"]: item
+        for item in updated_workspace[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables[
+            "kpi_definitions"
+        ]["status"]
+        == "completed"
+    )
+
+    assert (
+        deliverables[
+            "bi_ready_dataset"
+        ]["status"]
+        == "in_progress"
+    )
