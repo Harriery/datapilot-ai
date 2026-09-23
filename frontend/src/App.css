@@ -10245,3 +10245,144 @@
     width: 100%;
   }
 }
+
+
+/* ==================================================
+   PROCESSED DATASETS
+   ================================================== */
+
+.processed-dataset-panel {
+  display: grid;
+  gap: 12px;
+
+  margin: 14px 0;
+  padding: 13px;
+
+  border: 1px solid #dce6f0;
+  border-radius: 10px;
+
+  background: #fbfdff;
+}
+
+.processed-dataset-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+
+  gap: 14px;
+}
+
+.processed-dataset-header strong {
+  display: block;
+
+  margin-top: 3px;
+
+  color: #263d57;
+  font-size: 13px;
+}
+
+.processed-dataset-header p {
+  margin: 4px 0 0;
+
+  color: #73859a;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.processed-dataset-create {
+  display: flex;
+  align-items: center;
+
+  gap: 7px;
+}
+
+.processed-dataset-create input {
+  min-width: 220px;
+  min-height: 34px;
+
+  padding: 7px 9px;
+
+  border: 1px solid #d5dfeb;
+  border-radius: 7px;
+
+  outline: none;
+
+  font-size: 10px;
+}
+
+.processed-dataset-create input:focus {
+  border-color: #7caee7;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, 0.07);
+}
+
+.processed-dataset-list {
+  display: grid;
+  gap: 7px;
+}
+
+.processed-dataset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  padding: 9px 10px;
+
+  border: 1px solid #e1e8f0;
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+.processed-dataset-item.active {
+  border-color: #b9d5f4;
+  background: #f4f9ff;
+}
+
+.processed-dataset-item > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.processed-dataset-item strong {
+  color: #2c4058;
+  font-size: 11px;
+}
+
+.processed-dataset-item span {
+  color: #7f90a3;
+  font-size: 9px;
+}
+
+.processed-dataset-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 760px) {
+  .processed-dataset-header,
+  .processed-dataset-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .processed-dataset-create {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .processed-dataset-create input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .processed-dataset-item-actions {
+    justify-content: space-between;
+  }
+}
