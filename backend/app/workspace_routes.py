@@ -938,6 +938,30 @@ def create_workspace_development_sample(
             detail="Source dataset boş.",
         )
 
+    sample_max_size = (
+        workspace.development_sample_max_size
+        or workspace.development_sample_size
+        or workspace.development_sample_row_count
+        or min(
+            1000,
+            source_row_count,
+        )
+    )
+
+    sample_max_size = min(
+        sample_max_size,
+        source_row_count,
+    )
+
+    if request.sample_size > sample_max_size:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Development sample üst sınırı "
+                f"{sample_max_size} satır."
+            ),
+        )
+
     sample_size = min(
         request.sample_size,
         source_row_count,
@@ -994,7 +1018,11 @@ def create_workspace_development_sample(
     workspace.workbench_preview = None
 
     workspace.development_sample_size = (
-        request.sample_size
+        sample_size
+    )
+
+    workspace.development_sample_max_size = (
+        sample_max_size
     )
 
     workspace.development_sample_strategy = (
@@ -1288,7 +1316,7 @@ def profile_workspace_data(
     file: UploadFile,
     development_sample_size: int = Form(
         default=1000,
-        ge=0,
+        ge=1,
         le=5000,
     ),
 ):
@@ -1439,9 +1467,14 @@ def profile_workspace_data(
         development_sample_size
     )
 
+    development_sample_max_size = min(
+        requested_sample_size,
+        len(df),
+    )
+
     use_full_working_dataset = (
-        requested_sample_size == 0
-        or requested_sample_size >= len(df)
+        development_sample_max_size
+        >= len(df)
     )
 
     if use_full_working_dataset:
@@ -1452,16 +1485,18 @@ def profile_workspace_data(
     else:
         working_df = (
             df.sample(
-                n=requested_sample_size,
+                n=development_sample_max_size,
                 random_state=42,
             )
             .reset_index(drop=True)
         )
 
     workspace.development_sample_size = (
-        None
-        if use_full_working_dataset
-        else requested_sample_size
+        development_sample_max_size
+    )
+
+    workspace.development_sample_max_size = (
+        development_sample_max_size
     )
 
     workspace.development_sample_strategy = (
