@@ -3230,3 +3230,181 @@ def test_workspace_data_preview_paginates_and_searches(
             "value": 30,
         }
     ]
+
+
+
+def test_development_sample_rebuilds_working_data_and_resets_state(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Sample Project",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    source_df = pd.DataFrame(
+        {
+            "row_id": list(
+                range(6000)
+            ),
+            "value": list(
+                range(6000)
+            ),
+        }
+    )
+
+    saved_working: dict[
+        str,
+        pd.DataFrame,
+    ] = {}
+
+    cleared_versions = {
+        "called": False,
+    }
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_source_dataframe",
+        lambda workspace_id: (
+            source_df.copy()
+        ),
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "save_workspace_working_dataframe",
+        lambda workspace_id, df: (
+            saved_working.update(
+                {
+                    workspace_id:
+                        df.copy()
+                }
+            )
+        ),
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "clear_workspace_versions",
+        lambda workspace_id: (
+            cleared_versions.update(
+                {
+                    "called": True
+                }
+            )
+        ),
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/development-sample"
+        ),
+        json={
+            "sample_size": 1000,
+            "strategy": "random",
+            "random_seed": 42,
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body == {
+        "source_row_count": 6000,
+        "working_row_count": 1000,
+        "requested_sample_size": 1000,
+        "strategy": "random",
+        "random_seed": 42,
+        "sampled": True,
+    }
+
+    assert (
+        len(
+            saved_working[
+                workspace_id
+            ]
+        )
+        == 1000
+    )
+
+    assert (
+        saved_working[
+            workspace_id
+        ]["row_id"].tolist()
+        != source_df[
+            "row_id"
+        ].head(1000).tolist()
+    )
+
+    assert (
+        cleared_versions["called"]
+        is True
+    )
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert (
+        workspace_response.status_code
+        == 200
+    )
+
+    workspace = (
+        workspace_response.json()
+    )
+
+    assert (
+        workspace[
+            "development_sample_enabled"
+        ]
+        is True
+    )
+
+    assert (
+        workspace[
+            "development_sample_row_count"
+        ]
+        == 1000
+    )
+
+    assert (
+        workspace[
+            "development_sample_strategy"
+        ]
+        == "random"
+    )
+
+    assert (
+        workspace[
+            "validation_result"
+        ]
+        is None
+    )
+
+    assert (
+        workspace[
+            "data_model_plan"
+        ]
+        is None
+    )
