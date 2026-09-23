@@ -47,6 +47,7 @@ from backend.app.models import (
     WorkspaceFullPipelineResponse,
     WorkspaceProcessedDatasetCreateRequest,
     WorkspaceProcessedDataset,
+    PersonalProjectKPIBuilderRequest,
     PersonalProjectDataModelStudio,
 )
 
@@ -112,6 +113,8 @@ from backend.app.personal_analysis_service import (
 
 from backend.app.personal_kpi_service import (
     build_personal_kpi_candidates_from_plan,
+    build_personal_kpi_candidates_from_studio,
+    validate_personal_kpi_definitions,
 )
 
 from backend.app.personal_data_model_service import (
@@ -3292,6 +3295,108 @@ def delete_personal_project_analysis(
 @router.post(
     (
         "/workspaces/{learner_id}/{workspace_id}"
+        "/kpis/save"
+    ),
+    response_model=list[
+        PersonalProjectKPIDefinition
+    ],
+)
+def save_personal_project_kpis(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectKPIBuilderRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "KPI Builder yalnızca personal "
+                "workspace için kullanılabilir."
+            ),
+        )
+
+    if workspace.data_model_studio is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "KPI Builder kullanılmadan önce "
+                "Model Studio oluşturulmalı."
+            ),
+        )
+
+    has_kpi_deliverable = any(
+        deliverable.code == "kpi_definitions"
+        for deliverable
+        in workspace.project_deliverables
+    )
+
+    if not has_kpi_deliverable:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu project type KPI definitions "
+                "deliverable içermiyor."
+            ),
+        )
+
+    try:
+        definitions = (
+            validate_personal_kpi_definitions(
+                studio=(
+                    workspace.data_model_studio
+                ),
+                definitions=(
+                    request.definitions
+                ),
+            )
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    workspace.kpi_definitions = (
+        definitions
+    )
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="kpi_definitions",
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Prepare BI model"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Prepare BI model"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return definitions
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
         "/kpis/select"
     ),
     response_model=list[
@@ -3597,6 +3702,14 @@ def update_personal_project_data_model_studio(
     workspace.data_model_studio = (
         validated_studio
     )
+
+    workspace.kpi_candidates = (
+        build_personal_kpi_candidates_from_studio(
+            validated_studio
+        )
+    )
+
+    workspace.kpi_definitions = []
 
     workspace.checkpoint.current_focus = (
         "Review data model and define KPIs"
