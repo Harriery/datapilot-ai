@@ -199,6 +199,7 @@ def add_user_workbench_operation(
         ),
         source_columns=request.source_columns,
         expected_columns=request.expected_columns,
+        pipeline_action=request.pipeline_action,
     )
 
     existing_operations.append(operation)
@@ -308,6 +309,7 @@ def complete_workbench_operation(
     operation_id: str,
     code: str,
     rollback_version_number: int,
+    pipeline_action=None,
 ) -> tuple[
     WorkspaceWorkbenchOperation,
     str | None,
@@ -324,6 +326,13 @@ def complete_workbench_operation(
         )
 
     operation.code = code.strip()
+
+    # The submit request is authoritative. If the user
+    # edited generated code, frontend omits pipeline_action
+    # and this operation becomes custom/non-replayable.
+    operation.pipeline_action = (
+        pipeline_action
+    )
 
     operation.rollback_version_number = (
         rollback_version_number
