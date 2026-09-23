@@ -3442,16 +3442,45 @@ def build_personal_project_data_model(
             ),
         )
 
+    if (
+        workspace.validation_result is None
+        or not workspace.validation_result.passed
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Data model oluşturulmadan önce "
+                "aktif processed dataset validation "
+                "başarılı olmalı."
+            ),
+        )
+
     if workspace.analysis_plan is None:
         raise HTTPException(
             status_code=400,
             detail=(
                 "Data model oluşturulmadan önce "
-                "analysis plan gerekli."
+                "model discovery gerekli."
             ),
         )
 
-    
+    active_processed_dataset = next(
+        (
+            item
+            for item
+            in workspace.processed_datasets
+            if item.dataset_id
+            == workspace.active_processed_dataset_id
+        ),
+        None,
+    )
+
+    model_dataset_name = (
+        active_processed_dataset.name
+        if active_processed_dataset
+        is not None
+        else workspace.dataset_filename
+    )
 
     has_data_model_deliverable = any(
         deliverable.code == "data_model"
@@ -3471,7 +3500,7 @@ def build_personal_project_data_model(
     data_model_plan = (
         build_personal_data_model_plan(
             dataset_filename=(
-                workspace.dataset_filename
+                model_dataset_name
             ),
             analysis_plan=(
                 workspace.analysis_plan
@@ -3585,6 +3614,51 @@ def update_personal_project_data_model_studio(
     )
 
     return validated_studio
+
+
+@router.get(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data-model/export"
+    )
+)
+def export_personal_project_data_model(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.data_model_studio is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Logical data model bulunamadı.",
+        )
+
+    return Response(
+        content=(
+            workspace.data_model_studio
+            .model_dump_json(
+                indent=2
+            )
+        ),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": (
+                'attachment; '
+                'filename="datapilot_logical_model.json"'
+            )
+        },
+    )
+
 
 def complete_workspace_review(
     learner_id: str,
