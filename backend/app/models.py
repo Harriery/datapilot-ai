@@ -931,6 +931,62 @@ class PersonalProjectDataModelStudio(BaseModel):
 
 
 
+class WorkspacePipelineAction(BaseModel):
+    action: Literal[
+        "rename",
+        "remove",
+        "change_type",
+        "fill_missing",
+        "replace_values",
+        "derived",
+    ]
+
+    column: str
+
+    new_name: str | None = None
+
+    data_type: Literal[
+        "string",
+        "integer",
+        "float",
+        "datetime",
+    ] | None = None
+
+    fill_strategy: Literal[
+        "value",
+        "mean",
+        "median",
+        "mode",
+        "zero",
+    ] | None = None
+
+    fill_value: (
+        str | int | float | bool | None
+    ) = None
+
+    old_value: (
+        str | int | float | bool | None
+    ) = None
+
+    new_value: (
+        str | int | float | bool | None
+    ) = None
+
+    derived_name: str | None = None
+
+    derived_operation: Literal[
+        "copy",
+        "uppercase",
+        "lowercase",
+        "add",
+        "multiply",
+    ] | None = None
+
+    derived_value: (
+        str | int | float | bool | None
+    ) = None
+
+
 class WorkspaceWorkbenchOperationCreateRequest(BaseModel):
     title: str = Field(min_length=1)
     goal: str = Field(min_length=1)
@@ -989,6 +1045,10 @@ class WorkspaceWorkbenchOperation(BaseModel):
 
     code: str | None = None
 
+    pipeline_action: (
+        WorkspacePipelineAction | None
+    ) = None
+
     finding_index: int | None = None
     rollback_version_number: int | None = None
     result_version_id: str | None = None
@@ -1031,6 +1091,10 @@ class WorkspaceWorkbenchTransformationRequest(BaseModel):
     after_rows: list[dict] = Field(
         min_length=1
     )
+
+    pipeline_action: (
+        WorkspacePipelineAction | None
+    ) = None
 
 
 class WorkspaceWorkbenchTransformationResponse(BaseModel):
