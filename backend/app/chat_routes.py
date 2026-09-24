@@ -188,7 +188,23 @@ def chat(request: ChatRequest):
         if reply is None:
             fallback_instructions = SYSTEM_PROMPT
 
+            # Inside a workspace, even messages that do not map cleanly to a
+            # catalogued skill are still mentor turns. The generic fallback
+            # must preserve the same guided, one-step pedagogy.
             if workspace_context is not None:
+                fallback_instructions += """
+                
+                WORKSPACE MENTOR MODE:
+                - Act as the learner's senior mentor, not as a solution generator.
+                - Use the current workspace stage/task as the source of truth.
+                - If the learner says they do not understand, do not know what to do,
+                  or asks for step-by-step help, give ONLY the first small next action.
+                - In that situation use at most 3 short sentences, no numbered plan,
+                  no multi-step checklist, and no code unless the learner explicitly asks for code.
+                - Do not discuss later analysis, filling strategies, models, flags, or final
+                  decisions before the learner completes the current small action.
+                - Ask for the result of that action before advancing.
+                """
                 fallback_instructions += (
                     "\n\nCurrent Workspace Context:\n"
                     + json.dumps(
