@@ -53,11 +53,24 @@ type Props = {
   kpiCount: number;
 
   onAddTransformation: () => void;
+
+  developmentSampleEnabled?: boolean;
+  canApplyFullDataset?: boolean;
+
+  fullPipelineLoading?: boolean;
+  fullPipelineError?: string | null;
+
+  onApplyFullDataset?: () => void;
 };
 
 export function WorkspacePipelineView({
   operations,
   onAddTransformation,
+  developmentSampleEnabled = false,
+  canApplyFullDataset = false,
+  fullPipelineLoading = false,
+  fullPipelineError = null,
+  onApplyFullDataset,
 }: Props) {
   const replayable =
     operations.filter(
@@ -92,16 +105,54 @@ export function WorkspacePipelineView({
           </p>
         </div>
 
-        <button
-          type="button"
-          className="new-workspace-button"
-          onClick={
-            onAddTransformation
-          }
-        >
-          + Add transformation
-        </button>
+        <div className="pipeline-header-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={
+              onAddTransformation
+            }
+          >
+            + Add transformation
+          </button>
+
+          {developmentSampleEnabled &&
+            onApplyFullDataset && (
+            <button
+              type="button"
+              className="new-workspace-button"
+              disabled={
+                fullPipelineLoading ||
+                !canApplyFullDataset
+              }
+              onClick={
+                onApplyFullDataset
+              }
+            >
+              {fullPipelineLoading
+                ? "Applying..."
+                : "Apply to full dataset"}
+            </button>
+          )}
+        </div>
       </div>
+
+      {developmentSampleEnabled &&
+        !canApplyFullDataset && (
+        <div className="pipeline-blocker-note">
+          <ShieldAlert
+            size={14}
+          />
+
+          Complete every step and convert experimental/custom notebook steps into structured actions before full-dataset replay.
+        </div>
+      )}
+
+      {fullPipelineError && (
+        <div className="workspace-form-error">
+          {fullPipelineError}
+        </div>
+      )}
 
       <div className="pipeline-summary">
         <div>
