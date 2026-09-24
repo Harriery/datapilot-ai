@@ -1040,11 +1040,6 @@ class WorkspaceWorkbenchOperationCreateRequest(BaseModel):
         default_factory=list
     )
 
-    code: str | None = Field(
-        default=None,
-        max_length=20000,
-    )
-
     pipeline_action: (
         WorkspacePipelineAction | None
     ) = None
