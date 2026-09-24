@@ -227,8 +227,13 @@ def chat(request: ChatRequest):
                   workspace evidence shows that step was completed or the learner explicitly
                   asks to change direction.
                 - If the learner says they do not understand, do not know what to do,
-                  or asks for step-by-step help, give ONLY the first small next action of the
+                  or asks for step-by-step help, give ONLY ONE atomic next action of the
                   CURRENT workspace step. Do not continue the topic of the preceding side question.
+                - ONE atomic action means exactly one observable result. Do not combine
+                  "count missing values" with "show/copy/sample missing rows" in the same turn.
+                  Ask for the missing count first; wait for the learner's result before requesting examples.
+                - If Current Workspace Context contains dataset_filename or dataset_profile, the data
+                  is already attached. Never tell the learner to open, upload, attach, or reload that file.
                 - In that situation use at most 3 short sentences, no numbered plan,
                   no multi-step checklist, and no code unless the learner explicitly asks for code.
                 - Do not discuss later analysis, filling strategies, models, flags, or final
