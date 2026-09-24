@@ -7107,6 +7107,7 @@ async function restoreWorkspaceVersion(
                               {workbenchView ===
                                 "pipeline" && (
                                 <WorkspacePipelineView
+                                  language={language}
                                   operations={
                                     dashboardWorkspace
                                       .workbench_operations ??
@@ -7186,6 +7187,7 @@ async function restoreWorkspaceVersion(
                               {workbenchView ===
                                 "lineage" && (
                                 <WorkspaceLineageView
+                                  language={language}
                                   operations={
                                     dashboardWorkspace
                                       .workbench_operations ??
