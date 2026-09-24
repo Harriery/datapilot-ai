@@ -27,7 +27,42 @@ function WorkspaceModeCards({
   onExploreWork,
 }: WorkspaceModeCardsProps) {
   const text =
-    language === "tr"
+    language === "nl"
+      ? {
+          eyebrow: "WERKMODUS",
+          title: "Hoe wil je werken?",
+          description:
+            "Bouw je eigen dataprojecten of werk aan bedrijfsopdrachten in een beveiligde omgeving.",
+
+          personal: {
+            title: "Persoonlijke projecten",
+            status: "Functionele MVP",
+            description:
+              "Bouw complete dataprojecten met openbare of persoonlijke datasets.",
+            features: [
+              "Dataprofilering en kwaliteitsanalyse",
+              "Opschoning en transformatie",
+              "Analyse- en BI-uitvoer",
+              "Portfolio-projectontwikkeling",
+            ],
+            button: "Persoonlijk project starten",
+          },
+
+          work: {
+            title: "Veilige werkomgeving",
+            status: "Preview · In ontwikkeling",
+            description:
+              "Werk met bedrijfs- of klantgegevens onder local-first beveiligingscontroles.",
+            features: [
+              "Local Data Engine actief",
+              "Externe AI geblokkeerd voor gevoelige gegevens",
+              "Centraal beveiligingsbeleid",
+              "Local LLM en enterprise-beveiliging in ontwikkeling",
+            ],
+            button: "Veilige werkomgeving bekijken",
+          },
+        }
+      :     language === "tr"
       ? {
           eyebrow: "ÇALIŞMA MODU",
           title: "Nasıl çalışmak istiyorsun?",
