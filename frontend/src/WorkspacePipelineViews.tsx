@@ -1,3 +1,5 @@
+import type { AppLanguage } from "./i18n";
+
 import {
   CheckCircle2,
   CircleDashed,
@@ -34,6 +36,7 @@ type ProcessedDataset = {
 };
 
 type Props = {
+  language: AppLanguage;
   operations: Operation[];
 
   sourceName:
@@ -68,6 +71,7 @@ type Props = {
 };
 
 export function WorkspacePipelineView({
+  language,
   operations,
   onAddTransformation,
   developmentSampleEnabled = false,
@@ -77,6 +81,12 @@ export function WorkspacePipelineView({
   onApplyFullDataset,
   onDeleteOperation,
 }: Props) {
+  const ui = {
+    en:{ pipeline:"PIPELINE", title:"Cleaning pipeline", description:"Only structured completed steps can be replayed safely on the full dataset.", add:"+ Add transformation", applying:"Applying...", apply:"Apply to full dataset", blocker:"Complete every step and convert experimental/custom notebook steps into structured actions before full-dataset replay.", total:"Total steps", replayable:"Replayable", attention:"Needs attention", remove:"Remove", pending:"pending", active:"active", completed:"completed", custom:"custom / experimental" },
+    nl:{ pipeline:"PIPELINE", title:"Opschoningspipeline", description:"Alleen voltooide gestructureerde stappen kunnen veilig op de volledige dataset worden herhaald.", add:"+ Transformatie toevoegen", applying:"Toepassen...", apply:"Toepassen op volledige dataset", blocker:"Voltooi elke stap en zet experimentele/aangepaste notebookstappen om in gestructureerde acties vóór herhaling op de volledige dataset.", total:"Totaal stappen", replayable:"Herhaalbaar", attention:"Aandacht nodig", remove:"Verwijderen", pending:"in afwachting", active:"actief", completed:"voltooid", custom:"aangepast / experimenteel" },
+    tr:{ pipeline:"PIPELINE", title:"Temizleme pipeline'ı", description:"Yalnızca tamamlanmış yapılandırılmış adımlar tam veri setinde güvenle yeniden uygulanabilir.", add:"+ Dönüşüm ekle", applying:"Uygulanıyor...", apply:"Tam veri setine uygula", blocker:"Tam veri setine uygulamadan önce tüm adımları tamamla ve deneysel/özel notebook adımlarını yapılandırılmış aksiyonlara dönüştür.", total:"Toplam adım", replayable:"Yeniden uygulanabilir", attention:"İlgilenilmesi gereken", remove:"Kaldır", pending:"bekliyor", active:"aktif", completed:"tamamlandı", custom:"özel / deneysel" },
+  }[language];
+
   const replayable =
     operations.filter(
       (operation) =>
@@ -98,15 +108,15 @@ export function WorkspacePipelineView({
       <div className="pipeline-workspace-header">
         <div>
           <span>
-            PIPELINE
+            {ui.pipeline}
           </span>
 
           <h3>
-            Cleaning pipeline
+            {ui.title}
           </h3>
 
           <p>
-            Only structured completed steps can be replayed safely on the full dataset.
+            {ui.description}
           </p>
         </div>
 
@@ -118,7 +128,7 @@ export function WorkspacePipelineView({
               onAddTransformation
             }
           >
-            + Add transformation
+            {ui.add}
           </button>
 
           {developmentSampleEnabled &&
@@ -135,8 +145,8 @@ export function WorkspacePipelineView({
               }
             >
               {fullPipelineLoading
-                ? "Applying..."
-                : "Apply to full dataset"}
+                ? ui.applying
+                : ui.apply}
             </button>
           )}
         </div>
@@ -149,7 +159,7 @@ export function WorkspacePipelineView({
             size={14}
           />
 
-          Complete every step and convert experimental/custom notebook steps into structured actions before full-dataset replay.
+          {ui.blocker}
         </div>
       )}
 
@@ -164,21 +174,21 @@ export function WorkspacePipelineView({
           <strong>
             {operations.length}
           </strong>
-          <span>Total steps</span>
+          <span>{ui.total}</span>
         </div>
 
         <div>
           <strong>
             {replayable}
           </strong>
-          <span>Replayable</span>
+          <span>{ui.replayable}</span>
         </div>
 
         <div>
           <strong>
             {blockers.length}
           </strong>
-          <span>Needs attention</span>
+          <span>{ui.attention}</span>
         </div>
       </div>
 
@@ -215,7 +225,7 @@ export function WorkspacePipelineView({
                       `pipeline-status ${operation.status}`
                     }
                   >
-                    {operation.status}
+                    {ui[operation.status]}
                   </span>
 
                   {operation.origin === "user" &&
@@ -230,7 +240,7 @@ export function WorkspacePipelineView({
                         );
                       }}
                     >
-                      Remove
+                      {ui.remove}
                     </button>
                   )}
 
