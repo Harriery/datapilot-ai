@@ -6476,6 +6476,7 @@ async function restoreWorkspaceVersion(
                             </div>
 
                             <DataPreview
+                              language={language}
                               learnerId="demo-learner"
                               workspaceId={dashboardWorkspace.workspace_id}
                               dataset="source"
@@ -6972,6 +6973,7 @@ async function restoreWorkspaceVersion(
                           ) : workspaceWorkingData ? (
                             <>
                               <DataPreview
+                              language={language}
                                 learnerId="demo-learner"
                                 workspaceId={dashboardWorkspace.workspace_id}
                                 dataset="working"
@@ -7301,6 +7303,7 @@ async function restoreWorkspaceVersion(
                             ) : (
                               <>
                                 <DataPreview
+                              language={language}
                                   learnerId="demo-learner"
                                   workspaceId={dashboardWorkspace.workspace_id}
                                   dataset="working"
@@ -7538,6 +7541,7 @@ async function restoreWorkspaceVersion(
                           dashboardWorkspace.analysis_plan && (
                           <>
                             <DataPreview
+                              language={language}
                               learnerId="demo-learner"
                               workspaceId={dashboardWorkspace.workspace_id}
                               dataset="working"
