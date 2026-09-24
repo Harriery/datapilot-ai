@@ -6714,6 +6714,7 @@ async function restoreWorkspaceVersion(
 
                           <div className="workbench-studio-layout">
                             <WorkspaceArtifactExplorer
+                                  language={language}
                               workspaceTitle={
                                 dashboardWorkspace.title
                               }
