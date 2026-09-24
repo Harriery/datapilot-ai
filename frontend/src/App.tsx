@@ -2571,19 +2571,13 @@ async function promoteNotebookCodeToPipeline(
       source_columns: [],
       expected_columns: [],
       pipeline_action: null,
+      draft_code:
+        cleanCode,
     });
 
   if (created) {
-    setTransformationCode(
-      cleanCode
-    );
-
-    setPreparedPipelineAction(
-      null
-    );
-
-    setPreparedPipelineCode(
-      null
+    setWorkbenchView(
+      "pipeline"
     );
   }
 
@@ -3624,6 +3618,42 @@ async function createWorkbenchOperation(
     setAddTransformationLoading(false);
   }
 }
+
+
+useEffect(() => {
+  const activeOperation =
+    dashboardWorkspace
+      ?.workbench_operations
+      ?.find(
+        (operation) =>
+          operation.status === "active"
+      );
+
+  if (
+    activeOperation?.origin === "user" &&
+    activeOperation.operation_type === "custom" &&
+    activeOperation.code
+  ) {
+    setTransformationCode(
+      activeOperation.code
+    );
+
+    setPreparedPipelineAction(
+      null
+    );
+
+    setPreparedPipelineCode(
+      null
+    );
+
+    setResultRows(
+      null
+    );
+  }
+}, [
+  dashboardWorkspace
+    ?.workbench_active_operation_id,
+]);
 
 
 async function prepareWorkbenchColumnAction(
