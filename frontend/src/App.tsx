@@ -6496,8 +6496,178 @@ async function restoreWorkspaceVersion(
                               createWorkbenchOperation
                             }
                           />
-                          
-                          
+
+                          <div className="workbench-studio-layout">
+                            <WorkspaceArtifactExplorer
+                              workspaceTitle={
+                                dashboardWorkspace.title
+                              }
+                              datasetFilename={
+                                dashboardWorkspace.dataset_filename
+                              }
+                              developmentRows={
+                                dashboardWorkspace
+                                  .development_sample_row_count
+                              }
+                              processedDatasets={
+                                dashboardWorkspace
+                                  .processed_datasets ?? []
+                              }
+                              notebooks={
+                                dashboardWorkspace
+                                  .notebooks ?? []
+                              }
+                              pipelineOperationCount={
+                                dashboardWorkspace
+                                  .workbench_operations
+                                  ?.length ?? 0
+                              }
+                              hasModel={
+                                Boolean(
+                                  dashboardWorkspace
+                                    .data_model_studio
+                                )
+                              }
+                              kpiCount={
+                                dashboardWorkspace
+                                  .kpi_definitions
+                                  ?.length ?? 0
+                              }
+                              activeView={
+                                workbenchView
+                              }
+                              selectedNotebookId={
+                                selectedNotebookId
+                              }
+                              onViewChange={
+                                setWorkbenchView
+                              }
+                              onNotebookSelect={
+                                setSelectedNotebookId
+                              }
+                              onCreateNotebook={() => {
+                                void createWorkspaceNotebook();
+                              }}
+                              onOpenSource={() => {
+                                setActiveWorkspaceStage(
+                                  "source"
+                                );
+                              }}
+                              onOpenValidate={() => {
+                                if (
+                                  getPrepareStageStatus(
+                                    "validate"
+                                  ) === "locked"
+                                ) {
+                                  window.alert(
+                                    "Validate becomes available after the Workbench task is completed."
+                                  );
+                                  return;
+                                }
+
+                                setActivePrepareStage(
+                                  "validate"
+                                );
+                              }}
+                            />
+
+                            <div className="workbench-studio-main">
+                              <div className="workbench-view-tabs">
+                                <button
+                                  type="button"
+                                  className={
+                                    workbenchView ===
+                                    "explorer"
+                                      ? "active"
+                                      : ""
+                                  }
+                                  onClick={() =>
+                                    setWorkbenchView(
+                                      "explorer"
+                                    )
+                                  }
+                                >
+                                  Explorer
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={
+                                    workbenchView ===
+                                    "notebook"
+                                      ? "active"
+                                      : ""
+                                  }
+                                  onClick={() => {
+                                    const firstNotebook =
+                                      dashboardWorkspace
+                                        .notebooks?.[0];
+
+                                    if (
+                                      !selectedNotebookId &&
+                                      firstNotebook
+                                    ) {
+                                      setSelectedNotebookId(
+                                        firstNotebook
+                                          .notebook_id
+                                      );
+                                    }
+
+                                    if (
+                                      !firstNotebook &&
+                                      !selectedNotebookId
+                                    ) {
+                                      void createWorkspaceNotebook();
+                                      return;
+                                    }
+
+                                    setWorkbenchView(
+                                      "notebook"
+                                    );
+                                  }}
+                                >
+                                  Notebook
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={
+                                    workbenchView ===
+                                    "pipeline"
+                                      ? "active"
+                                      : ""
+                                  }
+                                  onClick={() =>
+                                    setWorkbenchView(
+                                      "pipeline"
+                                    )
+                                  }
+                                >
+                                  Pipeline
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={
+                                    workbenchView ===
+                                    "lineage"
+                                      ? "active"
+                                      : ""
+                                  }
+                                  onClick={() =>
+                                    setWorkbenchView(
+                                      "lineage"
+                                    )
+                                  }
+                                >
+                                  Lineage
+                                </button>
+                              </div>
+
+                              {workbenchView ===
+                                "explorer" && (
+                                <>
+
                           {workspaceVersions.length > 0 && (
                             <div className="workspace-version-history">
                               <div className="workspace-version-history-header">
@@ -6885,6 +7055,155 @@ async function restoreWorkspaceVersion(
                               </div>
                             </div>
                           )}
+                                </>
+                              )}
+
+                              {workbenchView ===
+                                "notebook" && (
+                                (() => {
+                                  const notebook =
+                                    (
+                                      dashboardWorkspace
+                                        .notebooks ?? []
+                                    ).find(
+                                      (item) =>
+                                        item.notebook_id ===
+                                        selectedNotebookId
+                                    );
+
+                                  if (!notebook) {
+                                    return (
+                                      <div className="workbench-empty-view">
+                                        <strong>
+                                          No notebook selected.
+                                        </strong>
+
+                                        <button
+                                          type="button"
+                                          className="new-workspace-button"
+                                          onClick={() => {
+                                            void createWorkspaceNotebook();
+                                          }}
+                                        >
+                                          + Create notebook
+                                        </button>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <WorkspaceNotebook
+                                      workspaceId={
+                                        dashboardWorkspace
+                                          .workspace_id
+                                      }
+                                      notebook={
+                                        notebook
+                                      }
+                                      processedDatasets={
+                                        dashboardWorkspace
+                                          .processed_datasets ??
+                                        []
+                                      }
+                                      onSave={
+                                        saveWorkspaceNotebook
+                                      }
+                                      onDelete={
+                                        deleteWorkspaceNotebook
+                                      }
+                                      onPromoteCode={
+                                        promoteNotebookCodeToPipeline
+                                      }
+                                    />
+                                  );
+                                })()
+                              )}
+
+                              {workbenchView ===
+                                "pipeline" && (
+                                <WorkspacePipelineView
+                                  operations={
+                                    dashboardWorkspace
+                                      .workbench_operations ??
+                                    []
+                                  }
+                                  sourceName={
+                                    dashboardWorkspace
+                                      .dataset_filename
+                                  }
+                                  developmentRows={
+                                    dashboardWorkspace
+                                      .development_sample_row_count
+                                  }
+                                  processedDatasets={
+                                    dashboardWorkspace
+                                      .processed_datasets ??
+                                    []
+                                  }
+                                  hasModel={
+                                    Boolean(
+                                      dashboardWorkspace
+                                        .data_model_studio
+                                    )
+                                  }
+                                  kpiCount={
+                                    dashboardWorkspace
+                                      .kpi_definitions
+                                      ?.length ?? 0
+                                  }
+                                  onAddTransformation={() => {
+                                    setAddTransformationError(
+                                      null
+                                    );
+
+                                    setShowAddTransformationModal(
+                                      true
+                                    );
+                                  }}
+                                />
+                              )}
+
+                              {workbenchView ===
+                                "lineage" && (
+                                <WorkspaceLineageView
+                                  operations={
+                                    dashboardWorkspace
+                                      .workbench_operations ??
+                                    []
+                                  }
+                                  sourceName={
+                                    dashboardWorkspace
+                                      .dataset_filename
+                                  }
+                                  developmentRows={
+                                    dashboardWorkspace
+                                      .development_sample_row_count
+                                  }
+                                  processedDatasets={
+                                    dashboardWorkspace
+                                      .processed_datasets ??
+                                    []
+                                  }
+                                  hasModel={
+                                    Boolean(
+                                      dashboardWorkspace
+                                        .data_model_studio
+                                    )
+                                  }
+                                  kpiCount={
+                                    dashboardWorkspace
+                                      .kpi_definitions
+                                      ?.length ?? 0
+                                  }
+                                  onAddTransformation={() => {
+                                    setShowAddTransformationModal(
+                                      true
+                                    );
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </div>
                         
                         
                         </section>
