@@ -3,6 +3,7 @@ import {
   PlayCircle,
   Plus,
   RotateCcw,
+  Sparkles,
   Save,
   Send,
   Trash2,
@@ -151,6 +152,20 @@ function WorkspaceNotebook({
   );
 
   const [
+    mentorLoadingCellId,
+    setMentorLoadingCellId,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
+    mentorGuidance,
+    setMentorGuidance,
+  ] = useState<
+    Record<string, string[]>
+  >({});
+
+  const [
     results,
     setResults,
   ] = useState<
@@ -163,6 +178,7 @@ function WorkspaceNotebook({
   useEffect(() => {
     setDraft(notebook);
     setResults({});
+    setMentorGuidance({});
     setMessage(null);
   }, [notebook]);
 
@@ -278,6 +294,72 @@ function WorkspaceNotebook({
 
     await saveDraft(next);
   }
+
+  async function askMentor(
+    cell:
+      WorkspaceNotebookCellData
+  ) {
+    setMentorLoadingCellId(
+      cell.cell_id
+    );
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/notebooks/${notebook.notebook_id}/mentor`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            code: cell.code,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData =
+          await response.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Mentor guidance could not be loaded."
+        );
+      }
+
+      const data:
+        {
+          guidance: string[];
+        } =
+          await response.json();
+
+      setMentorGuidance(
+        (previous) => ({
+          ...previous,
+          [cell.cell_id]:
+            data.guidance,
+        })
+      );
+
+    } catch (error) {
+      setMentorGuidance(
+        (previous) => ({
+          ...previous,
+          [cell.cell_id]: [
+            error instanceof Error
+              ? error.message
+              : "Mentor guidance could not be loaded.",
+          ],
+        })
+      );
+    } finally {
+      setMentorLoadingCellId(
+        null
+      );
+    }
+  }
+
 
   async function runCell(
     index: number
@@ -594,6 +676,25 @@ function WorkspaceNotebook({
                     <button
                       type="button"
                       className="secondary-button"
+                      disabled={
+                        mentorLoadingCellId !== null
+                      }
+                      onClick={() => {
+                        void askMentor(
+                          cell
+                        );
+                      }}
+                    >
+                      <Sparkles size={13} />
+                      {mentorLoadingCellId ===
+                      cell.cell_id
+                        ? "Reviewing..."
+                        : "Ask mentor"}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="secondary-button"
                       onClick={() => {
                         void onPromoteCode(
                           cell.code
@@ -632,6 +733,38 @@ function WorkspaceNotebook({
                       Delete cell
                     </button>
                   </div>
+
+                  {mentorGuidance[
+                    cell.cell_id
+                  ] && (
+                    <div className="notebook-mentor-guidance">
+                      <div>
+                        <Sparkles size={13} />
+                        <strong>
+                          DataPilot Mentor
+                        </strong>
+                      </div>
+
+                      <ul>
+                        {mentorGuidance[
+                          cell.cell_id
+                        ].map(
+                          (
+                            guidance,
+                            guidanceIndex
+                          ) => (
+                            <li
+                              key={
+                                guidanceIndex
+                              }
+                            >
+                              {guidance}
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  )}
 
                   {result && (
                     <div className="notebook-output">
