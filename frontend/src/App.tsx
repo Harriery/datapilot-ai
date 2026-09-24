@@ -34,6 +34,7 @@ import WorkspaceArtifactExplorer, {
 import WorkspaceNotebook, {
   type WorkspaceNotebookData,
 } from "./WorkspaceNotebook";
+import WorkspaceMentorPanel from "./WorkspaceMentorPanel";
 import {
   WorkspaceLineageView,
   WorkspacePipelineView,
@@ -902,6 +903,9 @@ df["age"] = df["age"].fillna(median_age)`);
   ] = useState<string | null>(
     null
   );
+
+  const [mentorContextPrompt, setMentorContextPrompt] = useState<string | null>(null);
+  const [mentorContextPromptKey, setMentorContextPromptKey] = useState(0);
   
   const [
     workspaceTask,
@@ -6697,6 +6701,10 @@ async function restoreWorkspaceVersion(
                                       onPromoteCode={
                                         promoteNotebookCodeToPipeline
                                       }
+                                      onAskMentorContext={(code) => {
+                                        setMentorContextPrompt(`I am working in notebook "${notebook.name}" on the current workspace task. Review this cell in that context and guide me with the minimum help I need.\n\nCode:\n${code}`);
+                                        setMentorContextPromptKey((value) => value + 1);
+                                      }}
                                     />
                                   );
                                 })()
@@ -7408,6 +7416,16 @@ async function restoreWorkspaceVersion(
                  </section>
                )}
       </main>
+
+      {currentView === "workspace" && dashboardWorkspace && (
+        <WorkspaceMentorPanel
+          workspaceId={dashboardWorkspace.workspace_id}
+          sessionId={dashboardWorkspace.mentor_session_id}
+          language={language}
+          contextualPrompt={mentorContextPrompt}
+          contextualPromptKey={mentorContextPromptKey}
+        />
+      )}
          
  
  
