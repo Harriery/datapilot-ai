@@ -589,6 +589,15 @@ function App() {
 
   const t = translations[language];
 
+  const ui = {
+    en: {
+      greeting: "Good morning 👋", attention: "{ui.attention}", workspaces: "WORKSPACES", yourWorkspaces: "Your workspaces", active: "active", loadingWorkspaces: "{ui.loadingWorkspaces}", noWorkspaces: "{ui.noWorkspaces}", noBrief: ui.noBrief, personal: "Personal", work : ui.work, openWorkspace: "{ui.openWorkspace}", deleting: "Deleting...", delete : ui.delete, recommendation: "Current Recommendation", loadingRecommendation: "{ui.loadingRecommendation}", priority: "priority", noRecommendation: "{ui.noRecommendation}", todayPath: "Today’s path", loadingPath: "{ui.loadingPath}", noActiveWorkspace: "{ui.noActiveWorkspace}", projectGoal: "PROJECT GOAL", developmentRowsFrom: "development rows from", sourceRows: "source rows", fullDataset: "Full dataset", rows: "rows", immutableSource: "{ui.immutableSource}", rawPreview: "Raw source preview", rawPreviewDescription: "The full raw source is preserved, but only a small paginated preview is sent to the browser. Workbench uses the development dataset shown above.", addTransformation: "+ Add transformation", loadingWorking: "{ui.loadingWorking}", workingSample: "Working dataset sample", workingDescription: "Click a column name to prepare a safe Workbench transformation." },
+    nl: {
+      greeting: "Goedemorgen 👋", attention: "Dit vraagt vandaag je aandacht.", workspaces: "WERKRUIMTES", yourWorkspaces: "Jouw werkruimtes", active: "actief", loadingWorkspaces: "Werkruimtes laden...", noWorkspaces: "Nog geen werkruimtes.", noBrief: "Nog geen taakomschrijving toegevoegd.", personal: "Persoonlijk", work: "Werk", openWorkspace: "Werkruimte openen →", deleting: "Verwijderen...", delete: "Verwijderen", recommendation: "Huidige aanbeveling", loadingRecommendation: "Aanbeveling laden...", priority: "prioriteit", noRecommendation: "Momenteel geen oefenaanbeveling.", todayPath: "Pad van vandaag", loadingPath: "Pad laden...", noActiveWorkspace: "Geen actieve werkruimte.", projectGoal: "PROJECTDOEL", developmentRowsFrom: "ontwikkelrijen van", sourceRows: "bronrijen", fullDataset: "Volledige dataset", rows: "rijen", immutableSource: "De ruwe bron blijft ongewijzigd en wordt opnieuw gebruikt wanneer de pipeline op de volledige dataset wordt toegepast.", rawPreview: "Voorbeeld van ruwe bron", rawPreviewDescription: "De volledige ruwe bron blijft behouden; alleen een klein gepagineerd voorbeeld wordt naar de browser gestuurd. Workbench gebruikt de hierboven getoonde ontwikkeldataset.", addTransformation: "+ Transformatie toevoegen", loadingWorking: "Werkdataset laden...", workingSample: "Voorbeeld van werkdataset", workingDescription: "Klik op een kolomnaam om een veilige Workbench-transformatie voor te bereiden." },
+    tr: {
+      greeting: "Günaydın 👋", attention: "Bugün ilgilenmen gerekenler burada.", workspaces: "ÇALIŞMA ALANLARI", yourWorkspaces: "Çalışma alanların", active: "aktif", loadingWorkspaces: "Çalışma alanları yükleniyor...", noWorkspaces: "Henüz çalışma alanı yok.", noBrief: "Henüz görev açıklaması eklenmedi.", personal: "Kişisel", work: "İş", openWorkspace: "Çalışma alanını aç →", deleting: "Siliniyor...", delete: "Sil", recommendation: "Güncel Öneri", loadingRecommendation: "Öneri yükleniyor...", priority: "öncelik", noRecommendation: "Şu anda pratik önerisi yok.", todayPath: "Bugünkü yol", loadingPath: "Yol yükleniyor...", noActiveWorkspace: "Aktif çalışma alanı yok.", projectGoal: "PROJE HEDEFİ", developmentRowsFrom: "geliştirme satırı /", sourceRows: "kaynak satır", fullDataset: "Tam veri seti", rows: "satır", immutableSource: "Ham kaynak değişmeden korunur ve pipeline tam veri setine uygulandığında yeniden kullanılır.", rawPreview: "Ham kaynak önizlemesi", rawPreviewDescription: "Tam ham kaynak korunur; tarayıcıya yalnızca küçük, sayfalanmış bir önizleme gönderilir. Workbench yukarıdaki geliştirme veri setini kullanır.", addTransformation: "+ Dönüşüm ekle", loadingWorking: "Çalışma veri seti yükleniyor...", workingSample: "Çalışma veri seti örneği", workingDescription: "Güvenli bir Workbench dönüşümü hazırlamak için sütun adına tıkla." },
+  }[language];
+
   function getValidationCheckText(
     check: WorkspaceValidationResult["checks"][number]
   ) {
@@ -4608,9 +4617,9 @@ async function restoreWorkspaceVersion(
           <>
             <header className="page-header">
               <div>
-                <h2>Good morning 👋</h2>
+                <h2>{ui.greeting}</h2>
                 <p>
-                  Here’s what needs your attention today.
+                  {ui.attention}
                 </p>
               </div>
         
@@ -4658,10 +4667,10 @@ async function restoreWorkspaceVersion(
                 <div className="card-heading">
                   <div>
                     <p className="workspace-eyebrow">
-                      WORKSPACES
+                      {ui.workspaces}
                     </p>
                               
-                    <h3>Your workspaces</h3>
+                    <h3>{ui.yourWorkspaces}</h3>
                   </div>
                               
                   <span className="status-badge">
@@ -4671,17 +4680,17 @@ async function restoreWorkspaceVersion(
                           workspace.status === "active"
                       ).length
                     }{" "}
-                    active
+                    {ui.active}
                   </span>
                 </div>
                   
                 {dashboardLoading ? (
                   <p className="muted">
-                    Loading workspaces...
+                    {ui.loadingWorkspaces}
                   </p>
                 ) : dashboardWorkspaces.length === 0 ? (
                   <p className="muted">
-                    No workspaces yet.
+                    {ui.noWorkspaces}
                   </p>
                 ) : (
                   <div className="dashboard-workspace-list">
@@ -4711,15 +4720,15 @@ async function restoreWorkspaceVersion(
                               
                             <p>
                               {workspace.task_brief ??
-                                "No task brief added yet."}
+                                ui.noBrief}
                             </p>
                               
                             <div className="workspace-list-meta">
                               <span>
                                 {workspace.usage_context ===
                                 "personal"
-                                  ? "Personal"
-                                  : "Work"}
+                                  ? ui.personal
+                                   : ui.work}
                               </span>
                                 
                               {workspace.data_sensitivity && (
@@ -4741,7 +4750,7 @@ async function restoreWorkspaceVersion(
                                   openSelectedWorkspace(workspace)
                                 }
                               >
-                                Open workspace →
+                                {ui.openWorkspace}
                               </button>
 
                               <button
@@ -4764,8 +4773,8 @@ async function restoreWorkspaceVersion(
 
                                 {deletingWorkspaceId ===
                                 workspace.workspace_id
-                                  ? "Deleting..."
-                                  : "Delete"}
+                                  ? ui.deleting
+                                   : ui.delete}
                               </button>
                             </div>
                           </div>
@@ -4777,11 +4786,11 @@ async function restoreWorkspaceVersion(
               </article>
                 
               <article className="card recommendation-card">
-                <h3>Current Recommendation</h3>
+                <h3>{ui.recommendation}</h3>
 
                 {dashboardLoading ? (
                   <p className="muted">
-                    Loading recommendation...
+                    {ui.loadingRecommendation}
                   </p>
                 ) : practiceRecommendation ? (
                   <>
@@ -4791,7 +4800,7 @@ async function restoreWorkspaceVersion(
                 
                     <div className="badge-row">
                       <span className="priority-badge">
-                        {practiceRecommendation.priority} priority
+                        {practiceRecommendation.priority} {ui.priority}
                       </span>
                 
                       <span className="difficulty-badge">
@@ -4805,21 +4814,21 @@ async function restoreWorkspaceVersion(
                   </>
                 ) : (
                   <p className="muted">
-                    No practice recommendation right now.
+                    {ui.noRecommendation}
                   </p>
                 )}
               </article>
                 
               <article className="card learning-path-card">
-                <h3>Today’s path</h3>
+                <h3>{ui.todayPath}</h3>
 
                 {dashboardLoading ? (
                   <p className="muted">
-                    Loading path...
+                    {ui.loadingPath}
                   </p>
                 ) : !dashboardWorkspace ? (
                   <p className="muted">
-                    No active workspace.
+                    {ui.noActiveWorkspace}
                   </p>
                 ) : dashboardWorkspace.status === "completed" ? (
                   <div className="path-item completed">
@@ -5780,8 +5789,8 @@ async function restoreWorkspaceVersion(
                       
                     {dashboardWorkspace.usage_context === "personal" && (
                       <WorkspaceStageNavigation
-                        activeStage={activeWorkspaceStage}
-                        activePrepareStage={activePrepareStage}
+                        {ui.active}Stage={activeWorkspaceStage}
+                        {ui.active}PrepareStage={activePrepareStage}
                         getStageStatus={getPersonalWorkspaceStageStatus}
                         getPrepareStageStatus={getPrepareStageStatus}
                         onStageChange={setActiveWorkspaceStage}
@@ -5949,12 +5958,12 @@ async function restoreWorkspaceVersion(
                         className="workspace-overview-card"
                         hidden={
                           dashboardWorkspace.usage_context === "personal" &&
-                          activeWorkspaceStage !== "source"
+                          {ui.active}WorkspaceStage !== "source"
                         }
                       >
                         <span className="workspace-overview-label">
                           {dashboardWorkspace.usage_context === "personal"
-                            ? "PROJECT GOAL"
+                            ? ui.projectGoal
                             : t.workspace.taskBrief}
                         </span>
                           
@@ -5968,7 +5977,7 @@ async function restoreWorkspaceVersion(
                         className="workspace-overview-card"
                         hidden={
                           dashboardWorkspace.usage_context === "personal" &&
-                          activeWorkspaceStage !== "source"
+                          {ui.active}WorkspaceStage !== "source"
                         }
                       >
                         <span className="workspace-overview-label">
@@ -5982,7 +5991,7 @@ async function restoreWorkspaceVersion(
                       </section>
                           
                       {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "source" &&
+                        {ui.active}WorkspaceStage === "source" &&
                         dashboardWorkspace.project_deliverables &&
                         dashboardWorkspace.project_deliverables.length > 0 && (
                           <PersonalProjectDeliverables
@@ -5995,7 +6004,7 @@ async function restoreWorkspaceVersion(
                         )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "analysis" &&
+                        {ui.active}WorkspaceStage === "analysis" &&
                         dashboardWorkspace.analysis_plan && (
                           <PersonalAnalysisPlan
                             analysisPlan={
@@ -6015,7 +6024,7 @@ async function restoreWorkspaceVersion(
                         )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "kpis" &&
+                        {ui.active}WorkspaceStage === "kpis" &&
                         dashboardWorkspace.data_model_studio && (
                           <PersonalKpiCandidates
                             studio={
@@ -6034,7 +6043,7 @@ async function restoreWorkspaceVersion(
                         )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "data_model" &&
+                        {ui.active}WorkspaceStage === "data_model" &&
                         dashboardWorkspace.analysis_plan && (
                           <PersonalDataModel
                             dataModelPlan={
@@ -6095,10 +6104,10 @@ async function restoreWorkspaceVersion(
                          hidden={
                             dashboardWorkspace.usage_context === "personal" &&
                             !(
-                              activeWorkspaceStage === "source" ||
+                              {ui.active}WorkspaceStage === "source" ||
                               (
-                                activeWorkspaceStage === "prepare" &&
-                                activePrepareStage === "profile"
+                                {ui.active}WorkspaceStage === "prepare" &&
+                                {ui.active}PrepareStage === "profile"
                               )
                             )
                           }
@@ -6115,8 +6124,8 @@ async function restoreWorkspaceVersion(
                         >
                           <span className="workspace-overview-label">
                             {dashboardWorkspace.usage_context === "personal" &&
-                            activeWorkspaceStage === "prepare" &&
-                            activePrepareStage === "profile"
+                            {ui.active}WorkspaceStage === "prepare" &&
+                            {ui.active}PrepareStage === "profile"
                               ? t.workspace.dataProfile
                               : t.workspace.dataSource}
                           </span>
@@ -6219,7 +6228,7 @@ async function restoreWorkspaceVersion(
                               </div>
                         
                               {(dashboardWorkspace.usage_context !== "personal" ||
-                                activeWorkspaceStage === "source") && (
+                                {ui.active}WorkspaceStage === "source") && (
                               <div className="workspace-replace-controls">
                                 <label className="workspace-replace-sample">
                                   <span>
@@ -6305,8 +6314,8 @@ async function restoreWorkspaceVersion(
 
                             {(dashboardWorkspace.usage_context !== "personal" ||
                               (
-                                activeWorkspaceStage === "prepare" &&
-                                activePrepareStage === "profile"
+                                {ui.active}WorkspaceStage === "prepare" &&
+                                {ui.active}PrepareStage === "profile"
                               )) && (
                             <div className="workspace-profile-layout">
                               <div className="workspace-profile-summary">
@@ -6448,7 +6457,7 @@ async function restoreWorkspaceVersion(
                             )}
 
                             {(dashboardWorkspace.usage_context !== "personal" ||
-                              activeWorkspaceStage === "source") && (
+                              {ui.active}WorkspaceStage === "source") && (
                             <>
                             <div className="workspace-sample-status">
                               <span className="workspace-overview-label">
@@ -6457,12 +6466,12 @@ async function restoreWorkspaceVersion(
 
                               <strong>
                                 {dashboardWorkspace.development_sample_enabled
-                                  ? `${dashboardWorkspace.development_sample_row_count ?? 0} development rows from ${workspaceDataProfile.profile.row_count} source rows`
-                                  : `Full dataset · ${workspaceDataProfile.profile.row_count} rows`}
+                                  ? `${dashboardWorkspace.development_sample_row_count ?? 0} ${ui.developmentRowsFrom} ${workspaceDataProfile.profile.row_count} ${ui.sourceRows}`
+                                  : `${ui.fullDataset} · ${workspaceDataProfile.profile.row_count} ${ui.rows}`}
                               </strong>
 
                               <span>
-                                Raw source remains unchanged and is used again when the pipeline is applied to the full dataset.
+                                {ui.immutableSource}
                               </span>
                             </div>
 
@@ -6470,8 +6479,8 @@ async function restoreWorkspaceVersion(
                               learnerId="demo-learner"
                               workspaceId={dashboardWorkspace.workspace_id}
                               dataset="source"
-                              title="Raw source preview"
-                              description="The full raw source is preserved, but only a small paginated preview is sent to the browser. Workbench uses the development dataset shown above."
+                              title={ui.rawPreview}
+                              description={ui.rawPreviewDescription}
                             />
                             </>
                             )}
@@ -6480,8 +6489,8 @@ async function restoreWorkspaceVersion(
                         (
                           dashboardWorkspace.usage_context !== "personal" ||
                           (
-                            activeWorkspaceStage === "prepare" &&
-                            activePrepareStage === "profile"
+                            {ui.active}WorkspaceStage === "prepare" &&
+                            {ui.active}PrepareStage === "profile"
                           )
                         ) && (
                         <div className="workspace-profile-next">
@@ -6532,8 +6541,8 @@ async function restoreWorkspaceVersion(
                           (
                             dashboardWorkspace.usage_context !== "personal" ||
                             (
-                              activeWorkspaceStage === "prepare" &&
-                              activePrepareStage === "workbench" &&
+                              {ui.active}WorkspaceStage === "prepare" &&
+                              {ui.active}PrepareStage === "workbench" &&
                               workspaceTask.status !== "completed"
                             )
                           ) && (
@@ -6622,8 +6631,8 @@ async function restoreWorkspaceVersion(
                           dashboardWorkspace.usage_context !== "personal"
                             ? workspaceTask.status !== "completed"
                             : (
-                                activeWorkspaceStage === "prepare" &&
-                                activePrepareStage === "workbench"
+                                {ui.active}WorkspaceStage === "prepare" &&
+                                {ui.active}PrepareStage === "workbench"
                               )
                         ) && (
                         <section className="workspace-overview-card workspace-transform-card">
@@ -6679,14 +6688,14 @@ async function restoreWorkspaceVersion(
                                       );
                                     }}
                                   >
-                                    + Add transformation
+                                    {ui.addTransformation}
                                   </button>
                                 )}
 
                               
                               {workspaceWorkingData && (
                                 <span className="workspace-transform-count">
-                                  {workspaceWorkingData.row_count} rows
+                                  {workspaceWorkingData.row_count} {ui.rows}
                                 </span>
                               )}
                             </div>
@@ -6749,7 +6758,7 @@ async function restoreWorkspaceVersion(
                                   .kpi_definitions
                                   ?.length ?? 0
                               }
-                              activeView={
+                              {ui.active}View={
                                 workbenchView
                               }
                               selectedNotebookId={
@@ -6954,7 +6963,7 @@ async function restoreWorkspaceVersion(
 
                           {workspaceWorkingDataLoading ? (
                             <p className="muted">
-                              Loading working dataset...
+                              {ui.loadingWorking}
                             </p>
                           ) : workspaceWorkingDataError ? (
                             <div className="workspace-form-error">
@@ -6966,8 +6975,8 @@ async function restoreWorkspaceVersion(
                                 learnerId="demo-learner"
                                 workspaceId={dashboardWorkspace.workspace_id}
                                 dataset="working"
-                                title="Working dataset sample"
-                                description="Click a column name to prepare a safe Workbench transformation."
+                                title={ui.workingSample}
+                                description={ui.workingDescription}
                                 selectedColumn={
                                   selectedWorkbenchColumn
                                 }
@@ -6998,9 +7007,9 @@ async function restoreWorkspaceVersion(
                                   }
 
                                   if (
-                                    activeOperation.origin ===
+                                    {ui.active}Operation.origin ===
                                       "data_quality" &&
-                                    activeOperation
+                                    {ui.active}Operation
                                       .source_columns
                                       .includes(
                                         selectedWorkbenchColumn ??
@@ -7219,8 +7228,8 @@ async function restoreWorkspaceVersion(
                       )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        activeWorkspaceStage === "prepare" &&
-                        activePrepareStage === "workbench" &&
+                        {ui.active}WorkspaceStage === "prepare" &&
+                        {ui.active}PrepareStage === "workbench" &&
                         workspaceTask?.status === "completed" && (
                           <PersonalTransformSummary
                             steps={workspaceTask.steps}
@@ -7235,8 +7244,8 @@ async function restoreWorkspaceVersion(
                         (
                           dashboardWorkspace.usage_context !== "personal" ||
                           (
-                            activeWorkspaceStage === "prepare" &&
-                            activePrepareStage === "validate"
+                            {ui.active}WorkspaceStage === "prepare" &&
+                            {ui.active}PrepareStage === "validate"
                           )
                         ) && (
                           <section className="workspace-overview-card workspace-validation-card">
@@ -7391,7 +7400,7 @@ async function restoreWorkspaceVersion(
                                               <div
                                                 key={dataset.dataset_id}
                                                 className={
-                                                  active
+                                                  {ui.active}
                                                     ? "processed-dataset-item active"
                                                     : "processed-dataset-item"
                                                 }
@@ -7524,8 +7533,8 @@ async function restoreWorkspaceVersion(
 
                         {dashboardWorkspace.usage_context ===
                           "personal" &&
-                          activeWorkspaceStage === "prepare" &&
-                          activePrepareStage === "understand" &&
+                          {ui.active}WorkspaceStage === "prepare" &&
+                          {ui.active}PrepareStage === "understand" &&
                           dashboardWorkspace.analysis_plan && (
                           <>
                             <DataPreview
