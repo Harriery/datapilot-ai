@@ -87,6 +87,10 @@ type Props = {
   onPromoteCode: (
     code: string
   ) => Promise<boolean>;
+
+  onAskMentorContext?: (
+    code: string
+  ) => void;
 };
 
 function createCell():
@@ -109,6 +113,7 @@ function WorkspaceNotebook({
   onSave,
   onDelete,
   onPromoteCode,
+  onAskMentorContext,
 }: Props) {
   const ui = {
     en: {
@@ -434,70 +439,36 @@ function WorkspaceNotebook({
   }
 
   async function askMentor(
-    cell:
-      WorkspaceNotebookCellData
+    cell: WorkspaceNotebookCellData
   ) {
-    setMentorLoadingCellId(
-      cell.cell_id
-    );
+    if (onAskMentorContext) {
+      onAskMentorContext(cell.code);
+      return;
+    }
+
+    setMentorLoadingCellId(cell.cell_id);
 
     try {
       const response = await fetch(
         `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/notebooks/${notebook.notebook_id}/mentor`,
         {
           method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            code: cell.code,
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: cell.code }),
         }
       );
-
-      if (!response.ok) {
-        const errorData =
-          await response.json();
-
-        throw new Error(
-          errorData.detail ||
-            "Mentor guidance could not be loaded."
-        );
-      }
-
-      const data:
-        {
-          guidance: string[];
-        } =
-          await response.json();
-
-      setMentorGuidance(
-        (previous) => ({
-          ...previous,
-          [cell.cell_id]:
-            data.guidance,
-        })
-      );
-
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Mentor guidance could not be loaded.");
+      setMentorGuidance((previous) => ({ ...previous, [cell.cell_id]: data.guidance }));
     } catch (error) {
-      setMentorGuidance(
-        (previous) => ({
-          ...previous,
-          [cell.cell_id]: [
-            error instanceof Error
-              ? error.message
-              : "Mentor guidance could not be loaded.",
-          ],
-        })
-      );
+      setMentorGuidance((previous) => ({
+        ...previous,
+        [cell.cell_id]: [error instanceof Error ? error.message : "Mentor guidance could not be loaded."],
+      }));
     } finally {
-      setMentorLoadingCellId(
-        null
-      );
+      setMentorLoadingCellId(null);
     }
   }
-
 
   async function runCell(
     index: number
