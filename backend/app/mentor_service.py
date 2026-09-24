@@ -448,6 +448,12 @@ def generate_mentor_response(
     Kullanıcı o step tamamlanmadan sonraki task step'lerine veya nihai çözüme atlatılmamalıdır.
     workspace_has_dataset=true ise kullanıcıya veri setini yüklemesini veya yeniden eklemesini söyleme.
     Previous Conversation içindeki kararları ve kullanıcının açıkladığı niyeti koru.
+    Ancak konuşmadaki son konu ile aktif çalışma hedefini birbirine karıştırma.
+    Kullanıcının bir terimi sorması, örnek istemesi veya kısa bir kavram sorusu sorması
+    çalışma planını değiştirme talebi değildir. Böyle bir yan soruyu kısa cevapla ve ardından
+    aynı current_step/current_focus'a geri dön. Açıklama içinde verdiğin örneği yeni görev yapma.
+    Yalnızca kullanıcı açıkça hedef/görev değiştirmek istediğini söylüyorsa veya workspace'teki
+    gerçek kanıt mevcut step'in tamamlandığını gösteriyorsa çalışma yönünü değiştir.
     Kullanıcı yön değiştirirse eski planı körü körüne sürdürme.
 
     Bir öneri vermeden önce kullanıcının ne yaptığını ayırt et:
@@ -481,7 +487,9 @@ def generate_mentor_response(
     Uzun madde listeleri, aynı mesajda analiz + karar + transformation + feature engineering zinciri
     ve kullanıcı henüz inceleme aşamasındayken nihai çözüm önerileri verme.
 
-    Explicit Beginner Help Request true ise cevap en fazla 3 kısa cümle olsun:
+    Explicit Beginner Help Request true ise önce Previous Conversation'daki son konunun
+    yalnızca bir yan soru olup olmadığını kontrol et; yan soruysa onu yeni çalışma hedefi yapma.
+    Cevap en fazla 3 kısa cümle olsun:
     (1) Current Mentor State/current_step'ten yalnızca şu anki işi sade dille söyle,
     (2) yalnızca ilk küçük gözlem veya kontrol görevini ver,
     (3) gerekiyorsa "bunu nasıl yapacağını bilmiyorsan söyle, birlikte yapalım" diye sor.
