@@ -116,7 +116,7 @@ import io
 import json
 import pandas as pd
 
-df = pd.DataFrame(
+_df = pd.DataFrame(
     json.loads(input_json)
 )
 
@@ -126,6 +126,12 @@ _codes = json.loads(
 
 _target_stdout = ""
 
+_env = {
+    "pd": pd,
+    "df": _df,
+    "__builtins__": __builtins__,
+}
+
 for _index, _code in enumerate(_codes):
     _stdout = io.StringIO()
 
@@ -134,7 +140,8 @@ for _index, _code in enumerate(_codes):
     ):
         exec(
             _code,
-            globals(),
+            _env,
+            _env,
         )
 
     if _index == len(_codes) - 1:
@@ -142,14 +149,16 @@ for _index, _code in enumerate(_codes):
             _stdout.getvalue()
         )
 
-if not isinstance(df, pd.DataFrame):
+_df = _env.get("df")
+
+if not isinstance(_df, pd.DataFrame):
     raise TypeError(
         "Notebook code must leave df as a pandas DataFrame."
     )
 
 json.dumps({
     "rows": json.loads(
-        df.to_json(
+        _df.to_json(
             orient="records"
         )
     ),
