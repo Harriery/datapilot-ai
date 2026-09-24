@@ -1188,6 +1188,79 @@ class WorkspaceFullPipelineResponse(BaseModel):
     development_sample_disabled: bool = True
 
 
+class WorkspaceNotebookCell(BaseModel):
+    cell_id: str
+    code: str = ""
+
+    cell_type: Literal[
+        "python",
+    ] = "python"
+
+
+class WorkspaceNotebook(BaseModel):
+    notebook_id: str
+
+    name: str = Field(
+        min_length=1,
+        max_length=80,
+    )
+
+    dataset_kind: Literal[
+        "working",
+        "raw",
+        "processed",
+    ] = "working"
+
+    processed_dataset_id: (
+        str | None
+    ) = None
+
+    cells: list[
+        WorkspaceNotebookCell
+    ] = Field(default_factory=list)
+
+    created_at: str
+    updated_at: str
+
+
+class WorkspaceNotebookCreateRequest(BaseModel):
+    name: str = Field(
+        min_length=1,
+        max_length=80,
+    )
+
+    dataset_kind: Literal[
+        "working",
+        "raw",
+        "processed",
+    ] = "working"
+
+    processed_dataset_id: (
+        str | None
+    ) = None
+
+
+class WorkspaceNotebookUpdateRequest(BaseModel):
+    name: str = Field(
+        min_length=1,
+        max_length=80,
+    )
+
+    dataset_kind: Literal[
+        "working",
+        "raw",
+        "processed",
+    ] = "working"
+
+    processed_dataset_id: (
+        str | None
+    ) = None
+
+    cells: list[
+        WorkspaceNotebookCell
+    ] = Field(default_factory=list)
+
+
 class WorkspaceProcessedDatasetCreateRequest(
     BaseModel
 ):
@@ -1334,6 +1407,10 @@ class Workspace(BaseModel):
 
     processed_datasets: list[
         WorkspaceProcessedDataset
+    ] = Field(default_factory=list)
+
+    notebooks: list[
+        WorkspaceNotebook
     ] = Field(default_factory=list)
 
     active_processed_dataset_id: (
