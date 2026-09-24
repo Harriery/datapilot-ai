@@ -11979,3 +11979,17 @@
     width: 100%;
   }
 }
+
+
+.pipeline-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+@media (max-width: 720px) {
+  .pipeline-header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
