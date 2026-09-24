@@ -1,5 +1,6 @@
 import {
   Play,
+  PlayCircle,
   Plus,
   RotateCcw,
   Save,
@@ -295,6 +296,15 @@ function WorkspaceNotebook({
     setMessage(null);
 
     try {
+      const saved =
+        await saveDraft(
+          draft
+        );
+
+      if (!saved) {
+        return;
+      }
+
       const result =
         await runNotebookCells(
           draft.cells.map(
@@ -417,6 +427,28 @@ function WorkspaceNotebook({
               )}
             </select>
           </label>
+
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={
+              draft.cells.length === 0 ||
+              runningCellId !== null ||
+              loadingData
+            }
+            onClick={() => {
+              if (
+                draft.cells.length > 0
+              ) {
+                void runCell(
+                  draft.cells.length - 1
+                );
+              }
+            }}
+          >
+            <PlayCircle size={14} />
+            Run all
+          </button>
 
           <button
             type="button"
