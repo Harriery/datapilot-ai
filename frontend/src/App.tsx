@@ -2596,18 +2596,6 @@ async function promoteNotebookCodeToPipeline(
     });
 
   if (created) {
-    setTransformationCode(
-      cleanCode
-    );
-
-    setPreparedPipelineAction(
-      null
-    );
-
-    setPreparedPipelineCode(
-      null
-    );
-
     setWorkbenchView(
       "pipeline"
     );
