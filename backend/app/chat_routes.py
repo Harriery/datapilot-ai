@@ -89,17 +89,48 @@ def chat(request: ChatRequest):
                 ),
             )
 
+        # Give the mentor a real project snapshot, not only the workspace title.
+        # This lets it reason from the learner's current task, data findings,
+        # notebook/pipeline state and prior project decisions without inventing context.
         workspace_context = {
             "workspace_id": workspace.workspace_id,
             "title": workspace.title,
             "workspace_type": workspace.workspace_type,
             "status": workspace.status,
-            "current_task_id": (
-                workspace.current_task_id
+            "current_task_id": workspace.current_task_id,
+            "checkpoint": workspace.checkpoint.model_dump(),
+            "task_brief": workspace.task_brief,
+            "desired_outcome": workspace.desired_outcome,
+            "project_type": workspace.project_type,
+            "dataset_filename": workspace.dataset_filename,
+            "development_sample_size": workspace.development_sample_size,
+            "dataset_profile": (
+                workspace.dataset_profile.model_dump()
+                if hasattr(workspace.dataset_profile, "model_dump")
+                else workspace.dataset_profile
             ),
-            "checkpoint": (
-                workspace.checkpoint.model_dump()
+            "dataset_analysis": (
+                workspace.dataset_analysis.model_dump()
+                if hasattr(workspace.dataset_analysis, "model_dump")
+                else workspace.dataset_analysis
             ),
+            "workbench_operations": [
+                item.model_dump() if hasattr(item, "model_dump") else item
+                for item in (workspace.workbench_operations or [])
+            ],
+            "notebooks": [
+                {
+                    "notebook_id": item.notebook_id,
+                    "name": item.name,
+                    "dataset_kind": item.dataset_kind,
+                    "cell_count": len(item.cells),
+                }
+                for item in (workspace.notebooks or [])
+            ],
+            "processed_datasets": [
+                item.model_dump() if hasattr(item, "model_dump") else item
+                for item in (workspace.processed_datasets or [])
+            ],
         }
 
     learner_profile = database.get_learner_profile_by_id(
