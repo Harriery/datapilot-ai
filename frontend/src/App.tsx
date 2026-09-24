@@ -28,6 +28,16 @@ import TasksPage from "./TasksPage";
 import ProgressPage from "./ProgressPage";
 import WorkspaceModeCards from "./WorkspaceModeCards";
 import PersonalTransformSummary from "./PersonalTransformSummary";
+import WorkspaceArtifactExplorer, {
+  type WorkbenchView,
+} from "./WorkspaceArtifactExplorer";
+import WorkspaceNotebook, {
+  type WorkspaceNotebookData,
+} from "./WorkspaceNotebook";
+import {
+  WorkspaceLineageView,
+  WorkspacePipelineView,
+} from "./WorkspacePipelineViews";
 
 import {
   runDataFrameTransformation,
@@ -186,6 +196,9 @@ type DashboardWorkspace = {
 
   processed_datasets?:
     ProcessedDatasetData[];
+
+  notebooks?:
+    WorkspaceNotebookData[];
 
   active_processed_dataset_id?:
     string | null;
@@ -868,6 +881,20 @@ df["age"] = df["age"].fillna(median_age)`);
     fullPipelineError,
     setFullPipelineError,
   ] = useState<string | null>(null);
+
+  const [
+    workbenchView,
+    setWorkbenchView,
+  ] = useState<WorkbenchView>(
+    "explorer"
+  );
+
+  const [
+    selectedNotebookId,
+    setSelectedNotebookId,
+  ] = useState<string | null>(
+    null
+  );
   
   const [
     workspaceTask,
@@ -1680,6 +1707,8 @@ async function openSelectedWorkspace(
     setWorkspaceValidationError(null);
     setWorkspaceReviewError(null);
     setWorkspaceHandoffError(null);
+    setWorkbenchView("explorer");
+    setSelectedNotebookId(null);
     setTransformationCode(
     "# df is already loaded.\n# Write your pandas transformation below.\n"
     );
@@ -2322,6 +2351,245 @@ async function createNewWorkspace() {
       setWorkspaceCreating(false);
     }
   }
+
+async function createWorkspaceNotebook() {
+  if (!workspaceId || !dashboardWorkspace) {
+    return;
+  }
+
+  const notebookNumber =
+    (dashboardWorkspace.notebooks?.length ?? 0) + 1;
+
+  const defaultName =
+    notebookNumber === 1
+      ? "01_Data_Cleaning"
+      : `Notebook_${notebookNumber}`;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/notebooks`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          name: defaultName,
+          dataset_kind: "working",
+          processed_dataset_id: null,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Notebook oluşturulamadı."
+      );
+    }
+
+    const notebook:
+      WorkspaceNotebookData =
+        await response.json();
+
+    setDashboardWorkspace(
+      (previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          notebooks: [
+            ...(previous.notebooks ?? []),
+            notebook,
+          ],
+        };
+      }
+    );
+
+    setSelectedNotebookId(
+      notebook.notebook_id
+    );
+
+    setWorkbenchView(
+      "notebook"
+    );
+
+  } catch (error) {
+    window.alert(
+      error instanceof Error
+        ? error.message
+        : "Notebook oluşturulamadı."
+    );
+  }
+}
+
+
+async function saveWorkspaceNotebook(
+  notebook: WorkspaceNotebookData
+): Promise<WorkspaceNotebookData> {
+  if (!workspaceId) {
+    throw new Error(
+      "Workspace bulunamadı."
+    );
+  }
+
+  const response = await fetch(
+    `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/notebooks/${notebook.notebook_id}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({
+        name: notebook.name,
+        dataset_kind:
+          notebook.dataset_kind,
+        processed_dataset_id:
+          notebook.processed_dataset_id,
+        cells: notebook.cells,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData =
+      await response.json();
+
+    throw new Error(
+      errorData.detail ||
+        "Notebook kaydedilemedi."
+    );
+  }
+
+  const saved:
+    WorkspaceNotebookData =
+      await response.json();
+
+  setDashboardWorkspace(
+    (previous) => {
+      if (!previous) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        notebooks:
+          (previous.notebooks ?? [])
+            .map(
+              (item) =>
+                item.notebook_id ===
+                saved.notebook_id
+                  ? saved
+                  : item
+            ),
+      };
+    }
+  );
+
+  return saved;
+}
+
+
+async function deleteWorkspaceNotebook(
+  notebookId: string
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  const response = await fetch(
+    `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/notebooks/${notebookId}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const errorData =
+      await response.json();
+
+    throw new Error(
+      errorData.detail ||
+        "Notebook silinemedi."
+    );
+  }
+
+  setDashboardWorkspace(
+    (previous) => {
+      if (!previous) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        notebooks:
+          (previous.notebooks ?? [])
+            .filter(
+              (item) =>
+                item.notebook_id !==
+                notebookId
+            ),
+      };
+    }
+  );
+
+  setSelectedNotebookId(
+    null
+  );
+
+  setWorkbenchView(
+    "explorer"
+  );
+}
+
+
+async function promoteNotebookCodeToPipeline(
+  code: string
+): Promise<boolean> {
+  const cleanCode =
+    code.trim();
+
+  if (!cleanCode) {
+    return false;
+  }
+
+  const created =
+    await createWorkbenchOperation({
+      title:
+        "Notebook experiment",
+      goal:
+        "Review and convert this notebook experiment into a replayable pipeline transformation.",
+      operation_type:
+        "custom",
+      source_columns: [],
+      expected_columns: [],
+      pipeline_action: null,
+    });
+
+  if (created) {
+    setTransformationCode(
+      cleanCode
+    );
+
+    setPreparedPipelineAction(
+      null
+    );
+
+    setPreparedPipelineCode(
+      null
+    );
+  }
+
+  return created;
+}
+
 
 async function createProcessedDataset() {
   if (!workspaceId) {
