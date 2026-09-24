@@ -53,8 +53,12 @@ def _is_step_by_step_help_request(message: str) -> bool:
     return any(marker in normalized for marker in markers)
 
 
-def _deterministic_workspace_guidance(workspace_context: dict | None, message: str) -> str | None:
-    """Keep explicit beginner-help turns to one observable action before the LLM."""
+def _deterministic_workspace_guidance(
+    workspace_context: dict | None,
+    message: str,
+    conversation_history: list[dict] | None = None,
+) -> str | None:
+    """Control explicit beginner-help turns without trapping the learner in a loop."""
     if workspace_context is None or not _is_step_by_step_help_request(message):
         return None
 
@@ -73,10 +77,23 @@ def _deterministic_workspace_guidance(workspace_context: dict | None, message: s
         if value
     )
     normalized_step = step_text.casefold()
+    normalized_message = message.casefold()
+
+    direct_teaching_markers = (
+        "bilmiyorum", "ilk defa", "ilk kez", "tarif et", "birlikte yap",
+        "nasıl yap", "nasil yap", "göster", "goster",
+        "i don't know", "i dont know", "first time", "show me", "teach me",
+    )
+    asks_for_instruction = any(marker in normalized_message for marker in direct_teaching_markers)
 
     if "car" in normalized_step and (
         "eksik" in normalized_step or "missing" in normalized_step or "null" in normalized_step
     ):
+        if asks_for_instruction:
+            return (
+                "Tabii. Notebook'ta yeni bir hücreye df['Car'].isna().sum() yaz ve o hücreyi çalıştır. "
+                "Ekranda çıkan sayıyı bana gönder; şimdilik başka bir şey yapma."
+            )
         return (
             "Şu an Car sütunundaki eksik değerleri inceliyoruz. "
             "İlk olarak sadece kaç tane Car değerinin eksik olduğunu bulalım. "
@@ -90,6 +107,11 @@ def _deterministic_workspace_guidance(workspace_context: dict | None, message: s
         or task.get("title")
     )
     if step_label:
+        if asks_for_instruction:
+            return (
+                f"Tamam, {step_label} adımını birlikte yapalım. "
+                "Önce bu adımın ilk kontrolünü yapacağız; bana ekranda gördüğün sonucu gönder."
+            )
         return (
             f"Şu an üzerinde çalıştığımız adım: {step_label}. "
             "Bu adımda yalnızca ilk küçük kontrolü yapalım; sonraki adıma henüz geçmeyelim. "
@@ -257,6 +279,7 @@ def chat(request: ChatRequest):
         reply = _deterministic_workspace_guidance(
             workspace_context=workspace_context,
             message=message,
+            conversation_history=previous_history,
         )
 
         # Other turns continue through the adaptive mentor.
