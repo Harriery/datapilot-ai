@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { Bot, ChevronDown, ChevronUp, Send, Sparkles, X } from "lucide-react";
 
 type MentorMessage = { role: "user" | "assistant"; content: string };
