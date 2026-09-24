@@ -641,7 +641,7 @@ validationChecks: {
   },
 
     },
-  },,
+  },
 
   tr: {
     sidebar: {
