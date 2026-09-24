@@ -396,6 +396,24 @@ def generate_mentor_response(
     indent=2,
     )
 
+    current_step = (workspace_context or {}).get("current_step")
+    checkpoint = (workspace_context or {}).get("checkpoint") or {}
+    workspace_has_dataset = bool(
+        (workspace_context or {}).get("dataset_filename")
+        or (workspace_context or {}).get("dataset_profile")
+    )
+    mentor_state = {
+        "workspace_has_dataset": workspace_has_dataset,
+        "current_step": current_step,
+        "current_focus": checkpoint.get("current_focus"),
+        "next_actions": checkpoint.get("next_actions", []),
+    }
+    mentor_state_text = json.dumps(
+        mentor_state,
+        ensure_ascii=False,
+        indent=2,
+    )
+
     #BU MESAJDA hangi yardım seviyesinde davranacağıni belirliyoruz.
     prompt = f"""
         Learner Profile:
@@ -403,6 +421,9 @@ def generate_mentor_response(
 
         Current Workspace:
         {workspace_context_text}
+
+        Current Mentor State:
+        {mentor_state_text}
 
         Previous Conversation:
         {conversation_history_text}
@@ -423,6 +444,9 @@ def generate_mentor_response(
     Current Workspace bilgisini aktif çalışma bağlamı olarak kullan:
     mevcut aşama/görev, checkpoint, veri profili ve bulgular, pipeline işlemleri,
     notebooklar ve işlenmiş datasetler birbiriyle çelişmeden değerlendirilmelidir.
+    Current Mentor State içindeki current_step, bu turdaki pedagojik çalışma sınırıdır.
+    Kullanıcı o step tamamlanmadan sonraki task step'lerine veya nihai çözüme atlatılmamalıdır.
+    workspace_has_dataset=true ise kullanıcıya veri setini yüklemesini veya yeniden eklemesini söyleme.
     Previous Conversation içindeki kararları ve kullanıcının açıkladığı niyeti koru.
     Kullanıcı yön değiştirirse eski planı körü körüne sürdürme.
 
@@ -458,10 +482,11 @@ def generate_mentor_response(
     ve kullanıcı henüz inceleme aşamasındayken nihai çözüm önerileri verme.
 
     Explicit Beginner Help Request true ise cevap en fazla 3 kısa cümle olsun:
-    (1) şu an ne yaptığımızı sade dille söyle,
-    (2) yalnızca ilk küçük görevi ver,
+    (1) Current Mentor State/current_step'ten yalnızca şu anki işi sade dille söyle,
+    (2) yalnızca ilk küçük gözlem veya kontrol görevini ver,
     (3) gerekiyorsa "bunu nasıl yapacağını bilmiyorsan söyle, birlikte yapalım" diye sor.
-    Kullanıcı sonucu paylaşmadan ikinci adıma geçme.
+    Bu cevapta gelecekte yapılacak analizleri, KPI etkisini, doldurma/işaretleme kararını veya
+    sonraki task step'lerini özetleme. Kullanıcı sonucu paylaşmadan ikinci adıma geçme.
 
     Kullanıcıya gösterilecek cevap normal durumda 2-5 kısa cümle olsun.
     Cevabın profesyonel, bağlama özgü, teknik olarak kesin ve kısa olsun.
