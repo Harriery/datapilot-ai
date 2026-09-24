@@ -4424,6 +4424,18 @@ async function restoreWorkspaceVersion(
           <button
             type="button"
             className={
+              language === "nl"
+                ? "language-option active"
+                : "language-option"
+            }
+            onClick={() => setLanguage("nl")}
+          >
+            NL
+          </button>
+
+          <button
+            type="button"
+            className={
               language === "tr"
                 ? "language-option active"
                 : "language-option"
