@@ -25,10 +25,10 @@ export default function WorkspaceMentorPanel({
   const [input,setInput]=useState("");
   const [loading,setLoading]=useState(false);
   const [collapsed,setCollapsed]=useState(false);
-  const [hidden,setHidden]=useState(false);
+  const [hidden,setHidden]=useState(true);
   const endRef=useRef<HTMLDivElement|null>(null);
 
-  useEffect(()=>{ setHidden(false); },[workspaceId]);
+  useEffect(()=>{ setHidden(true); },[workspaceId]);
 
   useEffect(()=>{
     if(!sessionId){ setMessages([]); return; }
@@ -67,7 +67,7 @@ export default function WorkspaceMentorPanel({
     }finally{ setLoading(false); }
   }
 
-  if(hidden) return <button className="mentor-panel-launcher" type="button" onClick={()=>setHidden(false)}><Sparkles size={16}/>{copy.expand}</button>;
+  if(hidden) return <button className="mentor-panel-launcher" type="button" aria-label={copy.expand} title={copy.expand} onClick={()=>setHidden(false)}><span className="mentor-launcher-presence" aria-hidden="true"/><Bot size={21}/><span className="mentor-launcher-badge">AI</span></button>;
 
   return <aside className={collapsed?"workspace-mentor-panel collapsed":"workspace-mentor-panel"}>
     <header className="workspace-mentor-header">
