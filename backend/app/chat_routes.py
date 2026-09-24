@@ -40,6 +40,14 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
+@router.get("/chat/{session_id}/history")
+def chat_history(session_id: str):
+    """Return persisted mentor conversation so the workspace panel can resume."""
+    if get_session_by_id(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session bulunamadı.")
+    return {"messages": get_messages_by_session(session_id)}
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     # Kullanıcının mesajındaki baştaki ve sondaki boşlukları temizler.
