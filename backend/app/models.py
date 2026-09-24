@@ -1228,6 +1228,23 @@ class WorkspaceNotebook(BaseModel):
     updated_at: str
 
 
+class WorkspaceNotebookMentorRequest(BaseModel):
+    code: str = Field(
+        min_length=1,
+        max_length=20000,
+    )
+
+
+class WorkspaceNotebookMentorResponse(BaseModel):
+    guidance: list[str] = Field(
+        default_factory=list
+    )
+
+    source: Literal[
+        "local",
+    ] = "local"
+
+
 class WorkspaceNotebookCreateRequest(BaseModel):
     name: str = Field(
         min_length=1,
