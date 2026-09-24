@@ -49,6 +49,7 @@ from backend.app.models import (
     WorkspaceProcessedDatasetCreateRequest,
     WorkspaceProcessedDataset,
     WorkspaceNotebook,
+    WorkspaceNotebookCell,
     WorkspaceNotebookCreateRequest,
     WorkspaceNotebookUpdateRequest,
     PersonalProjectKPIBuilderRequest,
@@ -2011,7 +2012,18 @@ def create_workspace_notebook(
         processed_dataset_id=(
             request.processed_dataset_id
         ),
-        cells=[],
+        cells=[
+            WorkspaceNotebookCell(
+                cell_id=str(
+                    uuid.uuid4()
+                ),
+                code=(
+                    "# Work with df\n"
+                    "# Example: df.head()\n"
+                ),
+                cell_type="python",
+            )
+        ],
         created_at=now,
         updated_at=now,
     )
