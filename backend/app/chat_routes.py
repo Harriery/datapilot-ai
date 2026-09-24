@@ -146,18 +146,17 @@ def _deterministic_workspace_guidance(
     asks_for_instruction = any(marker in normalized_message for marker in direct_teaching_markers)
 
     if car_examples_observed:
-        return (
-            "Notebook'taki son çalışmanı ve çıktıyı görüyorum; sonucu tekrar buraya kopyalaman gerekmiyor. "
-            "Car değeri eksik olan örnek satırları başarıyla görüntüledin. "
-            "Şimdi bu örneklerde ortak bir desen olup olmadığını birlikte yorumlayabiliriz."
-        )
+        # Observation is complete. Do not trap every later message in a canned
+        # acknowledgement; let the adaptive mentor inspect the compact preview
+        # and answer interpretation/teaching questions from the actual rows.
+        return None
 
     if count_reported:
         if asks_for_instruction:
             return (
                 "23 eksik değer olduğunu zaten bulduk; aynı sayımı tekrar yapmayacağız. "
                 "Şimdi Notebook'ta yeni bir hücreye df[df['Car'].isna()][['Suburb','Type','Rooms','Price']].head(5) yazıp çalıştır. "
-                "Çıkan 5 satırı bana gönder; sonra birlikte ne gördüğümüze bakacağız."
+                "Hücreyi çalıştırdıktan sonra sadece 'yaptım' de; çıktıyı Notebook'tan görebilirim."
             )
         return (
             "Car sütununda 23 eksik değer olduğunu bulduk. "
