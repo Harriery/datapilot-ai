@@ -111,6 +111,7 @@ export async function runNotebookCells(
   try {
     const result =
       await pyodide.runPythonAsync(`
+import ast
 import contextlib
 import io
 import json
@@ -138,11 +139,62 @@ for _index, _code in enumerate(_codes):
     with contextlib.redirect_stdout(
         _stdout
     ):
-        exec(
+        _tree = ast.parse(
             _code,
-            _env,
-            _env,
+            mode="exec",
         )
+
+        if (
+            _tree.body
+            and isinstance(
+                _tree.body[-1],
+                ast.Expr,
+            )
+        ):
+            _prefix = ast.Module(
+                body=_tree.body[:-1],
+                type_ignores=[],
+            )
+
+            if _prefix.body:
+                exec(
+                    compile(
+                        _prefix,
+                        "<notebook>",
+                        "exec",
+                    ),
+                    _env,
+                    _env,
+                )
+
+            _expression = ast.Expression(
+                _tree.body[-1].value
+            )
+
+            _value = eval(
+                compile(
+                    _expression,
+                    "<notebook>",
+                    "eval",
+                ),
+                _env,
+                _env,
+            )
+
+            if _value is not None:
+                print(
+                    repr(_value)
+                )
+        else:
+            exec(
+                compile(
+                    _tree,
+                    "<notebook>",
+                    "exec",
+                ),
+                _env,
+                _env,
+            )
 
     if _index == len(_codes) - 1:
         _target_stdout = (
