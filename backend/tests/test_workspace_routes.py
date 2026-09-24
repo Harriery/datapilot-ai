@@ -4601,3 +4601,160 @@ def test_development_sample_cannot_exceed_initial_upload_limit(
         ]
         == 2500
     )
+
+
+
+def test_workspace_notebook_lifecycle_and_data_source(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Notebook Project",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.development_sample_size = 1000
+    workspace.development_sample_max_size = 1000
+    workspace.development_sample_row_count = 1000
+    workspace.development_sample_enabled = True
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    create_notebook_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/notebooks"
+        ),
+        json={
+            "name": "01_Cleaning",
+            "dataset_kind": "raw",
+        },
+    )
+
+    assert (
+        create_notebook_response.status_code
+        == 200
+    )
+
+    notebook = (
+        create_notebook_response.json()
+    )
+
+    notebook_id = notebook[
+        "notebook_id"
+    ]
+
+    update_response = client.put(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/notebooks/"
+            f"{notebook_id}"
+        ),
+        json={
+            "name": "01_Cleaning",
+            "dataset_kind": "raw",
+            "processed_dataset_id": None,
+            "cells": [
+                {
+                    "cell_id": "cell-1",
+                    "cell_type": "python",
+                    "code": (
+                        "df['x2'] = "
+                        "df['x'] * 2"
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert update_response.status_code == 200
+
+    assert (
+        update_response.json()[
+            "cells"
+        ][0]["code"]
+        == "df['x2'] = df['x'] * 2"
+    )
+
+    source_df = pd.DataFrame(
+        {
+            "x": list(
+                range(1500)
+            ),
+        }
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_source_dataframe",
+        lambda workspace_id: (
+            source_df.copy()
+        ),
+    )
+
+    data_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/notebooks/"
+            f"{notebook_id}/data"
+        )
+    )
+
+    assert data_response.status_code == 200
+
+    data = data_response.json()
+
+    assert data["row_count"] == 1000
+    assert data["columns"] == ["x"]
+
+    delete_response = client.delete(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/notebooks/"
+            f"{notebook_id}"
+        )
+    )
+
+    assert delete_response.status_code == 204
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    assert (
+        workspace_response.status_code
+        == 200
+    )
+
+    assert (
+        workspace_response.json()[
+            "notebooks"
+        ]
+        == []
+    )
