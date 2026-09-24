@@ -259,6 +259,15 @@ def chat(request: ChatRequest):
                     "name": item.name,
                     "dataset_kind": item.dataset_kind,
                     "cell_count": len(item.cells),
+                    "recent_cells": [
+                        {
+                            "cell_id": cell.cell_id,
+                            "code": cell.code[-4000:],
+                            "last_execution": cell.last_execution,
+                        }
+                        for cell in item.cells[-6:]
+                        if cell.code.strip() or cell.last_execution
+                    ],
                 }
                 for item in (workspace.notebooks or [])
             ],
