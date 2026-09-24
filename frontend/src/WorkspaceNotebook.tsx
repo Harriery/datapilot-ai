@@ -521,6 +521,7 @@ function WorkspaceNotebook({
               error instanceof Error
                 ? error.message
                 : "Notebook cell failed.",
+            expressionKind: "none",
           },
         })
       );
