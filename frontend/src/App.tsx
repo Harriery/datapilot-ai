@@ -847,6 +847,7 @@ function App() {
 
   const [mentorContextPrompt, setMentorContextPrompt] = useState<string | null>(null);
   const [mentorContextPromptKey, setMentorContextPromptKey] = useState(0);
+  const [mentorPanelOpen, setMentorPanelOpen] = useState(false);
   
   const [
     workspaceTask,
@@ -3937,7 +3938,7 @@ async function restoreWorkspaceVersion(
     ) ?? false;  
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${currentView === "workspace" && mentorPanelOpen ? "mentor-open" : ""}`}>
       <aside
         className={`sidebar ${
           sidebarCollapsed ? "collapsed" : ""
@@ -7365,6 +7366,8 @@ async function restoreWorkspaceVersion(
           language={language}
           contextualPrompt={mentorContextPrompt}
           contextualPromptKey={mentorContextPromptKey}
+          open={mentorPanelOpen}
+          onOpenChange={setMentorPanelOpen}
         />
       )}
          
