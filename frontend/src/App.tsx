@@ -40,6 +40,7 @@ import {
 } from "./WorkspacePipelineViews";
 
 import {
+  runDataFrameTransformation,
   runPythonCode,
 } from "./pythonRunner";
 
@@ -2581,6 +2582,25 @@ async function promoteNotebookCodeToPipeline(
     code.trim();
 
   if (!cleanCode) {
+    return false;
+  }
+
+  const transformationSignals = [
+    /df\s*\[[^\]]+\]\s*=/,
+    /df\s*=\s*/,
+    /\.drop\s*\(/,
+    /\.dropna\s*\(/,
+    /\.fillna\s*\(/,
+    /\.rename\s*\(/,
+    /\.replace\s*\(/,
+    /\.astype\s*\(/,
+    /pd\.to_datetime\s*\(/,
+  ];
+
+  if (!transformationSignals.some((pattern) => pattern.test(cleanCode))) {
+    window.alert(
+      "This cell appears to inspect or analyze data only. Pipeline steps must transform df. Keep analysis in the notebook and send only transformation code to the pipeline."
+    );
     return false;
   }
 
