@@ -41,7 +41,6 @@ import {
 } from "./WorkspacePipelineViews";
 
 import {
-  runDataFrameTransformation,
   runPythonCode,
 } from "./pythonRunner";
 
@@ -436,43 +435,6 @@ type WorkspaceDataProfileResponse = {
   };
 };
 
-type WorkspaceWorkbenchOperation = {
-  operation_id: string;
-
-  title: string;
-  goal: string;
-
-  operation_type:
-    | "clean"
-    | "transform"
-    | "schema"
-    | "business_rule"
-    | "enrichment"
-    | "custom";
-
-  origin:
-    | "data_quality"
-    | "project_requirement"
-    | "user";
-
-  status:
-    | "pending"
-    | "active"
-    | "completed";
-
-  source_columns: string[];
-  expected_columns: string[];
-
-  code: string | null;
-
-  finding_index: number | null;
-
-  rollback_version_number: number | null;
-
-  result_version_id: string | null;
-};
-
-
 type WorkspaceWorkingData = {
   columns: string[];
   row_count: number;
@@ -746,32 +708,6 @@ function App() {
 
 
 
-  
-  const [transformationCode, setTransformationCode] =
-  useState(`# Inspect age distribution
-age_stats = df["age"].describe()
-
-median_age = df["age"].median()
-
-df["age"] = df["age"].fillna(median_age)`);
-
-  const [
-    preparedPipelineAction,
-    setPreparedPipelineAction,
-  ] = useState<WorkbenchPipelineActionData | null>(
-    null
-  );
-
-  const [
-    preparedPipelineCode,
-    setPreparedPipelineCode,
-  ] = useState<string | null>(
-    null
-  );
-
-  const [resultRows, setResultRows] = useState<
-    Record<string, unknown>[] | null
-  >(null);
   
   const [, setValidationMessage] =
   useState<string | null>(null);
