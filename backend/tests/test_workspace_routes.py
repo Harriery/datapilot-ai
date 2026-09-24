@@ -4758,3 +4758,102 @@ def test_workspace_notebook_lifecycle_and_data_source(
         ]
         == []
     )
+
+
+
+def test_notebook_draft_pipeline_step_can_be_removed(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Draft Pipeline Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    operation_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/workbench/operations"
+        ),
+        json={
+            "title": "Notebook experiment",
+            "goal": "Review experiment.",
+            "operation_type": "custom",
+            "source_columns": [],
+            "expected_columns": [],
+            "pipeline_action": None,
+            "draft_code": (
+                "df['x2'] = df['x'] * 2"
+            ),
+        },
+    )
+
+    assert (
+        operation_response.status_code
+        == 200
+    )
+
+    operation = (
+        operation_response.json()
+    )
+
+    assert (
+        operation["code"]
+        == "df['x2'] = df['x'] * 2"
+    )
+
+    assert (
+        operation["status"]
+        == "active"
+    )
+
+    delete_response = client.delete(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+            "/workbench/operations/"
+            f"{operation['operation_id']}"
+        )
+    )
+
+    assert (
+        delete_response.status_code
+        == 204
+    )
+
+    workspace_response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    )
+
+    workspace = (
+        workspace_response.json()
+    )
+
+    assert (
+        workspace[
+            "workbench_operations"
+        ]
+        == []
+    )
+
+    assert (
+        workspace[
+            "workbench_active_operation_id"
+        ]
+        is None
+    )
