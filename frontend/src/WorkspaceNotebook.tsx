@@ -65,6 +65,8 @@ type NotebookRunResult = {
 type Props = {
   workspaceId: string;
 
+  language: "en" | "nl" | "tr";
+
   notebook:
     WorkspaceNotebookData;
 
@@ -101,12 +103,43 @@ function createCell():
 
 function WorkspaceNotebook({
   workspaceId,
+  language,
   notebook,
   processedDatasets,
   onSave,
   onDelete,
   onPromoteCode,
 }: Props) {
+  const ui = {
+    en: {
+      notebook: "{ui.notebook}", dataset: "Dataset", working: "{ui.working}",
+      raw: "{ui.raw}", runAll: "{ui.runAll}", reset: "Reset", saved: "Saved",
+      saveNow: "Save now", saving: "Saving...", unsaved: "Unsaved changes",
+      export: "{ui.export}", loading: "Loading dataset...", rowsLoaded: "rows loaded",
+      columns: "columns", askMentor: "{ui.askMentor}", reviewing: "{ui.reviewing}",
+      sendPipeline: "{ui.sendPipeline}", deleteCell: "{ui.deleteCell}", output: "{ui.output}",
+      addCell: "{ui.addCell}",
+    },
+    nl: {
+      notebook: "{ui.notebook}", dataset: "Dataset", working: "Ontwikkeldata / werkset",
+      raw: "Ruwe bronsteekproef", runAll: "Alles uitvoeren", reset: "Resetten", saved: "Opgeslagen",
+      saveNow: "Nu opslaan", saving: "Opslaan...", unsaved: "Niet-opgeslagen wijzigingen",
+      export: "Exporteer .ipynb", loading: "Dataset laden...", rowsLoaded: "rijen geladen",
+      columns: "kolommen", askMentor: "Vraag mentor", reviewing: "Beoordelen...",
+      sendPipeline: "Naar pipeline", deleteCell: "Cel verwijderen", output: "UITVOER",
+      addCell: "Python-cel toevoegen",
+    },
+    tr: {
+      notebook: "{ui.notebook}", dataset: "Veri seti", working: "Geliştirme / çalışma verisi",
+      raw: "Ham kaynak örneği", runAll: "Tümünü çalıştır", reset: "Sıfırla", saved: "Kaydedildi",
+      saveNow: "Şimdi kaydet", saving: "Kaydediliyor...", unsaved: "Kaydedilmemiş değişiklikler",
+      export: ".ipynb dışa aktar", loading: "Veri seti yükleniyor...", rowsLoaded: "satır yüklendi",
+      columns: "sütun", askMentor: "Mentora sor", reviewing: "İnceleniyor...",
+      sendPipeline: "Pipeline'a gönder", deleteCell: "Cell'i sil", output: "ÇIKTI",
+      addCell: "Python cell ekle",
+    },
+  }[language];
+
   const [
     draft,
     setDraft,
@@ -537,7 +570,7 @@ function WorkspaceNotebook({
       <div className="notebook-toolbar">
         <div className="notebook-name-group">
           <span>
-            NOTEBOOK
+            {ui.notebook}
           </span>
 
           <input
@@ -550,9 +583,7 @@ function WorkspaceNotebook({
 
         <div className="notebook-toolbar-actions">
           <label>
-            <span>
-              Dataset
-            </span>
+            <span>{ui.dataset}</span>
 
             <select
               value={
@@ -588,11 +619,11 @@ function WorkspaceNotebook({
               }}
             >
               <option value="working">
-                Development / working
+                {ui.working}
               </option>
 
               <option value="raw">
-                Raw source sample
+                {ui.raw}
               </option>
 
               {processedDatasets.map(
@@ -623,7 +654,7 @@ function WorkspaceNotebook({
             onClick={() => { void runAllCells(); }}
           >
             <PlayCircle size={14} />
-            Run all
+            {ui.runAll}
           </button>
 
           <button
@@ -649,7 +680,7 @@ function WorkspaceNotebook({
             }}
           >
             <Save size={14} />
-            {saving ? "Saving..." : dirty ? "Save now" : "Saved"}
+            {saving ? ui.saving : dirty ? ui.saveNow : ui.saved}
           </button>
 
           <button
@@ -659,11 +690,11 @@ function WorkspaceNotebook({
             title="Export as Jupyter notebook"
           >
             <Download size={14} />
-            Export .ipynb
+            {ui.export}
           </button>
 
           <span className={dirty ? "notebook-save-status unsaved" : "notebook-save-status"}>
-            {saving ? "Saving…" : dirty ? "Unsaved changes" : lastSavedAt ? "✓ Saved" : "Saved"}
+            {saving ? ui.saving : dirty ? ui.unsaved : lastSavedAt ? `✓ ${ui.saved}` : ui.saved}
           </span>
 
           <button
@@ -688,11 +719,11 @@ function WorkspaceNotebook({
 
       <div className="notebook-dataset-context">
         {loadingData
-          ? "Loading dataset..."
+          ? ui.loading
           : dataError
             ? dataError
             : (
-                `${inputRows.length} rows loaded · ${inputColumns.length} columns · browser sandbox`
+                `${inputRows.length} ${ui.rowsLoaded} · ${inputColumns.length} ${ui.columns} · browser sandbox`
               )}
       </div>
 
@@ -784,8 +815,8 @@ function WorkspaceNotebook({
                       <Sparkles size={13} />
                       {mentorLoadingCellId ===
                       cell.cell_id
-                        ? "Reviewing..."
-                        : "Ask mentor"}
+                        ? "{ui.reviewing}"
+                        : "{ui.askMentor}"}
                     </button>
 
                     <button
@@ -806,7 +837,7 @@ function WorkspaceNotebook({
                       }}
                     >
                       <Send size={13} />
-                      Send to pipeline
+                      {ui.sendPipeline}
                     </button>
 
                     <button
@@ -819,7 +850,7 @@ function WorkspaceNotebook({
                         });
                       }}
                     >
-                      Delete cell
+                      {ui.deleteCell}
                     </button>
                   </div>
 
@@ -867,7 +898,7 @@ function WorkspaceNotebook({
                           }))}
                         >
                           {collapsedOutputs[cell.cell_id] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                          OUTPUT
+                          {ui.output}
                         </button>
 
                         <strong>
@@ -965,7 +996,7 @@ function WorkspaceNotebook({
           }}
         >
           <Plus size={14} />
-          Add Python cell
+          {ui.addCell}
         </button>
       </div>
 
