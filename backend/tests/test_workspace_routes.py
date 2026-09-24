@@ -4857,3 +4857,114 @@ def test_notebook_draft_pipeline_step_can_be_removed(
         ]
         is None
     )
+
+
+
+def test_notebook_mentor_uses_workspace_data_quality_context(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Notebook Mentor Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.dataset_profile = {
+        "row_count": 100,
+        "column_count": 2,
+        "columns": [
+            "price",
+            "building_area",
+        ],
+        "null_counts": {
+            "price": 0,
+            "building_area": 47,
+        },
+        "duplicate_count": 0,
+    }
+
+    workspace.dataset_analysis = (
+        DataQualityAnalysis(
+            findings=[
+                DataQualityFinding(
+                    issue_type="missing_values",
+                    column="building_area",
+                    severity="medium",
+                    observation=(
+                        "47 missing values found."
+                    ),
+                    suggested_action=(
+                        "Inspect before filling or dropping."
+                    ),
+                )
+            ]
+        )
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    notebook_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/notebooks"
+        ),
+        json={
+            "name": "Cleaning",
+            "dataset_kind": "working",
+        },
+    )
+
+    assert notebook_response.status_code == 200
+
+    notebook_id = (
+        notebook_response.json()[
+            "notebook_id"
+        ]
+    )
+
+    mentor_response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/notebooks/"
+            f"{notebook_id}/mentor"
+        ),
+        json={
+            "code": "df = df.dropna()",
+        },
+    )
+
+    assert mentor_response.status_code == 200
+
+    body = mentor_response.json()
+
+    assert body["source"] == "local"
+
+    guidance_text = " ".join(
+        body["guidance"]
+    ).lower()
+
+    assert "dropna" in guidance_text
+    assert "building_area" in guidance_text
+    assert "47" in guidance_text
