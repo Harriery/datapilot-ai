@@ -11993,3 +11993,23 @@
     flex-direction: column;
   }
 }
+
+
+.pipeline-remove-step {
+  padding: 4px 6px;
+
+  border: 1px solid #e8cccc;
+  border-radius: 999px;
+
+  background: #fffafa;
+  color: #a65757;
+
+  cursor: pointer;
+
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.pipeline-remove-step:hover {
+  background: #fff0f0;
+}
