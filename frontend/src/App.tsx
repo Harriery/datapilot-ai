@@ -4296,19 +4296,67 @@ async function restoreWorkspaceVersion(
           </span>
         </button>
         
-        {currentView === "workspace" && (
+        <div className="nav-workspace-group">
           <button
-            className="nav-item active"
-            onClick={() =>
-              setCurrentView("workspace")
+            className={
+              currentView === "workspace"
+                ? "nav-item active"
+                : "nav-item"
             }
+            onClick={() => {
+              if (dashboardWorkspace) {
+                setCurrentView(
+                  "workspace"
+                );
+              } else {
+                setCurrentView(
+                  "dashboard"
+                );
+              }
+            }}
           >
             <span className="nav-icon">◇</span>
             <span className="nav-label">
               {t.sidebar.workspace}
             </span>
           </button>
-        )}
+
+          {dashboardWorkspaces.length > 0 && (
+            <div className="nav-workspace-list">
+              {dashboardWorkspaces.map(
+                (workspace) => (
+                  <button
+                    type="button"
+                    key={
+                      workspace.workspace_id
+                    }
+                    className={
+                      dashboardWorkspace
+                        ?.workspace_id ===
+                      workspace.workspace_id
+                        ? "nav-workspace-item active"
+                        : "nav-workspace-item"
+                    }
+                    onClick={() => {
+                      void openSelectedWorkspace(
+                        workspace
+                      );
+                    }}
+                    title={
+                      workspace.title
+                    }
+                  >
+                    <span className="nav-workspace-dot" />
+
+                    <span>
+                      {workspace.title}
+                    </span>
+                  </button>
+                )
+              )}
+            </div>
+          )}
+        </div>
       
         <button
           className={
