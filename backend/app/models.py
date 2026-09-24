@@ -1201,6 +1201,11 @@ class WorkspaceNotebookCell(BaseModel):
         "python",
     ] = "python"
 
+    # Compact browser-execution evidence. We intentionally persist only a
+    # bounded observation so the mentor can see the learner's work without
+    # sending an entire dataframe back through chat.
+    last_execution: dict | None = None
+
 
 class WorkspaceNotebook(BaseModel):
     notebook_id: str
