@@ -243,6 +243,14 @@ function WorkspaceNotebook({
       );
 
       return saved;
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Notebook could not be saved."
+      );
+
+      return null;
     } finally {
       setSaving(false);
     }
