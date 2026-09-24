@@ -2271,8 +2271,9 @@ def get_workspace_notebook_data(
 
     notebook_limit = min(
         (
-            workspace.development_sample_max_size
-            or workspace.development_sample_size
+            workspace.development_sample_size
+            or workspace.development_sample_row_count
+            or workspace.development_sample_max_size
             or 1000
         ),
         5000,
