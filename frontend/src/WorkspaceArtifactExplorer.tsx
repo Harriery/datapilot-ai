@@ -96,9 +96,9 @@ function WorkspaceArtifactExplorer({
   onOpenValidate,
 }: Props) {
   const ui = {
-    en: { workspace:"{ui.workspace}", newNotebook:"{ui.newNotebook}", source:"{ui.source}", processed:"{ui.processed}", data:"{ui.data}", raw:ui.raw, rawReadOnly:"{ui.rawReadOnly}", development:"{ui.development}", rows:"rows", notebooks:"{ui.notebooks}", pythonNotebook:"{ui.pythonNotebook}", build:"{ui.build}", pipeline:"{ui.pipeline}", steps:"steps", lineage:"{ui.lineage}", dataFlow:"{ui.dataFlow}", model:"{ui.model}", kpis:"{ui.kpis}" },
-    nl: { workspace:"WERKRUIMTE", newNotebook:"Nieuw notebook", source:"Dataset / bron", processed:"Verwerkte dataset", data:"{ui.data}", raw:"Ruwe bron", rawReadOnly:"Ruw · alleen-lezen", development:"Ontwikkeldataset", rows:"rijen", notebooks:"{ui.notebooks}", pythonNotebook:"Python-notebook", build:"BOUWEN", pipeline:"Opschoningspipeline", steps:"stappen", lineage:"Herkomst", dataFlow:"Gegevensstroom", model:"Logisch model", kpis:"KPI-definities" },
-    tr: { workspace:"ÇALIŞMA ALANI", newNotebook:"Yeni notebook", source:"Veri seti / kaynak", processed:"İşlenmiş veri seti", data:"VERİ", raw:"Ham kaynak", rawReadOnly:"Ham · salt okunur", development:"Geliştirme veri seti", rows:"satır", notebooks:"NOTEBOOKLAR", pythonNotebook:"{ui.pythonNotebook}", build:"OLUŞTUR", pipeline:"Temizleme pipeline'ı", steps:"adım", lineage:"Veri akışı", dataFlow:"Veri akışı", model:"Mantıksal model", kpis:"KPI tanımları" },
+    en: { workspace:"WORKSPACE", newNotebook:"New notebook", source:"Dataset / source", processed:"Processed dataset", data:"DATA", raw:"Raw source", rawReadOnly:"Raw · read-only", development:"Development dataset", rows:"rows", notebooks:"NOTEBOOKS", pythonNotebook:"Python notebook", build:"BUILD", pipeline:"Cleaning pipeline", steps:"steps", lineage:"Lineage", dataFlow:"Data flow", model:"Logical model", kpis:"KPI definitions" },
+    nl: { workspace:"WERKRUIMTE", newNotebook:"Nieuw notebook", source:"Dataset / bron", processed:"Verwerkte dataset", data:"DATA", raw:"Ruwe bron", rawReadOnly:"Ruw · alleen-lezen", development:"Ontwikkeldataset", rows:"rijen", notebooks:"NOTEBOOKS", pythonNotebook:"Python-notebook", build:"BOUWEN", pipeline:"Opschoningspipeline", steps:"stappen", lineage:"Herkomst", dataFlow:"Gegevensstroom", model:"Logisch model", kpis:"KPI-definities" },
+    tr: { workspace:"ÇALIŞMA ALANI", newNotebook:"Yeni notebook", source:"Veri seti / kaynak", processed:"İşlenmiş veri seti", data:"VERİ", raw:"Ham kaynak", rawReadOnly:"Ham · salt okunur", development:"Geliştirme veri seti", rows:"satır", notebooks:"NOTEBOOKLAR", pythonNotebook:"Python notebook", build:"OLUŞTUR", pipeline:"Temizleme pipeline'ı", steps:"adım", lineage:"Veri akışı", dataFlow:"Veri akışı", model:"Mantıksal model", kpis:"KPI tanımları" },
   }[language];
 
   const [
@@ -170,7 +170,7 @@ function WorkspaceArtifactExplorer({
               }}
             >
               <GitBranch size={14} />
-              Pipeline
+              {ui.pipeline}
             </button>
 
             <button
