@@ -13,6 +13,8 @@ import {
   useState,
 } from "react";
 
+import type { AppLanguage } from "./i18n";
+
 export type WorkbenchView =
   | "explorer"
   | "notebook"
@@ -31,6 +33,7 @@ type ProcessedDatasetSummary = {
 };
 
 type Props = {
+  language: AppLanguage;
   workspaceTitle: string;
 
   datasetFilename:
@@ -75,6 +78,7 @@ type Props = {
 };
 
 function WorkspaceArtifactExplorer({
+  language,
   workspaceTitle,
   datasetFilename,
   developmentRows,
@@ -91,6 +95,12 @@ function WorkspaceArtifactExplorer({
   onOpenSource,
   onOpenValidate,
 }: Props) {
+  const ui = {
+    en: { workspace:"{ui.workspace}", newNotebook:"{ui.newNotebook}", source:"{ui.source}", processed:"{ui.processed}", data:"{ui.data}", raw:ui.raw, rawReadOnly:"{ui.rawReadOnly}", development:"{ui.development}", rows:"rows", notebooks:"{ui.notebooks}", pythonNotebook:"{ui.pythonNotebook}", build:"{ui.build}", pipeline:"{ui.pipeline}", steps:"steps", lineage:"{ui.lineage}", dataFlow:"{ui.dataFlow}", model:"{ui.model}", kpis:"{ui.kpis}" },
+    nl: { workspace:"WERKRUIMTE", newNotebook:"Nieuw notebook", source:"Dataset / bron", processed:"Verwerkte dataset", data:"{ui.data}", raw:"Ruwe bron", rawReadOnly:"Ruw · alleen-lezen", development:"Ontwikkeldataset", rows:"rijen", notebooks:"{ui.notebooks}", pythonNotebook:"Python-notebook", build:"BOUWEN", pipeline:"Opschoningspipeline", steps:"stappen", lineage:"Herkomst", dataFlow:"Gegevensstroom", model:"Logisch model", kpis:"KPI-definities" },
+    tr: { workspace:"ÇALIŞMA ALANI", newNotebook:"Yeni notebook", source:"Veri seti / kaynak", processed:"İşlenmiş veri seti", data:"VERİ", raw:"Ham kaynak", rawReadOnly:"Ham · salt okunur", development:"Geliştirme veri seti", rows:"satır", notebooks:"NOTEBOOKLAR", pythonNotebook:"{ui.pythonNotebook}", build:"OLUŞTUR", pipeline:"Temizleme pipeline'ı", steps:"adım", lineage:"Veri akışı", dataFlow:"Veri akışı", model:"Mantıksal model", kpis:"KPI tanımları" },
+  }[language];
+
   const [
     menuOpen,
     setMenuOpen,
@@ -101,7 +111,7 @@ function WorkspaceArtifactExplorer({
       <div className="artifact-explorer-title">
         <div>
           <span>
-            WORKSPACE
+            {ui.workspace}
           </span>
 
           <strong>
@@ -136,7 +146,7 @@ function WorkspaceArtifactExplorer({
               }}
             >
               <NotebookTabs size={14} />
-              New notebook
+              {ui.newNotebook}
             </button>
 
             <button
@@ -147,7 +157,7 @@ function WorkspaceArtifactExplorer({
               }}
             >
               <Database size={14} />
-              Dataset / source
+              {ui.source}
             </button>
 
             <button
@@ -173,7 +183,7 @@ function WorkspaceArtifactExplorer({
               <FileSpreadsheet
                 size={14}
               />
-              Processed dataset
+              {ui.processed}
             </button>
           </div>
         )}
@@ -181,7 +191,7 @@ function WorkspaceArtifactExplorer({
 
       <div className="artifact-section">
         <span className="artifact-section-label">
-          DATA
+          {ui.data}
         </span>
 
         <button
@@ -205,10 +215,10 @@ function WorkspaceArtifactExplorer({
           <div>
             <strong>
               {datasetFilename ??
-                "Raw source"}
+                ui.raw}
             </strong>
             <span>
-              Raw · read-only
+              {ui.rawReadOnly}
             </span>
           </div>
         </button>
@@ -233,11 +243,11 @@ function WorkspaceArtifactExplorer({
 
           <div>
             <strong>
-              Development dataset
+              {ui.development}
             </strong>
             <span>
               {developmentRows ?? 0}
-              {" "}rows
+              {" "}{ui.rows}
             </span>
           </div>
         </button>
@@ -262,7 +272,7 @@ function WorkspaceArtifactExplorer({
                 <span>
                   Processed ·{" "}
                   {dataset.row_count}
-                  {" "}rows
+                  {" "}{ui.rows}
                 </span>
               </div>
             </div>
@@ -272,7 +282,7 @@ function WorkspaceArtifactExplorer({
 
       <div className="artifact-section">
         <span className="artifact-section-label">
-          NOTEBOOKS
+          {ui.notebooks}
         </span>
 
         {notebooks.map(
@@ -310,7 +320,7 @@ function WorkspaceArtifactExplorer({
                   {notebook.name}
                 </strong>
                 <span>
-                  Python notebook
+                  {ui.pythonNotebook}
                 </span>
               </div>
             </button>
@@ -332,7 +342,7 @@ function WorkspaceArtifactExplorer({
 
       <div className="artifact-section">
         <span className="artifact-section-label">
-          BUILD
+          {ui.build}
         </span>
 
         <button
@@ -355,11 +365,11 @@ function WorkspaceArtifactExplorer({
 
           <div>
             <strong>
-              Cleaning pipeline
+              {ui.pipeline}
             </strong>
             <span>
               {pipelineOperationCount}
-              {" "}steps
+              {" "}{ui.steps}
             </span>
           </div>
         </button>
@@ -384,10 +394,10 @@ function WorkspaceArtifactExplorer({
 
           <div>
             <strong>
-              Lineage
+              {ui.lineage}
             </strong>
             <span>
-              Data flow
+              {ui.dataFlow}
             </span>
           </div>
         </button>
@@ -401,7 +411,7 @@ function WorkspaceArtifactExplorer({
 
             <div>
               <strong>
-                Logical model
+                {ui.model}
               </strong>
               <span>
                 Model artifact
@@ -418,7 +428,7 @@ function WorkspaceArtifactExplorer({
 
             <div>
               <strong>
-                KPI definitions
+                {ui.kpis}
               </strong>
               <span>
                 {kpiCount}
