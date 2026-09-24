@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Bot, ChevronDown, ChevronUp, Send, Sparkles, X } from "lucide-react";
+import { BrainCircuit, Send, Sparkles, X } from "lucide-react";
 
 type MentorMessage = { role: "user" | "assistant"; content: string };
 
@@ -10,10 +10,12 @@ type Props = {
   language: "en" | "nl" | "tr";
   contextualPrompt?: string | null;
   contextualPromptKey?: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
 export default function WorkspaceMentorPanel({
-  workspaceId, sessionId, language, contextualPrompt, contextualPromptKey,
+  workspaceId, sessionId, language, contextualPrompt, contextualPromptKey, open, onOpenChange,
 }: Props) {
   const copy = {
     en: { title:"DataPilot Mentor", subtitle:"Workspace-aware senior mentor", placeholder:"Ask about your current work...", send:"Send", empty:"I follow this workspace, its data-quality findings, notebook and pipeline. Ask me what to investigate or do next.", close:"Close", collapse:"Collapse", expand:"Open mentor", thinking:"Thinking..." },
@@ -24,11 +26,7 @@ export default function WorkspaceMentorPanel({
   const [messages,setMessages]=useState<MentorMessage[]>([]);
   const [input,setInput]=useState("");
   const [loading,setLoading]=useState(false);
-  const [collapsed,setCollapsed]=useState(false);
-  const [hidden,setHidden]=useState(true);
   const endRef=useRef<HTMLDivElement|null>(null);
-
-  useEffect(()=>{ setHidden(true); },[workspaceId]);
 
   useEffect(()=>{
     if(!sessionId){ setMessages([]); return; }
@@ -42,9 +40,9 @@ export default function WorkspaceMentorPanel({
 
   useEffect(()=>{
     if(contextualPrompt && contextualPromptKey){
-      setHidden(false); setCollapsed(false); setInput(contextualPrompt);
+      onOpenChange(true); setInput(contextualPrompt);
     }
-  },[contextualPrompt,contextualPromptKey]);
+  },[contextualPrompt,contextualPromptKey,onOpenChange]);
 
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[messages,loading]);
 
@@ -67,17 +65,16 @@ export default function WorkspaceMentorPanel({
     }finally{ setLoading(false); }
   }
 
-  if(hidden) return <button className="mentor-panel-launcher" type="button" aria-label={copy.expand} title={copy.expand} onClick={()=>setHidden(false)}><span className="mentor-launcher-presence" aria-hidden="true"/><Bot size={21}/><span className="mentor-launcher-badge">AI</span></button>;
+  if(!open) return <button className="mentor-panel-launcher" type="button" aria-label={copy.expand} title={copy.expand} onClick={()=>onOpenChange(true)}><span className="mentor-launcher-presence" aria-hidden="true"/><BrainCircuit size={22}/><span className="mentor-launcher-badge">Mentor</span></button>;
 
-  return <aside className={collapsed?"workspace-mentor-panel collapsed":"workspace-mentor-panel"}>
+  return <aside className="workspace-mentor-panel">
     <header className="workspace-mentor-header">
-      <div><Bot size={20}/><span><strong>{copy.title}</strong><small>{copy.subtitle}</small></span></div>
+      <div><BrainCircuit size={20}/><span><strong>{copy.title}</strong><small>{copy.subtitle}</small></span></div>
       <span className="workspace-mentor-header-actions">
-        <button type="button" title={collapsed?copy.expand:copy.collapse} onClick={()=>setCollapsed(v=>!v)}>{collapsed?<ChevronUp size={17}/>:<ChevronDown size={17}/>}</button>
-        <button type="button" title={copy.close} onClick={()=>setHidden(true)}><X size={17}/></button>
+        <button type="button" title={copy.close} onClick={()=>onOpenChange(false)}><X size={17}/></button>
       </span>
     </header>
-    {!collapsed && <>
+    <>
       <div className="workspace-mentor-messages">
         {messages.length===0 && <div className="workspace-mentor-empty"><Sparkles size={18}/><p>{copy.empty}</p></div>}
         {messages.map((m,i)=><div key={i} className={`workspace-mentor-message ${m.role}`}><span>{m.content}</span></div>)}
@@ -89,6 +86,6 @@ export default function WorkspaceMentorPanel({
           onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void submit();}}}/>
         <button type="submit" disabled={!input.trim()||loading} title={copy.send}><Send size={17}/></button>
       </form>
-    </>}
+    </>
   </aside>;
 }
