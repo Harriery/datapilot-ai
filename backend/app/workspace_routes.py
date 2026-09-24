@@ -2140,7 +2140,7 @@ def create_workspace_notebook(
                 ),
                 code=(
                     "# Work with df\n"
-                    "# Example: df.head()\n"
+                    "df.head()"
                 ),
                 cell_type="python",
             )
