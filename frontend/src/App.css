@@ -12136,22 +12136,74 @@
 .workspace-mentor-composer textarea:focus { border-color:#2f7ff0; box-shadow:0 0 0 2px rgba(47,127,240,.1); }
 .workspace-mentor-composer button { align-self:flex-end; width:42px; height:42px; display:grid; place-items:center; border:0; border-radius:10px; background:#2f7ff0; color:#fff; cursor:pointer; }
 .workspace-mentor-composer button:disabled { opacity:.45; cursor:not-allowed; }
-.mentor-panel-launcher { position:fixed; right:20px; bottom:20px; z-index:80; display:flex; align-items:center; gap:7px; padding:10px 13px; box-shadow:0 10px 28px rgba(31,55,90,.15); font-weight:700; }
+.mentor-panel-launcher {
+  position:fixed;
+  right:22px;
+  bottom:22px;
+  z-index:120;
+  width:48px;
+  height:48px;
+  padding:0;
+  display:grid;
+  place-items:center;
+  border:1px solid #cfe0f6;
+  border-radius:50%;
+  background:#fff;
+  color:#2f7ff0;
+  box-shadow:0 8px 24px rgba(31,55,90,.16);
+  cursor:pointer;
+}
+.mentor-panel-launcher:hover {
+  transform:translateY(-2px);
+  box-shadow:0 11px 28px rgba(31,55,90,.20);
+}
+.mentor-launcher-badge {
+  position:absolute;
+  right:-3px;
+  bottom:-2px;
+  min-width:20px;
+  height:20px;
+  padding:0 4px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  background:#2f7ff0;
+  color:#fff;
+  border:2px solid #fff;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.03em;
+}
+.mentor-launcher-presence {
+  position:absolute;
+  inset:-5px;
+  border:1px solid rgba(47,127,240,.28);
+  border-radius:50%;
+  animation:mentorPresence 4.8s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes mentorPresence {
+  0%, 58%, 100% { opacity:.18; transform:scale(.94); }
+  70% { opacity:.48; transform:scale(1.08); }
+  82% { opacity:.22; transform:scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mentor-launcher-presence { animation:none; opacity:.28; }
+}
 @media (max-width: 760px) {
   .workspace-mentor-panel { right:10px; bottom:10px; width:calc(100vw - 20px); height:min(70vh,620px); }
   .mentor-panel-launcher { right:10px; bottom:10px; }
 }
 
 
-/* Mentor layout: reserve workspace width instead of covering the workbench. */
+/* Mentor drawer stays out of the document flow; the normal workspace keeps its full width. */
 @media (min-width: 1180px) {
-  .main-content.workspace-main {
-    padding-right: 430px;
-  }
-
   .workspace-mentor-panel {
-    width: 380px;
+    width: 360px;
     right: 20px;
+    top: 96px;
+    bottom: 20px;
+    height: auto;
   }
 }
 
@@ -12177,3 +12229,10 @@
   max-width: 100%;
   min-width: 0;
 }
+
+.workspace-mentor-panel { font-size:13px; }
+.workspace-mentor-header strong { font-size:14px; }
+.workspace-mentor-header small { font-size:10px; }
+.workspace-mentor-empty { padding:12px; }
+.workspace-mentor-empty p { margin:8px 0 0; font-size:13px; line-height:1.5; }
+.workspace-mentor-composer textarea { font-size:13px; }
