@@ -6784,70 +6784,6 @@ async function restoreWorkspaceVersion(
                           )}
 
 
-                          {dashboardWorkspace
-                            .development_sample_enabled && (
-                              <div className="full-pipeline-card">
-                                <div>
-                                  <span className="workspace-overview-label">
-                                    FULL DATASET PIPELINE
-                                  </span>
-
-                                  <strong>
-                                    Apply validated structured steps to the full source dataset
-                                  </strong>
-
-                                  <p>
-                                    DataPilot replays only completed structured column actions server-side. Custom or edited Python is intentionally blocked.
-                                  </p>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  className="new-workspace-button"
-                                  disabled={
-                                    fullPipelineLoading ||
-                                    !dashboardWorkspace
-                                      .workbench_operations
-                                      ?.length ||
-                                    dashboardWorkspace
-                                      .workbench_operations
-                                      ?.some(
-                                        (operation) =>
-                                          operation.status !==
-                                            "completed" ||
-                                          !operation.pipeline_action
-                                      )
-                                  }
-                                  onClick={() => {
-                                    void applyPipelineToFullDataset();
-                                  }}
-                                >
-                                  {fullPipelineLoading
-                                    ? "Applying..."
-                                    : "Apply pipeline to full dataset"}
-                                </button>
-
-                                {dashboardWorkspace
-                                  .workbench_operations
-                                  ?.some(
-                                    (operation) =>
-                                      operation.status !==
-                                        "completed" ||
-                                      !operation.pipeline_action
-                                  ) && (
-                                    <span className="full-pipeline-blocker">
-                                      Finish every Workbench step and keep generated column-action code unchanged before full replay.
-                                    </span>
-                                  )}
-
-                                {fullPipelineError && (
-                                  <div className="workspace-form-error">
-                                    {fullPipelineError}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
                           {workspaceWorkingDataLoading ? (
                             <p className="muted">
                               Loading working dataset...
@@ -7207,6 +7143,36 @@ async function restoreWorkspaceVersion(
                                     setShowAddTransformationModal(
                                       true
                                     );
+                                  }}
+                                  developmentSampleEnabled={
+                                    Boolean(
+                                      dashboardWorkspace
+                                        .development_sample_enabled
+                                    )
+                                  }
+                                  canApplyFullDataset={
+                                    Boolean(
+                                      dashboardWorkspace
+                                        .workbench_operations
+                                        ?.length
+                                    ) &&
+                                    !dashboardWorkspace
+                                      .workbench_operations
+                                      ?.some(
+                                        (operation) =>
+                                          operation.status !==
+                                            "completed" ||
+                                          !operation.pipeline_action
+                                      )
+                                  }
+                                  fullPipelineLoading={
+                                    fullPipelineLoading
+                                  }
+                                  fullPipelineError={
+                                    fullPipelineError
+                                  }
+                                  onApplyFullDataset={() => {
+                                    void applyPipelineToFullDataset();
                                   }}
                                 />
                               )}
