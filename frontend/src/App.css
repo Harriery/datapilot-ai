@@ -12236,3 +12236,47 @@
 .workspace-mentor-empty { padding:12px; }
 .workspace-mentor-empty p { margin:8px 0 0; font-size:13px; line-height:1.5; }
 .workspace-mentor-composer textarea { font-size:13px; }
+
+
+/* Mentor is a true right sidebar: opening it shrinks the whole workspace,
+   including the sticky stage header, instead of covering either one. */
+@media (min-width: 1000px) {
+  .app-shell.mentor-open .main-content.workspace-main {
+    margin-right: 360px;
+    transition: margin-right .22s ease;
+  }
+
+  .app-shell:not(.mentor-open) .main-content.workspace-main {
+    margin-right: 0;
+    transition: margin-right .22s ease;
+  }
+
+  .workspace-mentor-panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 360px;
+    height: 100vh;
+    border-radius: 0;
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    box-shadow: -8px 0 24px rgba(31,55,90,.08);
+    z-index: 130;
+  }
+}
+
+.mentor-panel-launcher {
+  width:52px;
+  height:52px;
+}
+.mentor-launcher-badge {
+  right:-7px;
+  bottom:-5px;
+  min-width:auto;
+  height:19px;
+  padding:0 6px;
+  font-size:9px;
+  border-radius:10px;
+  white-space:nowrap;
+}
