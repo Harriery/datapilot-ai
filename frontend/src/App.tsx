@@ -1751,6 +1751,26 @@ async function openSelectedWorkspace(
       latestWorkspace.validation_result ?? null
     );
 
+    const activeDraftOperation =
+      latestWorkspace
+        .workbench_operations
+        ?.find(
+          (operation) =>
+            operation.operation_id ===
+              latestWorkspace
+                .workbench_active_operation_id ||
+            operation.status === "active"
+        );
+
+    if (
+      activeDraftOperation
+        ?.code
+    ) {
+      setTransformationCode(
+        activeDraftOperation.code
+      );
+    }
+
     // Persist edilmiş dataset profile varsa
     // frontend state'ine geri yüklüyoruz.
     if (
@@ -2576,6 +2596,18 @@ async function promoteNotebookCodeToPipeline(
     });
 
   if (created) {
+    setTransformationCode(
+      cleanCode
+    );
+
+    setPreparedPipelineAction(
+      null
+    );
+
+    setPreparedPipelineCode(
+      null
+    );
+
     setWorkbenchView(
       "pipeline"
     );
