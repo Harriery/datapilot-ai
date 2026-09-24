@@ -163,6 +163,14 @@ def generate_mentor_decision(
 
             Base your decision on the learner profile, skill state,
             learning evidence, and current message.
+
+            The current message is an immediate assistance signal:
+            if the learner explicitly says they do not understand, do not know
+            what to do, or asks to be taught step by step, do NOT choose NONE
+            or NUDGE merely because older evidence was strong. Choose GUIDE,
+            TEACH, or DEMONSTRATE as appropriate for this turn.
+            Older evidence describes capability; it must not override an explicit
+            request for more support in the current task.
             """
 
 
@@ -475,6 +483,24 @@ def get_mentor_response_from_message(
         learner_id=learner_id,
         current_message=current_message,
     )
+
+    # Explicit requests for beginner/step-by-step help are turn-level evidence
+    # about the amount of support needed now. Historical skill success should
+    # not make the mentor dump an advanced solution or under-support the learner.
+    normalized_message = current_message.casefold()
+    explicit_guidance_markers = (
+        "adım adım", "adim adim", "anlamadım", "anlamadim",
+        "bilmiyorum", "ne yapmam gerekiyor", "nasıl yapacağım",
+        "nasil yapacagim", "öğretir misin", "ogretir misin",
+        "step by step", "i don't understand", "i dont understand",
+        "i don't know", "i dont know", "teach me",
+    )
+    if (
+        mentor_decision is not None
+        and any(marker in normalized_message for marker in explicit_guidance_markers)
+        and mentor_decision.assistance_level in {"NONE", "NUDGE"}
+    ):
+        mentor_decision.assistance_level = "GUIDE"
 
     # Her mesaj learning skill ile ilgili olmak zorunda değil.
     if mentor_decision is None:
