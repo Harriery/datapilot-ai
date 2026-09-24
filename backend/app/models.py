@@ -1044,6 +1044,11 @@ class WorkspaceWorkbenchOperationCreateRequest(BaseModel):
         WorkspacePipelineAction | None
     ) = None
 
+    draft_code: str | None = Field(
+        default=None,
+        max_length=20000,
+    )
+
 
 class WorkspaceWorkbenchOperation(BaseModel):
     operation_id: str
