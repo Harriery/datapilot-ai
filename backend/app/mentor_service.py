@@ -402,8 +402,12 @@ def generate_mentor_response(
         (workspace_context or {}).get("dataset_filename")
         or (workspace_context or {}).get("dataset_profile")
     )
+    notebook_summaries = (workspace_context or {}).get("notebooks") or []
     mentor_state = {
         "workspace_has_dataset": workspace_has_dataset,
+        "dataset_filename": (workspace_context or {}).get("dataset_filename"),
+        "development_sample_size": (workspace_context or {}).get("development_sample_size"),
+        "notebooks": notebook_summaries,
         "current_step": current_step,
         "current_focus": checkpoint.get("current_focus"),
         "next_actions": checkpoint.get("next_actions", []),
@@ -446,7 +450,11 @@ def generate_mentor_response(
     notebooklar ve işlenmiş datasetler birbiriyle çelişmeden değerlendirilmelidir.
     Current Mentor State içindeki current_step, bu turdaki pedagojik çalışma sınırıdır.
     Kullanıcı o step tamamlanmadan sonraki task step'lerine veya nihai çözüme atlatılmamalıdır.
-    workspace_has_dataset=true ise kullanıcıya veri setini yüklemesini veya yeniden eklemesini söyleme.
+    workspace_has_dataset=true ise kullanıcıya veri setini yüklemesini, dosyayı açmasını veya yeniden
+    eklemesini söyleme. notebooks boş değilse notebook'un zaten workspace içinde bulunduğunu bil.
+    Kullanıcı "şimdi ne yapacağım?" dediğinde sadece mevcut küçük işlemi tarif et; aynı anda hem eksik
+    sayısını hem örnek satırları hem de başka kontrolleri isteme. Bir tur = bir gözlem.
+    Kullanıcı arayüzde nereye gideceğini bilmiyorsa mevcut notebook/workbench bağlamına göre yönlendir.
     Previous Conversation içindeki kararları ve kullanıcının açıkladığı niyeti koru.
     Ancak konuşmadaki son konu ile aktif çalışma hedefini birbirine karıştırma.
     Kullanıcının bir terimi sorması, örnek istemesi veya kısa bir kavram sorusu sorması
@@ -491,7 +499,8 @@ def generate_mentor_response(
     yalnızca bir yan soru olup olmadığını kontrol et; yan soruysa onu yeni çalışma hedefi yapma.
     Cevap en fazla 3 kısa cümle olsun:
     (1) Current Mentor State/current_step'ten yalnızca şu anki işi sade dille söyle,
-    (2) yalnızca ilk küçük gözlem veya kontrol görevini ver,
+    (2) yalnızca TEK bir küçük gözlem veya kontrol görevini ver; "eksik sayısını bul VE 5 satır göster"
+        gibi iki işi aynı turda birleştirme,
     (3) gerekiyorsa "bunu nasıl yapacağını bilmiyorsan söyle, birlikte yapalım" diye sor.
     Bu cevapta gelecekte yapılacak analizleri, KPI etkisini, doldurma/işaretleme kararını veya
     sonraki task step'lerini özetleme. Kullanıcı sonucu paylaşmadan ikinci adıma geçme.
