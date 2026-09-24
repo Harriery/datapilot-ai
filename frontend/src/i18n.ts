@@ -529,25 +529,25 @@ validationChecks: {
     personal: "Persoonlijk",
     public: "Openbaar",
     internal: "Intern",
-    confidential: "Confidential",
-    restricted: "Restricted",
-    unknown: "Unknown",
+    confidential: "Vertrouwelijk",
+    restricted: "Beperkt",
+    unknown: "Onbekend",
         
     auto: "Auto",
     etl: "ETL",
     elt: "ELT",
-    dataQuality: "Data Quality",
-    analysis: "Analysis",
+    dataQuality: "Datakwaliteit",
+    analysis: "Analyse",
     pipeline: "Pipeline",
         
     paused: "Gepauzeerd",
         
     findingTypes: {
-      missing_values: "Missing Values",
-      duplicate_rows: "Duplicate Rows",
-      suspicious_values: "Suspicious Values",
-      data_type_issue: "Data Type Issue",
-      schema_issue: "Schema Issue",
+      missing_values: "Ontbrekende waarden",
+      duplicate_rows: "Dubbele rijen",
+      suspicious_values: "Verdachte waarden",
+      data_type_issue: "Probleem met gegevenstype",
+      schema_issue: "Schemaprobleem",
     },
     
     severity: {
@@ -558,34 +558,34 @@ validationChecks: {
     passed: "Geslaagd",
 failed: "Mislukt",
 
-validateDataset: "Validate transformed dataset",
+validateDataset: "Getransformeerde dataset valideren",
 validationDescription:
-  "Check the final working dataset against the source and execution plan.",
+  "Controleer de definitieve werkdataset aan de hand van de bron en het uitvoeringsplan.",
 
-validating: "Validating...",
-runFinalValidation: "Run final validation →",
+validating: "Valideren...",
+runFinalValidation: "Definitieve validatie uitvoeren →",
 validationIntro:
-  "DataPilot will run deterministic checks on the final working dataset.",
+  "DataPilot voert deterministische controles uit op de definitieve werkdataset.",
 
-sourceRows: "Source rows",
-workingRows: "Working rows",
-checksPassed: "Checks passed",
-totalChecks: "Total checks",
+sourceRows: "Bronrijen",
+workingRows: "Werkrijen",
+checksPassed: "Geslaagde controles",
+totalChecks: "Totaal controles",
 
-runValidationAgain: "Run validation again",
+runValidationAgain: "Validatie opnieuw uitvoeren",
 validationReady:
-  "All required checks passed. Ready for review.",
+  "Alle vereiste controles zijn geslaagd. Klaar voor controle.",
 validationNeedsFix:
-  "Resolve failed checks before review.",
+  "Los mislukte controles op vóór de controle.",
 
-  reviewDataset: "Review final dataset",
+  reviewDataset: "Definitieve dataset controleren",
 reviewDescription:
   "Confirm that the transformed dataset, validation results and expected outcome are ready for handoff.",
 
 noTaskBriefProvided: "No task brief provided.",
 noExpectedOutcomeProvided: "No expected outcome provided.",
 
-finalWorkingDataset: "Final working dataset",
+finalWorkingDataset: "Definitieve werkdataset",
 
 completingReview: "Completing review...",
 completeReview: "✓ Complete review",
@@ -603,8 +603,8 @@ reviewed: "Reviewed",
 yes: "Ja",
 no: "Nee",
 
-preparingCsv: "Preparing CSV...",
-downloadFinalCsv: "↓ Download final CSV",
+preparingCsv: "CSV voorbereiden...",
+downloadFinalCsv: "↓ Definitieve CSV downloaden",
 
 completingHandoff: "Completing...",
 completeHandoff: "✓ Complete handoff",
@@ -617,17 +617,17 @@ handoffCompleted:
   backToDashboard: "Dashboard",
 workspaceLabel: "Werkruimte",
 validationChecks: {
-  datasetIntegrity: "Dataset integrity",
+  datasetIntegrity: "Datasetintegriteit",
   datasetIntegrityMessage: (rowCount: number) =>
     `Working dataset contains ${rowCount} rows.`,
 
-  schemaPreserved: "Schema preserved",
+  schemaPreserved: "Schema behouden",
   schemaPreservedMessage:
     "Working dataset columns match the original source.",
   schemaChangedMessage:
     "Working dataset columns differ from the original source.",
 
-  duplicateRows: "Duplicate rows",
+  duplicateRows: "Dubbele rijen",
   duplicateRowsMessage: (count: number) =>
     `${count} duplicate rows remain.`,
 
