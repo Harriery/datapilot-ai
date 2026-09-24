@@ -5789,8 +5789,8 @@ async function restoreWorkspaceVersion(
                       
                     {dashboardWorkspace.usage_context === "personal" && (
                       <WorkspaceStageNavigation
-                        {ui.active}Stage={activeWorkspaceStage}
-                        {ui.active}PrepareStage={activePrepareStage}
+                        activeStage={activeWorkspaceStage}
+                        activePrepareStage={activePrepareStage}
                         getStageStatus={getPersonalWorkspaceStageStatus}
                         getPrepareStageStatus={getPrepareStageStatus}
                         onStageChange={setActiveWorkspaceStage}
@@ -5958,7 +5958,7 @@ async function restoreWorkspaceVersion(
                         className="workspace-overview-card"
                         hidden={
                           dashboardWorkspace.usage_context === "personal" &&
-                          {ui.active}WorkspaceStage !== "source"
+                          activeWorkspaceStage !== "source"
                         }
                       >
                         <span className="workspace-overview-label">
@@ -5977,7 +5977,7 @@ async function restoreWorkspaceVersion(
                         className="workspace-overview-card"
                         hidden={
                           dashboardWorkspace.usage_context === "personal" &&
-                          {ui.active}WorkspaceStage !== "source"
+                          activeWorkspaceStage !== "source"
                         }
                       >
                         <span className="workspace-overview-label">
@@ -5991,7 +5991,7 @@ async function restoreWorkspaceVersion(
                       </section>
                           
                       {dashboardWorkspace.usage_context === "personal" &&
-                        {ui.active}WorkspaceStage === "source" &&
+                        activeWorkspaceStage === "source" &&
                         dashboardWorkspace.project_deliverables &&
                         dashboardWorkspace.project_deliverables.length > 0 && (
                           <PersonalProjectDeliverables
@@ -6004,7 +6004,7 @@ async function restoreWorkspaceVersion(
                         )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        {ui.active}WorkspaceStage === "analysis" &&
+                        activeWorkspaceStage === "analysis" &&
                         dashboardWorkspace.analysis_plan && (
                           <PersonalAnalysisPlan
                             analysisPlan={
@@ -6024,7 +6024,7 @@ async function restoreWorkspaceVersion(
                         )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        {ui.active}WorkspaceStage === "kpis" &&
+                        activeWorkspaceStage === "kpis" &&
                         dashboardWorkspace.data_model_studio && (
                           <PersonalKpiCandidates
                             studio={
@@ -6043,7 +6043,7 @@ async function restoreWorkspaceVersion(
                         )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        {ui.active}WorkspaceStage === "data_model" &&
+                        activeWorkspaceStage === "data_model" &&
                         dashboardWorkspace.analysis_plan && (
                           <PersonalDataModel
                             dataModelPlan={
@@ -6104,10 +6104,10 @@ async function restoreWorkspaceVersion(
                          hidden={
                             dashboardWorkspace.usage_context === "personal" &&
                             !(
-                              {ui.active}WorkspaceStage === "source" ||
+                              activeWorkspaceStage === "source" ||
                               (
-                                {ui.active}WorkspaceStage === "prepare" &&
-                                {ui.active}PrepareStage === "profile"
+                                activeWorkspaceStage === "prepare" &&
+                                activePrepareStage === "profile"
                               )
                             )
                           }
@@ -6124,8 +6124,8 @@ async function restoreWorkspaceVersion(
                         >
                           <span className="workspace-overview-label">
                             {dashboardWorkspace.usage_context === "personal" &&
-                            {ui.active}WorkspaceStage === "prepare" &&
-                            {ui.active}PrepareStage === "profile"
+                            activeWorkspaceStage === "prepare" &&
+                            activePrepareStage === "profile"
                               ? t.workspace.dataProfile
                               : t.workspace.dataSource}
                           </span>
@@ -6228,7 +6228,7 @@ async function restoreWorkspaceVersion(
                               </div>
                         
                               {(dashboardWorkspace.usage_context !== "personal" ||
-                                {ui.active}WorkspaceStage === "source") && (
+                                activeWorkspaceStage === "source") && (
                               <div className="workspace-replace-controls">
                                 <label className="workspace-replace-sample">
                                   <span>
@@ -6314,8 +6314,8 @@ async function restoreWorkspaceVersion(
 
                             {(dashboardWorkspace.usage_context !== "personal" ||
                               (
-                                {ui.active}WorkspaceStage === "prepare" &&
-                                {ui.active}PrepareStage === "profile"
+                                activeWorkspaceStage === "prepare" &&
+                                activePrepareStage === "profile"
                               )) && (
                             <div className="workspace-profile-layout">
                               <div className="workspace-profile-summary">
@@ -6457,7 +6457,7 @@ async function restoreWorkspaceVersion(
                             )}
 
                             {(dashboardWorkspace.usage_context !== "personal" ||
-                              {ui.active}WorkspaceStage === "source") && (
+                              activeWorkspaceStage === "source") && (
                             <>
                             <div className="workspace-sample-status">
                               <span className="workspace-overview-label">
@@ -6490,8 +6490,8 @@ async function restoreWorkspaceVersion(
                         (
                           dashboardWorkspace.usage_context !== "personal" ||
                           (
-                            {ui.active}WorkspaceStage === "prepare" &&
-                            {ui.active}PrepareStage === "profile"
+                            activeWorkspaceStage === "prepare" &&
+                            activePrepareStage === "profile"
                           )
                         ) && (
                         <div className="workspace-profile-next">
@@ -6542,8 +6542,8 @@ async function restoreWorkspaceVersion(
                           (
                             dashboardWorkspace.usage_context !== "personal" ||
                             (
-                              {ui.active}WorkspaceStage === "prepare" &&
-                              {ui.active}PrepareStage === "workbench" &&
+                              activeWorkspaceStage === "prepare" &&
+                              activePrepareStage === "workbench" &&
                               workspaceTask.status !== "completed"
                             )
                           ) && (
@@ -6632,8 +6632,8 @@ async function restoreWorkspaceVersion(
                           dashboardWorkspace.usage_context !== "personal"
                             ? workspaceTask.status !== "completed"
                             : (
-                                {ui.active}WorkspaceStage === "prepare" &&
-                                {ui.active}PrepareStage === "workbench"
+                                activeWorkspaceStage === "prepare" &&
+                                activePrepareStage === "workbench"
                               )
                         ) && (
                         <section className="workspace-overview-card workspace-transform-card">
@@ -6759,7 +6759,7 @@ async function restoreWorkspaceVersion(
                                   .kpi_definitions
                                   ?.length ?? 0
                               }
-                              {ui.active}View={
+                              activeView={
                                 workbenchView
                               }
                               selectedNotebookId={
@@ -7009,9 +7009,9 @@ async function restoreWorkspaceVersion(
                                   }
 
                                   if (
-                                    {ui.active}Operation.origin ===
+                                    activeOperation.origin ===
                                       "data_quality" &&
-                                    {ui.active}Operation
+                                    activeOperation
                                       .source_columns
                                       .includes(
                                         selectedWorkbenchColumn ??
@@ -7232,8 +7232,8 @@ async function restoreWorkspaceVersion(
                       )}
 
                       {dashboardWorkspace.usage_context === "personal" &&
-                        {ui.active}WorkspaceStage === "prepare" &&
-                        {ui.active}PrepareStage === "workbench" &&
+                        activeWorkspaceStage === "prepare" &&
+                        activePrepareStage === "workbench" &&
                         workspaceTask?.status === "completed" && (
                           <PersonalTransformSummary
                             steps={workspaceTask.steps}
@@ -7248,8 +7248,8 @@ async function restoreWorkspaceVersion(
                         (
                           dashboardWorkspace.usage_context !== "personal" ||
                           (
-                            {ui.active}WorkspaceStage === "prepare" &&
-                            {ui.active}PrepareStage === "validate"
+                            activeWorkspaceStage === "prepare" &&
+                            activePrepareStage === "validate"
                           )
                         ) && (
                           <section className="workspace-overview-card workspace-validation-card">
@@ -7538,8 +7538,8 @@ async function restoreWorkspaceVersion(
 
                         {dashboardWorkspace.usage_context ===
                           "personal" &&
-                          {ui.active}WorkspaceStage === "prepare" &&
-                          {ui.active}PrepareStage === "understand" &&
+                          activeWorkspaceStage === "prepare" &&
+                          activePrepareStage === "understand" &&
                           dashboardWorkspace.analysis_plan && (
                           <>
                             <DataPreview
