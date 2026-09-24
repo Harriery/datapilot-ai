@@ -61,6 +61,10 @@ type Props = {
   fullPipelineError?: string | null;
 
   onApplyFullDataset?: () => void;
+
+  onDeleteOperation?: (
+    operationId: string
+  ) => void;
 };
 
 export function WorkspacePipelineView({
@@ -71,6 +75,7 @@ export function WorkspacePipelineView({
   fullPipelineLoading = false,
   fullPipelineError = null,
   onApplyFullDataset,
+  onDeleteOperation,
 }: Props) {
   const replayable =
     operations.filter(
@@ -212,6 +217,22 @@ export function WorkspacePipelineView({
                   >
                     {operation.status}
                   </span>
+
+                  {operation.origin === "user" &&
+                    operation.status !== "completed" &&
+                    onDeleteOperation && (
+                    <button
+                      type="button"
+                      className="pipeline-remove-step"
+                      onClick={() => {
+                        onDeleteOperation(
+                          operation.operation_id
+                        );
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
 
                   {operation.pipeline_action ? (
                     <span className="pipeline-replayable">
