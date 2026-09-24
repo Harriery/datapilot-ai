@@ -43,6 +43,38 @@ def build_notebook_mentor_guidance(
         reverse=True,
     )
 
+    # Inspection cells should be recognized as investigation, not warned
+    # as if they were hiding a quality issue.
+    if (
+        ("isna()" in normalized or "isnull()" in normalized)
+        and (".sum()" in normalized or "value_counts(" in normalized)
+    ):
+        referenced = [
+            column
+            for column, count in missing_columns
+            if column.lower() in normalized
+        ]
+        if referenced:
+            column = referenced[0]
+            count = dict(missing_columns)[column]
+            guidance.append(
+                (
+                    f"Good investigation step: the source profile also flags "
+                    f"missing values in {column} ({count} in the profiled source). "
+                    "Compare the notebook result with the current development "
+                    "sample, then inspect whether the missing rows share a pattern "
+                    "before choosing drop/fill/keep."
+                )
+            )
+        else:
+            guidance.append(
+                (
+                    "This cell is inspecting missing values rather than changing "
+                    "the dataset. Use the result to understand the pattern before "
+                    "choosing a treatment."
+                )
+            )
+
     if "dropna(" in normalized:
         if missing_columns:
             top_missing = ", ".join(
@@ -144,6 +176,8 @@ def build_notebook_mentor_guidance(
             for token in (
                 "dropna(",
                 "fillna(",
+                "isna()",
+                "isnull()",
             )
         )
     ):
