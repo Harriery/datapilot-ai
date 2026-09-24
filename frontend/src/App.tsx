@@ -2377,13 +2377,29 @@ async function createWorkspaceNotebook() {
     return;
   }
 
-  const notebookNumber =
-    (dashboardWorkspace.notebooks?.length ?? 0) + 1;
+  const existingNames =
+    new Set(
+      (dashboardWorkspace.notebooks ?? [])
+        .map(
+          (item) =>
+            item.name.toLowerCase()
+        )
+    );
 
-  const defaultName =
-    notebookNumber === 1
-      ? "01_Data_Cleaning"
-      : `Notebook_${notebookNumber}`;
+  let notebookNumber = 1;
+  let defaultName =
+    "01_Data_Cleaning";
+
+  while (
+    existingNames.has(
+      defaultName.toLowerCase()
+    )
+  ) {
+    notebookNumber += 1;
+
+    defaultName =
+      `Notebook_${notebookNumber}`;
+  }
 
   try {
     const response = await fetch(
@@ -2524,49 +2540,58 @@ async function deleteWorkspaceNotebook(
     return;
   }
 
-  const response = await fetch(
-    `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/notebooks/${notebookId}`,
-    {
-      method: "DELETE",
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/notebooks/${notebookId}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Notebook silinemedi."
+      );
     }
-  );
 
-  if (!response.ok) {
-    const errorData =
-      await response.json();
+    setDashboardWorkspace(
+      (previous) => {
+        if (!previous) {
+          return previous;
+        }
 
-    throw new Error(
-      errorData.detail ||
-        "Notebook silinemedi."
+        return {
+          ...previous,
+          notebooks:
+            (previous.notebooks ?? [])
+              .filter(
+                (item) =>
+                  item.notebook_id !==
+                  notebookId
+              ),
+        };
+      }
+    );
+
+    setSelectedNotebookId(
+      null
+    );
+
+    setWorkbenchView(
+      "explorer"
+    );
+
+  } catch (error) {
+    window.alert(
+      error instanceof Error
+        ? error.message
+        : "Notebook silinemedi."
     );
   }
-
-  setDashboardWorkspace(
-    (previous) => {
-      if (!previous) {
-        return previous;
-      }
-
-      return {
-        ...previous,
-        notebooks:
-          (previous.notebooks ?? [])
-            .filter(
-              (item) =>
-                item.notebook_id !==
-                notebookId
-            ),
-      };
-    }
-  );
-
-  setSelectedNotebookId(
-    null
-  );
-
-  setWorkbenchView(
-    "explorer"
-  );
 }
 
 
