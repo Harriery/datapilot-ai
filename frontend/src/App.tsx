@@ -7405,7 +7405,7 @@ async function restoreWorkspaceVersion(
                                               <div
                                                 key={dataset.dataset_id}
                                                 className={
-                                                  {ui.active}
+                                                  active
                                                     ? "processed-dataset-item active"
                                                     : "processed-dataset-item"
                                                 }
