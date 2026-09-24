@@ -1424,8 +1424,21 @@ def test_bi_dashboard_project_gets_deliverables(
 
 def test_personal_dataset_profile_completes_deliverable(
     tmp_path,
+    monkeypatch,
 ):
     prepare_database(tmp_path)
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "generate_data_recommendations",
+        lambda safe_profile: (
+            (_ for _ in ()).throw(
+                RuntimeError(
+                    "External AI disabled in test."
+                )
+            )
+        ),
+    )
 
     create_response = client.post(
         "/workspaces",
