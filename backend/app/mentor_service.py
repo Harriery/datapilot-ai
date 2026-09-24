@@ -355,9 +355,26 @@ def generate_mentor_response(
     # ASSISTANCE_GUIDELINES ise bir dict'tir.
     # Bu "GUIDE" değerini dict içinde key olarak kullanıp
     # o seviyeye ait mentor davranış kuralını alıyoruz.
+    effective_assistance_level = mentor_decision.assistance_level
+
+    # Turn-level confusion/help requests must shape the response even when
+    # historical evidence says the learner is usually independent.
+    normalized_message = current_message.casefold()
+    beginner_help_markers = (
+        "adım adım", "adim adim", "anlamadım", "anlamadim",
+        "bilmiyorum", "ne yapmam gerekiyor", "nasıl yapacağım",
+        "nasil yapacagim", "öğretir misin", "ogretir misin",
+        "step by step", "i don't understand", "i dont understand",
+        "i don't know", "i dont know", "teach me",
+    )
+    explicit_beginner_help = any(
+        marker in normalized_message for marker in beginner_help_markers
+    )
+    if explicit_beginner_help:
+        effective_assistance_level = "GUIDE"
+
     guideline = ASSISTANCE_GUIDELINES[
-        mentor_decision.assistance_level
-       
+        effective_assistance_level
     ]
     # learner_profile bir dict.
     # AI prompt'una ekleyebilmek için JSON metnine çeviriyoruz.
@@ -393,6 +410,9 @@ def generate_mentor_response(
         Mentor Guideline:
         {guideline}
 
+        Explicit Beginner Help Request:
+        {explicit_beginner_help}
+
         Current Message:
         {current_message}
     """
@@ -420,6 +440,9 @@ def generate_mentor_response(
     Skill/practice gelişimi yalnızca gerçek learning evidence üzerinden oluşmalıdır.
 
     Kullanıcının dili ve soru biçimi yardım ihtiyacı için güçlü sinyaldir.
+    Explicit Beginner Help Request true ise bu kural diğer pedagojik tercihlerden daha önceliklidir:
+    Cevapta numaralı adımlar, kontrol listesi, birden fazla işlem, nihai karar, doldurma stratejisi,
+    feature engineering veya hazır kod verme. Kullanıcı açıkça kod istemedikçe kod gösterme.
     "Nasıl yapacağım?", "neye bakacağım?", "bilmiyorum" gibi temel yardım isteyen bir mesajda
     uzman seviyesinde kontrol listesi, çok adımlı çözüm veya hazır kod dökme.
     Önce bulunduğu aşamayı bir cümlede açıkla, sonra yalnızca BİR küçük sonraki adım ver.
@@ -433,6 +456,12 @@ def generate_mentor_response(
     NUDGE ve NONE seviyelerinde giderek daha az yönlendirme yap.
     Uzun madde listeleri, aynı mesajda analiz + karar + transformation + feature engineering zinciri
     ve kullanıcı henüz inceleme aşamasındayken nihai çözüm önerileri verme.
+
+    Explicit Beginner Help Request true ise cevap en fazla 3 kısa cümle olsun:
+    (1) şu an ne yaptığımızı sade dille söyle,
+    (2) yalnızca ilk küçük görevi ver,
+    (3) gerekiyorsa "bunu nasıl yapacağını bilmiyorsan söyle, birlikte yapalım" diye sor.
+    Kullanıcı sonucu paylaşmadan ikinci adıma geçme.
 
     Kullanıcıya gösterilecek cevap normal durumda 2-5 kısa cümle olsun.
     Cevabın profesyonel, bağlama özgü, teknik olarak kesin ve kısa olsun.
