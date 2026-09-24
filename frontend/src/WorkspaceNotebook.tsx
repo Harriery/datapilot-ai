@@ -112,16 +112,16 @@ function WorkspaceNotebook({
 }: Props) {
   const ui = {
     en: {
-      notebook: "{ui.notebook}", dataset: "Dataset", working: "{ui.working}",
-      raw: "{ui.raw}", runAll: "{ui.runAll}", reset: "Reset", saved: "Saved",
+      notebook: "Notebook", dataset: "Dataset", working: "Development / working",
+      raw: "Raw source sample", runAll: "Run all", reset: "Reset", saved: "Saved",
       saveNow: "Save now", saving: "Saving...", unsaved: "Unsaved changes",
-      export: "{ui.export}", loading: "Loading dataset...", rowsLoaded: "rows loaded",
-      columns: "columns", askMentor: "{ui.askMentor}", reviewing: "{ui.reviewing}",
-      sendPipeline: "{ui.sendPipeline}", deleteCell: "{ui.deleteCell}", output: "{ui.output}",
-      addCell: "{ui.addCell}",
+      export: "Export .ipynb", loading: "Loading dataset...", rowsLoaded: "rows loaded",
+      columns: "columns", askMentor: "Ask mentor", reviewing: "Reviewing...",
+      sendPipeline: "Send to pipeline", deleteCell: "Delete cell", output: "OUTPUT",
+      addCell: "Add Python cell",
     },
     nl: {
-      notebook: "{ui.notebook}", dataset: "Dataset", working: "Ontwikkeldata / werkset",
+      notebook: "Notebook", dataset: "Dataset", working: "Ontwikkeldata / werkset",
       raw: "Ruwe bronsteekproef", runAll: "Alles uitvoeren", reset: "Resetten", saved: "Opgeslagen",
       saveNow: "Nu opslaan", saving: "Opslaan...", unsaved: "Niet-opgeslagen wijzigingen",
       export: "Exporteer .ipynb", loading: "Dataset laden...", rowsLoaded: "rijen geladen",
@@ -130,7 +130,7 @@ function WorkspaceNotebook({
       addCell: "Python-cel toevoegen",
     },
     tr: {
-      notebook: "{ui.notebook}", dataset: "Veri seti", working: "Geliştirme / çalışma verisi",
+      notebook: "Not defteri", dataset: "Veri seti", working: "Geliştirme / çalışma verisi",
       raw: "Ham kaynak örneği", runAll: "Tümünü çalıştır", reset: "Sıfırla", saved: "Kaydedildi",
       saveNow: "Şimdi kaydet", saving: "Kaydediliyor...", unsaved: "Kaydedilmemiş değişiklikler",
       export: ".ipynb dışa aktar", loading: "Veri seti yükleniyor...", rowsLoaded: "satır yüklendi",
@@ -303,9 +303,7 @@ function WorkspaceNotebook({
       setDirty(false);
       setLastSavedAt(saved.updated_at);
 
-      setMessage(
-        "Notebook saved."
-      );
+      setMessage(ui.saved);
 
       return saved;
     } catch (error) {
@@ -668,7 +666,7 @@ function WorkspaceNotebook({
             }}
           >
             <RotateCcw size={14} />
-            Reset
+            {ui.reset}
           </button>
 
           <button
@@ -687,7 +685,7 @@ function WorkspaceNotebook({
             type="button"
             className="secondary-button"
             onClick={exportNotebook}
-            title="Export as Jupyter notebook"
+            title={ui.export}
           >
             <Download size={14} />
             {ui.export}
@@ -815,8 +813,8 @@ function WorkspaceNotebook({
                       <Sparkles size={13} />
                       {mentorLoadingCellId ===
                       cell.cell_id
-                        ? "{ui.reviewing}"
-                        : "{ui.askMentor}"}
+                        ? ui.reviewing
+                        : ui.askMentor}
                     </button>
 
                     <button
