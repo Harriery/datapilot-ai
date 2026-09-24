@@ -1,4 +1,4 @@
-export type AppLanguage = "en" | "tr";
+export type AppLanguage = "en" | "nl" | "tr";
 
 export const translations = {
   en: {
@@ -321,6 +321,327 @@ validationChecks: {
 
     },
   },
+
+  nl: {
+    sidebar: {
+      dashboard: "Dashboard",
+      workspace: "Werkruimte",
+      practice: "Oefenen",
+      tasks: "Taken",
+      progress: "Voortgang",
+      documents: "Documenten",
+      settings: "Instellingen",
+    },
+    tasks: {
+    eyebrow: "TASKS",
+    title: "Takenoverzicht",
+    description:
+      "Track work across all workspaces from one place.",
+
+    loading: "Taken laden...",
+    loadError: "Tasks could not be loaded.",
+    empty: "No tasks yet.",
+
+    refresh: "Vernieuwen",
+    refreshing: "Vernieuwen...",
+
+    workspace: "Werkruimte",
+    currentStep: "Huidige stap",
+    nextAction: "Volgende actie",
+
+    validation: "Validation",
+    review: "Controleren",
+    handoff: "Oplevering",
+
+    openWorkspace: "Werkruimte openen →",
+
+    status: {
+      todo: "To do",
+      active: "Actief",
+      blocked: "Blocked",
+      completed: "Voltooid",
+    },
+
+    systemText: {
+    workspaceCompleted: "Workspace completed",
+    reviewTransformedDataset:
+      "Review transformed dataset",
+    reviewTransformationResults:
+      "Review transformation results",
+    reviewFinalDataset:
+      "Review final dataset and changes",
+    resolveValidationFailures:
+      "Resolve validation failures",
+    prepareHandoff:
+      "Prepare handoff",
+    prepareFinalDatasetHandoff:
+      "Prepare final dataset handoff",
+  },
+  },
+
+  progress: {
+    eyebrow: "PROGRESS",
+    title: "Ontwikkelingsoverzicht",
+    description:
+      "See how your skills, success rate and independence are developing.",
+
+    loading: "Voortgang laden...",
+    loadError: "Progress could not be loaded.",
+    empty: "No progress data yet.",
+
+    refresh: "Vernieuwen",
+    refreshing: "Vernieuwen...",
+
+    skillsTracked: "Gevolgde vaardigheden",
+    averageSuccess: "Gemiddeld succes",
+    totalAttempts: "Totaal pogingen",
+    averageIndependence:
+      "Average independence",
+
+    skillPerformance:
+      "Skill performance",
+    skillPerformanceDescription:
+      "Success rate for each tracked skill.",
+
+    mentorIndependence:
+      "Mentor support & independence",
+    mentorIndependenceDescription:
+      "See how much mentor support you currently need for each skill.",
+    mentorDependencyHistory:
+      "Mentor dependency over time",
+    mentorDependencyHistoryDescription:
+      "See how your need for mentor support changes across attempts.",
+    mentorDependencyEmpty:
+      "Not enough attempt history yet.",
+
+    attempt: "Attempt",
+    attemptsAxis: "Attempts",
+    historyStart: "Started at",
+    historyCurrent: "Current level",
+
+    skillDetails: "Skill details",
+    skillDetailsDescription:
+      "Attempts, current learning stage and mentor mode.",
+
+    success: "Success",
+    attempts: "Attempts",
+    successfulAttempts:
+      "Successful attempts",
+
+    mentorMode: "Mentor mode",
+    independenceTrend:
+      "Independence trend",
+    practicePriority:
+      "Practice priority",
+
+    mentorModes: {
+      DEMONSTRATE: "Demonstrate",
+      TEACH: "Teach",
+      GUIDE: "Guide",
+      NUDGE: "Nudge",
+      NONE: "Independent",
+      noData: "No data",
+    },
+
+    trends: {
+      improving: "Improving",
+      stable: "Stable",
+      declining: "Declining",
+      insufficient_data:
+        "Not enough data",
+    },
+
+    priorities: {
+      high: "High",
+      medium: "Medium",
+      low: "Low",
+      none: "None",
+    },
+
+    statuses: {
+      new: "New",
+      learning: "Learning",
+      practicing: "Practicing",
+      comfortable: "Comfortable",
+    },
+
+    overallReadiness:
+      "Overall independence & readiness",
+
+    overallReadinessDescription:
+      "A combined view of knowledge, independence and skill coverage.",
+
+    knowledgeScore:
+      "Knowledge & success",
+
+    independenceScore:
+      "Independence",
+
+    skillCoverage:
+      "Skill coverage",
+
+    skillsCovered:
+      "skills covered",
+
+    readinessLevels: {
+      GUIDE: "Guide",
+      NUDGE: "Nudge",
+      INDEPENDENT: "Independent",
+    },
+  },
+
+
+    workspace: {
+      source: "Bron",
+      profile: "Profiel",
+      plan: "Plan",
+      transform: "Transformeren",
+      validate: "Valideren",
+      review: "Controleren",
+      handoff: "Oplevering",
+
+      dataSource: "Gegevensbron",
+      executionPlan: "Uitvoeringsplan",
+      finalValidation: "Final validation",
+      finalReview: "Final review",
+      prepareHandoff: "Handoff",
+
+      completed: "Voltooid",
+      active: "Actief",
+
+      taskBrief: "Taakomschrijving",
+      expectedOutcome: "Verwacht resultaat",
+      progress: "Voortgang",
+      workspaceCompleted: "Workspace completed",
+      stepsCompleted: "step(s) completed.",
+
+      dataProfile: "Dataprofiel",
+      findings: "Bevindingen",
+      rows: "Rijen",
+      columns: "Kolommen",
+      missing: "Ontbrekend",
+      duplicates: "Duplicaten",
+      replaceCsv: "CSV vervangen",
+      datasetProfiled: "Dataset profiled successfully.",
+      detected: "detected",
+
+      work: "Work",
+    personal: "Persoonlijk",
+    public: "Public",
+    internal: "Internal",
+    confidential: "Confidential",
+    restricted: "Restricted",
+    unknown: "Unknown",
+        
+    auto: "Auto",
+    etl: "ETL",
+    elt: "ELT",
+    dataQuality: "Data Quality",
+    analysis: "Analysis",
+    pipeline: "Pipeline",
+        
+    paused: "Gepauzeerd",
+        
+    findingTypes: {
+      missing_values: "Missing Values",
+      duplicate_rows: "Duplicate Rows",
+      suspicious_values: "Suspicious Values",
+      data_type_issue: "Data Type Issue",
+      schema_issue: "Schema Issue",
+    },
+    
+    severity: {
+      low: "Low",
+      medium: "Medium",
+      high: "High",
+    },
+    passed: "Geslaagd",
+failed: "Mislukt",
+
+validateDataset: "Validate transformed dataset",
+validationDescription:
+  "Check the final working dataset against the source and execution plan.",
+
+validating: "Validating...",
+runFinalValidation: "Run final validation →",
+validationIntro:
+  "DataPilot will run deterministic checks on the final working dataset.",
+
+sourceRows: "Source rows",
+workingRows: "Working rows",
+checksPassed: "Checks passed",
+totalChecks: "Total checks",
+
+runValidationAgain: "Run validation again",
+validationReady:
+  "All required checks passed. Ready for review.",
+validationNeedsFix:
+  "Resolve failed checks before review.",
+
+  reviewDataset: "Review final dataset",
+reviewDescription:
+  "Confirm that the transformed dataset, validation results and expected outcome are ready for handoff.",
+
+noTaskBriefProvided: "No task brief provided.",
+noExpectedOutcomeProvided: "No expected outcome provided.",
+
+finalWorkingDataset: "Final working dataset",
+
+completingReview: "Completing review...",
+completeReview: "✓ Complete review",
+reviewConfirm:
+  "Confirm the final result before preparing the handoff.",
+reviewCompletedReady:
+  "✓ Final review completed. Ready to prepare the handoff.",
+  prepareFinalDelivery: "Prepare final delivery",
+handoffDescription:
+  "Export the validated working dataset and complete the workspace when the result is ready to hand off.",
+
+finalRows: "Final rows",
+validated: "Validated",
+reviewed: "Reviewed",
+yes: "Ja",
+no: "Nee",
+
+preparingCsv: "Preparing CSV...",
+downloadFinalCsv: "↓ Download final CSV",
+
+completingHandoff: "Completing...",
+completeHandoff: "✓ Complete handoff",
+
+handoffNotice:
+  "Downloading does not complete the workspace. Complete the handoff only when the result is ready for delivery.",
+
+handoffCompleted:
+  "✓ Handoff completed. Workspace is complete.",
+  backToDashboard: "Dashboard",
+workspaceLabel: "Werkruimte",
+validationChecks: {
+  datasetIntegrity: "Dataset integrity",
+  datasetIntegrityMessage: (rowCount: number) =>
+    `Working dataset contains ${rowCount} rows.`,
+
+  schemaPreserved: "Schema preserved",
+  schemaPreservedMessage:
+    "Working dataset columns match the original source.",
+  schemaChangedMessage:
+    "Working dataset columns differ from the original source.",
+
+  duplicateRows: "Duplicate rows",
+  duplicateRowsMessage: (count: number) =>
+    `${count} duplicate rows remain.`,
+
+  missingValues: (column: string) =>
+    `Missing values · ${column}`,
+  missingValuesMessage: (
+    count: number,
+    column: string
+  ) =>
+    `${count} missing values remain in ${column}.`,
+  },
+
+    },
+  },,
 
   tr: {
     sidebar: {
