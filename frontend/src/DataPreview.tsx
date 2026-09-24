@@ -1,3 +1,5 @@
+import type { AppLanguage } from "./i18n";
+
 import {
   useEffect,
   useMemo,
@@ -20,6 +22,7 @@ type DataPreviewResponse = {
 };
 
 type Props = {
+  language: AppLanguage;
   learnerId: string;
   workspaceId: string;
   dataset: DataPreviewDataset;
@@ -34,6 +37,7 @@ type Props = {
 };
 
 function DataPreview({
+  language,
   learnerId,
   workspaceId,
   dataset,
@@ -44,6 +48,11 @@ function DataPreview({
   refreshToken = 0,
   onColumnClick,
 }: Props) {
+  const ui = {
+    en: { label:"{ui.label}", search:"Search preview...", searchButton:"Search", clear:"Clear", page:"Page", of:"of", rows:"rows", loading:"{ui.loading}", previous:"{ui.previous}", next:"{ui.next}", showing:"Showing up to" },
+    nl: { label:"DATA VOORBEELD", search:"Zoek in voorbeeld...", searchButton:"Zoeken", clear:"Wissen", page:"Pagina", of:"van", rows:"rijen", loading:"Voorbeeld laden...", previous:"← Vorige", next:"Volgende →", showing:"Maximaal weergegeven" },
+    tr: { label:"VERİ ÖNİZLEME", search:"Önizlemede ara...", searchButton:"Ara", clear:"Temizle", page:"Sayfa", of:"/", rows:"satır", loading:"Önizleme yükleniyor...", previous:"← Önceki", next:"Sonraki →", showing:"En fazla gösterilen" },
+  }[language];
   const [data, setData] =
     useState<DataPreviewResponse | null>(null);
 
@@ -159,7 +168,7 @@ function DataPreview({
       <div className="data-preview-header">
         <div>
           <span className="workspace-overview-label">
-            DATA PREVIEW
+            {ui.label}
           </span>
 
           <h3>
@@ -180,7 +189,7 @@ function DataPreview({
             </strong>
 
             <span>
-              of {data.total_row_count} rows
+              {ui.of} {data.total_row_count} {ui.rows}
             </span>
           </div>
         )}
@@ -190,7 +199,7 @@ function DataPreview({
         <div className="data-preview-search">
           <input
             value={searchDraft}
-            placeholder="Search preview..."
+            placeholder={ui.search}
             onChange={(event) => {
               setSearchDraft(
                 event.target.value
@@ -207,7 +216,7 @@ function DataPreview({
             type="button"
             onClick={submitSearch}
           >
-            Search
+            {ui.searchButton}
           </button>
 
           {search && (
@@ -216,21 +225,21 @@ function DataPreview({
               className="secondary"
               onClick={clearSearch}
             >
-              Clear
+              {ui.clear}
             </button>
           )}
         </div>
 
         {data && (
           <span className="data-preview-page-label">
-            Page {data.page} / {data.total_pages}
+            {ui.page} {data.page} / {data.total_pages}
           </span>
         )}
       </div>
 
       {loading ? (
         <p className="muted">
-          Loading preview...
+          {ui.loading}
         </p>
       ) : error ? (
         <div className="workspace-form-error">
@@ -319,7 +328,7 @@ function DataPreview({
                 );
               }}
             >
-              ← Previous
+              {ui.previous}
             </button>
 
             <span>
@@ -340,7 +349,7 @@ function DataPreview({
                 );
               }}
             >
-              Next →
+              {ui.next}
             </button>
           </div>
         </>
