@@ -52,6 +52,8 @@ from backend.app.models import (
     WorkspaceNotebookCell,
     WorkspaceNotebookCreateRequest,
     WorkspaceNotebookUpdateRequest,
+    WorkspaceNotebookMentorRequest,
+    WorkspaceNotebookMentorResponse,
     PersonalProjectKPIBuilderRequest,
     PersonalProjectDataModelStudio,
 )
@@ -145,6 +147,10 @@ from backend.app.transformation_validation_service import (
 
 from backend.app.workspace_pipeline_service import (
     apply_replayable_workbench_pipeline,
+)
+
+from backend.app.workspace_notebook_mentor_service import (
+    build_notebook_mentor_guidance,
 )
 
 router = APIRouter()
@@ -2314,6 +2320,56 @@ def delete_workspace_notebook(
 
     return Response(
         status_code=204
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/notebooks/{notebook_id}/mentor"
+    ),
+    response_model=WorkspaceNotebookMentorResponse,
+)
+def mentor_workspace_notebook_cell(
+    learner_id: str,
+    workspace_id: str,
+    notebook_id: str,
+    request: WorkspaceNotebookMentorRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if not any(
+        notebook.notebook_id == notebook_id
+        for notebook
+        in workspace.notebooks
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Notebook bulunamadı.",
+        )
+
+    return WorkspaceNotebookMentorResponse(
+        guidance=(
+            build_notebook_mentor_guidance(
+                code=request.code,
+                dataset_profile=(
+                    workspace.dataset_profile
+                ),
+                dataset_analysis=(
+                    workspace.dataset_analysis
+                ),
+            )
+        ),
+        source="local",
     )
 
 
