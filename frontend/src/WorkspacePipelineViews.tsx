@@ -298,6 +298,7 @@ export function WorkspacePipelineView({
 }
 
 export function WorkspaceLineageView({
+  language,
   sourceName,
   developmentRows,
   processedDatasets,
@@ -305,29 +306,35 @@ export function WorkspaceLineageView({
   kpiCount,
   operations,
 }: Props) {
+  const lineageUi = {
+    en:{ raw:lineageUi.raw, immutable:lineageUi.immutable, development:lineageUi.development, rows:"rows", pipeline:lineageUi.pipeline, steps:"steps", processed:lineageUi.processed, model:lineageUi.model, dataModel:lineageUi.dataModel, kpis:lineageUi.kpis, lineage:"LINEAGE", title:"Workspace data flow", description:"Follow how the immutable source becomes development data, pipeline outputs and BI artifacts." },
+    nl:{ raw:"Ruwe bron", immutable:"Onveranderlijke bron", development:"Ontwikkeldataset", rows:"rijen", pipeline:"Opschoningspipeline", steps:"stappen", processed:"Verwerkte dataset", model:"Logisch model", dataModel:"Datamodel", kpis:"KPI-definities", lineage:"HERKOMST", title:"Gegevensstroom van de werkruimte", description:"Volg hoe de onveranderlijke bron verandert in ontwikkeldata, pipeline-uitvoer en BI-artefacten." },
+    tr:{ raw:"Ham kaynak", immutable:"Değiştirilemez kaynak", development:"Geliştirme veri seti", rows:"satır", pipeline:"Temizleme pipeline'ı", steps:"adım", processed:"İşlenmiş veri seti", model:"Mantıksal model", dataModel:"Veri Modeli", kpis:"KPI tanımları", lineage:"VERİ AKIŞI", title:"Çalışma alanı veri akışı", description:"Değiştirilemez kaynağın geliştirme verisine, pipeline çıktılarına ve BI varlıklarına nasıl dönüştüğünü izle." },
+  }[language];
+
   const nodes = [
     {
       label:
         sourceName ??
-        "Raw source",
+        lineageUi.raw,
       meta:
-        "Immutable source",
+        lineageUi.immutable,
       kind:
         "source",
     },
     {
       label:
-        "Development dataset",
+        lineageUi.development,
       meta:
-        `${developmentRows ?? 0} rows`,
+        `${developmentRows ?? 0} ${lineageUi.rows}`,
       kind:
         "sample",
     },
     {
       label:
-        "Cleaning pipeline",
+        lineageUi.pipeline,
       meta:
-        `${operations.length} steps`,
+        `${operations.length} ${lineageUi.steps}`,
       kind:
         "pipeline",
     },
@@ -336,7 +343,7 @@ export function WorkspaceLineageView({
         label:
           dataset.name,
         meta:
-          "Processed dataset",
+          lineageUi.processed,
         kind:
           "processed",
       })
@@ -345,9 +352,9 @@ export function WorkspaceLineageView({
       ? [
           {
             label:
-              "Logical model",
+              lineageUi.model,
             meta:
-              "Data Model",
+              lineageUi.dataModel,
             kind:
               "model",
           },
@@ -357,7 +364,7 @@ export function WorkspaceLineageView({
       ? [
           {
             label:
-              "KPI definitions",
+              lineageUi.kpis,
             meta:
               `${kpiCount} KPIs`,
             kind:
@@ -372,15 +379,15 @@ export function WorkspaceLineageView({
       <div className="pipeline-workspace-header">
         <div>
           <span>
-            LINEAGE
+            {lineageUi.lineage}
           </span>
 
           <h3>
-            Workspace data flow
+            {lineageUi.title}
           </h3>
 
           <p>
-            Follow how the immutable source becomes development data, pipeline outputs and BI artifacts.
+            {lineageUi.description}
           </p>
         </div>
       </div>
