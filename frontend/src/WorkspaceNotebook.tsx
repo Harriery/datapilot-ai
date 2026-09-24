@@ -193,7 +193,7 @@ function WorkspaceNotebook({
     setMessage(null);
     setDirty(false);
     setLastSavedAt(notebook.updated_at);
-  }, [notebook]);
+  }, [notebook.notebook_id]);
 
   useEffect(() => {
     async function loadData() {
