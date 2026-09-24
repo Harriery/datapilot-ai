@@ -48,6 +48,9 @@ from backend.app.models import (
     WorkspaceFullPipelineResponse,
     WorkspaceProcessedDatasetCreateRequest,
     WorkspaceProcessedDataset,
+    WorkspaceNotebook,
+    WorkspaceNotebookCreateRequest,
+    WorkspaceNotebookUpdateRequest,
     PersonalProjectKPIBuilderRequest,
     PersonalProjectDataModelStudio,
 )
@@ -1932,6 +1935,362 @@ def review_workspace_finding_attempt(
         mentor_response=mentor_response,
         evidence=evidence,
         source="local",
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/notebooks"
+    ),
+    response_model=WorkspaceNotebook,
+)
+def create_workspace_notebook(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceNotebookCreateRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    name = request.name.strip()
+
+    if not name:
+        raise HTTPException(
+            status_code=400,
+            detail="Notebook adı boş olamaz.",
+        )
+
+    if any(
+        notebook.name.lower()
+        == name.lower()
+        for notebook in workspace.notebooks
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Bu isimde notebook zaten var.",
+        )
+
+    if request.dataset_kind == "processed":
+        if not request.processed_dataset_id:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Processed notebook için "
+                    "dataset seçilmeli."
+                ),
+            )
+
+        if not any(
+            item.dataset_id
+            == request.processed_dataset_id
+            for item
+            in workspace.processed_datasets
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail="Processed dataset bulunamadı.",
+            )
+
+    now = pd.Timestamp.now(
+        tz="UTC"
+    ).isoformat()
+
+    notebook = WorkspaceNotebook(
+        notebook_id=str(uuid.uuid4()),
+        name=name,
+        dataset_kind=request.dataset_kind,
+        processed_dataset_id=(
+            request.processed_dataset_id
+        ),
+        cells=[],
+        created_at=now,
+        updated_at=now,
+    )
+
+    workspace.notebooks.append(
+        notebook
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return notebook
+
+
+@router.put(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/notebooks/{notebook_id}"
+    ),
+    response_model=WorkspaceNotebook,
+)
+def update_workspace_notebook(
+    learner_id: str,
+    workspace_id: str,
+    notebook_id: str,
+    request: WorkspaceNotebookUpdateRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    notebook_index = next(
+        (
+            index
+            for index, notebook
+            in enumerate(workspace.notebooks)
+            if notebook.notebook_id
+            == notebook_id
+        ),
+        None,
+    )
+
+    if notebook_index is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Notebook bulunamadı.",
+        )
+
+    name = request.name.strip()
+
+    if not name:
+        raise HTTPException(
+            status_code=400,
+            detail="Notebook adı boş olamaz.",
+        )
+
+    if any(
+        notebook.notebook_id != notebook_id
+        and notebook.name.lower()
+        == name.lower()
+        for notebook in workspace.notebooks
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Bu isimde notebook zaten var.",
+        )
+
+    if request.dataset_kind == "processed":
+        if not request.processed_dataset_id:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Processed notebook için "
+                    "dataset seçilmeli."
+                ),
+            )
+
+        if not any(
+            item.dataset_id
+            == request.processed_dataset_id
+            for item
+            in workspace.processed_datasets
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail="Processed dataset bulunamadı.",
+            )
+
+    existing = workspace.notebooks[
+        notebook_index
+    ]
+
+    updated = existing.model_copy(
+        update={
+            "name": name,
+            "dataset_kind":
+                request.dataset_kind,
+            "processed_dataset_id":
+                request.processed_dataset_id,
+            "cells": request.cells,
+            "updated_at":
+                pd.Timestamp.now(
+                    tz="UTC"
+                ).isoformat(),
+        }
+    )
+
+    workspace.notebooks[
+        notebook_index
+    ] = updated
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return updated
+
+
+@router.delete(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/notebooks/{notebook_id}"
+    ),
+    status_code=204,
+)
+def delete_workspace_notebook(
+    learner_id: str,
+    workspace_id: str,
+    notebook_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    before_count = len(
+        workspace.notebooks
+    )
+
+    workspace.notebooks = [
+        notebook
+        for notebook in workspace.notebooks
+        if notebook.notebook_id
+        != notebook_id
+    ]
+
+    if (
+        len(workspace.notebooks)
+        == before_count
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Notebook bulunamadı.",
+        )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return Response(
+        status_code=204
+    )
+
+
+@router.get(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/notebooks/{notebook_id}/data"
+    ),
+    response_model=WorkspaceWorkingDataResponse,
+)
+def get_workspace_notebook_data(
+    learner_id: str,
+    workspace_id: str,
+    notebook_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    notebook = next(
+        (
+            item
+            for item in workspace.notebooks
+            if item.notebook_id
+            == notebook_id
+        ),
+        None,
+    )
+
+    if notebook is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Notebook bulunamadı.",
+        )
+
+    try:
+        if notebook.dataset_kind == "working":
+            df = (
+                load_workspace_working_dataframe(
+                    workspace_id
+                )
+            )
+
+        elif notebook.dataset_kind == "raw":
+            df = (
+                load_workspace_source_dataframe(
+                    workspace_id
+                )
+            )
+
+        else:
+            if not notebook.processed_dataset_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Notebook processed dataset "
+                        "referansı eksik."
+                    ),
+                )
+
+            df = (
+                load_workspace_processed_dataset(
+                    workspace_id=workspace_id,
+                    dataset_id=(
+                        notebook.processed_dataset_id
+                    ),
+                )
+            )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    notebook_limit = min(
+        (
+            workspace.development_sample_max_size
+            or workspace.development_sample_size
+            or 1000
+        ),
+        5000,
+    )
+
+    if len(df) > notebook_limit:
+        df = (
+            df.sample(
+                n=notebook_limit,
+                random_state=42,
+            )
+            .reset_index(drop=True)
+        )
+
+    return WorkspaceWorkingDataResponse(
+        columns=df.columns.tolist(),
+        row_count=len(df),
+        rows=dataframe_to_records(df),
     )
 
 
