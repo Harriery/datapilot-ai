@@ -40,6 +40,64 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
+
+def _is_step_by_step_help_request(message: str) -> bool:
+    normalized = message.casefold()
+    markers = (
+        "ne yapmam gerekiyor", "ne yapacağım", "ne yapacagim",
+        "adım adım", "adim adim", "anlamadım", "anlamadim",
+        "bilmiyorum", "öğretir misin", "ogretir misin",
+        "what should i do", "what do i do", "step by step",
+        "i don't understand", "i dont understand", "teach me",
+    )
+    return any(marker in normalized for marker in markers)
+
+
+def _deterministic_workspace_guidance(workspace_context: dict | None, message: str) -> str | None:
+    """Keep explicit beginner-help turns to one observable action before the LLM."""
+    if workspace_context is None or not _is_step_by_step_help_request(message):
+        return None
+
+    step = workspace_context.get("current_step") or {}
+    task = workspace_context.get("current_task") or {}
+    checkpoint = workspace_context.get("checkpoint") or {}
+    step_text = " ".join(
+        str(value)
+        for value in (
+            step.get("title"),
+            step.get("instruction"),
+            step.get("description"),
+            task.get("title"),
+            checkpoint.get("current_focus"),
+        )
+        if value
+    )
+    normalized_step = step_text.casefold()
+
+    if "car" in normalized_step and (
+        "eksik" in normalized_step or "missing" in normalized_step or "null" in normalized_step
+    ):
+        return (
+            "Şu an Car sütunundaki eksik değerleri inceliyoruz. "
+            "İlk olarak sadece kaç tane Car değerinin eksik olduğunu bulalım. "
+            "Bunu Notebook'ta nasıl kontrol edeceğini bilmiyorsan söyle; birlikte yapalım."
+        )
+
+    step_label = (
+        step.get("title")
+        or step.get("instruction")
+        or checkpoint.get("current_focus")
+        or task.get("title")
+    )
+    if step_label:
+        return (
+            f"Şu an üzerinde çalıştığımız adım: {step_label}. "
+            "Bu adımda yalnızca ilk küçük kontrolü yapalım; sonraki adıma henüz geçmeyelim. "
+            "Nasıl yapacağını bilmiyorsan söyle, birlikte yapalım."
+        )
+    return None
+
+
 @router.get("/chat/{session_id}/history")
 def chat_history(session_id: str):
     """Return persisted mentor conversation so the workspace panel can resume."""
@@ -194,14 +252,22 @@ def chat(request: ChatRequest):
     previous_history = history[:-1]
 
     try:
-        # Önce adaptive mentor sistemi mesajı ele almaya çalışır.
-        reply = get_mentor_response_from_message(
-            learner_id=learner_id,
-            current_message=message,
-            session_id=request.session_id,
-            conversation_history=previous_history,
+        # Explicit beginner-help turns are controlled before the LLM so one
+        # learning turn cannot expand into several tasks or a solution dump.
+        reply = _deterministic_workspace_guidance(
             workspace_context=workspace_context,
+            message=message,
         )
+
+        # Other turns continue through the adaptive mentor.
+        if reply is None:
+            reply = get_mentor_response_from_message(
+                learner_id=learner_id,
+                current_message=message,
+                session_id=request.session_id,
+                conversation_history=previous_history,
+                workspace_context=workspace_context,
+            )
 
         # Mesaj adaptive mentor tarafından ele alınmadıysa
         # normal chat davranışına geri dön.
