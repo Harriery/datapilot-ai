@@ -709,6 +709,11 @@ function App() {
 
 
   
+  const [, setTransformationCode] = useState<string>("");
+  const [, setPreparedPipelineAction] = useState<WorkbenchPipelineActionData | null>(null);
+  const [, setPreparedPipelineCode] = useState<string | null>(null);
+  const [, setResultRows] = useState<Record<string, unknown>[] | null>(null);
+
   const [, setValidationMessage] =
   useState<string | null>(null);
 
