@@ -139,6 +139,10 @@ def chat(request: ChatRequest):
                 item.model_dump() if hasattr(item, "model_dump") else item
                 for item in (workspace.processed_datasets or [])
             ],
+            "learner_skills": [
+                dict(item)
+                for item in database.get_skill_states_by_learner(learner_id)
+            ],
         }
 
     learner_profile = database.get_learner_profile_by_id(
