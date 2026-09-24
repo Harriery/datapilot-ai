@@ -12141,3 +12141,39 @@
   .workspace-mentor-panel { right:10px; bottom:10px; width:calc(100vw - 20px); height:min(70vh,620px); }
   .mentor-panel-launcher { right:10px; bottom:10px; }
 }
+
+
+/* Mentor layout: reserve workspace width instead of covering the workbench. */
+@media (min-width: 1180px) {
+  .main-content.workspace-main {
+    padding-right: 430px;
+  }
+
+  .workspace-mentor-panel {
+    width: 380px;
+    right: 20px;
+  }
+}
+
+/* On narrower desktop/tablet screens the mentor becomes an overlay drawer.
+   Keep it compact so the underlying workspace remains usable. */
+@media (min-width: 761px) and (max-width: 1179px) {
+  .workspace-mentor-panel {
+    width: min(360px, calc(100vw - 110px));
+    height: min(560px, calc(100vh - 110px));
+  }
+}
+
+/* The workbench itself must shrink inside the available column rather than
+   forcing the entire page to become horizontally scrollable. */
+.workspace-overview-page,
+.workspace-page,
+.notebook-workspace {
+  min-width: 0;
+}
+
+.workspace-overview-page .workspace-sticky-shell,
+.workspace-overview-page .workspace-overview-grid {
+  max-width: 100%;
+  min-width: 0;
+}
