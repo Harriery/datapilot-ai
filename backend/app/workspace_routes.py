@@ -320,6 +320,121 @@ def create_workspace_workbench_operation(
 
 
 
+@router.delete(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/workbench/operations/{operation_id}"
+    ),
+    status_code=204,
+)
+def delete_workspace_workbench_operation(
+    learner_id: str,
+    workspace_id: str,
+    operation_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    operation = next(
+        (
+            item
+            for item
+            in workspace.workbench_operations
+            if item.operation_id
+            == operation_id
+        ),
+        None,
+    )
+
+    if operation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workbench operation bulunamadı.",
+        )
+
+    if operation.origin != "user":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Data-quality operations "
+                "pipeline'dan silinemez."
+            ),
+        )
+
+    if operation.status == "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Tamamlanmış operation doğrudan "
+                "silinemez. Önce version restore "
+                "kullanılmalı."
+            ),
+        )
+
+    was_active = (
+        operation.status == "active"
+    )
+
+    workspace.workbench_operations = [
+        item
+        for item
+        in workspace.workbench_operations
+        if item.operation_id
+        != operation_id
+    ]
+
+    if was_active:
+        next_operation = next(
+            (
+                item
+                for item
+                in workspace.workbench_operations
+                if item.status == "pending"
+            ),
+            None,
+        )
+
+        if next_operation is not None:
+            next_operation.status = "active"
+
+            workspace.workbench_active_operation_id = (
+                next_operation.operation_id
+            )
+
+            workspace.checkpoint.current_focus = (
+                next_operation.title
+            )
+
+            workspace.checkpoint.next_actions = [
+                next_operation.title
+            ]
+
+        else:
+            workspace.workbench_active_operation_id = None
+
+            workspace.checkpoint.current_focus = (
+                "Review Workbench pipeline"
+            )
+
+            workspace.checkpoint.next_actions = []
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return Response(
+        status_code=204
+    )
+
+
 @router.post(
     (
         "/workspaces/{learner_id}/{workspace_id}"
