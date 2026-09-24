@@ -200,6 +200,7 @@ def add_user_workbench_operation(
         source_columns=request.source_columns,
         expected_columns=request.expected_columns,
         pipeline_action=request.pipeline_action,
+        code=request.draft_code,
     )
 
     existing_operations.append(operation)
