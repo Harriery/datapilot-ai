@@ -93,6 +93,8 @@ export type WorkbenchOperationCreateData = {
 
   pipeline_action?:
     WorkbenchPipelineActionData | null;
+
+  draft_code?: string | null;
 };
 
 
