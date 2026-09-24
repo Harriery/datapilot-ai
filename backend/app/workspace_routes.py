@@ -2562,7 +2562,11 @@ def create_workspace_processed_dataset(
         column_count=len(
             working_df.columns
         ),
-        created_at=pd.Timestamp.utcnow().isoformat(),
+        created_at=(
+            pd.Timestamp.now(
+                tz="UTC"
+            ).isoformat()
+        ),
     )
 
     workspace.processed_datasets.append(
