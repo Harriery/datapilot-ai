@@ -12013,3 +12013,41 @@
 .pipeline-remove-step:hover {
   background: #fff0f0;
 }
+
+
+.notebook-mentor-guidance {
+  display: grid;
+  gap: 7px;
+
+  margin-top: 8px;
+  padding: 9px 10px;
+
+  border: 1px solid #cfe0f5;
+  border-radius: 8px;
+
+  background: #f4f9ff;
+  color: #4f6781;
+
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.notebook-mentor-guidance > div {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  color: #2f74c7;
+}
+
+.notebook-mentor-guidance strong {
+  font-size: 9px;
+}
+
+.notebook-mentor-guidance ul {
+  display: grid;
+  gap: 4px;
+
+  margin: 0;
+  padding-left: 17px;
+}
