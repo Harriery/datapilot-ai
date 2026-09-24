@@ -12280,3 +12280,32 @@
   border-radius:10px;
   white-space:nowrap;
 }
+
+
+/* Mentor sidebar owns the page edge; only the conversation stream scrolls. */
+@media (min-width: 1000px) {
+  .workspace-mentor-panel {
+    overflow: hidden;
+  }
+  .workspace-mentor-messages {
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+  }
+  .workspace-mentor-message,
+  .workspace-mentor-message span {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .workspace-mentor-message span {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .workspace-mentor-composer {
+    min-width: 0;
+  }
+  .workspace-mentor-composer textarea {
+    min-width: 0;
+  }
+}
