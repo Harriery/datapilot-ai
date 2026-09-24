@@ -58,8 +58,8 @@ def _deterministic_workspace_guidance(
     message: str,
     conversation_history: list[dict] | None = None,
 ) -> str | None:
-    """Control explicit beginner-help turns without trapping the learner in a loop."""
-    if workspace_context is None or not _is_step_by_step_help_request(message):
+    """Control beginner-help turns while advancing from evidence already reported."""
+    if workspace_context is None:
         return None
 
     step = workspace_context.get("current_step") or {}
@@ -77,7 +77,40 @@ def _deterministic_workspace_guidance(
         if value
     )
     normalized_step = step_text.casefold()
+    if not (
+        "car" in normalized_step
+        and ("eksik" in normalized_step or "missing" in normalized_step or "null" in normalized_step)
+    ):
+        if not _is_step_by_step_help_request(message):
+            return None
+        step_label = (
+            step.get("title")
+            or step.get("instruction")
+            or checkpoint.get("current_focus")
+            or task.get("title")
+        )
+        if step_label:
+            return (
+                f"Şu an üzerinde çalıştığımız adım: {step_label}. "
+                "Bu adımda yalnızca ilk küçük kontrolü yapalım. "
+                "Nasıl yapacağını bilmiyorsan söyle, birlikte yapalım."
+            )
+        return None
+
     normalized_message = message.casefold()
+    history = conversation_history or []
+    recent_user_text = " ".join(
+        str(item.get("content", ""))
+        for item in history[-8:]
+        if item.get("role") == "user"
+    ).casefold()
+
+    count_reported = (
+        "np.int64(23)" in normalized_message
+        or "23 eksik" in normalized_message
+        or "np.int64(23)" in recent_user_text
+        or "23 eksik" in recent_user_text
+    )
 
     direct_teaching_markers = (
         "bilmiyorum", "ilk defa", "ilk kez", "tarif et", "birlikte yap",
@@ -86,39 +119,33 @@ def _deterministic_workspace_guidance(
     )
     asks_for_instruction = any(marker in normalized_message for marker in direct_teaching_markers)
 
-    if "car" in normalized_step and (
-        "eksik" in normalized_step or "missing" in normalized_step or "null" in normalized_step
-    ):
+    if count_reported:
         if asks_for_instruction:
             return (
-                "Tabii. Notebook'ta yeni bir hücreye df['Car'].isna().sum() yaz ve o hücreyi çalıştır. "
-                "Ekranda çıkan sayıyı bana gönder; şimdilik başka bir şey yapma."
+                "23 eksik değer olduğunu zaten bulduk; aynı sayımı tekrar yapmayacağız. "
+                "Şimdi Notebook'ta yeni bir hücreye df[df['Car'].isna()][['Suburb','Type','Rooms','Price']].head(5) yazıp çalıştır. "
+                "Çıkan 5 satırı bana gönder; sonra birlikte ne gördüğümüze bakacağız."
             )
+        return (
+            "Car sütununda 23 eksik değer olduğunu bulduk. "
+            "Şimdi yalnızca bu eksik kayıtlardan birkaç örneğe bakalım. "
+            "Nasıl yapacağını bilmiyorsan söyle, birlikte yapalım."
+        )
+
+    if asks_for_instruction:
+        return (
+            "Notebook'ta yeni bir hücreye df['Car'].isna().sum() yaz ve o hücreyi çalıştır. "
+            "Ekranda çıkan sayıyı bana gönder; şimdilik başka bir şey yapma."
+        )
+
+    if _is_step_by_step_help_request(message):
         return (
             "Şu an Car sütunundaki eksik değerleri inceliyoruz. "
             "İlk olarak sadece kaç tane Car değerinin eksik olduğunu bulalım. "
             "Bunu Notebook'ta nasıl kontrol edeceğini bilmiyorsan söyle; birlikte yapalım."
         )
 
-    step_label = (
-        step.get("title")
-        or step.get("instruction")
-        or checkpoint.get("current_focus")
-        or task.get("title")
-    )
-    if step_label:
-        if asks_for_instruction:
-            return (
-                f"Tamam, {step_label} adımını birlikte yapalım. "
-                "Önce bu adımın ilk kontrolünü yapacağız; bana ekranda gördüğün sonucu gönder."
-            )
-        return (
-            f"Şu an üzerinde çalıştığımız adım: {step_label}. "
-            "Bu adımda yalnızca ilk küçük kontrolü yapalım; sonraki adıma henüz geçmeyelim. "
-            "Nasıl yapacağını bilmiyorsan söyle, birlikte yapalım."
-        )
     return None
-
 
 @router.get("/chat/{session_id}/history")
 def chat_history(session_id: str):
