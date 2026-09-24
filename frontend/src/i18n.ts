@@ -333,14 +333,14 @@ validationChecks: {
       settings: "Instellingen",
     },
     tasks: {
-    eyebrow: "TASKS",
+    eyebrow: "TAKEN",
     title: "Takenoverzicht",
     description:
-      "Track work across all workspaces from one place.",
+      "Volg werk uit alle werkruimtes op één plek.",
 
     loading: "Taken laden...",
-    loadError: "Tasks could not be loaded.",
-    empty: "No tasks yet.",
+    loadError: "Taken konden niet worden geladen.",
+    empty: "Nog geen taken.",
 
     refresh: "Vernieuwen",
     refreshing: "Vernieuwen...",
@@ -349,45 +349,45 @@ validationChecks: {
     currentStep: "Huidige stap",
     nextAction: "Volgende actie",
 
-    validation: "Validation",
+    validation: "Validatie",
     review: "Controleren",
     handoff: "Oplevering",
 
     openWorkspace: "Werkruimte openen →",
 
     status: {
-      todo: "To do",
+      todo: "Te doen",
       active: "Actief",
-      blocked: "Blocked",
+      blocked: "Geblokkeerd",
       completed: "Voltooid",
     },
 
     systemText: {
-    workspaceCompleted: "Workspace completed",
+    workspaceCompleted: "Werkruimte voltooid",
     reviewTransformedDataset:
-      "Review transformed dataset",
+      "Controleer de getransformeerde dataset",
     reviewTransformationResults:
-      "Review transformation results",
+      "Controleer de transformatieresultaten",
     reviewFinalDataset:
-      "Review final dataset and changes",
+      "Controleer de definitieve dataset en wijzigingen",
     resolveValidationFailures:
-      "Resolve validation failures",
+      "Los validatiefouten op",
     prepareHandoff:
-      "Prepare handoff",
+      "Bereid oplevering voor",
     prepareFinalDatasetHandoff:
-      "Prepare final dataset handoff",
+      "Bereid de definitieve datasetoplevering voor",
   },
   },
 
   progress: {
-    eyebrow: "PROGRESS",
+    eyebrow: "VOORTGANG",
     title: "Ontwikkelingsoverzicht",
     description:
-      "See how your skills, success rate and independence are developing.",
+      "Bekijk hoe je vaardigheden, slagingspercentage en zelfstandigheid zich ontwikkelen.",
 
     loading: "Voortgang laden...",
-    loadError: "Progress could not be loaded.",
-    empty: "No progress data yet.",
+    loadError: "Voortgang kon niet worden geladen.",
+    empty: "Nog geen voortgangsgegevens.",
 
     refresh: "Vernieuwen",
     refreshing: "Vernieuwen...",
@@ -396,97 +396,97 @@ validationChecks: {
     averageSuccess: "Gemiddeld succes",
     totalAttempts: "Totaal pogingen",
     averageIndependence:
-      "Average independence",
+      "Gemiddelde zelfstandigheid",
 
     skillPerformance:
-      "Skill performance",
+      "Vaardigheidsprestaties",
     skillPerformanceDescription:
-      "Success rate for each tracked skill.",
+      "Slagingspercentage per gevolgde vaardigheid.",
 
     mentorIndependence:
-      "Mentor support & independence",
+      "Mentorondersteuning en zelfstandigheid",
     mentorIndependenceDescription:
-      "See how much mentor support you currently need for each skill.",
+      "Bekijk hoeveel mentorondersteuning je momenteel per vaardigheid nodig hebt.",
     mentorDependencyHistory:
-      "Mentor dependency over time",
+      "Mentorafhankelijkheid in de tijd",
     mentorDependencyHistoryDescription:
-      "See how your need for mentor support changes across attempts.",
+      "Bekijk hoe je behoefte aan mentorondersteuning per poging verandert.",
     mentorDependencyEmpty:
-      "Not enough attempt history yet.",
+      "Nog onvoldoende poginggeschiedenis.",
 
-    attempt: "Attempt",
-    attemptsAxis: "Attempts",
-    historyStart: "Started at",
-    historyCurrent: "Current level",
+    attempt: "Poging",
+    attemptsAxis: "Pogingen",
+    historyStart: "Gestart op",
+    historyCurrent: "Huidig niveau",
 
-    skillDetails: "Skill details",
+    skillDetails: "Vaardigheidsdetails",
     skillDetailsDescription:
-      "Attempts, current learning stage and mentor mode.",
+      "Pogingen, huidige leerfase en mentormodus.",
 
-    success: "Success",
-    attempts: "Attempts",
+    success: "Succes",
+    attempts: "Pogingen",
     successfulAttempts:
-      "Successful attempts",
+      "Succesvolle pogingen",
 
-    mentorMode: "Mentor mode",
+    mentorMode: "Mentormodus",
     independenceTrend:
-      "Independence trend",
+      "Zelfstandigheidstrend",
     practicePriority:
-      "Practice priority",
+      "Oefenprioriteit",
 
     mentorModes: {
-      DEMONSTRATE: "Demonstrate",
-      TEACH: "Teach",
-      GUIDE: "Guide",
-      NUDGE: "Nudge",
-      NONE: "Independent",
-      noData: "No data",
+      DEMONSTRATE: "Demonstreren",
+      TEACH: "Uitleggen",
+      GUIDE: "Begeleiden",
+      NUDGE: "Aanwijzing",
+      NONE: "Zelfstandig",
+      noData: "Geen gegevens",
     },
 
     trends: {
-      improving: "Improving",
-      stable: "Stable",
-      declining: "Declining",
+      improving: "Verbeterend",
+      stable: "Stabiel",
+      declining: "Afnemend",
       insufficient_data:
-        "Not enough data",
+        "Onvoldoende gegevens",
     },
 
     priorities: {
-      high: "High",
-      medium: "Medium",
-      low: "Low",
-      none: "None",
+      high: "Hoog",
+      medium: "Gemiddeld",
+      low: "Laag",
+      none: "Geen",
     },
 
     statuses: {
-      new: "New",
-      learning: "Learning",
-      practicing: "Practicing",
-      comfortable: "Comfortable",
+      new: "Nieuw",
+      learning: "Lerend",
+      practicing: "Oefenend",
+      comfortable: "Vertrouwd",
     },
 
     overallReadiness:
-      "Overall independence & readiness",
+      "Algemene zelfstandigheid en gereedheid",
 
     overallReadinessDescription:
-      "A combined view of knowledge, independence and skill coverage.",
+      "Gecombineerd overzicht van kennis, zelfstandigheid en vaardigheidsdekking.",
 
     knowledgeScore:
-      "Knowledge & success",
+      "Kennis en succes",
 
     independenceScore:
-      "Independence",
+      "Zelfstandigheid",
 
     skillCoverage:
-      "Skill coverage",
+      "Vaardigheidsdekking",
 
     skillsCovered:
-      "skills covered",
+      "vaardigheden gedekt",
 
     readinessLevels: {
-      GUIDE: "Guide",
-      NUDGE: "Nudge",
-      INDEPENDENT: "Independent",
+      GUIDE: "Begeleiden",
+      NUDGE: "Aanwijzing",
+      INDEPENDENT: "Zelfstandig",
     },
   },
 
@@ -502,9 +502,9 @@ validationChecks: {
 
       dataSource: "Gegevensbron",
       executionPlan: "Uitvoeringsplan",
-      finalValidation: "Final validation",
-      finalReview: "Final review",
-      prepareHandoff: "Handoff",
+      finalValidation: "Definitieve validatie",
+      finalReview: "Definitieve controle",
+      prepareHandoff: "Oplevering",
 
       completed: "Voltooid",
       active: "Actief",
@@ -512,8 +512,8 @@ validationChecks: {
       taskBrief: "Taakomschrijving",
       expectedOutcome: "Verwacht resultaat",
       progress: "Voortgang",
-      workspaceCompleted: "Workspace completed",
-      stepsCompleted: "step(s) completed.",
+      workspaceCompleted: "Werkruimte voltooid",
+      stepsCompleted: "stap(pen) voltooid.",
 
       dataProfile: "Dataprofiel",
       findings: "Bevindingen",
@@ -522,13 +522,13 @@ validationChecks: {
       missing: "Ontbrekend",
       duplicates: "Duplicaten",
       replaceCsv: "CSV vervangen",
-      datasetProfiled: "Dataset profiled successfully.",
-      detected: "detected",
+      datasetProfiled: "Dataset succesvol geprofileerd.",
+      detected: "gedetecteerd",
 
-      work: "Work",
+      work: "Werk",
     personal: "Persoonlijk",
-    public: "Public",
-    internal: "Internal",
+    public: "Openbaar",
+    internal: "Intern",
     confidential: "Confidential",
     restricted: "Restricted",
     unknown: "Unknown",
@@ -551,9 +551,9 @@ validationChecks: {
     },
     
     severity: {
-      low: "Low",
-      medium: "Medium",
-      high: "High",
+      low: "Laag",
+      medium: "Gemiddeld",
+      high: "Hoog",
     },
     passed: "Geslaagd",
 failed: "Mislukt",
