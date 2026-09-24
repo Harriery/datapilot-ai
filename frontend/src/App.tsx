@@ -7069,6 +7069,7 @@ async function restoreWorkspaceVersion(
                                         dashboardWorkspace
                                           .workspace_id
                                       }
+                                      language={language}
                                       notebook={
                                         notebook
                                       }
