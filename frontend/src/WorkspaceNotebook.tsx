@@ -27,6 +27,15 @@ export type WorkspaceNotebookCellData = {
   cell_id: string;
   code: string;
   cell_type: "python";
+  last_execution?: {
+    success: boolean;
+    expression_kind: "dataframe" | "scalar" | "none";
+    output?: string | null;
+    row_count?: number | null;
+    columns?: string[];
+    preview_rows?: Record<string, unknown>[];
+    executed_at: string;
+  } | null;
 };
 
 export type WorkspaceNotebookData = {
@@ -409,6 +418,28 @@ function WorkspaceNotebook({
         if (allResults[index]) nextResults[cell.cell_id] = allResults[index];
       });
       setResults(nextResults);
+      const nextDraft: WorkspaceNotebookData = {
+        ...draft,
+        cells: draft.cells.map((cell, index) => {
+          const result = allResults[index];
+          if (!result) return cell;
+          const previewRows = result.expressionKind === "dataframe" ? result.rows.slice(0, 5) : [];
+          return {
+            ...cell,
+            last_execution: {
+              success: true,
+              expression_kind: result.expressionKind,
+              output: result.expressionKind === "scalar" ? result.output.slice(0, 1000) : null,
+              row_count: result.rows.length || null,
+              columns: previewRows.length ? Object.keys(previewRows[0]).slice(0, 30) : [],
+              preview_rows: previewRows,
+              executed_at: new Date().toISOString(),
+            },
+          };
+        }),
+      };
+      setDraft(nextDraft);
+      await saveDraft(nextDraft);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Notebook run failed.");
     } finally {
@@ -470,6 +501,47 @@ function WorkspaceNotebook({
     }
   }
 
+  async function persistExecution(
+    cellId: string,
+    result: NotebookRunResult,
+    success = true,
+  ) {
+    const compactOutput =
+      result.expressionKind === "scalar"
+        ? result.output.slice(0, 1000)
+        : null;
+    const previewRows =
+      result.expressionKind === "dataframe"
+        ? result.rows.slice(0, 5)
+        : [];
+    const columns =
+      previewRows.length > 0
+        ? Object.keys(previewRows[0]).slice(0, 30)
+        : [];
+
+    const nextDraft: WorkspaceNotebookData = {
+      ...draft,
+      cells: draft.cells.map((item) =>
+        item.cell_id === cellId
+          ? {
+              ...item,
+              last_execution: {
+                success,
+                expression_kind: result.expressionKind,
+                output: compactOutput,
+                row_count: result.rows.length || null,
+                columns,
+                preview_rows: previewRows,
+                executed_at: new Date().toISOString(),
+              },
+            }
+          : item
+      ),
+    };
+    setDraft(nextDraft);
+    await saveDraft(nextDraft);
+  }
+
   async function runCell(
     index: number
   ) {
@@ -513,6 +585,7 @@ function WorkspaceNotebook({
             result,
         })
       );
+      await persistExecution(cell.cell_id, result, true);
     } catch (error) {
       setResults(
         (previous) => ({
