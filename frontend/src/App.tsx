@@ -3656,6 +3656,87 @@ useEffect(() => {
 ]);
 
 
+async function deleteWorkbenchOperation(
+  operationId: string
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/workbench/operations/${operationId}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Pipeline step silinemedi."
+      );
+    }
+
+    const workspaceResponse =
+      await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+      );
+
+    if (!workspaceResponse.ok) {
+      throw new Error(
+        "Pipeline step silindi fakat workspace yenilenemedi."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await workspaceResponse.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+    setTransformationCode(
+      "# df is already loaded.\n# Write your pandas transformation below.\n"
+    );
+
+    setPreparedPipelineAction(
+      null
+    );
+
+    setPreparedPipelineCode(
+      null
+    );
+
+    setResultRows(
+      null
+    );
+
+  } catch (error) {
+    window.alert(
+      error instanceof Error
+        ? error.message
+        : "Pipeline step silinemedi."
+    );
+  }
+}
+
+
 async function prepareWorkbenchColumnAction(
   draft: ColumnActionDraft
 ): Promise<boolean> {
@@ -7203,6 +7284,11 @@ async function restoreWorkspaceVersion(
                                   }
                                   onApplyFullDataset={() => {
                                     void applyPipelineToFullDataset();
+                                  }}
+                                  onDeleteOperation={(operationId) => {
+                                    void deleteWorkbenchOperation(
+                                      operationId
+                                    );
                                   }}
                                 />
                               )}
