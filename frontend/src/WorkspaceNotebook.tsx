@@ -5,17 +5,22 @@ import {
   RotateCcw,
   Sparkles,
   Save,
+  Download,
+  ChevronDown,
+  ChevronRight,
   Send,
   Trash2,
 } from "lucide-react";
 
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
 import {
   runNotebookCells,
+  runNotebookAllCells,
 } from "./pythonRunner";
 
 export type WorkspaceNotebookCellData = {
@@ -54,6 +59,7 @@ type NotebookRunResult = {
     Record<string, unknown>[];
 
   output: string;
+  expressionKind: "dataframe" | "scalar" | "none";
 };
 
 type Props = {
@@ -139,6 +145,11 @@ function WorkspaceNotebook({
     null
   );
 
+  const [dirty, setDirty] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [collapsedOutputs, setCollapsedOutputs] = useState<Record<string, boolean>>({});
+  const autosaveTimer = useRef<number | null>(null);
+
   const [
     saving,
     setSaving,
@@ -180,6 +191,8 @@ function WorkspaceNotebook({
     setResults({});
     setMentorGuidance({});
     setMessage(null);
+    setDirty(false);
+    setLastSavedAt(notebook.updated_at);
   }, [notebook]);
 
   useEffect(() => {
@@ -254,6 +267,8 @@ function WorkspaceNotebook({
         );
 
       setDraft(saved);
+      setDirty(false);
+      setLastSavedAt(saved.updated_at);
 
       setMessage(
         "Notebook saved."
@@ -270,6 +285,98 @@ function WorkspaceNotebook({
       return null;
     } finally {
       setSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!dirty) return;
+
+    if (autosaveTimer.current !== null) {
+      window.clearTimeout(autosaveTimer.current);
+    }
+
+    autosaveTimer.current = window.setTimeout(() => {
+      void saveDraft(draft);
+    }, 800);
+
+    return () => {
+      if (autosaveTimer.current !== null) {
+        window.clearTimeout(autosaveTimer.current);
+      }
+    };
+  }, [draft, dirty]);
+
+  useEffect(() => {
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [dirty]);
+
+  function markDraftChanged(next: WorkspaceNotebookData) {
+    setDraft(next);
+    setDirty(true);
+  }
+
+  function exportNotebook() {
+    const payload = {
+      nbformat: 4,
+      nbformat_minor: 5,
+      metadata: {
+        kernelspec: { display_name: "Python 3", language: "python", name: "python3" },
+        datapilot: {
+          notebook_id: draft.notebook_id,
+          dataset_kind: draft.dataset_kind,
+          processed_dataset_id: draft.processed_dataset_id,
+        },
+      },
+      cells: draft.cells.map((cell) => ({
+        cell_type: "code",
+        execution_count: null,
+        metadata: { datapilot_cell_id: cell.cell_id },
+        outputs: [],
+        source: cell.code.split(/(?<=\n)/),
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/x-ipynb+json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${draft.name || "notebook"}.ipynb`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function runAllCells() {
+    if (draft.cells.length === 0) return;
+    setRunningCellId("all");
+    setMessage(null);
+
+    try {
+      const saved = await saveDraft(draft);
+      if (!saved) return;
+
+      const allResults = await runNotebookAllCells(
+        draft.cells.map((item) => item.code),
+        inputRows,
+      );
+
+      const nextResults: Record<string, NotebookRunResult> = {};
+      draft.cells.forEach((cell, index) => {
+        if (allResults[index]) nextResults[cell.cell_id] = allResults[index];
+      });
+      setResults(nextResults);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Notebook run failed.");
+    } finally {
+      setRunningCellId(null);
     }
   }
 
@@ -435,13 +542,7 @@ function WorkspaceNotebook({
           <input
             value={draft.name}
             onChange={(event) => {
-              setDraft(
-                (previous) => ({
-                  ...previous,
-                  name:
-                    event.target.value,
-                })
-              );
+              markDraftChanged({ ...draft, name: event.target.value });
             }}
           />
         </div>
@@ -518,15 +619,7 @@ function WorkspaceNotebook({
               runningCellId !== null ||
               loadingData
             }
-            onClick={() => {
-              if (
-                draft.cells.length > 0
-              ) {
-                void runCell(
-                  draft.cells.length - 1
-                );
-              }
-            }}
+            onClick={() => { void runAllCells(); }}
           >
             <PlayCircle size={14} />
             Run all
@@ -555,10 +648,22 @@ function WorkspaceNotebook({
             }}
           >
             <Save size={14} />
-            {saving
-              ? "Saving..."
-              : "Save"}
+            {saving ? "Saving..." : dirty ? "Save now" : "Saved"}
           </button>
+
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={exportNotebook}
+            title="Export as Jupyter notebook"
+          >
+            <Download size={14} />
+            Export .ipynb
+          </button>
+
+          <span className={dirty ? "notebook-save-status unsaved" : "notebook-save-status"}>
+            {saving ? "Saving…" : dirty ? "Unsaved changes" : lastSavedAt ? "✓ Saved" : "Saved"}
+          </span>
 
           <button
             type="button"
@@ -639,22 +744,12 @@ function WorkspaceNotebook({
                       const code =
                         event.target.value;
 
-                      setDraft(
-                        (previous) => ({
-                          ...previous,
-                          cells:
-                            previous.cells.map(
-                              (item) =>
-                                item.cell_id ===
-                                cell.cell_id
-                                  ? {
-                                      ...item,
-                                      code,
-                                    }
-                                  : item
-                            ),
-                        })
-                      );
+                      markDraftChanged({
+                        ...draft,
+                        cells: draft.cells.map((item) =>
+                          item.cell_id === cell.cell_id ? { ...item, code } : item
+                        ),
+                      });
 
                       setResults(
                         (previous) => {
@@ -717,17 +812,10 @@ function WorkspaceNotebook({
                       type="button"
                       className="notebook-cell-delete"
                       onClick={() => {
-                        setDraft(
-                          (previous) => ({
-                            ...previous,
-                            cells:
-                              previous.cells.filter(
-                                (item) =>
-                                  item.cell_id !==
-                                  cell.cell_id
-                              ),
-                          })
-                        );
+                        markDraftChanged({
+                          ...draft,
+                          cells: draft.cells.filter((item) => item.cell_id !== cell.cell_id),
+                        });
                       }}
                     >
                       Delete cell
@@ -769,34 +857,37 @@ function WorkspaceNotebook({
                   {result && (
                     <div className="notebook-output">
                       <div className="notebook-output-header">
-                        <span>
+                        <button
+                          type="button"
+                          className="notebook-output-toggle"
+                          onClick={() => setCollapsedOutputs((previous) => ({
+                            ...previous,
+                            [cell.cell_id]: !previous[cell.cell_id],
+                          }))}
+                        >
+                          {collapsedOutputs[cell.cell_id] ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                           OUTPUT
-                        </span>
+                        </button>
 
                         <strong>
-                          {result.rows.length}
-                          {" "}rows
+                          {result.expressionKind === "scalar"
+                            ? "value"
+                            : `${result.rows.length} rows`}
                         </strong>
                       </div>
 
-                      {result.output && (
+                      {!collapsedOutputs[cell.cell_id] && result.output && (
                         <pre>
                           {result.output}
                         </pre>
                       )}
 
-                      {result.rows.length > 0 && (
+                      {!collapsedOutputs[cell.cell_id] && result.expressionKind === "dataframe" && result.rows.length > 0 && (
                         <div className="notebook-preview-table-wrap">
                           <table>
                             <thead>
                               <tr>
-                                {Object.keys(
-                                  result.rows[0]
-                                )
-                                  .slice(
-                                    0,
-                                    10
-                                  )
+                                {Object.keys(result.rows[0])
                                   .map(
                                     (column) => (
                                       <th
@@ -827,13 +918,7 @@ function WorkspaceNotebook({
                                         rowIndex
                                       }
                                     >
-                                      {Object.keys(
-                                        result.rows[0]
-                                      )
-                                        .slice(
-                                          0,
-                                          10
-                                        )
+                                      {Object.keys(result.rows[0])
                                         .map(
                                           (column) => (
                                             <td
@@ -872,15 +957,10 @@ function WorkspaceNotebook({
           type="button"
           className="notebook-add-cell"
           onClick={() => {
-            setDraft(
-              (previous) => ({
-                ...previous,
-                cells: [
-                  ...previous.cells,
-                  createCell(),
-                ],
-              })
-            );
+            markDraftChanged({
+              ...draft,
+              cells: [...draft.cells, createCell()],
+            });
           }}
         >
           <Plus size={14} />
