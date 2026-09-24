@@ -77,6 +77,31 @@ def _deterministic_workspace_guidance(
         if value
     )
     normalized_step = step_text.casefold()
+    notebook_evidence = []
+    for notebook in workspace_context.get("notebooks", []):
+        for cell in notebook.get("recent_cells", []):
+            execution = cell.get("last_execution")
+            if execution:
+                notebook_evidence.append({
+                    "code": cell.get("code", ""),
+                    "execution": execution,
+                })
+
+    car_count_observed = any(
+        "car" in item["code"].casefold()
+        and ("isna" in item["code"].casefold() or "isnull" in item["code"].casefold())
+        and item["execution"].get("success")
+        and item["execution"].get("expression_kind") == "scalar"
+        for item in notebook_evidence
+    )
+    car_examples_observed = any(
+        "car" in item["code"].casefold()
+        and ("isna" in item["code"].casefold() or "isnull" in item["code"].casefold())
+        and item["execution"].get("success")
+        and item["execution"].get("expression_kind") == "dataframe"
+        and item["execution"].get("preview_rows")
+        for item in notebook_evidence
+    )
     if not (
         "car" in normalized_step
         and ("eksik" in normalized_step or "missing" in normalized_step or "null" in normalized_step)
@@ -106,7 +131,8 @@ def _deterministic_workspace_guidance(
     ).casefold()
 
     count_reported = (
-        "np.int64(23)" in normalized_message
+        car_count_observed
+        or "np.int64(23)" in normalized_message
         or "23 eksik" in normalized_message
         or "np.int64(23)" in recent_user_text
         or "23 eksik" in recent_user_text
@@ -118,6 +144,13 @@ def _deterministic_workspace_guidance(
         "i don't know", "i dont know", "first time", "show me", "teach me",
     )
     asks_for_instruction = any(marker in normalized_message for marker in direct_teaching_markers)
+
+    if car_examples_observed:
+        return (
+            "Notebook'taki son çalışmanı ve çıktıyı görüyorum; sonucu tekrar buraya kopyalaman gerekmiyor. "
+            "Car değeri eksik olan örnek satırları başarıyla görüntüledin. "
+            "Şimdi bu örneklerde ortak bir desen olup olmadığını birlikte yorumlayabiliriz."
+        )
 
     if count_reported:
         if asks_for_instruction:
