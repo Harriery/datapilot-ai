@@ -12092,3 +12092,52 @@
 .notebook-preview-table-wrap td {
   white-space: nowrap;
 }
+
+
+/* Persistent adaptive mentor */
+.workspace-mentor-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: min(390px, calc(100vw - 40px));
+  height: min(620px, calc(100vh - 90px));
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #d7e2f0;
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(31, 55, 90, 0.18);
+  overflow: hidden;
+}
+.workspace-mentor-panel.collapsed { height: auto; }
+.workspace-mentor-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 15px; border-bottom:1px solid #e4ebf4; background:#f7faff;
+}
+.workspace-mentor-header > div { display:flex; align-items:center; gap:9px; color:#182a46; }
+.workspace-mentor-header span span, .workspace-mentor-header > div > span { display:flex; flex-direction:column; gap:2px; }
+.workspace-mentor-header small { color:#73839b; font-size:11px; font-weight:500; }
+.workspace-mentor-header-actions { display:flex; flex-direction:row !important; gap:4px; }
+.workspace-mentor-header button, .mentor-panel-launcher {
+  border:1px solid #d8e3f1; background:#fff; color:#2f7ff0; border-radius:9px; cursor:pointer;
+}
+.workspace-mentor-header button { width:30px; height:30px; display:grid; place-items:center; }
+.workspace-mentor-messages { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; background:#fbfcfe; }
+.workspace-mentor-empty { margin:auto 8px; padding:18px; text-align:center; color:#6c7e98; }
+.workspace-mentor-empty svg { color:#2f7ff0; }
+.workspace-mentor-message { display:flex; }
+.workspace-mentor-message span { max-width:88%; padding:10px 12px; border-radius:13px; white-space:pre-wrap; line-height:1.45; font-size:13px; }
+.workspace-mentor-message.user { justify-content:flex-end; }
+.workspace-mentor-message.user span { background:#2f7ff0; color:#fff; border-bottom-right-radius:4px; }
+.workspace-mentor-message.assistant span { background:#fff; border:1px solid #dfe7f1; color:#253a57; border-bottom-left-radius:4px; }
+.workspace-mentor-composer { display:flex; gap:8px; padding:12px; border-top:1px solid #e4ebf4; background:#fff; }
+.workspace-mentor-composer textarea { flex:1; resize:none; min-height:48px; max-height:130px; border:1px solid #d5e0ee; border-radius:10px; padding:10px; font:inherit; outline:none; }
+.workspace-mentor-composer textarea:focus { border-color:#2f7ff0; box-shadow:0 0 0 2px rgba(47,127,240,.1); }
+.workspace-mentor-composer button { align-self:flex-end; width:42px; height:42px; display:grid; place-items:center; border:0; border-radius:10px; background:#2f7ff0; color:#fff; cursor:pointer; }
+.workspace-mentor-composer button:disabled { opacity:.45; cursor:not-allowed; }
+.mentor-panel-launcher { position:fixed; right:20px; bottom:20px; z-index:80; display:flex; align-items:center; gap:7px; padding:10px 13px; box-shadow:0 10px 28px rgba(31,55,90,.15); font-weight:700; }
+@media (max-width: 760px) {
+  .workspace-mentor-panel { right:10px; bottom:10px; width:calc(100vw - 20px); height:min(70vh,620px); }
+  .mentor-panel-launcher { right:10px; bottom:10px; }
+}
