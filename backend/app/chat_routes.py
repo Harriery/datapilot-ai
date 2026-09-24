@@ -100,12 +100,32 @@ def chat(request: ChatRequest):
         # Give the mentor a real project snapshot, not only the workspace title.
         # This lets it reason from the learner's current task, data findings,
         # notebook/pipeline state and prior project decisions without inventing context.
+        current_task = None
+        current_step = None
+        if workspace.current_task_id is not None:
+            task = database.get_data_engineering_task(
+                task_id=workspace.current_task_id,
+                learner_id=learner_id,
+            )
+            if task is not None:
+                current_task = task.model_dump()
+                current_step = next(
+                    (
+                        step.model_dump()
+                        for step in task.steps
+                        if step.step_number == task.current_step_number
+                    ),
+                    None,
+                )
+
         workspace_context = {
             "workspace_id": workspace.workspace_id,
             "title": workspace.title,
             "workspace_type": workspace.workspace_type,
             "status": workspace.status,
             "current_task_id": workspace.current_task_id,
+            "current_task": current_task,
+            "current_step": current_step,
             "checkpoint": workspace.checkpoint.model_dump(),
             "task_brief": workspace.task_brief,
             "desired_outcome": workspace.desired_outcome,
