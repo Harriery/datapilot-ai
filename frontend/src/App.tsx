@@ -4085,6 +4085,62 @@ async function restoreWorkspaceVersion(
     }
   }
 
+  function getSyncedWorkspaceTask(): WorkspaceTask | null {
+    if (!workspaceTask || !dashboardWorkspace) {
+      return workspaceTask;
+    }
+
+    const qualityOperations =
+      dashboardWorkspace.workbench_operations?.filter(
+        (operation) =>
+          operation.origin === "data_quality"
+      ) ?? [];
+
+    if (qualityOperations.length === 0) {
+      return workspaceTask;
+    }
+
+    const steps = workspaceTask.steps.map(
+      (step, index) => {
+        const operation =
+          qualityOperations[index];
+
+        return operation
+          ? {
+              ...step,
+              status: operation.status,
+            }
+          : step;
+      }
+    );
+
+    const activeStep = steps.find(
+      (step) =>
+        step.status === "active"
+    );
+
+    const allCompleted =
+      steps.length > 0 &&
+      steps.every(
+        (step) =>
+          step.status === "completed"
+      );
+
+    return {
+      ...workspaceTask,
+      steps,
+      current_step_number:
+        activeStep?.step_number ??
+        workspaceTask.current_step_number,
+      status: allCompleted
+        ? "completed"
+        : "active",
+    };
+  }
+
+  const syncedWorkspaceTask =
+    getSyncedWorkspaceTask();
+
   const workspaceReviewCompleted =
     dashboardWorkspace?.checkpoint.completed_items.includes(
       "Final review completed"
@@ -6240,13 +6296,13 @@ async function restoreWorkspaceVersion(
 
                         </section>
 
-                        {workspaceTask &&
+                        {syncedWorkspaceTask &&
                           (
                             dashboardWorkspace.usage_context !== "personal" ||
                             (
                               activeWorkspaceStage === "prepare" &&
                               activePrepareStage === "workbench" &&
-                              workspaceTask.status !== "completed"
+                              syncedWorkspaceTask.status !== "completed"
                             )
                           ) && (
                           <section className="workspace-overview-card workspace-plan-card">
@@ -6265,18 +6321,18 @@ async function restoreWorkspaceVersion(
                                   {t.workspace.executionPlan}
                                 </span>
                             
-                                <h3>{workspaceTask.title}</h3>
+                                <h3>{syncedWorkspaceTask.title}</h3>
                               </div>
                             
                               <div className="workspace-plan-header-actions">
                                 <span
                                   className={
-                                    workspaceTask.status === "completed"
+                                    syncedWorkspaceTask.status === "completed"
                                       ? "workspace-list-status completed"
                                       : "workspace-list-status active"
                                   }
                                 >
-                                  {workspaceTask.status === "completed"
+                                  {syncedWorkspaceTask.status === "completed"
                                     ? t.workspace.completed
                                     : t.workspace.active}
                                 </span>
@@ -6289,7 +6345,7 @@ async function restoreWorkspaceVersion(
                                   
                             {workspacePlanOpen && (
                               <div className="workspace-plan-steps">
-                                {workspaceTask.steps.map((step) => (
+                                {syncedWorkspaceTask.steps.map((step) => (
                                   <div
                                     className={`workspace-plan-step ${step.status}`}
                                     key={step.step_number}
