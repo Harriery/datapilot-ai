@@ -314,10 +314,11 @@ export function WorkspacePipelineView({
 
               {acceptingOperationId === operation.operation_id &&
                 operation.status === "active" && (
-                <div className="workspace-form">
-                  <label>
-                    {ui.reason}
+                <div className="pipeline-decision-form">
+                  <label className="pipeline-decision-label">
+                    <span>{ui.reason}</span>
                     <textarea
+                      className="pipeline-decision-textarea"
                       value={acceptReason}
                       placeholder={ui.reasonPlaceholder}
                       onChange={(event) => {
@@ -326,7 +327,7 @@ export function WorkspacePipelineView({
                     />
                   </label>
 
-                  <div className="workspace-form-actions">
+                  <div className="pipeline-decision-actions">
                     <button
                       type="button"
                       className="secondary-button"
