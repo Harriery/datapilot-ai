@@ -165,6 +165,11 @@ type WorkbenchOperationData = {
     | null;
 
   result_version_id: string | null;
+
+  decision?:
+    | "accepted_as_is"
+    | null;
+  decision_reason?: string | null;
 };
 
 
