@@ -3737,7 +3737,7 @@ async function deleteWorkbenchOperation(
 async function prepareWorkbenchColumnAction(
   draft: ColumnActionDraft
 ): Promise<boolean> {
-  if (!dashboardWorkspace) {
+  if (!dashboardWorkspace || !workspaceId) {
     return false;
   }
 
@@ -3777,45 +3777,127 @@ async function prepareWorkbenchColumnAction(
       return false;
     }
 
-    if (!activeOperation) {
-      const created =
-        await createWorkbenchOperation(
-          prepared.operation
-        );
+    setAddTransformationLoading(true);
+    setAddTransformationError(null);
 
-      if (!created) {
-        return false;
+    const response = await fetch(
+      (
+        `http://127.0.0.1:8000/workspaces/` +
+        `demo-learner/${workspaceId}` +
+        "/workbench/apply-structured"
+      ),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          ...prepared.operation,
+          draft_code:
+            prepared.code,
+          pipeline_action:
+            prepared.pipelineAction,
+        }),
       }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Structured transformation could not be applied."
+      );
     }
 
-    setTransformationCode(
-      prepared.code
+    const data: {
+      operation:
+        WorkbenchOperationData;
+      active_operation_id:
+        string | null;
+      before_row_count: number;
+      after_row_count: number;
+      schema_changed: boolean;
+      working_data:
+        WorkspaceWorkingData;
+    } = await response.json();
+
+    setWorkspaceWorkingData(
+      data.working_data
+    );
+
+    const workspaceResponse =
+      await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+      );
+
+    if (!workspaceResponse.ok) {
+      throw new Error(
+        "Transformation was saved but the workspace could not be refreshed."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await workspaceResponse.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+    setWorkspacePreviewRevision(
+      (previous) =>
+        previous + 1
     );
 
     setPreparedPipelineAction(
-      prepared.pipelineAction
+      null
     );
-
     setPreparedPipelineCode(
-      prepared.code
+      null
     );
-
     setResultRows(null);
     setPythonError(null);
+
     setValidationMessage(
-      "Column action prepared. Run it to preview the result, then submit to save it."
+      data.active_operation_id === null
+        ? "Structured transformation applied and saved. Workbench tasks are complete."
+        : "Structured transformation applied and saved. The next Workbench task is active."
     );
+
+    setWorkBenchViewAfterStructuredAction();
 
     return true;
   } catch (error) {
     setAddTransformationError(
       error instanceof Error
         ? error.message
-        : "Column action could not be prepared."
+        : "Column action could not be applied."
     );
 
     return false;
+  } finally {
+    setAddTransformationLoading(false);
   }
+}
+
+function setWorkBenchViewAfterStructuredAction() {
+  setWorkbenchView(
+    "pipeline"
+  );
 }
 
 
