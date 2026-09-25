@@ -21,6 +21,7 @@ export type ColumnActionDraft = {
   fillValue?: string;
   oldValue?: string;
   newValue?: string;
+  replaceWithMissing?: boolean;
   derivedName?: string;
   derivedOperation?: "copy" | "uppercase" | "lowercase" | "add" | "multiply";
   derivedValue?: string;
