@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { AppLanguage } from "./i18n";
 
 import {
@@ -28,6 +29,11 @@ type Operation = {
         action: string;
       }
     | null;
+
+  decision?:
+    | "accepted_as_is"
+    | null;
+  decision_reason?: string | null;
 };
 
 type ProcessedDataset = {
@@ -68,6 +74,11 @@ type Props = {
   onDeleteOperation?: (
     operationId: string
   ) => void;
+
+  onAcceptAsIs?: (
+    operationId: string,
+    reason: string
+  ) => Promise<boolean>;
 };
 
 export function WorkspacePipelineView({
@@ -80,12 +91,18 @@ export function WorkspacePipelineView({
   fullPipelineError = null,
   onApplyFullDataset,
   onDeleteOperation,
+  onAcceptAsIs,
 }: Props) {
   const ui = {
-    en:{ pipeline:"PIPELINE", title:"Cleaning pipeline", description:"Only structured completed steps can be replayed safely on the full dataset.", add:"+ Add transformation", applying:"Applying...", apply:"Apply to full dataset", blocker:"Complete every step and convert experimental/custom notebook steps into structured actions before full-dataset replay.", total:"Total steps", replayable:"Replayable", attention:"Needs attention", remove:"Remove", pending:"pending", active:"active", completed:"completed", custom:"custom / experimental" },
-    nl:{ pipeline:"PIPELINE", title:"Opschoningspipeline", description:"Alleen voltooide gestructureerde stappen kunnen veilig op de volledige dataset worden herhaald.", add:"+ Transformatie toevoegen", applying:"Toepassen...", apply:"Toepassen op volledige dataset", blocker:"Voltooi elke stap en zet experimentele/aangepaste notebookstappen om in gestructureerde acties vóór herhaling op de volledige dataset.", total:"Totaal stappen", replayable:"Herhaalbaar", attention:"Aandacht nodig", remove:"Verwijderen", pending:"in afwachting", active:"actief", completed:"voltooid", custom:"aangepast / experimenteel" },
-    tr:{ pipeline:"PIPELINE", title:"Temizleme pipeline'ı", description:"Yalnızca tamamlanmış yapılandırılmış adımlar tam veri setinde güvenle yeniden uygulanabilir.", add:"+ Dönüşüm ekle", applying:"Uygulanıyor...", apply:"Tam veri setine uygula", blocker:"Tam veri setine uygulamadan önce tüm adımları tamamla ve deneysel/özel notebook adımlarını yapılandırılmış aksiyonlara dönüştür.", total:"Toplam adım", replayable:"Yeniden uygulanabilir", attention:"İlgilenilmesi gereken", remove:"Kaldır", pending:"bekliyor", active:"aktif", completed:"tamamlandı", custom:"özel / deneysel" },
+    en:{ pipeline:"PIPELINE", title:"Cleaning pipeline", description:"Only structured completed steps can be replayed safely on the full dataset.", add:"+ Add transformation", applying:"Applying...", apply:"Apply to full dataset", blocker:"Complete every step and convert experimental/custom notebook steps into structured actions before full-dataset replay.", total:"Total steps", replayable:"Replayable", attention:"Needs attention", remove:"Remove", pending:"pending", active:"active", completed:"completed", custom:"custom / experimental", accept:"Accept as-is", reason:"Reason / decision note", reasonPlaceholder:"Explain why no transformation is needed...", accepted:"accepted as-is" },
+    nl:{ pipeline:"PIPELINE", title:"Opschoningspipeline", description:"Alleen voltooide gestructureerde stappen kunnen veilig op de volledige dataset worden herhaald.", add:"+ Transformatie toevoegen", applying:"Toepassen...", apply:"Toepassen op volledige dataset", blocker:"Voltooi elke stap en zet experimentele/aangepaste notebookstappen om in gestructureerde acties vóór herhaling op de volledige dataset.", total:"Totaal stappen", replayable:"Herhaalbaar", attention:"Aandacht nodig", remove:"Verwijderen", pending:"in afwachting", active:"actief", completed:"voltooid", custom:"aangepast / experimenteel", accept:"Accepteren zoals het is", reason:"Reden / beslisnotitie", reasonPlaceholder:"Leg uit waarom geen transformatie nodig is...", accepted:"geaccepteerd zoals het is" },
+    tr:{ pipeline:"PIPELINE", title:"Temizleme pipeline'ı", description:"Yalnızca tamamlanmış yapılandırılmış adımlar tam veri setinde güvenle yeniden uygulanabilir.", add:"+ Dönüşüm ekle", applying:"Uygulanıyor...", apply:"Tam veri setine uygula", blocker:"Tam veri setine uygulamadan önce tüm adımları tamamla ve deneysel/özel notebook adımlarını yapılandırılmış aksiyonlara dönüştür.", total:"Toplam adım", replayable:"Yeniden uygulanabilir", attention:"İlgilenilmesi gereken", remove:"Kaldır", pending:"bekliyor", active:"aktif", completed:"tamamlandı", custom:"özel / deneysel", accept:"Olduğu gibi kabul et", reason:"Gerekçe / karar notu", reasonPlaceholder:"Neden dönüşüm gerekmediğini açıklayın...", accepted:"olduğu gibi kabul edildi" },
   }[language];
+
+  const [acceptingOperationId, setAcceptingOperationId] =
+    useState<string | null>(null);
+  const [acceptReason, setAcceptReason] =
+    useState("");
 
   const replayable =
     operations.filter(
@@ -100,7 +117,11 @@ export function WorkspacePipelineView({
       (operation) =>
         operation.status !==
           "completed" ||
-        !operation.pipeline_action
+        (
+          !operation.pipeline_action &&
+          operation.decision !==
+            "accepted_as_is"
+        )
     );
 
   return (
@@ -244,7 +265,32 @@ export function WorkspacePipelineView({
                     </button>
                   )}
 
-                  {operation.pipeline_action ? (
+                  {operation.status === "active" &&
+                    operation.origin === "data_quality" &&
+                    onAcceptAsIs && (
+                    <button
+                      type="button"
+                      className="pipeline-remove-step"
+                      onClick={() => {
+                        setAcceptingOperationId(
+                          operation.operation_id
+                        );
+                        setAcceptReason("");
+                      }}
+                    >
+                      {ui.accept}
+                    </button>
+                  )}
+
+                  {operation.decision === "accepted_as_is" ? (
+                    <span
+                      className="pipeline-replayable"
+                      title={operation.decision_reason ?? undefined}
+                    >
+                      <CheckCircle2 size={12} />
+                      {ui.accepted}
+                    </span>
+                  ) : operation.pipeline_action ? (
                     <span className="pipeline-replayable">
                       <CheckCircle2
                         size={12}
@@ -265,6 +311,52 @@ export function WorkspacePipelineView({
                   )}
                 </div>
               </div>
+
+              {acceptingOperationId === operation.operation_id &&
+                operation.status === "active" && (
+                <div className="workspace-form">
+                  <label>
+                    {ui.reason}
+                    <textarea
+                      value={acceptReason}
+                      placeholder={ui.reasonPlaceholder}
+                      onChange={(event) => {
+                        setAcceptReason(event.target.value);
+                      }}
+                    />
+                  </label>
+
+                  <div className="workspace-form-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        setAcceptingOperationId(null);
+                        setAcceptReason("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="new-workspace-button"
+                      disabled={acceptReason.trim().length < 3}
+                      onClick={async () => {
+                        const accepted = await onAcceptAsIs!(
+                          operation.operation_id,
+                          acceptReason.trim()
+                        );
+                        if (accepted) {
+                          setAcceptingOperationId(null);
+                          setAcceptReason("");
+                        }
+                      }}
+                    >
+                      {ui.accept}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )
         )}
