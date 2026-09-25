@@ -1095,6 +1095,21 @@ class WorkspaceWorkbenchOperation(BaseModel):
     rollback_version_number: int | None = None
     result_version_id: str | None = None
 
+    # A reviewed data-quality finding can be completed without mutating
+    # the dataset. This is intentionally distinct from a replayable
+    # transformation.
+    decision: Literal[
+        "accepted_as_is",
+    ] | None = None
+    decision_reason: str | None = None
+
+
+class WorkspaceWorkbenchDecisionRequest(BaseModel):
+    reason: str = Field(
+        min_length=3,
+        max_length=1000,
+    )
+
 
 class WorkspaceWorkbenchPreview(BaseModel):
     operation_id: str
