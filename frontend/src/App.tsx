@@ -3901,6 +3901,77 @@ function setWorkBenchViewAfterStructuredAction() {
 }
 
 
+async function acceptWorkbenchOperationAsIs(
+  operationId: string,
+  reason: string
+): Promise<boolean> {
+  if (!workspaceId) {
+    return false;
+  }
+
+  try {
+    setFullPipelineError(null);
+
+    const response = await fetch(
+      (
+        `http://127.0.0.1:8000/workspaces/` +
+        `demo-learner/${workspaceId}` +
+        `/workbench/operations/${operationId}/accept-as-is`
+      ),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reason,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.detail ||
+          "The review decision could not be saved."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await response.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+    setValidationMessage(
+      "Review decision saved. No dataset values were changed."
+    );
+
+    return true;
+  } catch (error) {
+    setFullPipelineError(
+      error instanceof Error
+        ? error.message
+        : "The review decision could not be saved."
+    );
+
+    return false;
+  }
+}
+
 async function restoreWorkspaceVersion(
     versionNumber: number
   ) {
@@ -6794,7 +6865,11 @@ async function restoreWorkspaceVersion(
                                         (operation) =>
                                           operation.status !==
                                             "completed" ||
-                                          !operation.pipeline_action
+                                          (
+                                            !operation.pipeline_action &&
+                                            operation.decision !==
+                                              "accepted_as_is"
+                                          )
                                       )
                                   }
                                   fullPipelineLoading={
@@ -6811,6 +6886,9 @@ async function restoreWorkspaceVersion(
                                       operationId
                                     );
                                   }}
+                                  onAcceptAsIs={
+                                    acceptWorkbenchOperationAsIs
+                                  }
                                 />
                               )}
 
