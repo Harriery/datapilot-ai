@@ -212,7 +212,7 @@ function WorkbenchColumnInspector({
           disabled={preparing || Boolean(disabledReason)}
           onClick={() => void handlePrepare()}
         >
-          {preparing ? "Preparing..." : "Prepare transformation"}
+          {preparing ? "Applying..." : "Apply transformation"}
         </button>
       </div>
     </aside>
