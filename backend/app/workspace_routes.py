@@ -43,6 +43,7 @@ from backend.app.models import (
     WorkspaceWorkbenchOperationCreateRequest,
     WorkspaceWorkbenchTransformationRequest,
     WorkspaceWorkbenchTransformationResponse,
+    WorkspaceWorkbenchDecisionRequest,
     WorkspaceDevelopmentSampleRequest,
     WorkspaceDevelopmentSampleResponse,
     WorkspaceFullPipelineResponse,
@@ -440,6 +441,95 @@ def delete_workspace_workbench_operation(
     return Response(
         status_code=204
     )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/workbench/operations/{operation_id}/accept-as-is"
+    ),
+    response_model=Workspace,
+)
+def accept_workspace_workbench_operation_as_is(
+    learner_id: str,
+    workspace_id: str,
+    operation_id: str,
+    request: WorkspaceWorkbenchDecisionRequest,
+):
+    """
+    Complete an active data-quality review without changing the dataset.
+
+    This records an explicit decision and rationale. It is not a replayable
+    pipeline action because there is nothing to apply to the full dataset.
+    """
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    operation = next(
+        (
+            item
+            for item in workspace.workbench_operations
+            if item.operation_id == operation_id
+        ),
+        None,
+    )
+
+    if operation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workbench operation bulunamadı.",
+        )
+
+    if operation.status != "active":
+        raise HTTPException(
+            status_code=400,
+            detail="Yalnızca aktif Workbench operation kabul edilebilir.",
+        )
+
+    if operation.origin != "data_quality":
+        raise HTTPException(
+            status_code=400,
+            detail="Accept as-is yalnızca data-quality review için kullanılabilir.",
+        )
+
+    operation.status = "completed"
+    operation.decision = "accepted_as_is"
+    operation.decision_reason = request.reason.strip()
+    operation.pipeline_action = None
+    operation.code = None
+
+    next_operation = next(
+        (
+            item
+            for item in workspace.workbench_operations
+            if item.status == "pending"
+        ),
+        None,
+    )
+
+    if next_operation is None:
+        workspace.workbench_active_operation_id = None
+    else:
+        next_operation.status = "active"
+        workspace.workbench_active_operation_id = (
+            next_operation.operation_id
+        )
+
+    workspace.workbench_preview = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
 
 
 @router.post(
