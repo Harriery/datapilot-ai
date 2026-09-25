@@ -146,6 +146,7 @@ from backend.app.transformation_validation_service import (
 )
 
 from backend.app.workspace_pipeline_service import (
+    apply_pipeline_action,
     apply_replayable_workbench_pipeline,
 )
 
@@ -438,6 +439,125 @@ def delete_workspace_workbench_operation(
 
     return Response(
         status_code=204
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/workbench/apply-structured"
+    ),
+    response_model=(
+        WorkspaceWorkbenchTransformationResponse
+    ),
+)
+def apply_structured_workspace_workbench_action(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceWorkbenchOperationCreateRequest,
+):
+    """
+    Apply an Explorer structured action directly to the active
+    data-quality operation.
+
+    Structured column actions are deterministic and replayable, so
+    they should not disappear into the legacy free-code preview flow.
+    The normal /workbench/transform endpoint remains the single place
+    that validates, versions, persists and advances the operation.
+    """
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if (
+        request.pipeline_action is None
+        or not request.draft_code
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Structured Workbench action için "
+                "pipeline_action ve draft_code gerekli."
+            ),
+        )
+
+    active_operation = next(
+        (
+            operation
+            for operation in workspace.workbench_operations
+            if operation.status == "active"
+        ),
+        None,
+    )
+
+    if active_operation is None:
+        active_operation = add_user_workbench_operation(
+            existing_operations=workspace.workbench_operations,
+            request=request,
+        )
+
+        workspace.workbench_active_operation_id = (
+            active_operation.operation_id
+        )
+
+        database.save_workspace(
+            workspace=workspace
+        )
+
+    elif not (
+        active_operation.origin == "data_quality"
+        and request.pipeline_action.column
+        in active_operation.source_columns
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Önce aktif Workbench operation tamamlanmalı."
+            ),
+        )
+
+    try:
+        before_df = load_workspace_working_dataframe(
+            workspace_id
+        )
+
+        after_df = apply_pipeline_action(
+            before_df,
+            request.pipeline_action,
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    transform_request = (
+        WorkspaceWorkbenchTransformationRequest(
+            operation_id=active_operation.operation_id,
+            code=request.draft_code,
+            after_rows=dataframe_to_records(after_df),
+            pipeline_action=request.pipeline_action,
+        )
+    )
+
+    return transform_workspace_workbench_data(
+        learner_id=learner_id,
+        workspace_id=workspace_id,
+        request=transform_request,
     )
 
 
