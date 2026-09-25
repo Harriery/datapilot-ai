@@ -28,6 +28,7 @@ function WorkbenchColumnInspector({
   const [fillValue, setFillValue] = useState("");
   const [oldValue, setOldValue] = useState("");
   const [newValue, setNewValue] = useState("");
+  const [replaceWithMissing, setReplaceWithMissing] = useState(false);
   const [derivedName, setDerivedName] = useState("");
   const [derivedOperation, setDerivedOperation] =
     useState<"copy" | "uppercase" | "lowercase" | "add" | "multiply">("copy");
@@ -41,6 +42,7 @@ function WorkbenchColumnInspector({
     setFillValue("");
     setOldValue("");
     setNewValue("");
+    setReplaceWithMissing(false);
     setDerivedName("");
     setDerivedValue("");
   }, [column]);
@@ -62,6 +64,7 @@ function WorkbenchColumnInspector({
         fillValue,
         oldValue,
         newValue,
+        replaceWithMissing,
         derivedName,
         derivedOperation,
         derivedValue,
@@ -166,10 +169,27 @@ function WorkbenchColumnInspector({
             <span>Old value</span>
             <input value={oldValue} onChange={(e) => setOldValue(e.target.value)} />
           </label>
-          <label className="column-inspector-field">
+          <div className="column-inspector-field">
             <span>New value</span>
-            <input value={newValue} onChange={(e) => setNewValue(e.target.value)} />
-          </label>
+            <input
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              disabled={replaceWithMissing}
+              placeholder={replaceWithMissing ? "Missing (null)" : ""}
+            />
+            <label className="column-inspector-null-option">
+              <input
+                type="checkbox"
+                checked={replaceWithMissing}
+                onChange={(e) => {
+                  setReplaceWithMissing(e.target.checked);
+                  if (e.target.checked) setNewValue("");
+                  setError(null);
+                }}
+              />
+              <span>Set as missing (null)</span>
+            </label>
+          </div>
         </div>
       )}
 
