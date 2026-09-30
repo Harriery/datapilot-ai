@@ -24,6 +24,11 @@ export type ColumnActionDraft = {
   oldValue?: string;
   newValue?: string;
   replaceWithMissing?: boolean;
+  replacementPairs?: Array<{
+    oldValue: string;
+    newValue: string;
+    replaceWithMissing?: boolean;
+  }>;
   derivedName?: string;
   derivedOperation?: "copy" | "uppercase" | "lowercase" | "add" | "multiply";
   derivedValue?: string;
@@ -191,19 +196,46 @@ export function prepareColumnAction(
   }
 
   if (draft.action === "replace_values") {
-    if (draft.oldValue === undefined || draft.newValue === undefined) {
-      throw new Error("Enter both old and new values.");
+    const pairs = (
+      draft.replacementPairs?.length
+        ? draft.replacementPairs
+        : [{
+            oldValue: draft.oldValue ?? "",
+            newValue: draft.newValue ?? "",
+            replaceWithMissing: draft.replaceWithMissing,
+          }]
+    ).filter((pair) => pair.oldValue.trim() !== "");
+
+    if (pairs.length === 0) {
+      throw new Error("Enter at least one replacement.");
     }
 
     title = `Replace values in ${column}`;
-    goal = `Replace a specific value in ${column} while preserving other values.`;
-    code = `df[${pyString(column)}] = df[${pyString(column)}].replace(${pyLiteral(draft.oldValue)}, ${pyLiteral(draft.newValue)})`;
+    goal = `Replace one or more explicit values in ${column} while preserving other values.`;
 
-    pipelineAction.old_value =
-      parseLiteral(draft.oldValue);
+    const replacementObject = pairs
+      .map((pair) =>
+        `${pyLiteral(pair.oldValue)}: ${pair.replaceWithMissing ? "None" : pyLiteral(pair.newValue)}`
+      )
+      .join(", ");
 
-    pipelineAction.new_value =
-      parseLiteral(draft.newValue);
+    code = `df[${pyString(column)}] = df[${pyString(column)}].replace({${replacementObject}})`;
+
+    const parsedPairs = pairs.map((pair) => ({
+      old_value: parseLiteral(pair.oldValue),
+      new_value: pair.replaceWithMissing
+        ? null
+        : parseLiteral(pair.newValue),
+    }));
+
+    pipelineAction.replacements = parsedPairs;
+
+    if (parsedPairs.length === 1) {
+      pipelineAction.old_value =
+        parsedPairs[0].old_value;
+      pipelineAction.new_value =
+        parsedPairs[0].new_value;
+    }
   }
 
   if (draft.action === "derived") {
