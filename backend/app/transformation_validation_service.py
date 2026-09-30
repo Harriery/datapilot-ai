@@ -122,6 +122,25 @@ def validate_missing_values_dataframes(
     )
 
 
+def validate_suspicious_value_replacement(
+    before_df: pd.DataFrame,
+    after_df: pd.DataFrame,
+    column: str,
+    old_value,
+) -> bool:
+    if column not in before_df.columns or column not in after_df.columns:
+        return False
+    if len(before_df) != len(after_df):
+        return False
+    if pd.isna(old_value):
+        before_count = int(before_df[column].isna().sum())
+        after_count = int(after_df[column].isna().sum())
+    else:
+        before_count = int(before_df[column].eq(old_value).fillna(False).sum())
+        after_count = int(after_df[column].eq(old_value).fillna(False).sum())
+    return before_count > 0 and after_count < before_count
+
+
 # validate_duplicate_rows_transformation()
 #
 # Görevi:
