@@ -67,6 +67,19 @@ export type WorkbenchPipelineActionData = {
     | boolean
     | null;
 
+  replacements?: Array<{
+    old_value:
+      | string
+      | number
+      | boolean
+      | null;
+    new_value:
+      | string
+      | number
+      | boolean
+      | null;
+  }>;
+
   derived_name?: string | null;
 
   derived_operation?:
