@@ -49,7 +49,7 @@ function DataPreview({
   onColumnClick,
 }: Props) {
   const ui = {
-    en: { label:"{ui.label}", search:"Search preview...", searchButton:"Search", clear:"Clear", page:"Page", of:"of", rows:"rows", loading:"{ui.loading}", previous:"{ui.previous}", next:"{ui.next}", showing:"Showing up to" },
+    en: { label:"DATA PREVIEW", search:"Search preview...", searchButton:"Search", clear:"Clear", page:"Page", of:"of", rows:"rows", loading:"Loading preview...", previous:"← Previous", next:"Next →", showing:"Showing up to" },
     nl: { label:"DATA VOORBEELD", search:"Zoek in voorbeeld...", searchButton:"Zoeken", clear:"Wissen", page:"Pagina", of:"van", rows:"rijen", loading:"Voorbeeld laden...", previous:"← Vorige", next:"Volgende →", showing:"Maximaal weergegeven" },
     tr: { label:"VERİ ÖNİZLEME", search:"Önizlemede ara...", searchButton:"Ara", clear:"Temizle", page:"Sayfa", of:"/", rows:"satır", loading:"Önizleme yükleniyor...", previous:"← Önceki", next:"Sonraki →", showing:"En fazla gösterilen" },
   }[language];

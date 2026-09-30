@@ -719,7 +719,7 @@ function App() {
   const [, setPreparedPipelineCode] = useState<string | null>(null);
   const [, setResultRows] = useState<Record<string, unknown>[] | null>(null);
 
-  const [, setValidationMessage] =
+  const [validationMessage, setValidationMessage] =
   useState<string | null>(null);
 
   const [, setPythonError] = useState<string | null>(
@@ -2205,6 +2205,10 @@ async function applyPipelineToFullDataset() {
 
     await loadWorkspaceVersions(
       workspaceId
+    );
+
+    setValidationMessage(
+      "Full dataset transformation completed. A small preview is shown in the browser; run validation to verify the prepared dataset."
     );
 
     setActivePrepareStage(
@@ -7126,8 +7130,7 @@ async function restoreWorkspaceVersion(
                           />
                         )}
 
-                      {workspaceTask &&
-                        workspaceTask.status === "completed" &&
+                      {getPrepareStageStatus("validate") !== "locked" &&
                         (
                           dashboardWorkspace.usage_context !== "personal" ||
                           (
@@ -7136,6 +7139,12 @@ async function restoreWorkspaceVersion(
                           )
                         ) && (
                           <section className="workspace-overview-card workspace-validation-card">
+                            {validationMessage && (
+                              <div className="validation-message">
+                                {validationMessage}
+                              </div>
+                            )}
+
                             <div className="workspace-plan-header">
                               <div>
                                 <span className="workspace-overview-label">
