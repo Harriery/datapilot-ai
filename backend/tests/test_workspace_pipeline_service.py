@@ -121,6 +121,56 @@ def test_pipeline_replay_blocks_non_replayable_operation():
         )
 
 
+def test_pipeline_replay_allows_accepted_as_is_quality_reviews():
+    df = pd.DataFrame(
+        {
+            "value": [1, 2, 3],
+        }
+    )
+
+    operations = [
+        WorkspaceWorkbenchOperation(
+            operation_id="accepted-review",
+            title="Review suspicious values",
+            goal="Review values without changing data.",
+            operation_type="clean",
+            origin="data_quality",
+            status="completed",
+            source_columns=["value"],
+            expected_columns=[],
+            code=None,
+            pipeline_action=None,
+            decision="accepted_as_is",
+            decision_reason="Values were reviewed and are valid.",
+        ),
+        WorkspaceWorkbenchOperation(
+            operation_id="replace-value",
+            title="Replace value",
+            goal="Replace one invalid value.",
+            operation_type="clean",
+            origin="data_quality",
+            status="completed",
+            source_columns=["value"],
+            expected_columns=["value"],
+            code="generated",
+            pipeline_action=WorkspacePipelineAction(
+                action="replace_values",
+                column="value",
+                old_value=3,
+                new_value=30,
+            ),
+        ),
+    ]
+
+    result, operation_ids = apply_replayable_workbench_pipeline(
+        source_df=df,
+        operations=operations,
+    )
+
+    assert result["value"].tolist() == [1, 2, 30]
+    assert operation_ids == ["replace-value"]
+
+
 def test_pipeline_replay_applies_completed_structured_operations_in_order():
     df = pd.DataFrame(
         {

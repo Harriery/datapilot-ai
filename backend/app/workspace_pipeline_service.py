@@ -378,7 +378,10 @@ def apply_replayable_workbench_pipeline(
     non_replayable = [
         operation.title
         for operation in completed
-        if operation.pipeline_action is None
+        if (
+            operation.pipeline_action is None
+            and operation.decision != "accepted_as_is"
+        )
     ]
 
     if non_replayable:
