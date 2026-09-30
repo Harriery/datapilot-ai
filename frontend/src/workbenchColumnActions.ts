@@ -196,15 +196,14 @@ export function prepareColumnAction(
   }
 
   if (draft.action === "replace_values") {
-    const pairs = (
-      draft.replacementPairs?.length
-        ? draft.replacementPairs
-        : [{
-            oldValue: draft.oldValue ?? "",
-            newValue: draft.newValue ?? "",
-            replaceWithMissing: draft.replaceWithMissing,
-          }]
-    ).filter((pair) => pair.oldValue.trim() !== "");
+    const pairs = [
+      {
+        oldValue: draft.oldValue ?? "",
+        newValue: draft.newValue ?? "",
+        replaceWithMissing: draft.replaceWithMissing,
+      },
+      ...(draft.replacementPairs ?? []),
+    ].filter((pair) => pair.oldValue.trim() !== "");
 
     if (pairs.length === 0) {
       throw new Error("Enter at least one replacement.");
