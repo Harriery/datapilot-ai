@@ -1221,6 +1221,13 @@ class WorkspaceNotebookCell(BaseModel):
         "python",
     ] = "python"
 
+    # Optional user-defined notebook section. Existing notebooks remain
+    # backward compatible because ungrouped cells keep this as None.
+    section_title: str | None = Field(
+        default=None,
+        max_length=80,
+    )
+
     # Compact browser-execution evidence. We intentionally persist only a
     # bounded observation so the mentor can see the learner's work without
     # sending an entire dataframe back through chat.
