@@ -203,8 +203,8 @@ def test_pipeline_replay_applies_completed_structured_operations_in_order():
 def test_apply_pipeline_action_mapping_fill_uses_only_unambiguous_mappings():
     df = pd.DataFrame(
         {
-            "suburb": ["A", "A", "B", "B", "C", "C", "D"],
-            "council": ["X", None, "Y", "Z", "W", None, None],
+            "suburb": ["A", "A", "B", "B", "B", "C", "C", "D"],
+            "council": ["X", None, "Y", "Z", None, "W", None, None],
         }
     )
 
@@ -219,9 +219,15 @@ def test_apply_pipeline_action_mapping_fill_uses_only_unambiguous_mappings():
         ),
     )
 
+    # A and C each have one known target, so their missing values are filled.
     assert result.loc[1, "council"] == "X"
-    assert pd.isna(result.loc[5, "council"])
-    assert pd.isna(result.loc[6, "council"])
+    assert result.loc[6, "council"] == "W"
+
+    # B maps to both Y and Z, so the ambiguous missing value stays missing.
+    assert pd.isna(result.loc[4, "council"])
+
+    # D has no known target at all, so it also stays missing.
+    assert pd.isna(result.loc[7, "council"])
 
 
 def test_mapping_fill_is_replayable_on_full_dataset():
