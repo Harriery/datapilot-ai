@@ -793,6 +793,13 @@ function WorkspaceNotebook({
                   cell.cell_id
                 ];
 
+              if (
+                sectionCollapsed &&
+                !cell.section_title?.trim()
+              ) {
+                return null;
+              }
+
               return (
                 <div
                   className="notebook-cell-section-wrap"
