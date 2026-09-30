@@ -91,6 +91,19 @@ def init_db():
         """
     )
 
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ai_usage_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            provider TEXT NOT NULL,
+            model TEXT NOT NULL,
+            purpose TEXT NOT NULL,
+            input_chars INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
         # Yüklenen belgelerin bilgilerini saklar.
     connection.execute(
     """
@@ -2253,3 +2266,77 @@ def was_practice_solution_shown(
         return False
 
     return bool(row["solution_shown"])
+
+# ==================================================
+# EXTERNAL AI USAGE GUARD
+# ==================================================
+
+def get_ai_usage_counts() -> dict:
+    connection = get_connection()
+    row = connection.execute(
+        """
+        SELECT
+            SUM(CASE WHEN date(created_at, 'localtime') = date('now', 'localtime')
+                THEN 1 ELSE 0 END) AS daily_requests,
+            SUM(CASE WHEN strftime('%Y-%m', created_at, 'localtime')
+                           = strftime('%Y-%m', 'now', 'localtime')
+                THEN 1 ELSE 0 END) AS monthly_requests
+        FROM ai_usage_events
+        """
+    ).fetchone()
+    connection.close()
+    return {
+        "daily_requests": int(row["daily_requests"] or 0),
+        "monthly_requests": int(row["monthly_requests"] or 0),
+    }
+
+
+def reserve_ai_usage_event(
+    *,
+    provider: str,
+    model: str,
+    purpose: str,
+    input_chars: int,
+    daily_limit: int,
+    monthly_limit: int,
+) -> dict:
+    connection = get_connection()
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            """
+            SELECT
+                SUM(CASE WHEN date(created_at, 'localtime') = date('now', 'localtime')
+                    THEN 1 ELSE 0 END) AS daily_requests,
+                SUM(CASE WHEN strftime('%Y-%m', created_at, 'localtime')
+                               = strftime('%Y-%m', 'now', 'localtime')
+                    THEN 1 ELSE 0 END) AS monthly_requests
+            FROM ai_usage_events
+            """
+        ).fetchone()
+        daily_requests = int(row["daily_requests"] or 0)
+        monthly_requests = int(row["monthly_requests"] or 0)
+
+        if daily_requests >= daily_limit:
+            raise RuntimeError("Daily external AI request limit reached.")
+        if monthly_requests >= monthly_limit:
+            raise RuntimeError("Monthly external AI request limit reached.")
+
+        connection.execute(
+            """
+            INSERT INTO ai_usage_events (
+                provider, model, purpose, input_chars
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (provider, model, purpose, input_chars),
+        )
+        connection.commit()
+        return {
+            "daily_requests": daily_requests + 1,
+            "monthly_requests": monthly_requests + 1,
+        }
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
