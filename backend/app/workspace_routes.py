@@ -3947,13 +3947,44 @@ def validate_workspace_result(
                 )
             )
     
+            source_missing_count = (
+                source_profile[
+                    "null_counts"
+                ].get(
+                    finding.column,
+                    0,
+                )
+            )
+
             success = (
                 missing_count == 0
             )
 
+            pipeline_action = (
+                operation.pipeline_action
+                if operation is not None
+                else None
+            )
+
+            partial_mapping_fill = (
+                pipeline_action is not None
+                and pipeline_action.action
+                == "fill_missing"
+                and pipeline_action.fill_strategy
+                == "mapping"
+                and pipeline_action
+                .mapping_only_unambiguous
+                and missing_count > 0
+                and missing_count
+                < source_missing_count
+            )
+
             status = (
                 "warning"
-                if accepted_as_is
+                if (
+                    accepted_as_is
+                    or partial_mapping_fill
+                )
                 else (
                     "passed"
                     if success
@@ -3976,9 +4007,19 @@ def validate_workspace_result(
                         )
                         if accepted_as_is
                         else (
-                            f"{missing_count} missing "
-                            f"values remain in "
-                            f"{finding.column}."
+                            (
+                                f"{missing_count} missing values remain in "
+                                f"{finding.column}; unambiguous mapping "
+                                f"reduced missing values from "
+                                f"{source_missing_count} and intentionally "
+                                "left unresolved rows unchanged."
+                            )
+                            if partial_mapping_fill
+                            else (
+                                f"{missing_count} missing "
+                                f"values remain in "
+                                f"{finding.column}."
+                            )
                         )
                     ),
                     code="missing_values",
