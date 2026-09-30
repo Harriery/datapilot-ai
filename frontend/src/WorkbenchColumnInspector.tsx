@@ -238,7 +238,7 @@ function WorkbenchColumnInspector({
             Optional row conditions let you replace only matching records.
           </div>
           {replacementConditions.map((condition, index) => (
-            <div className="column-inspector-replacement-row" key={`primary-condition-${index}`}>
+            <div className="column-inspector-condition-row" key={`primary-condition-${index}`}>
               <select
                 value={condition.column}
                 onChange={(e) =>
@@ -296,90 +296,93 @@ function WorkbenchColumnInspector({
           </button>
 
           {replacementPairs.map((pair, index) => (
-            <div className="column-inspector-replacement-row" key={index}>
-              <input
-                value={pair.oldValue}
-                onChange={(e) =>
-                  setReplacementPairs((previous) =>
-                    previous.map((item, itemIndex) =>
-                      itemIndex === index
-                        ? { ...item, oldValue: e.target.value }
-                        : item
-                    )
-                  )
-                }
-                placeholder="Old value"
-              />
-              <input
-                value={pair.newValue}
-                onChange={(e) =>
-                  setReplacementPairs((previous) =>
-                    previous.map((item, itemIndex) =>
-                      itemIndex === index
-                        ? { ...item, newValue: e.target.value }
-                        : item
-                    )
-                  )
-                }
-                disabled={pair.replaceWithMissing}
-                placeholder={pair.replaceWithMissing ? "Missing (null)" : "New value"}
-              />
-              <label className="column-inspector-null-option compact">
+            <div className="column-inspector-replacement-item" key={index}>
+              <div className="column-inspector-replacement-row">
                 <input
-                  type="checkbox"
-                  checked={pair.replaceWithMissing}
+                  value={pair.oldValue}
                   onChange={(e) =>
+                    setReplacementPairs((previous) =>
+                      previous.map((item, itemIndex) =>
+                        itemIndex === index
+                          ? { ...item, oldValue: e.target.value }
+                          : item
+                      )
+                    )
+                  }
+                  placeholder="Old value"
+                />
+                <input
+                  value={pair.newValue}
+                  onChange={(e) =>
+                    setReplacementPairs((previous) =>
+                      previous.map((item, itemIndex) =>
+                        itemIndex === index
+                          ? { ...item, newValue: e.target.value }
+                          : item
+                      )
+                    )
+                  }
+                  disabled={pair.replaceWithMissing}
+                  placeholder={pair.replaceWithMissing ? "Missing (null)" : "New value"}
+                />
+                <label className="column-inspector-null-option compact">
+                  <input
+                    type="checkbox"
+                    checked={pair.replaceWithMissing}
+                    onChange={(e) =>
+                      setReplacementPairs((previous) =>
+                        previous.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? {
+                                ...item,
+                                replaceWithMissing: e.target.checked,
+                                newValue: e.target.checked ? "" : item.newValue,
+                              }
+                            : item
+                        )
+                      )
+                    }
+                  />
+                  <span>Null</span>
+                </label>
+                <button
+                  type="button"
+                  className="secondary-button column-inspector-condition-button"
+                  onClick={() =>
                     setReplacementPairs((previous) =>
                       previous.map((item, itemIndex) =>
                         itemIndex === index
                           ? {
                               ...item,
-                              replaceWithMissing: e.target.checked,
-                              newValue: e.target.checked ? "" : item.newValue,
+                              conditions: [
+                                ...item.conditions,
+                                { column: "", value: "" },
+                              ],
                             }
                           : item
                       )
                     )
                   }
-                />
-                <span>Null</span>
-              </label>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() =>
-                  setReplacementPairs((previous) =>
-                    previous.map((item, itemIndex) =>
-                      itemIndex === index
-                        ? {
-                            ...item,
-                            conditions: [
-                              ...item.conditions,
-                              { column: "", value: "" },
-                            ],
-                          }
-                        : item
+                >
+                  + Row condition
+                </button>
+                <button
+                  type="button"
+                  className="column-inspector-remove-pair"
+                  aria-label="Remove replacement"
+                  onClick={() =>
+                    setReplacementPairs((previous) =>
+                      previous.filter((_, itemIndex) => itemIndex !== index)
                     )
-                  )
-                }
-              >
-                + Condition
-              </button>
-              <button
-                type="button"
-                className="column-inspector-remove-pair"
-                onClick={() =>
-                  setReplacementPairs((previous) =>
-                    previous.filter((_, itemIndex) => itemIndex !== index)
-                  )
-                }
-              >
-                ×
-              </button>
+                  }
+                >
+                  ×
+                </button>
+              </div>
 
               {pair.conditions.map((condition, conditionIndex) => (
                 <div
-                  className="column-inspector-replacement-row"
+                  className="column-inspector-condition-row nested"
                   key={`pair-${index}-condition-${conditionIndex}`}
                 >
                   <select
@@ -429,6 +432,7 @@ function WorkbenchColumnInspector({
                   <button
                     type="button"
                     className="column-inspector-remove-pair"
+                    aria-label="Remove condition"
                     onClick={() =>
                       setReplacementPairs((previous) =>
                         previous.map((item, itemIndex) =>
