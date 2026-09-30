@@ -10054,7 +10054,30 @@
   display: grid;
   grid-template-columns:
     repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
+  align-items: start;
+}
+
+.column-inspector-null-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin-top: 2px;
+  color: #596d84;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.column-inspector-null-option input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 14px;
 }
 
 .column-inspector-actions {
