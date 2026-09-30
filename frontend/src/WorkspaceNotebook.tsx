@@ -198,7 +198,14 @@ function WorkspaceNotebook({
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [collapsedOutputs, setCollapsedOutputs] = useState<Record<string, boolean>>({});
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(
+    Object.fromEntries(
+      notebook.cells
+        .map((cell) => cell.section_title?.trim())
+        .filter((title): title is string => Boolean(title))
+        .map((title) => [title, true])
+    )
+  );
   const autosaveTimer = useRef<number | null>(null);
 
   const [
@@ -241,7 +248,14 @@ function WorkspaceNotebook({
     setDraft(notebook);
     setResults({});
     setMentorGuidance({});
-    setCollapsedSections({});
+    setCollapsedSections(
+      Object.fromEntries(
+        notebook.cells
+          .map((cell) => cell.section_title?.trim())
+          .filter((title): title is string => Boolean(title))
+          .map((title) => [title, true])
+      )
+    );
     setMessage(null);
     setDirty(false);
     setLastSavedAt(notebook.updated_at);
