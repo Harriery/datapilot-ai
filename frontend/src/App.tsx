@@ -545,6 +545,20 @@ type PracticeHintData = {
   solution_available: boolean;
 };
 
+type AIUsageStatus = {
+  daily_requests: number;
+  monthly_requests: number;
+  daily_request_limit: number;
+  monthly_request_limit: number;
+  daily_remaining: number;
+  monthly_remaining: number;
+  max_input_chars_per_request: number;
+  max_output_tokens_per_request: number;
+  free_only: boolean;
+  allowed_free_providers: string[];
+  allow_paid_provider: boolean;
+};
+
 type PracticeSolutionData = {
   challenge_id: string;
   solution: string;
@@ -710,6 +724,7 @@ function App() {
   | "practice"
   | "tasks"
   |"progress"
+  | "settings"
   | "new-workspace"
   >("dashboard");
  
@@ -755,6 +770,45 @@ function App() {
 
   const [dashboardLoading, setDashboardLoading] =
   useState(true);
+
+  const [aiUsageStatus, setAiUsageStatus] =
+    useState<AIUsageStatus | null>(null);
+
+  const [aiUsageLoading, setAiUsageLoading] =
+    useState(false);
+
+  const [aiUsageError, setAiUsageError] =
+    useState<string | null>(null);
+
+  async function loadAiUsageStatus() {
+    setAiUsageLoading(true);
+    setAiUsageError(null);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/ai/usage"
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            "AI usage status could not be loaded."
+        );
+      }
+
+      setAiUsageStatus(data);
+    } catch (error) {
+      setAiUsageError(
+        error instanceof Error
+          ? error.message
+          : "AI usage status could not be loaded."
+      );
+    } finally {
+      setAiUsageLoading(false);
+    }
+  }
 
   const [
     dashboardWorkspace,
@@ -4487,7 +4541,17 @@ async function restoreWorkspaceVersion(
           </span>
         </button>
             
-        <button className="nav-item">
+        <button
+          className={
+            currentView === "settings"
+              ? "nav-item active"
+              : "nav-item"
+          }
+          onClick={() => {
+            setCurrentView("settings");
+            void loadAiUsageStatus();
+          }}
+        >
           <span className="nav-icon">⚙</span>
           <span className="nav-label">
             {t.sidebar.settings}
@@ -4852,6 +4916,188 @@ async function restoreWorkspaceVersion(
                             <ProgressPage
                               language={language}
                             />
+
+                          ) : currentView === "settings" ? (
+                            <section className="settings-page">
+                              <header className="page-header">
+                                <div>
+                                  <h2>Settings</h2>
+                                  <p>
+                                    Runtime limits and billing safety for external AI.
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => {
+                                    void loadAiUsageStatus();
+                                  }}
+                                  disabled={aiUsageLoading}
+                                >
+                                  {aiUsageLoading
+                                    ? "Refreshing..."
+                                    : "Refresh usage"}
+                                </button>
+                              </header>
+
+                              <div className="settings-section-card">
+                                <div className="settings-section-heading">
+                                  <div>
+                                    <span className="workspace-overview-label">
+                                      AI
+                                    </span>
+                                    <h3>Usage & billing safety</h3>
+                                  </div>
+
+                                  {aiUsageStatus && (
+                                    <span
+                                      className={
+                                        aiUsageStatus.free_only &&
+                                        !aiUsageStatus.allow_paid_provider
+                                          ? "ai-safety-badge safe"
+                                          : "ai-safety-badge warning"
+                                      }
+                                    >
+                                      {aiUsageStatus.free_only &&
+                                      !aiUsageStatus.allow_paid_provider
+                                        ? "FREE ONLY · paid fallback blocked"
+                                        : "Review billing policy"}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {aiUsageError ? (
+                                  <div className="workspace-form-error">
+                                    {aiUsageError}
+                                  </div>
+                                ) : !aiUsageStatus ? (
+                                  <p className="muted">
+                                    {aiUsageLoading
+                                      ? "Loading AI usage..."
+                                      : "Open or refresh this page to load AI usage."}
+                                  </p>
+                                ) : (
+                                  <>
+                                    <div className="ai-usage-grid">
+                                      {[
+                                        {
+                                          label: "Today",
+                                          used: aiUsageStatus.daily_requests,
+                                          limit: aiUsageStatus.daily_request_limit,
+                                          remaining: aiUsageStatus.daily_remaining,
+                                        },
+                                        {
+                                          label: "This month",
+                                          used: aiUsageStatus.monthly_requests,
+                                          limit: aiUsageStatus.monthly_request_limit,
+                                          remaining: aiUsageStatus.monthly_remaining,
+                                        },
+                                      ].map((item) => {
+                                        const percent = item.limit > 0
+                                          ? Math.min(
+                                              100,
+                                              Math.round(
+                                                (item.used / item.limit) * 100
+                                              )
+                                            )
+                                          : 100;
+
+                                        return (
+                                          <article
+                                            className="ai-usage-card"
+                                            key={item.label}
+                                          >
+                                            <div className="ai-gauge">
+                                              <svg
+                                                viewBox="0 0 120 66"
+                                                role="img"
+                                                aria-label={
+                                                  `${item.label}: ${percent}% used`
+                                                }
+                                              >
+                                                <path
+                                                  className="ai-gauge-track"
+                                                  d="M 12 58 A 48 48 0 0 1 108 58"
+                                                  pathLength="100"
+                                                />
+                                                <path
+                                                  className="ai-gauge-value"
+                                                  d="M 12 58 A 48 48 0 0 1 108 58"
+                                                  pathLength="100"
+                                                  style={{
+                                                    strokeDasharray:
+                                                      `${percent} 100`,
+                                                  }}
+                                                />
+                                              </svg>
+
+                                              <div className="ai-gauge-number">
+                                                <strong>
+                                                  {item.remaining}
+                                                </strong>
+                                                <span>remaining</span>
+                                              </div>
+                                            </div>
+
+                                            <h4>{item.label}</h4>
+                                            <p>
+                                              {item.used.toLocaleString()} used
+                                              {" · "}
+                                              {item.limit.toLocaleString()} limit
+                                            </p>
+                                          </article>
+                                        );
+                                      })}
+                                    </div>
+
+                                    <div className="ai-policy-grid">
+                                      <div>
+                                        <span>Billing mode</span>
+                                        <strong>
+                                          {aiUsageStatus.free_only
+                                            ? "Free-only"
+                                            : "Unrestricted"}
+                                        </strong>
+                                      </div>
+
+                                      <div>
+                                        <span>Paid fallback</span>
+                                        <strong>
+                                          {aiUsageStatus.allow_paid_provider
+                                            ? "Allowed"
+                                            : "Blocked"}
+                                        </strong>
+                                      </div>
+
+                                      <div>
+                                        <span>Free provider allowlist</span>
+                                        <strong>
+                                          {aiUsageStatus.allowed_free_providers.length
+                                            ? aiUsageStatus.allowed_free_providers.join(", ")
+                                            : "None configured"}
+                                        </strong>
+                                      </div>
+
+                                      <div>
+                                        <span>Max output / request</span>
+                                        <strong>
+                                          {aiUsageStatus.max_output_tokens_per_request.toLocaleString()} tokens
+                                        </strong>
+                                      </div>
+                                    </div>
+
+                                    <p className="ai-safety-note">
+                                      DataPilot stops locally before an external
+                                      request when a daily/monthly hard limit is
+                                      reached. In Free-only mode, providers outside
+                                      the allowlist are blocked and there is no
+                                      automatic paid fallback.
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </section>
                           
                           ) : currentView === "new-workspace" ? (
             <section className="new-workspace-page">

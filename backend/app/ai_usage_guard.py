@@ -9,6 +9,28 @@ class AIUsageLimitError(RuntimeError):
     pass
 
 
+class AIBillingPolicyError(RuntimeError):
+    pass
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().casefold() in {
+        "1", "true", "yes", "on"
+    }
+
+
+def _env_csv(name: str) -> set[str]:
+    raw = os.getenv(name, "")
+    return {
+        item.strip().casefold()
+        for item in raw.split(",")
+        if item.strip()
+    }
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name)
     if raw is None or raw.strip() == "":
@@ -17,6 +39,28 @@ def _env_int(name: str, default: int) -> int:
     if value < 0:
         raise ValueError(f"{name} cannot be negative.")
     return value
+
+
+def get_ai_billing_policy() -> dict:
+    free_only = _env_bool(
+        "AI_FREE_ONLY",
+        True,
+    )
+    allowed_free_providers = _env_csv(
+        "AI_FREE_PROVIDER_ALLOWLIST"
+    )
+    allow_paid_provider = _env_bool(
+        "AI_ALLOW_PAID_PROVIDER",
+        False,
+    )
+
+    return {
+        "free_only": free_only,
+        "allowed_free_providers":
+            sorted(allowed_free_providers),
+        "allow_paid_provider":
+            allow_paid_provider,
+    }
 
 
 def get_ai_usage_limits() -> dict:
@@ -38,8 +82,10 @@ def _input_chars(value: Any) -> int:
 
 def get_ai_usage_status() -> dict:
     limits = get_ai_usage_limits()
+    billing_policy = get_ai_billing_policy()
     usage = database.get_ai_usage_counts()
     return {
+        **billing_policy,
         **usage,
         **limits,
         "daily_remaining": max(limits["daily_request_limit"] - usage["daily_requests"], 0),
@@ -47,7 +93,37 @@ def get_ai_usage_status() -> dict:
     }
 
 
+def _enforce_billing_policy(
+    *,
+    provider: str,
+) -> None:
+    policy = get_ai_billing_policy()
+    normalized_provider = provider.casefold()
+
+    if not policy["free_only"]:
+        return
+
+    if (
+        policy["allow_paid_provider"]
+        and normalized_provider == "openai"
+    ):
+        return
+
+    if (
+        normalized_provider
+        not in set(policy["allowed_free_providers"])
+    ):
+        raise AIBillingPolicyError(
+            "AI request blocked locally by FREE_ONLY policy. "
+            f"Provider '{provider}' is not in the free-provider allowlist."
+        )
+
+
 def reserve_ai_request(*, provider: str, model: str, purpose: str, input_value: Any) -> dict:
+    _enforce_billing_policy(
+        provider=provider,
+    )
+
     limits = get_ai_usage_limits()
     input_chars = _input_chars(input_value)
     if input_chars > limits["max_input_chars_per_request"]:

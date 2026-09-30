@@ -4,6 +4,7 @@ import pytest
 
 import backend.app.database as database
 from backend.app.ai_usage_guard import (
+    AIBillingPolicyError,
     AIUsageLimitError,
     get_ai_usage_status,
     guarded_responses_create,
@@ -18,6 +19,9 @@ def setup_test_database(tmp_path, monkeypatch):
     monkeypatch.setenv("AI_MONTHLY_REQUEST_LIMIT", "3")
     monkeypatch.setenv("AI_MAX_INPUT_CHARS_PER_REQUEST", "1000")
     monkeypatch.setenv("AI_MAX_OUTPUT_TOKENS_PER_REQUEST", "321")
+    monkeypatch.setenv("AI_FREE_ONLY", "true")
+    monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "test-free")
+    monkeypatch.setenv("AI_ALLOW_PAID_PROVIDER", "false")
 
 
 def test_guard_counts_usage_and_caps_output():
@@ -26,6 +30,7 @@ def test_guard_counts_usage_and_caps_output():
 
     result = guarded_responses_create(
         client,
+        provider="test-free",
         purpose="mentor",
         model="test-model",
         input="hello",
@@ -73,3 +78,27 @@ def test_guard_blocks_oversized_input_without_counting_request():
 
     client.responses.create.assert_not_called()
     assert get_ai_usage_status()["daily_requests"] == 0
+
+
+
+def test_free_only_blocks_provider_not_in_allowlist():
+    client = MagicMock()
+
+    with pytest.raises(AIBillingPolicyError):
+        guarded_responses_create(
+            client,
+            provider="openai",
+            purpose="mentor",
+            model="test-model",
+            input="hello",
+        )
+
+    client.responses.create.assert_not_called()
+
+
+def test_usage_status_exposes_free_only_policy():
+    status = get_ai_usage_status()
+
+    assert status["free_only"] is True
+    assert status["allow_paid_provider"] is False
+    assert status["allowed_free_providers"] == ["test-free"]
