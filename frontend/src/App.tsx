@@ -557,6 +557,8 @@ type AIUsageStatus = {
   free_only: boolean;
   allowed_free_providers: string[];
   allow_paid_provider: boolean;
+  current_provider: string;
+  current_model: string;
 };
 
 type PracticeSolutionData = {
@@ -5052,6 +5054,20 @@ async function restoreWorkspaceVersion(
                                     </div>
 
                                     <div className="ai-policy-grid">
+                                      <div>
+                                        <span>Mentor provider</span>
+                                        <strong>
+                                          {aiUsageStatus.current_provider}
+                                        </strong>
+                                      </div>
+
+                                      <div>
+                                        <span>Mentor model</span>
+                                        <strong>
+                                          {aiUsageStatus.current_model}
+                                        </strong>
+                                      </div>
+
                                       <div>
                                         <span>Billing mode</span>
                                         <strong>

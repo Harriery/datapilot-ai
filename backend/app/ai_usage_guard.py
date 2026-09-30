@@ -84,8 +84,21 @@ def get_ai_usage_status() -> dict:
     limits = get_ai_usage_limits()
     billing_policy = get_ai_billing_policy()
     usage = database.get_ai_usage_counts()
+
+    current_provider = os.getenv(
+        "AI_MENTOR_PROVIDER",
+        "openai",
+    ).strip() or "openai"
+
+    current_model = os.getenv(
+        "AI_MENTOR_MODEL",
+        "gpt-5-mini",
+    ).strip() or "gpt-5-mini"
+
     return {
         **billing_policy,
+        "current_provider": current_provider,
+        "current_model": current_model,
         **usage,
         **limits,
         "daily_remaining": max(limits["daily_request_limit"] - usage["daily_requests"], 0),
