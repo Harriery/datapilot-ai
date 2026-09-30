@@ -4050,19 +4050,39 @@ async function restoreWorkspaceVersion(
 
       setResumeData(updatedResume);
 
-      setDashboardWorkspace((previous) => {
-        if (!previous) {
-          return previous;
-        }
+      const workspaceResponse =
+        await fetch(
+          `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}`
+        );
 
-        return {
-          ...previous,
-          current_task_id:
-            data.task.task_id,
-          checkpoint:
-            updatedResume.checkpoint,
-        };
-      });
+      if (!workspaceResponse.ok) {
+        throw new Error(
+          "Version restore edildi fakat Workbench durumu yenilenemedi."
+        );
+      }
+
+      const restoredWorkspace:
+        DashboardWorkspace =
+          await workspaceResponse.json();
+
+      setDashboardWorkspace(
+        restoredWorkspace
+      );
+
+      setDashboardWorkspaces(
+        (previous) =>
+          previous.map(
+            (workspace) =>
+              workspace.workspace_id ===
+              restoredWorkspace.workspace_id
+                ? restoredWorkspace
+                : workspace
+          )
+      );
+
+      setSelectedWorkbenchColumn(
+        null
+      );
 
       setResultRows(null);
       setPythonError(null);
