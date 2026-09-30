@@ -818,6 +818,10 @@ def transform_workspace_workbench_data(
                         after_df=after_df,
                         column=finding.column,
                         old_value=request.pipeline_action.old_value,
+                        old_values=[
+                            item.old_value
+                            for item in request.pipeline_action.replacements
+                        ],
                     )
                 )
 
