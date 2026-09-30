@@ -3732,12 +3732,49 @@ def validate_workspace_result(
             detail="Execution task bulunamadı.",
         )
 
-    if task.status != "completed":
+    workbench_operations = (
+        workspace.workbench_operations
+        or []
+    )
+
+    workbench_completed = (
+        len(workbench_operations) > 0
+        and all(
+            operation.status == "completed"
+            for operation
+            in workbench_operations
+        )
+    )
+
+    legacy_task_completed = (
+        task.status == "completed"
+    )
+
+    if not (
+        workbench_completed
+        or (
+            not workbench_operations
+            and legacy_task_completed
+        )
+    ):
         raise HTTPException(
             status_code=400,
             detail=(
                 "Validation başlamadan önce "
                 "transformation adımları tamamlanmalı."
+            ),
+        )
+
+    if (
+        workbench_operations
+        and workspace.development_sample_enabled
+        is not False
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Validation başlamadan önce "
+                "pipeline full dataset'e uygulanmalı."
             ),
         )
 
@@ -3822,8 +3859,32 @@ def validate_workspace_result(
         )
     )
     
-    for step in task.steps:
+    operations_by_finding_index = {
+        operation.finding_index: operation
+        for operation
+        in workbench_operations
+        if (
+            operation.finding_index
+            is not None
+        )
+    }
+
+    for step_index, step in enumerate(
+        task.steps
+    ):
         finding = step.finding
+
+        operation = (
+            operations_by_finding_index.get(
+                step_index
+            )
+        )
+
+        accepted_as_is = (
+            operation is not None
+            and operation.decision
+            == "accepted_as_is"
+        )
     
         if (
             finding.issue_type
@@ -3838,18 +3899,31 @@ def validate_workspace_result(
             success = (
                 duplicate_count == 0
             )
+
+            status = (
+                "warning"
+                if accepted_as_is
+                else (
+                    "passed"
+                    if success
+                    else "failed"
+                )
+            )
     
             checks.append(
                 WorkspaceValidationCheck(
                     name="Duplicate rows",
-                    status=(
-                        "passed"
-                        if success
-                        else "failed"
-                    ),
+                    status=status,
                     message=(
-                        f"{duplicate_count} "
-                        "duplicate rows remain."
+                        (
+                            f"{duplicate_count} duplicate rows remain; "
+                            "the finding was reviewed and accepted as-is."
+                        )
+                        if accepted_as_is
+                        else (
+                            f"{duplicate_count} "
+                            "duplicate rows remain."
+                        )
                     ),
                     code="duplicate_rows",
                     params={
@@ -3876,6 +3950,16 @@ def validate_workspace_result(
             success = (
                 missing_count == 0
             )
+
+            status = (
+                "warning"
+                if accepted_as_is
+                else (
+                    "passed"
+                    if success
+                    else "failed"
+                )
+            )
     
             checks.append(
                 WorkspaceValidationCheck(
@@ -3883,15 +3967,19 @@ def validate_workspace_result(
                         f"Missing values · "
                         f"{finding.column}"
                     ),
-                    status=(
-                        "passed"
-                        if success
-                        else "failed"
-                    ),
+                    status=status,
                     message=(
-                        f"{missing_count} missing "
-                        f"values remain in "
-                        f"{finding.column}."
+                        (
+                            f"{missing_count} missing values remain in "
+                            f"{finding.column}; the finding was reviewed "
+                            "and accepted as-is."
+                        )
+                        if accepted_as_is
+                        else (
+                            f"{missing_count} missing "
+                            f"values remain in "
+                            f"{finding.column}."
+                        )
                     ),
                     code="missing_values",
                     params={
