@@ -141,6 +141,67 @@ def apply_pipeline_action(
 
             fill_value = mode.iloc[0]
 
+        elif action.fill_strategy == "mapping":
+            source_column = action.mapping_source_column
+
+            if not source_column:
+                raise ValueError(
+                    "Mapping fill için mapping_source_column gerekli."
+                )
+
+            _require_column(
+                result,
+                source_column,
+            )
+
+            known = result.loc[
+                result[action.column].notna()
+                & result[source_column].notna(),
+                [source_column, action.column],
+            ]
+
+            if known.empty:
+                raise ValueError(
+                    "Mapping oluşturmak için bilinen source/target değerleri gerekli."
+                )
+
+            distinct_counts = (
+                known.groupby(source_column)[action.column]
+                .nunique(dropna=True)
+            )
+
+            safe_keys = distinct_counts[
+                distinct_counts == 1
+            ].index
+
+            safe_known = known[
+                known[source_column].isin(safe_keys)
+            ]
+
+            mapping = (
+                safe_known.drop_duplicates(
+                    subset=[source_column]
+                )
+                .set_index(source_column)[action.column]
+            )
+
+            missing_mask = (
+                result[action.column].isna()
+                & result[source_column].notna()
+            )
+
+            mapped_values = (
+                result.loc[missing_mask, source_column]
+                .map(mapping)
+            )
+
+            result.loc[
+                missing_mask,
+                action.column,
+            ] = mapped_values
+
+            return result
+
         else:
             fill_value = 0
 
