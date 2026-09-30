@@ -963,6 +963,11 @@ class PersonalProjectDataModelStudio(BaseModel):
 
 
 
+class WorkspaceValueReplacement(BaseModel):
+    old_value: str | int | float | bool | None = None
+    new_value: str | int | float | bool | None = None
+
+
 class WorkspacePipelineAction(BaseModel):
     action: Literal[
         "rename",
@@ -1008,6 +1013,10 @@ class WorkspacePipelineAction(BaseModel):
     new_value: (
         str | int | float | bool | None
     ) = None
+
+    replacements: list[
+        WorkspaceValueReplacement
+    ] = Field(default_factory=list)
 
     derived_name: str | None = None
 
