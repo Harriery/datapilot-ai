@@ -43,7 +43,11 @@ export type WorkbenchPipelineActionData = {
     | "median"
     | "mode"
     | "zero"
+    | "mapping"
     | null;
+
+  mapping_source_column?: string | null;
+  mapping_only_unambiguous?: boolean | null;
 
   fill_value?:
     | string
