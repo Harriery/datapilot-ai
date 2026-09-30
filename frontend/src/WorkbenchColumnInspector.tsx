@@ -32,6 +32,11 @@ function WorkbenchColumnInspector({
   const [oldValue, setOldValue] = useState("");
   const [newValue, setNewValue] = useState("");
   const [replaceWithMissing, setReplaceWithMissing] = useState(false);
+  const [replacementPairs, setReplacementPairs] = useState<Array<{
+    oldValue: string;
+    newValue: string;
+    replaceWithMissing: boolean;
+  }>>([]);
   const [derivedName, setDerivedName] = useState("");
   const [derivedOperation, setDerivedOperation] =
     useState<"copy" | "uppercase" | "lowercase" | "add" | "multiply">("copy");
@@ -47,6 +52,7 @@ function WorkbenchColumnInspector({
     setOldValue("");
     setNewValue("");
     setReplaceWithMissing(false);
+    setReplacementPairs([]);
     setDerivedName("");
     setDerivedValue("");
   }, [column]);
@@ -71,6 +77,7 @@ function WorkbenchColumnInspector({
         oldValue,
         newValue,
         replaceWithMissing,
+        replacementPairs,
         derivedName,
         derivedOperation,
         derivedValue,
@@ -188,32 +195,114 @@ function WorkbenchColumnInspector({
       )}
 
       {action === "replace_values" && (
-        <div className="column-inspector-two">
-          <label className="column-inspector-field">
-            <span>Old value</span>
-            <input value={oldValue} onChange={(e) => setOldValue(e.target.value)} />
-          </label>
-          <div className="column-inspector-field">
-            <span>New value</span>
-            <input
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
-              disabled={replaceWithMissing}
-              placeholder={replaceWithMissing ? "Missing (null)" : ""}
-            />
-            <label className="column-inspector-null-option">
-              <input
-                type="checkbox"
-                checked={replaceWithMissing}
-                onChange={(e) => {
-                  setReplaceWithMissing(e.target.checked);
-                  if (e.target.checked) setNewValue("");
-                  setError(null);
-                }}
-              />
-              <span>Set as missing (null)</span>
+        <div className="column-inspector-replacements">
+          <div className="column-inspector-two">
+            <label className="column-inspector-field">
+              <span>Old value</span>
+              <input value={oldValue} onChange={(e) => setOldValue(e.target.value)} />
             </label>
+            <div className="column-inspector-field">
+              <span>New value</span>
+              <input
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                disabled={replaceWithMissing}
+                placeholder={replaceWithMissing ? "Missing (null)" : ""}
+              />
+              <label className="column-inspector-null-option">
+                <input
+                  type="checkbox"
+                  checked={replaceWithMissing}
+                  onChange={(e) => {
+                    setReplaceWithMissing(e.target.checked);
+                    if (e.target.checked) setNewValue("");
+                    setError(null);
+                  }}
+                />
+                <span>Set as missing (null)</span>
+              </label>
+            </div>
           </div>
+
+          {replacementPairs.map((pair, index) => (
+            <div className="column-inspector-replacement-row" key={index}>
+              <input
+                value={pair.oldValue}
+                onChange={(e) =>
+                  setReplacementPairs((previous) =>
+                    previous.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, oldValue: e.target.value }
+                        : item
+                    )
+                  )
+                }
+                placeholder="Old value"
+              />
+              <input
+                value={pair.newValue}
+                onChange={(e) =>
+                  setReplacementPairs((previous) =>
+                    previous.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, newValue: e.target.value }
+                        : item
+                    )
+                  )
+                }
+                disabled={pair.replaceWithMissing}
+                placeholder={pair.replaceWithMissing ? "Missing (null)" : "New value"}
+              />
+              <label className="column-inspector-null-option compact">
+                <input
+                  type="checkbox"
+                  checked={pair.replaceWithMissing}
+                  onChange={(e) =>
+                    setReplacementPairs((previous) =>
+                      previous.map((item, itemIndex) =>
+                        itemIndex === index
+                          ? {
+                              ...item,
+                              replaceWithMissing: e.target.checked,
+                              newValue: e.target.checked ? "" : item.newValue,
+                            }
+                          : item
+                      )
+                    )
+                  }
+                />
+                <span>Null</span>
+              </label>
+              <button
+                type="button"
+                className="column-inspector-remove-pair"
+                onClick={() =>
+                  setReplacementPairs((previous) =>
+                    previous.filter((_, itemIndex) => itemIndex !== index)
+                  )
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            className="secondary-button column-inspector-add-pair"
+            onClick={() =>
+              setReplacementPairs((previous) => [
+                ...previous,
+                {
+                  oldValue: "",
+                  newValue: "",
+                  replaceWithMissing: false,
+                },
+              ])
+            }
+          >
+            + Add another replacement
+          </button>
         </div>
       )}
 
