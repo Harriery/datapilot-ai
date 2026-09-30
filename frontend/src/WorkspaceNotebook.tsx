@@ -133,6 +133,7 @@ function WorkspaceNotebook({
       raw: "Raw source sample", runAll: "Run all", reset: "Reset", saved: "Saved",
       saveNow: "Save now", saving: "Saving...", unsaved: "Unsaved changes",
       export: "Export .ipynb", loading: "Loading dataset...", rowsLoaded: "rows loaded",
+      sampledRows: "sampled rows", fromTotal: "from", totalRows: "total rows",
       columns: "columns", askMentor: "Ask mentor", reviewing: "Reviewing...",
       sendPipeline: "Send to pipeline", deleteCell: "Delete cell", output: "OUTPUT",
       addCell: "Add Python cell", section: "Section", sectionPlaceholder: "Optional section title",
@@ -142,6 +143,7 @@ function WorkspaceNotebook({
       raw: "Ruwe bronsteekproef", runAll: "Alles uitvoeren", reset: "Resetten", saved: "Opgeslagen",
       saveNow: "Nu opslaan", saving: "Opslaan...", unsaved: "Niet-opgeslagen wijzigingen",
       export: "Exporteer .ipynb", loading: "Dataset laden...", rowsLoaded: "rijen geladen",
+      sampledRows: "steekproefrijen", fromTotal: "van", totalRows: "totale rijen",
       columns: "kolommen", askMentor: "Vraag mentor", reviewing: "Beoordelen...",
       sendPipeline: "Naar pipeline", deleteCell: "Cel verwijderen", output: "UITVOER",
       addCell: "Python-cel toevoegen", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
@@ -151,6 +153,7 @@ function WorkspaceNotebook({
       raw: "Ham kaynak örneği", runAll: "Tümünü çalıştır", reset: "Sıfırla", saved: "Kaydedildi",
       saveNow: "Şimdi kaydet", saving: "Kaydediliyor...", unsaved: "Kaydedilmemiş değişiklikler",
       export: ".ipynb dışa aktar", loading: "Veri seti yükleniyor...", rowsLoaded: "satır yüklendi",
+      sampledRows: "örnek satır", fromTotal: "/", totalRows: "toplam satır",
       columns: "sütun", askMentor: "Mentora sor", reviewing: "İnceleniyor...",
       sendPipeline: "Pipeline'a gönder", deleteCell: "Cell'i sil", output: "ÇIKTI",
       addCell: "Python cell ekle", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
@@ -175,6 +178,16 @@ function WorkspaceNotebook({
     inputColumns,
     setInputColumns,
   ] = useState<string[]>([]);
+
+  const [
+    inputTotalRowCount,
+    setInputTotalRowCount,
+  ] = useState<number | null>(null);
+
+  const [
+    inputIsSampled,
+    setInputIsSampled,
+  ] = useState(false);
 
   const [
     loadingData,
@@ -286,6 +299,8 @@ function WorkspaceNotebook({
           {
             columns: string[];
             row_count: number;
+            total_row_count?: number | null;
+            sampled?: boolean;
             rows:
               Record<
                 string,
@@ -300,6 +315,15 @@ function WorkspaceNotebook({
 
         setInputRows(
           data.rows
+        );
+
+        setInputTotalRowCount(
+          data.total_row_count ??
+          data.row_count
+        );
+
+        setInputIsSampled(
+          Boolean(data.sampled)
         );
       } catch (error) {
         setDataError(
@@ -785,7 +809,9 @@ function WorkspaceNotebook({
           : dataError
             ? dataError
             : (
-                `${inputRows.length} ${ui.rowsLoaded} · ${inputColumns.length} ${ui.columns} · browser sandbox`
+                inputIsSampled
+                  ? `${inputRows.length} ${ui.sampledRows} ${ui.fromTotal} ${inputTotalRowCount ?? inputRows.length} ${ui.totalRows} · ${inputColumns.length} ${ui.columns} · browser sandbox`
+                  : `${inputRows.length} ${ui.rowsLoaded} · ${inputColumns.length} ${ui.columns} · browser sandbox`
               )}
       </div>
 

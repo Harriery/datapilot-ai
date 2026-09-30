@@ -2691,6 +2691,8 @@ def get_workspace_notebook_data(
             detail=str(exc),
         ) from exc
 
+    total_row_count = len(df)
+
     notebook_limit = min(
         (
             workspace.development_sample_size
@@ -2701,7 +2703,11 @@ def get_workspace_notebook_data(
         5000,
     )
 
-    if len(df) > notebook_limit:
+    sampled = (
+        total_row_count > notebook_limit
+    )
+
+    if sampled:
         df = (
             df.sample(
                 n=notebook_limit,
@@ -2714,6 +2720,8 @@ def get_workspace_notebook_data(
         columns=df.columns.tolist(),
         row_count=len(df),
         rows=dataframe_to_records(df),
+        total_row_count=total_row_count,
+        sampled=sampled,
     )
 
 
@@ -3858,6 +3866,69 @@ def validate_workspace_result(
             },
         )
     )
+
+    if workbench_operations:
+        replay_verified = False
+        replay_error: str | None = None
+
+        try:
+            (
+                replayed_df,
+                replayed_operation_ids,
+            ) = apply_replayable_workbench_pipeline(
+                source_df=source_df,
+                operations=workbench_operations,
+            )
+
+            pd.testing.assert_frame_equal(
+                replayed_df.reset_index(drop=True),
+                working_df.reset_index(drop=True),
+                check_dtype=False,
+                check_exact=False,
+                rtol=1e-12,
+                atol=1e-12,
+            )
+
+            replay_verified = True
+
+        except (
+            AssertionError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            replayed_operation_ids = []
+            replay_error = str(exc)
+
+        checks.append(
+            WorkspaceValidationCheck(
+                name="Pipeline replay",
+                status=(
+                    "passed"
+                    if replay_verified
+                    else "failed"
+                ),
+                message=(
+                    "Replaying the completed structured pipeline "
+                    "from the immutable source reproduces the "
+                    "current full working dataset."
+                    if replay_verified
+                    else (
+                        "Replaying the completed structured pipeline "
+                        "did not reproduce the current working dataset."
+                    )
+                ),
+                code="pipeline_replay",
+                params={
+                    "verified": replay_verified,
+                    "applied_operation_count":
+                        len(replayed_operation_ids),
+                    "working_row_count":
+                        len(working_df),
+                    "error":
+                        replay_error,
+                },
+            )
+        )
     
     operations_by_finding_index = {
         operation.finding_index: operation

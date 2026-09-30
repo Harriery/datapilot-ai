@@ -112,6 +112,7 @@ type PracticeRecommendationData = {
 type WorkspaceValidationCheckCode =
   | "dataset_integrity"
   | "schema_preserved"
+  | "pipeline_replay"
   | "duplicate_rows"
   | "missing_values";
 
@@ -615,6 +616,25 @@ function App() {
               .schemaPreservedMessage
           : t.workspace.validationChecks
               .schemaChangedMessage,
+      };
+    }
+
+    if (code === "pipeline_replay") {
+      const verified =
+        typeof params.verified === "boolean"
+          ? params.verified
+          : check.status === "passed";
+
+      const appliedOperationCount =
+        typeof params.applied_operation_count === "number"
+          ? params.applied_operation_count
+          : 0;
+
+      return {
+        name: "Pipeline replay",
+        message: verified
+          ? `Full dataset verified server-side: ${appliedOperationCount} structured transformations replayed from the immutable source reproduce the current working dataset.`
+          : "Full dataset replay verification failed: the structured pipeline does not reproduce the current working dataset.",
       };
     }
   

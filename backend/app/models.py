@@ -564,6 +564,12 @@ class WorkspaceWorkingDataResponse(
     row_count: int
     rows: list[dict]
 
+    # row_count is the number of rows actually sent to the client.
+    # total_row_count keeps the server-side dataset size visible when
+    # notebook/browser execution intentionally receives only a sample.
+    total_row_count: int | None = None
+    sampled: bool = False
+
 
 class WorkspaceDataPreviewResponse(BaseModel):
     dataset: Literal[
@@ -622,6 +628,7 @@ class WorkspaceValidationCheck(BaseModel):
     code: Literal[
         "dataset_integrity",
         "schema_preserved",
+        "pipeline_replay",
         "duplicate_rows",
         "missing_values",
     ] | None = None
