@@ -265,3 +265,38 @@ def test_mapping_fill_is_replayable_on_full_dataset():
 
     assert operation_ids == ["map-council"]
     assert result["council"].tolist() == ["X", "X", "Y", "Y"]
+
+
+
+def test_apply_pipeline_action_batch_replace_values():
+    df = pd.DataFrame(
+        {
+            "seller": ["Castran", "CASTRAN", "Re", "RE", "Nelson"],
+        }
+    )
+
+    result = apply_pipeline_action(
+        df,
+        WorkspacePipelineAction(
+            action="replace_values",
+            column="seller",
+            replacements=[
+                {
+                    "old_value": "CASTRAN",
+                    "new_value": "Castran",
+                },
+                {
+                    "old_value": "RE",
+                    "new_value": "Re",
+                },
+            ],
+        ),
+    )
+
+    assert result["seller"].tolist() == [
+        "Castran",
+        "Castran",
+        "Re",
+        "Re",
+        "Nelson",
+    ]
