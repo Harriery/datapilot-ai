@@ -559,6 +559,9 @@ type AIUsageStatus = {
   allow_paid_provider: boolean;
   current_provider: string;
   current_model: string;
+  current_provider_allowed: boolean;
+  usage_scope: "local_safety_budget";
+  provider_quota_known: boolean;
 };
 
 type PracticeSolutionData = {
@@ -4962,9 +4965,13 @@ async function restoreWorkspaceVersion(
                                       }
                                     >
                                       {aiUsageStatus.free_only &&
-                                      !aiUsageStatus.allow_paid_provider
+                                      !aiUsageStatus.allow_paid_provider &&
+                                      aiUsageStatus.current_provider_allowed
                                         ? "FREE ONLY · paid fallback blocked"
-                                        : "Review billing policy"}
+                                        : aiUsageStatus.free_only &&
+                                            !aiUsageStatus.current_provider_allowed
+                                          ? "Provider blocked · configuration required"
+                                          : "Review billing policy"}
                                     </span>
                                   )}
                                 </div>
@@ -4984,13 +4991,13 @@ async function restoreWorkspaceVersion(
                                     <div className="ai-usage-grid">
                                       {[
                                         {
-                                          label: "Today",
+                                          label: "Local daily safety budget",
                                           used: aiUsageStatus.daily_requests,
                                           limit: aiUsageStatus.daily_request_limit,
                                           remaining: aiUsageStatus.daily_remaining,
                                         },
                                         {
-                                          label: "This month",
+                                          label: "Local monthly safety budget",
                                           used: aiUsageStatus.monthly_requests,
                                           limit: aiUsageStatus.monthly_request_limit,
                                           remaining: aiUsageStatus.monthly_remaining,
@@ -5069,6 +5076,24 @@ async function restoreWorkspaceVersion(
                                       </div>
 
                                       <div>
+                                        <span>Provider status</span>
+                                        <strong>
+                                          {aiUsageStatus.current_provider_allowed
+                                            ? "Allowed"
+                                            : "Blocked by local policy"}
+                                        </strong>
+                                      </div>
+
+                                      <div>
+                                        <span>Provider-reported quota</span>
+                                        <strong>
+                                          {aiUsageStatus.provider_quota_known
+                                            ? "Available"
+                                            : "Not connected / unknown"}
+                                        </strong>
+                                      </div>
+
+                                      <div>
                                         <span>Billing mode</span>
                                         <strong>
                                           {aiUsageStatus.free_only
@@ -5104,11 +5129,13 @@ async function restoreWorkspaceVersion(
                                     </div>
 
                                     <p className="ai-safety-note">
-                                      DataPilot stops locally before an external
-                                      request when a daily/monthly hard limit is
-                                      reached. In Free-only mode, providers outside
-                                      the allowlist are blocked and there is no
-                                      automatic paid fallback.
+                                      These gauges show DataPilot's own local
+                                      safety limits, not the provider's official
+                                      remaining API quota. DataPilot stops locally
+                                      before an external request when a local
+                                      daily/monthly limit is reached. In Free-only
+                                      mode, providers outside the allowlist are
+                                      blocked and there is no automatic paid fallback.
                                     </p>
                                   </>
                                 )}

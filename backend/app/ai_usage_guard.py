@@ -95,10 +95,28 @@ def get_ai_usage_status() -> dict:
         "gpt-5-mini",
     ).strip() or "gpt-5-mini"
 
+    normalized_provider = current_provider.casefold()
+    allowed_free_providers = set(
+        billing_policy["allowed_free_providers"]
+    )
+
+    current_provider_allowed = (
+        not billing_policy["free_only"]
+        or normalized_provider in allowed_free_providers
+        or (
+            billing_policy["allow_paid_provider"]
+            and normalized_provider == "openai"
+        )
+    )
+
     return {
         **billing_policy,
         "current_provider": current_provider,
         "current_model": current_model,
+        "current_provider_allowed":
+            current_provider_allowed,
+        "usage_scope": "local_safety_budget",
+        "provider_quota_known": False,
         **usage,
         **limits,
         "daily_remaining": max(limits["daily_request_limit"] - usage["daily_requests"], 0),

@@ -49,6 +49,7 @@ def test_guard_blocks_before_third_provider_call():
     for _ in range(2):
         guarded_responses_create(
             client,
+            provider="test-free",
             purpose="mentor",
             model="test-model",
             input="hello",
@@ -57,6 +58,7 @@ def test_guard_blocks_before_third_provider_call():
     with pytest.raises(AIUsageLimitError):
         guarded_responses_create(
             client,
+            provider="test-free",
             purpose="mentor",
             model="test-model",
             input="third",
@@ -71,6 +73,7 @@ def test_guard_blocks_oversized_input_without_counting_request():
     with pytest.raises(AIUsageLimitError):
         guarded_responses_create(
             client,
+            provider="test-free",
             purpose="mentor",
             model="test-model",
             input="x" * 1001,
@@ -102,3 +105,19 @@ def test_usage_status_exposes_free_only_policy():
     assert status["free_only"] is True
     assert status["allow_paid_provider"] is False
     assert status["allowed_free_providers"] == ["test-free"]
+
+
+
+def test_usage_status_marks_unconfigured_current_provider_as_blocked(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "AI_MENTOR_PROVIDER",
+        "openai",
+    )
+
+    status = get_ai_usage_status()
+
+    assert status["current_provider_allowed"] is False
+    assert status["usage_scope"] == "local_safety_budget"
+    assert status["provider_quota_known"] is False
