@@ -2,6 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from backend.app.ai_usage_guard import guarded_responses_create
 
 
 # .env dosyasındaki değişkenleri uygulamaya yükler.
@@ -71,7 +72,10 @@ def generate_answer(
     """
 
     # Hazırlanan bağlamı ve soruyu OpenAI'ye gönderir.
-    response = client.responses.create(
+    response = guarded_responses_create(
+        client,
+        purpose="rag_answer",
+
         model="gpt-5-mini",
 
         # Modelin yalnızca belge bağlamına dayanmasını ister.

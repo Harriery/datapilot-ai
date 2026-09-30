@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 from backend.app.models import DataQualityAnalysis
+from backend.app.ai_usage_guard import guarded_responses_parse
 
 load_dotenv()
 
@@ -58,7 +59,10 @@ def generate_data_recommendations(profile: dict) -> DataQualityAnalysis:
     prompt = build_recommendation_prompt(profile)
 
 
-    response = client.responses.parse( # "OpenAI'ya yeni bir istek gönder ve cevap üret."
+    response = guarded_responses_parse(
+    client,
+    purpose="data_quality_analysis",
+ # "OpenAI'ya yeni bir istek gönder ve cevap üret."
     model="gpt-5-mini",
     instructions=(
         "Sen bir Data Engineering mentorusun. "

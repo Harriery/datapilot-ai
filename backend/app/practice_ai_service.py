@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from backend.app.ai_usage_guard import guarded_responses_parse
+
 from backend.app.models import (
     PracticeChallenge,
     PracticeAttemptRequest,
@@ -156,7 +158,10 @@ can correctly continue with the rest of the challenge.
 Return only the structured PracticeDiagnosis.
 """
 
-    response = client.responses.parse(
+    response = guarded_responses_parse(
+        client,
+        purpose="practice",
+
         model="gpt-5-mini",
         input=prompt,
         instructions=instructions,
@@ -394,7 +399,10 @@ LANGUAGE RULES:
   even when the explanation language is Turkish or Dutch.
 """
 
-    response = client.responses.parse(
+    response = guarded_responses_parse(
+        client,
+        purpose="practice",
+
         model="gpt-5-mini",
         input=prompt,
         instructions=instructions,
@@ -484,7 +492,10 @@ LANGUAGE RULES:
 Return only PracticeMicroCheckValidation.
 """
 
-    response = client.responses.parse(
+    response = guarded_responses_parse(
+        client,
+        purpose="practice",
+
         model="gpt-5-mini",
         input=prompt,
         instructions=instructions,
@@ -595,7 +606,10 @@ Technical terms and Python syntax may remain English.
 Return only PracticeMicroCheckSupport.
 """
 
-    response = client.responses.parse(
+    response = guarded_responses_parse(
+        client,
+        purpose="practice",
+
         model="gpt-5-mini",
         input=prompt,
         instructions=instructions,

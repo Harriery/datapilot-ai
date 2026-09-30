@@ -20,6 +20,10 @@ from dotenv import load_dotenv
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
 )
+from backend.app.ai_usage_guard import (
+    guarded_responses_create,
+    guarded_responses_parse,
+)
 
 from backend.app.task_service import (
     get_current_task_step,
@@ -181,7 +185,10 @@ def generate_mentor_decision(
 #
 # text_format=MentorDecision:
 # "AI cevabı bizim MentorDecision modelimizin yapısına uygun olsun" demektir.
-    response = client.responses.parse(  # parse cevabi (basemodeldeki) sablona gore olusturdemek.
+    response = guarded_responses_parse(
+        client,
+        purpose="mentor",
+  # parse cevabi (basemodeldeki) sablona gore olusturdemek.
     model="gpt-5-mini",
     input=prompt,               # → AI NEYE BAKARAK karar versin?
     instructions=instructions,  # → AI NASIL karar versin?
@@ -277,7 +284,10 @@ def detect_relevant_skill(current_message:str):
         Yeni bir skill adı üretme.
         Neden bu kararı verdiğini kısa şekilde açıkla.
     """
-    response = client.responses.parse(  # OpenAI cevabı için modeli kullanmasını parse() ile biz söyleriz.
+    response = guarded_responses_parse(
+        client,
+        purpose="mentor",
+  # OpenAI cevabı için modeli kullanmasını parse() ile biz söyleriz.
         model="gpt-5-mini",
         input= current_message,
         instructions= instructions,            
@@ -568,7 +578,10 @@ def generate_mentor_response(
 # → AI'dan junior'a gösterilecek normal metin cevabı isteriz.
 # → Burada belirli bir Pydantic şeması yok.
 # → Sonucu response.output_text ile alırız.
-    response = client.responses.create(
+    response = guarded_responses_create(
+     client,
+     purpose="mentor",
+
      model="gpt-5-mini",
      input=prompt,              
      instructions=instructions, 
@@ -718,7 +731,10 @@ def classify_learning_evidence(
     {current_message}
     """
 
-    response = client.responses.parse(
+    response = guarded_responses_parse(
+        client,
+        purpose="mentor",
+
         model="gpt-5-mini",
         input=evidence_input,
         instructions=instructions,
@@ -961,7 +977,10 @@ def evaluate_data_quality_attempt(
     Finding içinde olmayan kolon, veri veya metadata uydurma.
     """
 
-    response = client.responses.parse(
+    response = guarded_responses_parse(
+        client,
+        purpose="mentor",
+
         model="gpt-5-mini",
         input=evaluation_input,
         instructions=instructions,
@@ -1129,7 +1148,10 @@ def generate_data_quality_attempt_response(
     - Kısa, doğal bir cümle yaz.
     """
 
-    response = client.responses.parse(
+    response = guarded_responses_parse(
+        client,
+        purpose="mentor",
+
         model="gpt-5-mini",
         input=prompt,
         instructions=instructions,

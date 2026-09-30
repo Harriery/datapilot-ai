@@ -11,6 +11,7 @@ import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from backend.app.ai_usage_guard import guarded_embeddings_create
 
 # .env dosyasındaki değişkenleri Python'a yükler ve python un okuyabilmesini saglar.
 load_dotenv()
@@ -24,7 +25,10 @@ client = OpenAI(api_key=api_key)
 
 # Tek bir metni embedding vektörüne dönüştürür.
 def create_embedding(text: str) -> list[float]:
-    response = client.embeddings.create(
+    response = guarded_embeddings_create(
+        client,
+        purpose="embedding",
+
         model="text-embedding-3-small",
         input=text,
     )
@@ -35,7 +39,10 @@ def create_embedding(text: str) -> list[float]:
 
 # Birden fazla metni embedding vektörlerine dönüştürür.
 def create_embeddings(texts: list[str]) -> list[list[float]]:
-    response = client.embeddings.create(
+    response = guarded_embeddings_create(
+        client,
+        purpose="embedding",
+
         model="text-embedding-3-small",
         input=texts,
     )

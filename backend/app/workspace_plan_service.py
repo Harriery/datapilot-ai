@@ -5,6 +5,8 @@ import uuid
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from backend.app.ai_usage_guard import guarded_responses_parse
+
 from backend.app.models import (
     DataEngineeringTask,
     DataEngineeringTaskStep,
@@ -79,7 +81,10 @@ def generate_workspace_execution_plan(
         ],
     }
 
-    response = client.responses.parse(
+    response = guarded_responses_parse(
+        client,
+        purpose="workspace_plan",
+
         model="gpt-5-mini",
         instructions=(
             "Sen bir Data Engineering execution planner'sın. "

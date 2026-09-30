@@ -28,6 +28,11 @@ from backend.app.database import (
 from backend.app.mentor_service import (
     get_mentor_response_from_message,
 )
+from backend.app.ai_usage_guard import (
+    AIUsageLimitError,
+    get_ai_usage_status,
+    guarded_responses_create,
+)
 
 import json
 
@@ -452,7 +457,10 @@ def chat(request: ChatRequest):
                     )
                 )
 
-            response = client.responses.create(
+            response = guarded_responses_create(
+                client,
+                purpose="chat_fallback",
+
                 model="gpt-5-mini",
                 instructions=fallback_instructions,
                 input=history,
@@ -465,6 +473,13 @@ def chat(request: ChatRequest):
         raise HTTPException(
             status_code=401,
             detail="OpenAI API anahtarı geçersiz.",
+        )
+
+    except AIUsageLimitError as exc:
+        delete_last_message(request.session_id)
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
         )
 
     except RateLimitError:
@@ -498,3 +513,8 @@ def chat(request: ChatRequest):
     return {
         "reply": reply,
     }
+
+@router.get("/ai/usage")
+def ai_usage_status():
+    """Return local hard-stop counters without contacting any AI provider."""
+    return get_ai_usage_status()
