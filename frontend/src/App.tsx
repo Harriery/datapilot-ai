@@ -3900,8 +3900,14 @@ async function prepareWorkbenchColumnAction(
 }
 
 function setWorkBenchViewAfterStructuredAction() {
+  // A successful structured action should not pull the user away from
+  // the current cleaning flow. The pipeline remains available as an
+  // explicit review destination.
   setWorkbenchView(
-    "pipeline"
+    "explorer"
+  );
+  setSelectedWorkbenchColumn(
+    null
   );
 }
 
