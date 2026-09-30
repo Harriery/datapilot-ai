@@ -6864,6 +6864,9 @@ async function restoreWorkspaceVersion(
                                         setMentorContextPrompt(`I am working in notebook "${notebook.name}" on the current workspace task. Review this cell in that context and guide me with the minimum help I need.\n\nCode:\n${code}`);
                                         setMentorContextPromptKey((value) => value + 1);
                                       }}
+                                      dataRevision={
+                                        workspacePreviewRevision
+                                      }
                                     />
                                   );
                                 })()
