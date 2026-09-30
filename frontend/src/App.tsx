@@ -6752,6 +6752,9 @@ async function restoreWorkspaceVersion(
                                 column={
                                   selectedWorkbenchColumn
                                 }
+                                availableColumns={
+                                  workspaceWorkingData.columns
+                                }
                                 disabledReason={(() => {
                                   const activeOperation =
                                     dashboardWorkspace
