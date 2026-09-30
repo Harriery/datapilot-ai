@@ -197,3 +197,65 @@ def test_pipeline_replay_applies_completed_structured_operations_in_order():
         "DEN HAAG",
         "ROTTERDAM",
     ]
+
+
+
+def test_apply_pipeline_action_mapping_fill_uses_only_unambiguous_mappings():
+    df = pd.DataFrame(
+        {
+            "suburb": ["A", "A", "B", "B", "C", "C", "D"],
+            "council": ["X", None, "Y", "Z", "W", None, None],
+        }
+    )
+
+    result = apply_pipeline_action(
+        df,
+        WorkspacePipelineAction(
+            action="fill_missing",
+            column="council",
+            fill_strategy="mapping",
+            mapping_source_column="suburb",
+            mapping_only_unambiguous=True,
+        ),
+    )
+
+    assert result.loc[1, "council"] == "X"
+    assert pd.isna(result.loc[5, "council"])
+    assert pd.isna(result.loc[6, "council"])
+
+
+def test_mapping_fill_is_replayable_on_full_dataset():
+    df = pd.DataFrame(
+        {
+            "suburb": ["A", "A", "B", "B"],
+            "council": ["X", None, "Y", None],
+        }
+    )
+
+    operations = [
+        WorkspaceWorkbenchOperation(
+            operation_id="map-council",
+            title="Fill council from suburb",
+            goal="Use safe mappings.",
+            operation_type="clean",
+            origin="user",
+            status="completed",
+            source_columns=["council", "suburb"],
+            expected_columns=["council"],
+            code="generated",
+            pipeline_action=WorkspacePipelineAction(
+                action="fill_missing",
+                column="council",
+                fill_strategy="mapping",
+                mapping_source_column="suburb",
+            ),
+        ),
+    ]
+
+    result, operation_ids = apply_replayable_workbench_pipeline(
+        source_df=df,
+        operations=operations,
+    )
+
+    assert operation_ids == ["map-council"]
+    assert result["council"].tolist() == ["X", "X", "Y", "Y"]
