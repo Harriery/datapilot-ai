@@ -144,6 +144,7 @@ from backend.app.workspace_workbench_service import (
 
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
+    validate_suspicious_value_replacement,
 )
 
 from backend.app.workspace_pipeline_service import (
@@ -805,16 +806,40 @@ def transform_workspace_workbench_data(
         )
 
         if validation is None:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Bu data-quality operation için "
-                    "deterministic validation "
-                    "desteklenmiyor."
-                ),
-            )
+            if (
+                finding.issue_type == "suspicious_values"
+                and request.pipeline_action is not None
+                and request.pipeline_action.action == "replace_values"
+                and finding.column is not None
+            ):
+                suspicious_replacement_ok = (
+                    validate_suspicious_value_replacement(
+                        before_df=before_df,
+                        after_df=after_df,
+                        column=finding.column,
+                        old_value=request.pipeline_action.old_value,
+                    )
+                )
 
-        if not validation.success:
+                if not suspicious_replacement_ok:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "Suspicious-value replacement did not "
+                            "change the reviewed value in the active column."
+                        ),
+                    )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Bu data-quality operation için "
+                        "deterministic validation "
+                        "desteklenmiyor."
+                    ),
+                )
+
+        elif not validation.success:
             raise HTTPException(
                 status_code=400,
                 detail=(
