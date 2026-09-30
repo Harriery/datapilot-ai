@@ -9,6 +9,7 @@ import {
 type Props = {
   column: string | null;
   disabledReason?: string | null;
+  availableColumns?: string[];
   onClose: () => void;
   onPrepare: (draft: ColumnActionDraft) => Promise<boolean>;
 };
@@ -16,6 +17,7 @@ type Props = {
 function WorkbenchColumnInspector({
   column,
   disabledReason,
+  availableColumns = [],
   onClose,
   onPrepare,
 }: Props) {
@@ -24,7 +26,8 @@ function WorkbenchColumnInspector({
   const [dataType, setDataType] =
     useState<"string" | "integer" | "float" | "datetime">("string");
   const [fillStrategy, setFillStrategy] =
-    useState<"value" | "mean" | "median" | "mode" | "zero">("value");
+    useState<"value" | "mean" | "median" | "mode" | "zero" | "mapping">("value");
+  const [mappingSourceColumn, setMappingSourceColumn] = useState("");
   const [fillValue, setFillValue] = useState("");
   const [oldValue, setOldValue] = useState("");
   const [newValue, setNewValue] = useState("");
@@ -40,6 +43,7 @@ function WorkbenchColumnInspector({
     setError(null);
     setNewName("");
     setFillValue("");
+    setMappingSourceColumn("");
     setOldValue("");
     setNewValue("");
     setReplaceWithMissing(false);
@@ -62,6 +66,8 @@ function WorkbenchColumnInspector({
         dataType,
         fillStrategy,
         fillValue,
+        mappingSourceColumn,
+        mappingOnlyUnambiguous: true,
         oldValue,
         newValue,
         replaceWithMissing,
@@ -151,8 +157,26 @@ function WorkbenchColumnInspector({
               <option value="median">Median</option>
               <option value="mode">Mode</option>
               <option value="zero">Zero</option>
+              <option value="mapping">Mapping from another column</option>
             </select>
           </label>
+
+          {fillStrategy === "mapping" && (
+            <>
+              <label className="column-inspector-field">
+                <span>Source column</span>
+                <select value={mappingSourceColumn} onChange={(e) => setMappingSourceColumn(e.target.value)}>
+                  <option value="">Choose a source column</option>
+                  {availableColumns.filter((item) => item !== selectedColumn).map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="column-inspector-hint">
+                Only unambiguous source → target mappings are used. Ambiguous or unknown mappings stay missing.
+              </div>
+            </>
+          )}
 
           {fillStrategy === "value" && (
             <label className="column-inspector-field">
