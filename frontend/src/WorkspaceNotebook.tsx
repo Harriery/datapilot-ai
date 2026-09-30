@@ -27,6 +27,7 @@ export type WorkspaceNotebookCellData = {
   cell_id: string;
   code: string;
   cell_type: "python";
+  section_title?: string | null;
   last_execution?: {
     success: boolean;
     expression_kind: "dataframe" | "scalar" | "none";
@@ -132,7 +133,7 @@ function WorkspaceNotebook({
       export: "Export .ipynb", loading: "Loading dataset...", rowsLoaded: "rows loaded",
       columns: "columns", askMentor: "Ask mentor", reviewing: "Reviewing...",
       sendPipeline: "Send to pipeline", deleteCell: "Delete cell", output: "OUTPUT",
-      addCell: "Add Python cell",
+      addCell: "Add Python cell", section: "Section", sectionPlaceholder: "Optional section title",
     },
     nl: {
       notebook: "Notebook", dataset: "Dataset", working: "Ontwikkeldata / werkset",
@@ -141,7 +142,7 @@ function WorkspaceNotebook({
       export: "Exporteer .ipynb", loading: "Dataset laden...", rowsLoaded: "rijen geladen",
       columns: "kolommen", askMentor: "Vraag mentor", reviewing: "Beoordelen...",
       sendPipeline: "Naar pipeline", deleteCell: "Cel verwijderen", output: "UITVOER",
-      addCell: "Python-cel toevoegen",
+      addCell: "Python-cel toevoegen", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
     },
     tr: {
       notebook: "Not defteri", dataset: "Veri seti", working: "Geliştirme / çalışma verisi",
@@ -150,7 +151,7 @@ function WorkspaceNotebook({
       export: ".ipynb dışa aktar", loading: "Veri seti yükleniyor...", rowsLoaded: "satır yüklendi",
       columns: "sütun", askMentor: "Mentora sor", reviewing: "İnceleniyor...",
       sendPipeline: "Pipeline'a gönder", deleteCell: "Cell'i sil", output: "ÇIKTI",
-      addCell: "Python cell ekle",
+      addCell: "Python cell ekle", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
     },
   }[language];
 
@@ -195,6 +196,7 @@ function WorkspaceNotebook({
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [collapsedOutputs, setCollapsedOutputs] = useState<Record<string, boolean>>({});
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const autosaveTimer = useRef<number | null>(null);
 
   const [
@@ -237,6 +239,7 @@ function WorkspaceNotebook({
     setDraft(notebook);
     setResults({});
     setMentorGuidance({});
+    setCollapsedSections({});
     setMessage(null);
     setDirty(false);
     setLastSavedAt(notebook.updated_at);
@@ -770,19 +773,58 @@ function WorkspaceNotebook({
       </div>
 
       <div className="notebook-cells">
-        {draft.cells.map(
-          (cell, index) => {
-            const result =
-              results[
-                cell.cell_id
-              ];
+        {(() => {
+          let activeSection = "";
+          return draft.cells.map(
+            (cell, index) => {
+              if (cell.section_title?.trim()) {
+                activeSection = cell.section_title.trim();
+              }
 
-            return (
+              const sectionTitle = activeSection;
+              const sectionCollapsed =
+                Boolean(
+                  sectionTitle &&
+                  collapsedSections[sectionTitle]
+                );
+
+              const result =
+                results[
+                  cell.cell_id
+                ];
+
+              return (
+                <div
+                  className="notebook-cell-section-wrap"
+                  key={cell.cell_id}
+                >
+                  {cell.section_title?.trim() && (
+                    <div className="notebook-section-header">
+                      <button
+                        type="button"
+                        className="notebook-section-toggle"
+                        onClick={() =>
+                          setCollapsedSections((previous) => ({
+                            ...previous,
+                            [sectionTitle]:
+                              !previous[sectionTitle],
+                          }))
+                        }
+                      >
+                        {sectionCollapsed
+                          ? <ChevronRight size={14} />
+                          : <ChevronDown size={14} />}
+                        <strong>{sectionTitle}</strong>
+                      </button>
+                      <span>
+                        {ui.section}
+                      </span>
+                    </div>
+                  )}
+
+                  {!sectionCollapsed && (
               <article
                 className="notebook-cell"
-                key={
-                  cell.cell_id
-                }
               >
                 <div className="notebook-cell-gutter">
                   <span>
@@ -811,6 +853,33 @@ function WorkspaceNotebook({
                 </div>
 
                 <div className="notebook-cell-body">
+                  <div className="notebook-cell-section-editor">
+                    <label>
+                      <span>{ui.section}</span>
+                      <input
+                        value={cell.section_title ?? ""}
+                        placeholder={ui.sectionPlaceholder}
+                        onChange={(event) => {
+                          const sectionTitle =
+                            event.target.value;
+
+                          markDraftChanged({
+                            ...draft,
+                            cells: draft.cells.map((item) =>
+                              item.cell_id === cell.cell_id
+                                ? {
+                                    ...item,
+                                    section_title:
+                                      sectionTitle || null,
+                                  }
+                                : item
+                            ),
+                          });
+                        }}
+                      />
+                    </label>
+                  </div>
+
                   <textarea
                     value={cell.code}
                     spellCheck={false}
@@ -1023,9 +1092,12 @@ function WorkspaceNotebook({
                   )}
                 </div>
               </article>
-            );
-          }
-        )}
+                  )}
+                </div>
+              );
+            }
+          );
+        })()}
 
         <button
           type="button"
