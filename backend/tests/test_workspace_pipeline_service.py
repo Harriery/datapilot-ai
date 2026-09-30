@@ -300,3 +300,101 @@ def test_apply_pipeline_action_batch_replace_values():
         "Re",
         "Nelson",
     ]
+
+
+
+def test_apply_pipeline_action_conditional_replacements():
+    df = pd.DataFrame(
+        {
+            "year": [1850, 1850, 1850, 1970],
+            "suburb": [
+                "Fitzroy",
+                "Prahran",
+                "St Kilda",
+                "Richmond",
+            ],
+            "address": [
+                "11 Henry St",
+                "602/220 Commercial Rd",
+                "51/167 Fitzroy St",
+                "1 Example St",
+            ],
+        }
+    )
+
+    result = apply_pipeline_action(
+        df,
+        WorkspacePipelineAction(
+            action="replace_values",
+            column="year",
+            replacements=[
+                {
+                    "old_value": 1850,
+                    "new_value": 1900,
+                    "conditions": [
+                        {
+                            "column": "suburb",
+                            "value": "Fitzroy",
+                        },
+                        {
+                            "column": "address",
+                            "value": "11 Henry St",
+                        },
+                    ],
+                },
+                {
+                    "old_value": 1850,
+                    "new_value": 1915,
+                    "conditions": [
+                        {
+                            "column": "suburb",
+                            "value": "Prahran",
+                        },
+                        {
+                            "column": "address",
+                            "value": "602/220 Commercial Rd",
+                        },
+                    ],
+                },
+            ],
+        ),
+    )
+
+    assert result["year"].tolist() == [
+        1900,
+        1915,
+        1850,
+        1970,
+    ]
+
+
+def test_conditional_replace_requires_condition_column():
+    df = pd.DataFrame(
+        {
+            "year": [1850],
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Pipeline column bulunamadı: suburb",
+    ):
+        apply_pipeline_action(
+            df,
+            WorkspacePipelineAction(
+                action="replace_values",
+                column="year",
+                replacements=[
+                    {
+                        "old_value": 1850,
+                        "new_value": 1900,
+                        "conditions": [
+                            {
+                                "column": "suburb",
+                                "value": "Fitzroy",
+                            },
+                        ],
+                    },
+                ],
+            ),
+        )

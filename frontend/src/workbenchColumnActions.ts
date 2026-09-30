@@ -24,10 +24,18 @@ export type ColumnActionDraft = {
   oldValue?: string;
   newValue?: string;
   replaceWithMissing?: boolean;
+  replacementConditions?: Array<{
+    column: string;
+    value: string;
+  }>;
   replacementPairs?: Array<{
     oldValue: string;
     newValue: string;
     replaceWithMissing?: boolean;
+    conditions?: Array<{
+      column: string;
+      value: string;
+    }>;
   }>;
   derivedName?: string;
   derivedOperation?: "copy" | "uppercase" | "lowercase" | "add" | "multiply";
@@ -201,6 +209,7 @@ export function prepareColumnAction(
         oldValue: draft.oldValue ?? "",
         newValue: draft.newValue ?? "",
         replaceWithMissing: draft.replaceWithMissing,
+        conditions: draft.replacementConditions ?? [],
       },
       ...(draft.replacementPairs ?? []),
     ].filter((pair) => pair.oldValue.trim() !== "");
@@ -212,20 +221,46 @@ export function prepareColumnAction(
     title = `Replace values in ${column}`;
     goal = `Replace one or more explicit values in ${column} while preserving other values.`;
 
-    const replacementObject = pairs
-      .map((pair) =>
-        `${pyLiteral(pair.oldValue)}: ${pair.replaceWithMissing ? "None" : pyLiteral(pair.newValue)}`
-      )
-      .join(", ");
+    const parsedPairs = pairs.map((pair) => {
+      const conditions = (pair.conditions ?? [])
+        .filter((condition) => condition.column.trim() !== "")
+        .map((condition) => ({
+          column: condition.column.trim(),
+          value: parseLiteral(condition.value),
+        }));
 
-    code = `df[${pyString(column)}] = df[${pyString(column)}].replace({${replacementObject}})`;
+      return {
+        old_value: parseLiteral(pair.oldValue),
+        new_value: pair.replaceWithMissing
+          ? null
+          : parseLiteral(pair.newValue),
+        conditions,
+      };
+    });
 
-    const parsedPairs = pairs.map((pair) => ({
-      old_value: parseLiteral(pair.oldValue),
-      new_value: pair.replaceWithMissing
-        ? null
-        : parseLiteral(pair.newValue),
-    }));
+    code = parsedPairs
+      .map((pair) => {
+        const oldMask = pair.old_value === null
+          ? `df[${pyString(column)}].isna()`
+          : `df[${pyString(column)}].eq(${pyLiteral(String(pair.old_value))})`;
+
+        const conditionMasks = pair.conditions.map((condition) =>
+          condition.value === null
+            ? `df[${pyString(condition.column)}].isna()`
+            : `df[${pyString(condition.column)}].eq(${pyLiteral(String(condition.value))})`
+        );
+
+        const mask = [oldMask, ...conditionMasks]
+          .map((item) => `(${item})`)
+          .join(" & ");
+
+        const newValue = pair.new_value === null
+          ? "None"
+          : pyLiteral(String(pair.new_value));
+
+        return `df.loc[${mask}, ${pyString(column)}] = ${newValue}`;
+      })
+      .join("\n");
 
     pipelineAction.replacements = parsedPairs;
 
@@ -281,9 +316,32 @@ export function prepareColumnAction(
       title,
       goal,
       operation_type: operationTypeFor(draft.action),
-      source_columns: draft.fillStrategy === "mapping" && draft.mappingSourceColumn?.trim()
-        ? [column, draft.mappingSourceColumn.trim()]
-        : [column],
+      source_columns: (() => {
+        const sources = new Set<string>([column]);
+
+        if (
+          draft.fillStrategy === "mapping"
+          && draft.mappingSourceColumn?.trim()
+        ) {
+          sources.add(
+            draft.mappingSourceColumn.trim()
+          );
+        }
+
+        if (draft.action === "replace_values") {
+          for (const condition of [
+            ...(draft.replacementConditions ?? []),
+            ...(draft.replacementPairs ?? [])
+              .flatMap((pair) => pair.conditions ?? []),
+          ]) {
+            if (condition.column.trim()) {
+              sources.add(condition.column.trim());
+            }
+          }
+        }
+
+        return Array.from(sources);
+      })(),
       expected_columns: expectedColumns,
       pipeline_action:
         pipelineAction,

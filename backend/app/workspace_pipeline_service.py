@@ -215,14 +215,40 @@ def apply_pipeline_action(
 
     if action.action == "replace_values":
         if action.replacements:
-            replacement_map = {
-                item.old_value: item.new_value
-                for item in action.replacements
-            }
-            result[action.column] = (
-                result[action.column]
-                .replace(replacement_map)
-            )
+            for item in action.replacements:
+                if pd.isna(item.old_value):
+                    mask = result[action.column].isna()
+                else:
+                    mask = (
+                        result[action.column]
+                        .eq(item.old_value)
+                        .fillna(False)
+                    )
+
+                for condition in item.conditions:
+                    _require_column(
+                        result,
+                        condition.column,
+                    )
+
+                    if pd.isna(condition.value):
+                        condition_mask = (
+                            result[condition.column]
+                            .isna()
+                        )
+                    else:
+                        condition_mask = (
+                            result[condition.column]
+                            .eq(condition.value)
+                            .fillna(False)
+                        )
+
+                    mask = mask & condition_mask
+
+                result.loc[
+                    mask,
+                    action.column,
+                ] = item.new_value
         else:
             result[action.column] = (
                 result[action.column]

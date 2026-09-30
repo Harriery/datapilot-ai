@@ -963,9 +963,17 @@ class PersonalProjectDataModelStudio(BaseModel):
 
 
 
+class WorkspaceReplacementCondition(BaseModel):
+    column: str
+    value: str | int | float | bool | None = None
+
+
 class WorkspaceValueReplacement(BaseModel):
     old_value: str | int | float | bool | None = None
     new_value: str | int | float | bool | None = None
+    conditions: list[
+        WorkspaceReplacementCondition
+    ] = Field(default_factory=list)
 
 
 class WorkspacePipelineAction(BaseModel):

@@ -78,6 +78,14 @@ export type WorkbenchPipelineActionData = {
       | number
       | boolean
       | null;
+    conditions?: Array<{
+      column: string;
+      value:
+        | string
+        | number
+        | boolean
+        | null;
+    }>;
   }>;
 
   derived_name?: string | null;

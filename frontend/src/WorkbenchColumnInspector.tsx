@@ -32,10 +32,18 @@ function WorkbenchColumnInspector({
   const [oldValue, setOldValue] = useState("");
   const [newValue, setNewValue] = useState("");
   const [replaceWithMissing, setReplaceWithMissing] = useState(false);
+  const [replacementConditions, setReplacementConditions] = useState<Array<{
+    column: string;
+    value: string;
+  }>>([]);
   const [replacementPairs, setReplacementPairs] = useState<Array<{
     oldValue: string;
     newValue: string;
     replaceWithMissing: boolean;
+    conditions: Array<{
+      column: string;
+      value: string;
+    }>;
   }>>([]);
   const [derivedName, setDerivedName] = useState("");
   const [derivedOperation, setDerivedOperation] =
@@ -52,6 +60,7 @@ function WorkbenchColumnInspector({
     setOldValue("");
     setNewValue("");
     setReplaceWithMissing(false);
+    setReplacementConditions([]);
     setReplacementPairs([]);
     setDerivedName("");
     setDerivedValue("");
@@ -77,6 +86,7 @@ function WorkbenchColumnInspector({
         oldValue,
         newValue,
         replaceWithMissing,
+        replacementConditions,
         replacementPairs,
         derivedName,
         derivedOperation,
@@ -224,6 +234,67 @@ function WorkbenchColumnInspector({
             </div>
           </div>
 
+          <div className="column-inspector-hint">
+            Optional row conditions let you replace only matching records.
+          </div>
+          {replacementConditions.map((condition, index) => (
+            <div className="column-inspector-replacement-row" key={`primary-condition-${index}`}>
+              <select
+                value={condition.column}
+                onChange={(e) =>
+                  setReplacementConditions((previous) =>
+                    previous.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, column: e.target.value }
+                        : item
+                    )
+                  )
+                }
+              >
+                <option value="">Condition column</option>
+                {availableColumns.filter((item) => item !== selectedColumn).map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+              <input
+                value={condition.value}
+                onChange={(e) =>
+                  setReplacementConditions((previous) =>
+                    previous.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, value: e.target.value }
+                        : item
+                    )
+                  )
+                }
+                placeholder="Equals value"
+              />
+              <button
+                type="button"
+                className="column-inspector-remove-pair"
+                onClick={() =>
+                  setReplacementConditions((previous) =>
+                    previous.filter((_, itemIndex) => itemIndex !== index)
+                  )
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="secondary-button column-inspector-add-pair"
+            onClick={() =>
+              setReplacementConditions((previous) => [
+                ...previous,
+                { column: "", value: "" },
+              ])
+            }
+          >
+            + Add row condition
+          </button>
+
           {replacementPairs.map((pair, index) => (
             <div className="column-inspector-replacement-row" key={index}>
               <input
@@ -275,6 +346,27 @@ function WorkbenchColumnInspector({
               </label>
               <button
                 type="button"
+                className="secondary-button"
+                onClick={() =>
+                  setReplacementPairs((previous) =>
+                    previous.map((item, itemIndex) =>
+                      itemIndex === index
+                        ? {
+                            ...item,
+                            conditions: [
+                              ...item.conditions,
+                              { column: "", value: "" },
+                            ],
+                          }
+                        : item
+                    )
+                  )
+                }
+              >
+                + Condition
+              </button>
+              <button
+                type="button"
                 className="column-inspector-remove-pair"
                 onClick={() =>
                   setReplacementPairs((previous) =>
@@ -284,6 +376,79 @@ function WorkbenchColumnInspector({
               >
                 ×
               </button>
+
+              {pair.conditions.map((condition, conditionIndex) => (
+                <div
+                  className="column-inspector-replacement-row"
+                  key={`pair-${index}-condition-${conditionIndex}`}
+                >
+                  <select
+                    value={condition.column}
+                    onChange={(e) =>
+                      setReplacementPairs((previous) =>
+                        previous.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? {
+                                ...item,
+                                conditions: item.conditions.map((conditionItem, itemConditionIndex) =>
+                                  itemConditionIndex === conditionIndex
+                                    ? { ...conditionItem, column: e.target.value }
+                                    : conditionItem
+                                ),
+                              }
+                            : item
+                        )
+                      )
+                    }
+                  >
+                    <option value="">Condition column</option>
+                    {availableColumns.filter((item) => item !== selectedColumn).map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={condition.value}
+                    onChange={(e) =>
+                      setReplacementPairs((previous) =>
+                        previous.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? {
+                                ...item,
+                                conditions: item.conditions.map((conditionItem, itemConditionIndex) =>
+                                  itemConditionIndex === conditionIndex
+                                    ? { ...conditionItem, value: e.target.value }
+                                    : conditionItem
+                                ),
+                              }
+                            : item
+                        )
+                      )
+                    }
+                    placeholder="Equals value"
+                  />
+                  <button
+                    type="button"
+                    className="column-inspector-remove-pair"
+                    onClick={() =>
+                      setReplacementPairs((previous) =>
+                        previous.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? {
+                                ...item,
+                                conditions: item.conditions.filter(
+                                  (_, itemConditionIndex) =>
+                                    itemConditionIndex !== conditionIndex
+                                ),
+                              }
+                            : item
+                        )
+                      )
+                    }
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           ))}
 
@@ -297,6 +462,7 @@ function WorkbenchColumnInspector({
                   oldValue: "",
                   newValue: "",
                   replaceWithMissing: false,
+                  conditions: [],
                 },
               ])
             }
