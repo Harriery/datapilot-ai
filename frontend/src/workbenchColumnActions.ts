@@ -17,7 +17,9 @@ export type ColumnActionDraft = {
   column: string;
   newName?: string;
   dataType?: "string" | "integer" | "float" | "datetime";
-  fillStrategy?: "value" | "mean" | "median" | "mode" | "zero";
+  fillStrategy?: "value" | "mean" | "median" | "mode" | "zero" | "mapping";
+  mappingSourceColumn?: string;
+  mappingOnlyUnambiguous?: boolean;
   fillValue?: string;
   oldValue?: string;
   newValue?: string;
@@ -163,9 +165,19 @@ export function prepareColumnAction(
       median: `df[${pyString(column)}] = df[${pyString(column)}].fillna(df[${pyString(column)}].median())`,
       mode: `df[${pyString(column)}] = df[${pyString(column)}].fillna(df[${pyString(column)}].mode().iloc[0])`,
       zero: `df[${pyString(column)}] = df[${pyString(column)}].fillna(0)`,
+      mapping: "",
     };
 
-    code = strategyCode[draft.fillStrategy];
+    if (draft.fillStrategy === "mapping") {
+      const sourceColumn = draft.mappingSourceColumn?.trim();
+      if (!sourceColumn) throw new Error("Choose a mapping source column.");
+      if (sourceColumn === column) throw new Error("Mapping source column must be different from the target column.");
+      code = `# Fill missing ${column} values from unambiguous ${sourceColumn} -> ${column} mappings`;
+      pipelineAction.mapping_source_column = sourceColumn;
+      pipelineAction.mapping_only_unambiguous = draft.mappingOnlyUnambiguous !== false;
+    } else {
+      code = strategyCode[draft.fillStrategy];
+    }
 
     pipelineAction.fill_strategy =
       draft.fillStrategy;
@@ -238,7 +250,9 @@ export function prepareColumnAction(
       title,
       goal,
       operation_type: operationTypeFor(draft.action),
-      source_columns: [column],
+      source_columns: draft.fillStrategy === "mapping" && draft.mappingSourceColumn?.trim()
+        ? [column, draft.mappingSourceColumn.trim()]
+        : [column],
       expected_columns: expectedColumns,
       pipeline_action:
         pipelineAction,
