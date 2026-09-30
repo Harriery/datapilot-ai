@@ -214,13 +214,23 @@ def apply_pipeline_action(
         return result
 
     if action.action == "replace_values":
-        result[action.column] = (
-            result[action.column]
-            .replace(
-                action.old_value,
-                action.new_value,
+        if action.replacements:
+            replacement_map = {
+                item.old_value: item.new_value
+                for item in action.replacements
+            }
+            result[action.column] = (
+                result[action.column]
+                .replace(replacement_map)
             )
-        )
+        else:
+            result[action.column] = (
+                result[action.column]
+                .replace(
+                    action.old_value,
+                    action.new_value,
+                )
+            )
 
         return result
 
