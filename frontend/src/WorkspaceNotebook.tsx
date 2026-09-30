@@ -101,6 +101,7 @@ type Props = {
   onAskMentorContext?: (
     code: string
   ) => void;
+  dataRevision?: number;
 };
 
 function createCell():
@@ -124,6 +125,7 @@ function WorkspaceNotebook({
   onDelete,
   onPromoteCode,
   onAskMentorContext,
+  dataRevision = 0,
 }: Props) {
   const ui = {
     en: {
@@ -302,6 +304,7 @@ function WorkspaceNotebook({
     notebook.notebook_id,
     notebook.dataset_kind,
     notebook.processed_dataset_id,
+    dataRevision,
   ]);
 
   async function saveDraft(
