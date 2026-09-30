@@ -12402,3 +12402,95 @@
     width: 100%;
   }
 }
+
+
+/* Workbench helper text */
+.column-inspector-hint {
+  margin-top: 2px;
+  color: #6f8195;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+/* Notebook section organization */
+.notebook-cell-section-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.notebook-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #d8e3ef;
+  border-radius: 8px;
+  background: #f7fafc;
+  color: #526980;
+}
+
+.notebook-section-header > span {
+  color: #8b9bad;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.notebook-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: #36526f;
+  cursor: pointer;
+  padding: 0;
+}
+
+.notebook-section-toggle strong {
+  font-size: 10px;
+}
+
+.notebook-cell-section-editor {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.notebook-cell-section-editor label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notebook-cell-section-editor span {
+  color: #8797aa;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.notebook-cell-section-editor input {
+  width: 190px;
+  min-height: 28px;
+  padding: 5px 7px;
+  border: 1px solid #d4dfeb;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334d68;
+  font-size: 9px;
+}
+
+@media (max-width: 760px) {
+  .notebook-cell-section-editor {
+    justify-content: stretch;
+  }
+
+  .notebook-cell-section-editor label,
+  .notebook-cell-section-editor input {
+    width: 100%;
+  }
+}
