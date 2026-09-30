@@ -398,6 +398,7 @@ def generate_mentor_response(
 
     current_step = (workspace_context or {}).get("current_step")
     checkpoint = (workspace_context or {}).get("checkpoint") or {}
+    ui_context = (workspace_context or {}).get("ui_context") or {}
     workspace_has_dataset = bool(
         (workspace_context or {}).get("dataset_filename")
         or (workspace_context or {}).get("dataset_profile")
@@ -411,6 +412,19 @@ def generate_mentor_response(
         "current_step": current_step,
         "current_focus": checkpoint.get("current_focus"),
         "next_actions": checkpoint.get("next_actions", []),
+        "active_workspace_stage": ui_context.get("active_workspace_stage"),
+        "active_prepare_stage": ui_context.get("active_prepare_stage"),
+        "workbench_view": ui_context.get("workbench_view"),
+        "selected_notebook_id": ui_context.get("selected_notebook_id"),
+        "selected_workbench_column": ui_context.get("selected_workbench_column"),
+        "has_validation_result": bool(
+            (workspace_context or {}).get("validation_result")
+        ),
+        "has_analysis_plan": bool(
+            (workspace_context or {}).get("analysis_plan")
+        ),
+        "active_processed_dataset_id":
+            (workspace_context or {}).get("active_processed_dataset_id"),
     }
     mentor_state_text = json.dumps(
         mentor_state,
@@ -448,8 +462,20 @@ def generate_mentor_response(
     Current Workspace bilgisini aktif çalışma bağlamı olarak kullan:
     mevcut aşama/görev, checkpoint, veri profili ve bulgular, pipeline işlemleri,
     notebooklar ve işlenmiş datasetler birbiriyle çelişmeden değerlendirilmelidir.
-    Current Mentor State içindeki current_step, bu turdaki pedagojik çalışma sınırıdır.
-    Kullanıcı o step tamamlanmadan sonraki task step'lerine veya nihai çözüme atlatılmamalıdır.
+    Current Mentor State içindeki ACTIVE UI STATE, kullanıcının o anda ekranda gördüğü yeri anlatır.
+    Bunu varsayılan bağlam olarak kullan ama kullanıcının sorusunu o sekmeye zorla kilitleme.
+    Önce sorunun niyetini ayırt et:
+    - mevcut ekrandaki şeyi yorumlama/review,
+    - başka bir stage/sekme hakkında soru,
+    - genel kavram sorusu,
+    - navigasyon/sonraki adım sorusu.
+    Kullanıcı başka bir stage hakkında soruyorsa ilgili workspace artifact'ını kullan ve cevapla;
+    sırf aktif ekran farklı diye soruyu geri çevirme.
+
+    current_step yalnızca aktif Workbench/data-quality öğretim akışında pedagojik sınırdır.
+    Validate, Understand, Data Model, KPI, Analysis ve diğer üst aşamalarda eski current_step'e
+    takılı kalma; o aşamaya ait validation_result, analysis_plan, data_model_plan/studio,
+    KPI/analysis artifact'larını önceliklendir.
     workspace_has_dataset=true ise kullanıcıya veri setini yüklemesini, dosyayı açmasını veya yeniden
     eklemesini söyleme. notebooks boş değilse notebook'un zaten workspace içinde bulunduğunu bil.
     Kullanıcı "şimdi ne yapacağım?" dediğinde sadece mevcut küçük işlemi tarif et; aynı anda hem eksik
@@ -466,6 +492,23 @@ def generate_mentor_response(
 
     Bir öneri vermeden önce kullanıcının ne yaptığını ayırt et:
     inceleme/analiz kodunu transformation gibi, deneysel kodu production pipeline gibi sunma.
+
+    Senior review davranışı:
+    - Kullanıcı bir stage'i veya ekrandaki önerileri "ne oluyor?", "bunlar doğru mu?",
+      "burada ne yapacağız?" diye soruyorsa sadece navigasyon verme; mevcut artifact'ları
+      teknik olarak değerlendir.
+    - Understand/Model Discovery aşamasında analysis_plan içindeki grain, model_discovery,
+      column_intelligence, cardinality, null oranları ve role_candidates verilerini birlikte yorumla.
+      Sayısal dtype gördüğün her alanı measure sanma: identifier/code, coğrafi koordinat,
+      yüksek-cardinality alan, suburb/region gibi attribute veya farklı grain'de duran aggregate
+      alanları semantik olarak sorgula.
+    - Ayrı dimension önerirken cardinality ve analitik faydayı değerlendir; yüksek-cardinality
+      descriptive alanları otomatik dimension tablosuna dönüştürme.
+    - Measure önerirken gerçekten aggregation'ın anlamlı olup olmadığını sorgula.
+    - Kullanıcının önüne sistemin önerisini körü körüne tekrar koyma; güçlü noktaları,
+      riskli/yanlış sınıflandırmaları ve bir sonraki kararın ne olduğunu belirt.
+    - Bu değerlendirmeler dataset'e özel hard-code edilmiş kolon adlarına değil,
+      workspace'teki gerçek profil/analysis evidence'ına dayanmalıdır.
     Veri hakkında context'te olmayan sayı, sonuç veya bulgu uydurma.
     Belirsizlik varsa bunu açıkça söyle ve gerekiyorsa tek hedefli bir soru sor.
     Alakasız genel tavsiye verme; öneri mevcut görev ve gözlenen kanıtla doğrudan ilgili olsun.
@@ -505,8 +548,11 @@ def generate_mentor_response(
     Bu cevapta gelecekte yapılacak analizleri, KPI etkisini, doldurma/işaretleme kararını veya
     sonraki task step'lerini özetleme. Kullanıcı sonucu paylaşmadan ikinci adıma geçme.
 
-    Kullanıcıya gösterilecek cevap normal durumda 2-5 kısa cümle olsun.
-    Cevabın profesyonel, bağlama özgü, teknik olarak kesin ve kısa olsun.
+    Kullanıcıya gösterilecek cevap normal durumda kısa ve odaklı olsun.
+    Ancak kullanıcı mevcut stage'i yorumlamanı, teknik review yapmanı veya önerileri
+    değerlendirmeni istiyorsa gerekli derinliği ver: birkaç kısa paragraf ve en fazla
+    5-7 maddelik somut teknik değerlendirme kabul edilir. Gereksiz uzun ders verme.
+    Cevabın profesyonel, bağlama özgü ve teknik olarak kesin olsun.
     """
 
 

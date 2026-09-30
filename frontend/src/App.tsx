@@ -7730,6 +7730,34 @@ async function restoreWorkspaceVersion(
           language={language}
           contextualPrompt={mentorContextPrompt}
           contextualPromptKey={mentorContextPromptKey}
+          uiContext={{
+            active_workspace_stage: activeWorkspaceStage,
+            active_prepare_stage:
+              activeWorkspaceStage === "prepare"
+                ? activePrepareStage
+                : null,
+            workbench_view:
+              activeWorkspaceStage === "prepare" &&
+              activePrepareStage === "workbench"
+                ? workbenchView
+                : null,
+            selected_notebook_id:
+              activeWorkspaceStage === "prepare" &&
+              activePrepareStage === "workbench"
+                ? selectedNotebookId
+                : null,
+            selected_workbench_column:
+              activeWorkspaceStage === "prepare" &&
+              activePrepareStage === "workbench"
+                ? selectedWorkbenchColumn
+                : null,
+            validation_visible:
+              activeWorkspaceStage === "prepare" &&
+              activePrepareStage === "validate",
+            understand_visible:
+              activeWorkspaceStage === "prepare" &&
+              activePrepareStage === "understand",
+          }}
           open={mentorPanelOpen}
           onOpenChange={setMentorPanelOpen}
         />

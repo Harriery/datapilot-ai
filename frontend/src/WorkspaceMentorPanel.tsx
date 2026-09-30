@@ -10,12 +10,13 @@ type Props = {
   language: "en" | "nl" | "tr";
   contextualPrompt?: string | null;
   contextualPromptKey?: number;
+  uiContext?: Record<string, unknown> | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
 export default function WorkspaceMentorPanel({
-  workspaceId, sessionId, language, contextualPrompt, contextualPromptKey, open, onOpenChange,
+  workspaceId, sessionId, language, contextualPrompt, contextualPromptKey, uiContext, open, onOpenChange,
 }: Props) {
   const copy = {
     en: { title:"DataPilot Mentor", subtitle:"Workspace-aware senior mentor", placeholder:"Ask about your current work...", send:"Send", empty:"I follow this workspace, its data-quality findings, notebook and pipeline. Ask me what to investigate or do next.", close:"Close", collapse:"Collapse", expand:"Open mentor", thinking:"Thinking..." },
@@ -55,7 +56,13 @@ export default function WorkspaceMentorPanel({
     try{
       const response=await fetch("http://127.0.0.1:8000/chat",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({session_id:sessionId,learner_id:"demo-learner",workspace_id:workspaceId,message}),
+        body:JSON.stringify({
+          session_id:sessionId,
+          learner_id:"demo-learner",
+          workspace_id:workspaceId,
+          message,
+          ui_context:uiContext ?? null,
+        }),
       });
       const data=await response.json();
       if(!response.ok) throw new Error(data.detail || "Mentor response failed.");

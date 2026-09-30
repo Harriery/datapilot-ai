@@ -62,6 +62,21 @@ def _deterministic_workspace_guidance(
     if workspace_context is None:
         return None
 
+    ui_context = (
+        workspace_context.get("ui_context")
+        or {}
+    )
+
+    # Deterministic micro-guidance is intentionally limited to the
+    # hands-on Workbench screen. On Validate/Understand/Data Model/etc.
+    # the adaptive mentor must reason from the relevant stage artifacts
+    # rather than being trapped in an older data-quality step.
+    if not (
+        ui_context.get("active_workspace_stage") == "prepare"
+        and ui_context.get("active_prepare_stage") == "workbench"
+    ):
+        return None
+
     step = workspace_context.get("current_step") or {}
     task = workspace_context.get("current_task") or {}
     checkpoint = workspace_context.get("checkpoint") or {}
@@ -307,6 +322,37 @@ def chat(request: ChatRequest):
                 item.model_dump() if hasattr(item, "model_dump") else item
                 for item in (workspace.processed_datasets or [])
             ],
+            "active_processed_dataset_id":
+                workspace.active_processed_dataset_id,
+            "validation_result": (
+                workspace.validation_result.model_dump()
+                if hasattr(workspace.validation_result, "model_dump")
+                else workspace.validation_result
+            ),
+            "analysis_plan": (
+                workspace.analysis_plan.model_dump()
+                if hasattr(workspace.analysis_plan, "model_dump")
+                else workspace.analysis_plan
+            ),
+            "data_model_plan": (
+                workspace.data_model_plan.model_dump()
+                if hasattr(workspace.data_model_plan, "model_dump")
+                else workspace.data_model_plan
+            ),
+            "data_model_studio": (
+                workspace.data_model_studio.model_dump()
+                if hasattr(workspace.data_model_studio, "model_dump")
+                else workspace.data_model_studio
+            ),
+            "kpi_candidates": [
+                item.model_dump() if hasattr(item, "model_dump") else item
+                for item in (workspace.kpi_candidates or [])
+            ],
+            "kpi_definitions": [
+                item.model_dump() if hasattr(item, "model_dump") else item
+                for item in (workspace.kpi_definitions or [])
+            ],
+            "ui_context": request.ui_context or {},
             "learner_skills": [
                 dict(item)
                 for item in database.get_skill_states_by_learner(learner_id)

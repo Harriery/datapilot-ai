@@ -26,6 +26,11 @@ class ChatRequest(BaseModel):
     # frontend workspace_id'yi de gönderir.
     workspace_id: str | None = None
 
+    # Frontend'in o anda gerçekten hangi ekran/sekmede olduğunu taşır.
+    # Bu state yalnızca konuşmayı bağlama oturtmak için kullanılır;
+    # kullanıcının sorusunu o sekmeye zorla kilitlemez.
+    ui_context: dict | None = None
+
 
 
 class ChatResponse(BaseModel):      #/chat endpoint’inin başarılı cevabında
