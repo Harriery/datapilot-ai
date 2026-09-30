@@ -990,11 +990,16 @@ class WorkspacePipelineAction(BaseModel):
         "median",
         "mode",
         "zero",
+        "mapping",
     ] | None = None
 
     fill_value: (
         str | int | float | bool | None
     ) = None
+
+    mapping_source_column: str | None = None
+
+    mapping_only_unambiguous: bool = True
 
     old_value: (
         str | int | float | bool | None
