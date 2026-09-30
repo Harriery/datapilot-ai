@@ -1100,6 +1100,19 @@ function App() {
         : "locked";
     }
 
+    const workbenchOperations =
+      dashboardWorkspace.workbench_operations ?? [];
+
+    const hasWorkbenchOperations =
+      workbenchOperations.length > 0;
+
+    const workbenchCompleted =
+      hasWorkbenchOperations &&
+      workbenchOperations.every(
+        (operation) =>
+          operation.status === "completed"
+      );
+
     if (stage === "profile") {
       return dashboardWorkspace.dataset_filename
         ? "completed"
@@ -1107,6 +1120,12 @@ function App() {
     }
 
     if (stage === "workbench") {
+      if (hasWorkbenchOperations) {
+        return workbenchCompleted
+          ? "completed"
+          : "current";
+      }
+
       if (!workspaceTask) {
         return "locked";
       }
@@ -1117,9 +1136,24 @@ function App() {
     }
 
     if (stage === "validate") {
+      const legacyTaskCompleted =
+        workspaceTask?.status === "completed";
+
       if (
-        !workspaceTask ||
-        workspaceTask.status !== "completed"
+        !(
+          workbenchCompleted ||
+          (
+            !hasWorkbenchOperations &&
+            legacyTaskCompleted
+          )
+        )
+      ) {
+        return "locked";
+      }
+
+      if (
+        dashboardWorkspace
+          .development_sample_enabled !== false
       ) {
         return "locked";
       }
@@ -1736,21 +1770,49 @@ async function openSelectedWorkspace(
       setWorkspaceWorkingDataLoading(true);
 
       try {
-        const workingDataResponse = await fetch(
-          `http://127.0.0.1:8000/workspaces/${learnerId}/${latestWorkspace.workspace_id}/data/working`
-        );
-      
-        if (!workingDataResponse.ok) {
-          throw new Error(
-            "Working dataset yüklenemedi."
+        if (
+          latestWorkspace
+            .development_sample_enabled === false
+        ) {
+          const previewResponse = await fetch(
+            (
+              `http://127.0.0.1:8000/workspaces/${learnerId}/` +
+              `${latestWorkspace.workspace_id}/data/preview` +
+              "?dataset=working&page=1&page_size=5"
+            )
+          );
+
+          if (!previewResponse.ok) {
+            throw new Error(
+              "Working dataset preview yüklenemedi."
+            );
+          }
+
+          const preview = await previewResponse.json();
+
+          setWorkspaceWorkingData({
+            columns: preview.columns,
+            row_count: preview.total_row_count,
+            rows: preview.rows,
+          });
+        } else {
+          const workingDataResponse = await fetch(
+            `http://127.0.0.1:8000/workspaces/${learnerId}/${latestWorkspace.workspace_id}/data/working`
+          );
+
+          if (!workingDataResponse.ok) {
+            throw new Error(
+              "Working dataset yüklenemedi."
+            );
+          }
+
+          const workingData: WorkspaceWorkingData =
+            await workingDataResponse.json();
+
+          setWorkspaceWorkingData(
+            workingData
           );
         }
-      
-        const workingData: WorkspaceWorkingData =
-          await workingDataResponse.json();
-      
-        setWorkspaceWorkingData(workingData);
-        
       } catch (error) {
         setWorkspaceWorkingDataError(
           error instanceof Error
@@ -1792,6 +1854,26 @@ async function openSelectedWorkspace(
 
         setWorkspaceTask(task);
       }
+    }
+
+    const restoredWorkbenchOperations =
+      latestWorkspace.workbench_operations ?? [];
+
+    const restoredWorkbenchCompleted =
+      restoredWorkbenchOperations.length > 0 &&
+      restoredWorkbenchOperations.every(
+        (operation) =>
+          operation.status === "completed"
+      );
+
+    if (
+      restoredWorkbenchCompleted &&
+      latestWorkspace
+        .development_sample_enabled === false
+    ) {
+      setActivePrepareStage(
+        "validate"
+      );
     }
 
     setCurrentView("workspace");
