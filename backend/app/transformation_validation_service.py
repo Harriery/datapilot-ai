@@ -126,19 +126,39 @@ def validate_suspicious_value_replacement(
     before_df: pd.DataFrame,
     after_df: pd.DataFrame,
     column: str,
-    old_value,
+    old_value=None,
+    old_values: list | None = None,
 ) -> bool:
     if column not in before_df.columns or column not in after_df.columns:
         return False
     if len(before_df) != len(after_df):
         return False
-    if pd.isna(old_value):
-        before_count = int(before_df[column].isna().sum())
-        after_count = int(after_df[column].isna().sum())
-    else:
-        before_count = int(before_df[column].eq(old_value).fillna(False).sum())
-        after_count = int(after_df[column].eq(old_value).fillna(False).sum())
-    return before_count > 0 and after_count < before_count
+
+    values = old_values if old_values else [old_value]
+
+    if not values:
+        return False
+
+    changed_any = False
+
+    for value in values:
+        if pd.isna(value):
+            before_count = int(before_df[column].isna().sum())
+            after_count = int(after_df[column].isna().sum())
+        else:
+            before_count = int(
+                before_df[column].eq(value).fillna(False).sum()
+            )
+            after_count = int(
+                after_df[column].eq(value).fillna(False).sum()
+            )
+
+        if before_count > 0 and after_count < before_count:
+            changed_any = True
+        else:
+            return False
+
+    return changed_any
 
 
 # validate_duplicate_rows_transformation()
