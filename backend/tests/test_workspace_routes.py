@@ -4981,3 +4981,152 @@ def test_notebook_mentor_uses_workspace_data_quality_context(
     assert "dropna" in guidance_text
     assert "building_area" in guidance_text
     assert "47" in guidance_text
+
+
+def test_confirm_personal_bi_model_advances_to_analysis(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Semantic Model Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.data_model_studio = (
+        PersonalProjectDataModelStudio(
+            tables=[
+                PersonalProjectDataModelTable(
+                    name="fact_events",
+                    table_type="fact",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="category_id",
+                            source_column="category",
+                            role="foreign_key",
+                        ),
+                        PersonalProjectDataModelColumn(
+                            name="amount",
+                            source_column="amount",
+                            role="measure",
+                        ),
+                    ],
+                ),
+                PersonalProjectDataModelTable(
+                    name="dim_category",
+                    table_type="dimension",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="category",
+                            source_column="category",
+                            role="key",
+                        ),
+                    ],
+                ),
+            ],
+            relationships=[
+                PersonalProjectDataModelRelationship(
+                    from_table="fact_events",
+                    from_column="category_id",
+                    to_table="dim_category",
+                    to_column="category",
+                    cardinality="many_to_one",
+                    active=True,
+                ),
+            ],
+            source="user",
+        )
+    )
+
+    workspace.kpi_definitions = [
+        PersonalProjectKPIDefinition(
+            code="total_amount",
+            title="Total amount",
+            fact_table="fact_events",
+            measure="amount",
+            aggregation="sum",
+            formula_mode="safe_aggregation",
+            formula="SUM(fact_events.amount)",
+            description="Total amount.",
+            source="user",
+        )
+    ]
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+            "data_model",
+            "kpi_definitions",
+        }:
+            deliverable.status = "completed"
+
+        if (
+            deliverable.code
+            == "bi_ready_dataset"
+        ):
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/bi-model/confirm"
+        )
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    deliverables = {
+        item["code"]: item
+        for item in body[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables[
+            "bi_ready_dataset"
+        ]["status"]
+        == "completed"
+    )
+
+    assert (
+        deliverables[
+            "analysis"
+        ]["status"]
+        == "in_progress"
+    )
+
+    assert (
+        body["checkpoint"][
+            "current_focus"
+        ]
+        == "Analyze semantic model"
+    )
