@@ -1,3 +1,5 @@
+import re
+
 from backend.app.models import (
     PersonalProjectAnalysisPlan,
     PersonalProjectAnalysisResult,
@@ -657,6 +659,275 @@ def build_personal_kpi_candidates_from_studio(
     return candidates
 
 
+
+_SUPPORTED_CUSTOM_KPI_FUNCTIONS = {
+    "SUM",
+    "MEAN",
+    "COUNT",
+    "COUNT_ROWS",
+    "MIN",
+    "MAX",
+    "SAFE_DIVIDE",
+}
+
+
+def _tokenize_custom_kpi_formula(
+    formula: str,
+) -> list[tuple[str, str]]:
+    token_pattern = re.compile(
+        r"\s*(?:"
+        r"(?P<identifier>[A-Za-z_][A-Za-z0-9_]*)"
+        r"|(?P<dot>\.)"
+        r"|(?P<lparen>\()"
+        r"|(?P<rparen>\))"
+        r"|(?P<comma>,)"
+        r")"
+    )
+
+    tokens: list[tuple[str, str]] = []
+    position = 0
+
+    while position < len(formula):
+        match = token_pattern.match(
+            formula,
+            position,
+        )
+
+        if match is None:
+            snippet = formula[
+                position:position + 20
+            ]
+
+            raise ValueError(
+                "Unsupported token in custom KPI "
+                f"formula near: {snippet!r}"
+            )
+
+        kind = match.lastgroup
+        value = match.group(kind)
+
+        tokens.append(
+            (
+                kind,
+                value,
+            )
+        )
+
+        position = match.end()
+
+    return tokens
+
+
+class _CustomKPIFormulaParser:
+    def __init__(
+        self,
+        formula: str,
+        studio: PersonalProjectDataModelStudio,
+    ):
+        self.tokens = (
+            _tokenize_custom_kpi_formula(
+                formula
+            )
+        )
+
+        self.position = 0
+
+        self.tables_by_name = {
+            table.name: table
+            for table in studio.tables
+        }
+
+    def _current(
+        self,
+    ) -> tuple[str, str] | None:
+        if self.position >= len(
+            self.tokens
+        ):
+            return None
+
+        return self.tokens[
+            self.position
+        ]
+
+    def _consume(
+        self,
+        kind: str,
+    ) -> str:
+        current = self._current()
+
+        if (
+            current is None
+            or current[0] != kind
+        ):
+            actual = (
+                "end of formula"
+                if current is None
+                else repr(current[1])
+            )
+
+            raise ValueError(
+                "Invalid custom KPI formula: "
+                f"expected {kind}, got {actual}."
+            )
+
+        self.position += 1
+
+        return current[1]
+
+    def _validate_table(
+        self,
+        table_name: str,
+    ) -> PersonalProjectDataModelTable:
+        table = self.tables_by_name.get(
+            table_name
+        )
+
+        if table is None:
+            raise ValueError(
+                "Custom KPI formula references "
+                f"unknown table: {table_name}"
+            )
+
+        return table
+
+    def _validate_column(
+        self,
+        table_name: str,
+        column_name: str,
+    ) -> None:
+        table = self._validate_table(
+            table_name
+        )
+
+        if not any(
+            column.name == column_name
+            for column in table.columns
+        ):
+            raise ValueError(
+                "Custom KPI formula references "
+                "unknown column: "
+                f"{table_name}.{column_name}"
+            )
+
+    def _parse_expression(
+        self,
+    ) -> None:
+        function_name = (
+            self._consume(
+                "identifier"
+            ).upper()
+        )
+
+        if (
+            function_name
+            not in _SUPPORTED_CUSTOM_KPI_FUNCTIONS
+        ):
+            supported = ", ".join(
+                sorted(
+                    _SUPPORTED_CUSTOM_KPI_FUNCTIONS
+                )
+            )
+
+            raise ValueError(
+                "Unsupported custom KPI function: "
+                f"{function_name}. "
+                f"Supported functions: {supported}."
+            )
+
+        self._consume(
+            "lparen"
+        )
+
+        if function_name == "SAFE_DIVIDE":
+            self._parse_expression()
+            self._consume(
+                "comma"
+            )
+            self._parse_expression()
+            self._consume(
+                "rparen"
+            )
+            return
+
+        if function_name == "COUNT_ROWS":
+            table_name = self._consume(
+                "identifier"
+            )
+
+            self._validate_table(
+                table_name
+            )
+
+            self._consume(
+                "rparen"
+            )
+            return
+
+        table_name = self._consume(
+            "identifier"
+        )
+
+        self._consume(
+            "dot"
+        )
+
+        column_name = self._consume(
+            "identifier"
+        )
+
+        self._validate_column(
+            table_name,
+            column_name,
+        )
+
+        self._consume(
+            "rparen"
+        )
+
+    def validate(
+        self,
+    ) -> None:
+        if not self.tokens:
+            raise ValueError(
+                "Custom KPI formula is required."
+            )
+
+        self._parse_expression()
+
+        if (
+            self.position
+            != len(self.tokens)
+        ):
+            current = self._current()
+
+            raise ValueError(
+                "Invalid custom KPI formula: "
+                "unexpected token "
+                f"{current[1]!r}."
+            )
+
+
+def validate_custom_kpi_formula(
+    formula: str,
+    studio: PersonalProjectDataModelStudio,
+) -> str:
+    clean_formula = formula.strip()
+
+    if not clean_formula:
+        raise ValueError(
+            "Custom KPI formula is required."
+        )
+
+    parser = _CustomKPIFormulaParser(
+        formula=clean_formula,
+        studio=studio,
+    )
+
+    parser.validate()
+
+    return clean_formula
+
+
 def validate_personal_kpi_definitions(
     studio: PersonalProjectDataModelStudio,
     definitions: list[
@@ -747,13 +1018,14 @@ def validate_personal_kpi_definitions(
             == "custom"
         ):
             custom_formula = (
-                definition.formula or ""
-            ).strip()
-
-            if not custom_formula:
-                raise ValueError(
-                    "Custom KPI formula is required."
+                validate_custom_kpi_formula(
+                    formula=(
+                        definition.formula
+                        or ""
+                    ),
+                    studio=studio,
                 )
+            )
 
             validated.append(
                 definition.model_copy(
