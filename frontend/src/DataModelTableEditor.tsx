@@ -29,7 +29,8 @@ type DerivationType =
   | "text"
   | "numeric"
   | "multi_column"
-  | "mapping";
+  | "mapping"
+  | "bucketing";
 
 
 const DERIVATION_HELP:
@@ -65,6 +66,11 @@ const DERIVATION_HELP:
       title: "Mapping / Case",
       description: "Translates coded values into readable labels.",
       example: "h → House, u → Unit",
+    },
+    bucketing: {
+      title: "Bucketing",
+      description: "Groups numeric values into labeled ranges.",
+      example: "18–29 → Young adult",
     },
     trim: {
       title: "Trim",
@@ -197,6 +203,10 @@ const DERIVATION_TYPE_OPTIONS:
       value: "mapping",
       label: "Mapping / Case",
     },
+    {
+      value: "bucketing",
+      label: "Bucketing",
+    },
   ];
 
 
@@ -273,12 +283,19 @@ function DerivationTypePicker({
                     setOpen(false);
                   }}
                 >
-                  <strong>
+                  <span className="model-derived-type-label">
                     {option.label}
-                  </strong>
+                  </span>
 
                   {help && (
-                    <>
+                    <span
+                      className="model-derived-type-hover-help"
+                      role="tooltip"
+                    >
+                      <strong>
+                        {help.title}
+                      </strong>
+
                       <span>
                         {help.description}
                       </span>
@@ -288,7 +305,7 @@ function DerivationTypePicker({
                           help.example
                         }
                       </small>
-                    </>
+                    </span>
                   )}
                 </button>
               );
@@ -739,16 +756,34 @@ function DataModelTableEditor({
                             type,
                             operation: "map_values",
                             source_columns: [],
-                            parameters: {
-                              mapping: "",
-                            },
-                          }
-                        : {
-                            type,
-                            operation: "",
-                            source_columns: [],
                             parameters: {},
-                          },
+                            mapping_rules: [
+                              {
+                                source_value: "",
+                                display_value: "",
+                              },
+                            ],
+                          }
+                        : type === "bucketing"
+                          ? {
+                              type,
+                              operation: "bucket_ranges",
+                              source_columns: [],
+                              parameters: {},
+                              bucket_rules: [
+                                {
+                                  min_value: "",
+                                  max_value: "",
+                                  label: "",
+                                },
+                              ],
+                            }
+                          : {
+                              type,
+                              operation: "",
+                              source_columns: [],
+                              parameters: {},
+                            },
                 }
               : column
         )
@@ -829,6 +864,266 @@ function DataModelTableEditor({
                   },
                 }
               : column
+        )
+    );
+  }
+
+
+  function updateMappingRule(
+    id: string,
+    ruleIndex: number,
+    field:
+      | "source_value"
+      | "display_value",
+    value: string,
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) => {
+            if (
+              column.id !== id ||
+              column.derivation?.type !==
+                "mapping"
+            ) {
+              return column;
+            }
+
+            const rules = [
+              ...(column.derivation
+                .mapping_rules ?? []),
+            ];
+
+            while (
+              rules.length <= ruleIndex
+            ) {
+              rules.push({
+                source_value: "",
+                display_value: "",
+              });
+            }
+
+            rules[ruleIndex] = {
+              ...rules[ruleIndex],
+              [field]: value,
+            };
+
+            return {
+              ...column,
+              derivation: {
+                ...column.derivation,
+                mapping_rules: rules,
+              },
+            };
+          }
+        )
+    );
+  }
+
+
+  function addMappingRule(
+    id: string,
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) =>
+            column.id === id &&
+            column.derivation?.type ===
+              "mapping"
+              ? {
+                  ...column,
+                  derivation: {
+                    ...column.derivation,
+                    mapping_rules: [
+                      ...(column.derivation
+                        .mapping_rules ?? []),
+                      {
+                        source_value: "",
+                        display_value: "",
+                      },
+                    ],
+                  },
+                }
+              : column
+        )
+    );
+  }
+
+
+  function removeMappingRule(
+    id: string,
+    ruleIndex: number,
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) => {
+            if (
+              column.id !== id ||
+              column.derivation?.type !==
+                "mapping"
+            ) {
+              return column;
+            }
+
+            const rules =
+              (
+                column.derivation
+                  .mapping_rules ?? []
+              ).filter(
+                (_rule, index) =>
+                  index !== ruleIndex
+              );
+
+            return {
+              ...column,
+              derivation: {
+                ...column.derivation,
+                mapping_rules:
+                  rules.length > 0
+                    ? rules
+                    : [
+                        {
+                          source_value: "",
+                          display_value: "",
+                        },
+                      ],
+              },
+            };
+          }
+        )
+    );
+  }
+
+
+  function updateBucketRule(
+    id: string,
+    ruleIndex: number,
+    field:
+      | "min_value"
+      | "max_value"
+      | "label",
+    value: string,
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) => {
+            if (
+              column.id !== id ||
+              column.derivation?.type !==
+                "bucketing"
+            ) {
+              return column;
+            }
+
+            const rules = [
+              ...(column.derivation
+                .bucket_rules ?? []),
+            ];
+
+            while (
+              rules.length <= ruleIndex
+            ) {
+              rules.push({
+                min_value: "",
+                max_value: "",
+                label: "",
+              });
+            }
+
+            rules[ruleIndex] = {
+              ...rules[ruleIndex],
+              [field]: value,
+            };
+
+            return {
+              ...column,
+              derivation: {
+                ...column.derivation,
+                bucket_rules: rules,
+              },
+            };
+          }
+        )
+    );
+  }
+
+
+  function addBucketRule(
+    id: string,
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) =>
+            column.id === id &&
+            column.derivation?.type ===
+              "bucketing"
+              ? {
+                  ...column,
+                  derivation: {
+                    ...column.derivation,
+                    bucket_rules: [
+                      ...(column.derivation
+                        .bucket_rules ?? []),
+                      {
+                        min_value: "",
+                        max_value: "",
+                        label: "",
+                      },
+                    ],
+                  },
+                }
+              : column
+        )
+    );
+  }
+
+
+  function removeBucketRule(
+    id: string,
+    ruleIndex: number,
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) => {
+            if (
+              column.id !== id ||
+              column.derivation?.type !==
+                "bucketing"
+            ) {
+              return column;
+            }
+
+            const rules =
+              (
+                column.derivation
+                  .bucket_rules ?? []
+              ).filter(
+                (_rule, index) =>
+                  index !== ruleIndex
+              );
+
+            return {
+              ...column,
+              derivation: {
+                ...column.derivation,
+                bucket_rules:
+                  rules.length > 0
+                    ? rules
+                    : [
+                        {
+                          min_value: "",
+                          max_value: "",
+                          label: "",
+                        },
+                      ],
+              },
+            };
+          }
         )
     );
   }
@@ -1138,14 +1433,42 @@ function DataModelTableEditor({
             derivation.type ===
               "mapping"
           ) {
+            const rules =
+              derivation.mapping_rules ??
+              [];
+
             return (
               derivation.operation !==
                 "map_values" ||
               sources.length !== 1 ||
-              !String(
-                derivation.parameters
-                  .mapping ?? ""
-              ).trim()
+              rules.length === 0 ||
+              rules.some(
+                (rule) =>
+                  !rule.source_value.trim() ||
+                  !rule.display_value.trim()
+              )
+            );
+          }
+
+          if (
+            derivation.type ===
+              "bucketing"
+          ) {
+            const rules =
+              derivation.bucket_rules ??
+              [];
+
+            return (
+              derivation.operation !==
+                "bucket_ranges" ||
+              sources.length !== 1 ||
+              rules.length === 0 ||
+              rules.some(
+                (rule) =>
+                  !rule.min_value.trim() ||
+                  !rule.max_value.trim() ||
+                  !rule.label.trim()
+              )
             );
           }
 
@@ -2168,26 +2491,197 @@ function DataModelTableEditor({
                               />
                             </div>
 
-                            <textarea
-                              className="model-editor-mapping-input"
-                              value={
-                                String(
-                                  column.derivation
-                                    .parameters
-                                    .mapping ?? ""
+                            <div className="model-rule-builder">
+
+                              <div className="model-rule-header mapping">
+                                <span>Value in data</span>
+                                <span>Display as</span>
+                                <span />
+                              </div>
+
+                              {(
+                                column.derivation
+                                  .mapping_rules ?? []
+                              ).map(
+                                (
+                                  rule,
+                                  ruleIndex,
+                                ) => (
+                                  <div
+                                    key={ruleIndex}
+                                    className="model-rule-row mapping"
+                                  >
+                                    <input
+                                      type="text"
+                                      value={
+                                        rule.source_value
+                                      }
+                                      placeholder="e.g. h"
+                                      onChange={(event) =>
+                                        updateMappingRule(
+                                          column.id,
+                                          ruleIndex,
+                                          "source_value",
+                                          event.target.value
+                                        )
+                                      }
+                                    />
+
+                                    <input
+                                      type="text"
+                                      value={
+                                        rule.display_value
+                                      }
+                                      placeholder="e.g. House"
+                                      onChange={(event) =>
+                                        updateMappingRule(
+                                          column.id,
+                                          ruleIndex,
+                                          "display_value",
+                                          event.target.value
+                                        )
+                                      }
+                                    />
+
+                                    <button
+                                      type="button"
+                                      className="model-rule-remove"
+                                      onClick={() =>
+                                        removeMappingRule(
+                                          column.id,
+                                          ruleIndex
+                                        )
+                                      }
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
                                 )
+                              )}
+
+                              <button
+                                type="button"
+                                className="model-rule-add"
+                                onClick={() =>
+                                  addMappingRule(
+                                    column.id
+                                  )
+                                }
+                              >
+                                + Add mapping
+                              </button>
+
+                            </div>
+                          </>
+                        ) : column.derivation?.type ===
+                          "bucketing" ? (
+                          <>
+                            <SourceColumnPicker
+                              value={
+                                column.derivation
+                                  .source_columns[0] ??
+                                ""
                               }
-                              placeholder={
-                                "One mapping per line, for example:\nh => House\nu => Unit\nt => Townhouse"
-                              }
-                              onChange={(event) =>
-                                updateDerivedParameter(
+                              placeholder="Numeric source column..."
+                              options={sourceColumns}
+                              onChange={(sourceColumn) =>
+                                updateColumnSource(
                                   column.id,
-                                  "mapping",
-                                  event.target.value
+                                  sourceColumn
                                 )
                               }
                             />
+
+                            <div className="model-rule-builder">
+                              <div className="model-rule-header bucket">
+                                <span>From</span>
+                                <span>To</span>
+                                <span>Label</span>
+                                <span />
+                              </div>
+
+                              {(
+                                column.derivation
+                                  .bucket_rules ?? []
+                              ).map(
+                                (
+                                  rule,
+                                  ruleIndex,
+                                ) => (
+                                  <div
+                                    key={ruleIndex}
+                                    className="model-rule-row bucket"
+                                  >
+                                    <input
+                                      type="number"
+                                      value={rule.min_value}
+                                      placeholder="0"
+                                      onChange={(event) =>
+                                        updateBucketRule(
+                                          column.id,
+                                          ruleIndex,
+                                          "min_value",
+                                          event.target.value
+                                        )
+                                      }
+                                    />
+
+                                    <input
+                                      type="number"
+                                      value={rule.max_value}
+                                      placeholder="18"
+                                      onChange={(event) =>
+                                        updateBucketRule(
+                                          column.id,
+                                          ruleIndex,
+                                          "max_value",
+                                          event.target.value
+                                        )
+                                      }
+                                    />
+
+                                    <input
+                                      type="text"
+                                      value={rule.label}
+                                      placeholder="Young"
+                                      onChange={(event) =>
+                                        updateBucketRule(
+                                          column.id,
+                                          ruleIndex,
+                                          "label",
+                                          event.target.value
+                                        )
+                                      }
+                                    />
+
+                                    <button
+                                      type="button"
+                                      className="model-rule-remove"
+                                      onClick={() =>
+                                        removeBucketRule(
+                                          column.id,
+                                          ruleIndex
+                                        )
+                                      }
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                )
+                              )}
+
+                              <button
+                                type="button"
+                                className="model-rule-add"
+                                onClick={() =>
+                                  addBucketRule(
+                                    column.id
+                                  )
+                                }
+                              >
+                                + Add range
+                              </button>
+                            </div>
                           </>
                         ) : (
                           <>

@@ -396,16 +396,57 @@ def validate_personal_data_model_studio(
 
                 if (
                     derivation.type == "mapping"
-                    and not str(
-                        derivation.parameters.get(
-                            "mapping",
-                            ""
-                        )
-                    ).strip()
                 ):
-                    raise ValueError(
-                        "Mapping derivation requires mapping rules."
-                    )
+                    if (
+                        not derivation.mapping_rules
+                        or any(
+                            (
+                                not rule.source_value.strip()
+                                or not rule.display_value.strip()
+                            )
+                            for rule
+                            in derivation.mapping_rules
+                        )
+                    ):
+                        raise ValueError(
+                            (
+                                "Mapping derivation requires "
+                                "complete mapping rules."
+                            )
+                        )
+
+                if (
+                    derivation.type == "bucketing"
+                ):
+                    if (
+                        derivation.operation
+                        != "bucket_ranges"
+                    ):
+                        raise ValueError(
+                            (
+                                "Unsupported bucketing derivation: "
+                                f"{derivation.operation}"
+                            )
+                        )
+
+                    if (
+                        not derivation.bucket_rules
+                        or any(
+                            (
+                                not rule.min_value.strip()
+                                or not rule.max_value.strip()
+                                or not rule.label.strip()
+                            )
+                            for rule
+                            in derivation.bucket_rules
+                        )
+                    ):
+                        raise ValueError(
+                            (
+                                "Bucketing derivation requires "
+                                "complete range rules."
+                            )
+                        )
 
                 if (
                     column.source_column is not None

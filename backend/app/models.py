@@ -896,6 +896,17 @@ class PersonalProjectDataModelPlan(BaseModel):
         "local",
     ] = "local"
 
+class PersonalProjectDataModelMappingRule(BaseModel):
+    source_value: str
+    display_value: str
+
+
+class PersonalProjectDataModelBucketRule(BaseModel):
+    min_value: str
+    max_value: str
+    label: str
+
+
 class PersonalProjectDataModelDerivation(BaseModel):
     type: Literal[
         "date_part",
@@ -903,6 +914,7 @@ class PersonalProjectDataModelDerivation(BaseModel):
         "text",
         "multi_column",
         "mapping",
+        "bucketing",
     ]
 
     operation: str = Field(min_length=1)
@@ -915,6 +927,14 @@ class PersonalProjectDataModelDerivation(BaseModel):
         str,
         str | int | float | bool | None,
     ] = Field(default_factory=dict)
+
+    mapping_rules: list[
+        PersonalProjectDataModelMappingRule
+    ] = Field(default_factory=list)
+
+    bucket_rules: list[
+        PersonalProjectDataModelBucketRule
+    ] = Field(default_factory=list)
 
 
 class PersonalProjectDataModelColumn(BaseModel):

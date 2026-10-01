@@ -363,7 +363,8 @@ type DashboardWorkspace = {
             | "numeric"
             | "text"
             | "multi_column"
-            | "mapping";
+            | "mapping"
+            | "bucketing";
 
           operation: string;
           source_columns: string[];
@@ -372,6 +373,17 @@ type DashboardWorkspace = {
             string,
             string | number | boolean | null
           >;
+
+          mapping_rules?: Array<{
+            source_value: string;
+            display_value: string;
+          }>;
+
+          bucket_rules?: Array<{
+            min_value: string;
+            max_value: string;
+            label: string;
+          }>;
         } | null;
       }[];
     }[];

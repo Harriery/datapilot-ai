@@ -387,12 +387,17 @@ def test_data_model_studio_accepts_mapping_derivation():
                             "type": "mapping",
                             "operation": "map_values",
                             "source_columns": ["Type"],
-                            "parameters": {
-                                "mapping": (
-                                    "h => House\n"
-                                    "u => Unit"
-                                ),
-                            },
+                            "parameters": {},
+                            "mapping_rules": [
+                                {
+                                    "source_value": "h",
+                                    "display_value": "House",
+                                },
+                                {
+                                    "source_value": "u",
+                                    "display_value": "Unit",
+                                },
+                            ],
                         },
                     ),
                 ],
@@ -411,4 +416,49 @@ def test_data_model_studio_accepts_mapping_derivation():
         .derivation
         .type
         == "mapping"
+    )
+
+
+
+def test_data_model_studio_accepts_bucketing_derivation():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="dim_age_band",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="AgeBand",
+                        role="attribute",
+                        derivation={
+                            "type": "bucketing",
+                            "operation": "bucket_ranges",
+                            "source_columns": ["Age"],
+                            "parameters": {},
+                            "bucket_rules": [
+                                {
+                                    "min_value": "0",
+                                    "max_value": "18",
+                                    "label": "Young",
+                                }
+                            ],
+                        },
+                    ),
+                ],
+            )
+        ],
+        relationships=[],
+    )
+
+    result = validate_personal_data_model_studio(
+        studio
+    )
+
+    assert (
+        result.tables[0]
+        .columns[0]
+        .derivation
+        .bucket_rules[0]
+        .label
+        == "Young"
     )

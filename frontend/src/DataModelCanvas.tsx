@@ -33,7 +33,8 @@ export type DataModelDerivation = {
     | "numeric"
     | "text"
     | "multi_column"
-    | "mapping";
+    | "mapping"
+    | "bucketing";
 
   operation: string;
 
@@ -43,6 +44,17 @@ export type DataModelDerivation = {
     string,
     string | number | boolean | null
   >;
+
+  mapping_rules?: Array<{
+    source_value: string;
+    display_value: string;
+  }>;
+
+  bucket_rules?: Array<{
+    min_value: string;
+    max_value: string;
+    label: string;
+  }>;
 };
 
 
