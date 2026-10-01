@@ -70,6 +70,23 @@ function normalizeCode(
   );
 }
 
+function aggregationLabel(
+  aggregation:
+    | "count"
+    | "sum"
+    | "mean"
+    | "min"
+    | "max"
+): string {
+  return {
+    count: "Count",
+    sum: "Total",
+    mean: "Average",
+    min: "Minimum",
+    max: "Maximum",
+  }[aggregation];
+}
+
 function PersonalKpiCandidates({
   studio,
   candidates,
@@ -361,7 +378,7 @@ function PersonalKpiCandidates({
     }
 
     const defaultTitle =
-      `${aggregation.toUpperCase()} ${measure}`;
+      `${aggregationLabel(aggregation)} ${measure}`;
 
     const cleanTitle =
       title.trim() ||
@@ -666,7 +683,7 @@ function PersonalKpiCandidates({
                 }
                 placeholder={
                   measure
-                    ? `${aggregation.toUpperCase()} ${measure}`
+                    ? `${aggregationLabel(aggregation)} ${measure}`
                     : "KPI title"
                 }
               />
