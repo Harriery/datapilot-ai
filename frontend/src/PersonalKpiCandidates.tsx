@@ -34,6 +34,7 @@ export type PersonalKpiData = {
 
   formula_mode?:
     | "safe_aggregation"
+    | "row_count"
     | null;
 
   formula?: string | null;
