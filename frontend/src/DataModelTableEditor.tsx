@@ -3,6 +3,7 @@ import {
 } from "react";
 
 import type {
+  DataModelDerivation,
   DataModelStudioData,
 } from "./DataModelCanvas";
 
@@ -43,6 +44,13 @@ type DraftColumn = {
 
   aggregation:
     ColumnData["aggregation"];
+
+  mode:
+    | "source"
+    | "derived";
+
+  derivation:
+    DataModelDerivation | null;
 };
 
 
@@ -61,6 +69,8 @@ type Props = {
   saving: boolean;
 
   sourceColumns?: string[];
+
+  timeCandidates?: string[];
 };
 
 
@@ -71,6 +81,7 @@ function DataModelTableEditor({
   onSave,
   saving,
   sourceColumns = [],
+  timeCandidates = [],
 }: Props) {
 
   const editingTable =
@@ -130,6 +141,14 @@ function DataModelTableEditor({
 
             aggregation:
               column.aggregation,
+
+            mode:
+              column.derivation
+                ? "derived"
+                : "source",
+
+            derivation:
+              column.derivation ?? null,
           })
         )
       : [
@@ -150,6 +169,12 @@ function DataModelTableEditor({
               null,
 
             aggregation:
+              null,
+
+            mode:
+              "source",
+
+            derivation:
               null,
           },
         ]
@@ -187,6 +212,12 @@ function DataModelTableEditor({
 
           aggregation:
             null,
+
+          mode:
+            "source",
+
+          derivation:
+            null,
         },
       ]
     );
@@ -206,6 +237,28 @@ function DataModelTableEditor({
   }
 
 
+  function updateColumnMode(
+    id: string,
+    mode: "source" | "derived",
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) =>
+            column.id === id
+              ? {
+                  ...column,
+                  mode,
+                  name: "",
+                  sourceColumn: null,
+                  derivation: null,
+                }
+              : column
+        )
+    );
+  }
+
+
   function updateColumnSource(
     id: string,
     sourceColumn: string,
@@ -217,8 +270,63 @@ function DataModelTableEditor({
             column.id === id
               ? {
                   ...column,
-                  name: sourceColumn,
+                  name:
+                    column.mode === "source"
+                      ? sourceColumn
+                      : column.name,
                   sourceColumn,
+                  derivation:
+                    column.mode === "derived"
+                      ? {
+                          type: "date_part",
+                          operation: "",
+                          source_columns: [
+                            sourceColumn,
+                          ],
+                          parameters: {},
+                        }
+                      : null,
+                }
+              : column
+        )
+    );
+  }
+
+
+  function updateDerivedOperation(
+    id: string,
+    operation: string,
+  ) {
+    const defaultNames:
+      Record<string, string> = {
+        year: "Year",
+        quarter: "Quarter",
+        month: "Month",
+        month_name: "MonthName",
+        day_of_week: "DayOfWeek",
+      };
+
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) =>
+            column.id === id
+              ? {
+                  ...column,
+                  name:
+                    defaultNames[operation] ??
+                    column.name,
+                  derivation:
+                    column.sourceColumn
+                      ? {
+                          type: "date_part",
+                          operation,
+                          source_columns: [
+                            column.sourceColumn,
+                          ],
+                          parameters: {},
+                        }
+                      : null,
                 }
               : column
         )
@@ -447,6 +555,9 @@ function DataModelTableEditor({
 
             aggregation:
               column.aggregation,
+
+            derivation:
+              column.derivation,
           })
         ),
     };
@@ -838,57 +949,162 @@ function DataModelTableEditor({
                   className="model-editor-column-row"
                 >
 
-                  {column.originalName === null &&
-                  sourceColumns.length > 0 ? (
-                    <select
-                      value={column.sourceColumn ?? ""}
-                      onChange={(event) =>
-                        updateColumnSource(
-                          column.id,
-                          event.target.value
-                        )
-                      }
-                    >
-                      <option value="">
-                        Select source column...
-                      </option>
+                  <div className="model-editor-column-main">
+                    {column.originalName === null && (
+                      <select
+                        className="model-editor-column-mode"
+                        value={column.mode}
+                        onChange={(event) =>
+                          updateColumnMode(
+                            column.id,
+                            event.target.value as
+                              | "source"
+                              | "derived"
+                          )
+                        }
+                      >
+                        <option value="source">
+                          Source column
+                        </option>
+                        <option value="derived">
+                          Derived column
+                        </option>
+                      </select>
+                    )}
 
-                      {sourceColumns
-                        .filter(
-                          (sourceColumn) =>
-                            !columns.some(
-                              (candidate) =>
-                                candidate.id !== column.id &&
-                                (
-                                  candidate.sourceColumn === sourceColumn ||
-                                  candidate.name === sourceColumn
+                    {column.mode === "source" ? (
+                      column.originalName === null &&
+                      sourceColumns.length > 0 ? (
+                        <select
+                          value={column.sourceColumn ?? ""}
+                          onChange={(event) =>
+                            updateColumnSource(
+                              column.id,
+                              event.target.value
+                            )
+                          }
+                        >
+                          <option value="">
+                            Select source column...
+                          </option>
+
+                          {sourceColumns
+                            .filter(
+                              (sourceColumn) =>
+                                !columns.some(
+                                  (candidate) =>
+                                    candidate.id !== column.id &&
+                                    candidate.mode === "source" &&
+                                    candidate.sourceColumn === sourceColumn
                                 )
                             )
-                        )
-                        .map(
-                          (sourceColumn) => (
-                            <option
-                              key={sourceColumn}
-                              value={sourceColumn}
-                            >
-                              {sourceColumn}
-                            </option>
-                          )
-                        )}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={column.name}
-                      placeholder="Enter column name..."
-                      onChange={(event) =>
-                        updateColumnName(
-                          column.id,
-                          event.target.value
-                        )
-                      }
-                    />
-                  )}
+                            .map(
+                              (sourceColumn) => (
+                                <option
+                                  key={sourceColumn}
+                                  value={sourceColumn}
+                                >
+                                  {sourceColumn}
+                                </option>
+                              )
+                            )}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={column.name}
+                          placeholder="Enter column name..."
+                          onChange={(event) =>
+                            updateColumnName(
+                              column.id,
+                              event.target.value
+                            )
+                          }
+                        />
+                      )
+                    ) : (
+                      <div className="model-editor-derived-fields">
+                        <select
+                          value={column.sourceColumn ?? ""}
+                          onChange={(event) =>
+                            updateColumnSource(
+                              column.id,
+                              event.target.value
+                            )
+                          }
+                        >
+                          <option value="">
+                            Select source column...
+                          </option>
+
+                          {sourceColumns.map(
+                            (sourceColumn) => (
+                              <option
+                                key={sourceColumn}
+                                value={sourceColumn}
+                              >
+                                {sourceColumn}
+                              </option>
+                            )
+                          )}
+                        </select>
+
+                        <select
+                          value={
+                            column.derivation?.operation ?? ""
+                          }
+                          disabled={
+                            !column.sourceColumn ||
+                            !timeCandidates.includes(
+                              column.sourceColumn
+                            )
+                          }
+                          onChange={(event) =>
+                            updateDerivedOperation(
+                              column.id,
+                              event.target.value
+                            )
+                          }
+                        >
+                          <option value="">
+                            {
+                              column.sourceColumn &&
+                              !timeCandidates.includes(
+                                column.sourceColumn
+                              )
+                                ? "No supported derivation yet"
+                                : "Select derivation..."
+                            }
+                          </option>
+
+                          {column.sourceColumn &&
+                          timeCandidates.includes(
+                            column.sourceColumn
+                          ) && (
+                            <>
+                              <option value="year">Year</option>
+                              <option value="quarter">Quarter</option>
+                              <option value="month">Month</option>
+                              <option value="month_name">Month name</option>
+                              <option value="day_of_week">Day of week</option>
+                            </>
+                          )}
+                        </select>
+
+                        <input
+                          type="text"
+                          value={column.name}
+                          placeholder="Derived column name..."
+                          onChange={(event) =>
+                            updateColumnName(
+                              column.id,
+                              event.target.value
+                            )
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
 
 
                   <select

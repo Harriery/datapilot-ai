@@ -9154,7 +9154,31 @@
     135px
     28px;
 
+  align-items: start;
   gap: 6px;
+}
+
+.model-editor-column-main {
+  display: grid;
+  gap: 6px;
+}
+
+.model-editor-derived-fields {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+  gap: 6px;
+}
+
+.model-editor-derived-fields input {
+  grid-column: 1 / -1;
+}
+
+.model-editor-column-mode {
+  font-weight: 700;
+  color: #46617f;
+  background: #f8fbff !important;
 }
 
 

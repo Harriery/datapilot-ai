@@ -356,6 +356,22 @@ type DashboardWorkspace = {
           | "min"
           | "max"
           | null;
+
+        derivation?: {
+          type:
+            | "date_part"
+            | "numeric"
+            | "text"
+            | "multi_column";
+
+          operation: string;
+          source_columns: string[];
+
+          parameters: Record<
+            string,
+            string | number | boolean | null
+          >;
+        } | null;
       }[];
     }[];
 
@@ -6249,6 +6265,9 @@ async function restoreWorkspaceVersion(
                             }
                             sourceColumns={
                               dashboardWorkspace.dataset_profile?.columns ?? []
+                            }
+                            timeCandidates={
+                              dashboardWorkspace.analysis_plan?.time_candidates ?? []
                             }
                             onExport={
                               downloadLogicalDataModel

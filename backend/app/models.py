@@ -896,10 +896,34 @@ class PersonalProjectDataModelPlan(BaseModel):
         "local",
     ] = "local"
 
+class PersonalProjectDataModelDerivation(BaseModel):
+    type: Literal[
+        "date_part",
+        "numeric",
+        "text",
+        "multi_column",
+    ]
+
+    operation: str = Field(min_length=1)
+
+    source_columns: list[str] = Field(
+        min_length=1
+    )
+
+    parameters: dict[
+        str,
+        str | int | float | bool | None,
+    ] = Field(default_factory=dict)
+
+
 class PersonalProjectDataModelColumn(BaseModel):
     name: str
 
     source_column: str | None = None
+
+    derivation: (
+        PersonalProjectDataModelDerivation | None
+    ) = None
 
     role: Literal[
         "key",

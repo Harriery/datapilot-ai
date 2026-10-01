@@ -2,7 +2,9 @@ import pytest
 
 from backend.app.models import (
     PersonalProjectAnalysisPlan,
+    PersonalProjectDataModelColumn,
     PersonalProjectDataModelStudio,
+    PersonalProjectDataModelTable,
 )
 
 from backend.app.personal_data_model_service import (
@@ -134,6 +136,79 @@ def test_data_model_studio_rejects_orphan_canvas_position():
     with pytest.raises(
         ValueError,
         match="unknown table",
+    ):
+        validate_personal_data_model_studio(
+            studio
+        )
+
+
+
+def test_data_model_studio_accepts_semantic_date_derivation():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="dim_date",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="Date",
+                        source_column="Date",
+                        role="key",
+                    ),
+                    PersonalProjectDataModelColumn(
+                        name="Year",
+                        source_column="Date",
+                        role="attribute",
+                        derivation={
+                            "type": "date_part",
+                            "operation": "year",
+                            "source_columns": ["Date"],
+                            "parameters": {},
+                        },
+                    ),
+                ],
+            )
+        ],
+        relationships=[],
+    )
+
+    result = validate_personal_data_model_studio(
+        studio
+    )
+
+    derived = result.tables[0].columns[1]
+    assert derived.derivation is not None
+    assert derived.derivation.type == "date_part"
+    assert derived.derivation.operation == "year"
+
+
+def test_data_model_studio_rejects_unknown_date_derivation():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="dim_date",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="BadDatePart",
+                        source_column="Date",
+                        role="attribute",
+                        derivation={
+                            "type": "date_part",
+                            "operation": "century",
+                            "source_columns": ["Date"],
+                            "parameters": {},
+                        },
+                    ),
+                ],
+            )
+        ],
+        relationships=[],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Unsupported date-part derivation",
     ):
         validate_personal_data_model_studio(
             studio

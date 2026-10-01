@@ -27,10 +27,30 @@ import DataModelTableEditor
 import DataModelRelationshipEditor
   from "./DataModelRelationshipEditor";
   
+export type DataModelDerivation = {
+  type:
+    | "date_part"
+    | "numeric"
+    | "text"
+    | "multi_column";
+
+  operation: string;
+
+  source_columns: string[];
+
+  parameters: Record<
+    string,
+    string | number | boolean | null
+  >;
+};
+
+
 type DataModelColumn = {
   name: string;
 
   source_column: string | null;
+
+  derivation?: DataModelDerivation | null;
 
   role:
     | "key"
@@ -108,6 +128,8 @@ type Props = {
   saving: boolean;
 
   sourceColumns?: string[];
+
+  timeCandidates?: string[];
 };
 
 
@@ -656,6 +678,7 @@ function DataModelCanvas({
   onSaveStudio,
   saving,
   sourceColumns = [],
+  timeCandidates = [],
 }: Props) {
 
   const initialNodes =
@@ -1365,6 +1388,7 @@ function DataModelCanvas({
         }
         saving={saving}
         sourceColumns={sourceColumns}
+        timeCandidates={timeCandidates}
         onCancel={() => {
           setTableEditorOpen(
             false

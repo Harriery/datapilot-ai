@@ -270,6 +270,39 @@ def validate_personal_data_model_studio(
                     )
                 )
 
+            if column.derivation is not None:
+                derivation = column.derivation
+
+                if (
+                    derivation.type == "date_part"
+                    and derivation.operation
+                    not in {
+                        "year",
+                        "quarter",
+                        "month",
+                        "month_name",
+                        "day_of_week",
+                    }
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported date-part derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    column.source_column is not None
+                    and column.source_column
+                    not in derivation.source_columns
+                ):
+                    raise ValueError(
+                        (
+                            "Derived column source_column must "
+                            "match one of derivation source_columns."
+                        )
+                    )
+
     relationship_keys: set[
         tuple[
             tuple[str, str],
