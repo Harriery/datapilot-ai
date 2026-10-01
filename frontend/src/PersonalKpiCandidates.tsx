@@ -8,6 +8,13 @@ import type {
   DataModelStudioData,
 } from "./DataModelCanvas";
 
+type Aggregation =
+  | "count"
+  | "sum"
+  | "mean"
+  | "min"
+  | "max";
+
 export type PersonalKpiData = {
   code: string;
   title: string;
@@ -15,13 +22,7 @@ export type PersonalKpiData = {
   fact_table?: string | null;
 
   measure: string | null;
-
-  aggregation:
-    | "count"
-    | "sum"
-    | "mean"
-    | "min"
-    | "max";
+  aggregation: Aggregation | null;
 
   dimension_table?: string | null;
   dimension: string | null;
@@ -35,6 +36,7 @@ export type PersonalKpiData = {
   formula_mode?:
     | "safe_aggregation"
     | "row_count"
+    | "custom"
     | null;
 
   formula?: string | null;
@@ -71,12 +73,7 @@ function normalizeCode(
 }
 
 function aggregationLabel(
-  aggregation:
-    | "count"
-    | "sum"
-    | "mean"
-    | "min"
-    | "max"
+  aggregation: Aggregation
 ): string {
   return {
     count: "Count",
@@ -97,6 +94,14 @@ function PersonalKpiCandidates({
 }: Props) {
   const [definitions, setDefinitions] =
     useState<PersonalKpiData[]>([]);
+
+  const [
+    builderMode,
+    setBuilderMode,
+  ] = useState<
+    "guided" |
+    "custom"
+  >("guided");
 
   const factTables =
     useMemo(
@@ -138,16 +143,12 @@ function PersonalKpiCandidates({
   const [
     aggregation,
     setAggregation,
-  ] = useState<
-    "count" |
-    "sum" |
-    "mean" |
-    "min" |
-    "max"
-  >("mean");
+  ] = useState<Aggregation>(
+    "mean"
+  );
 
   const recommendedAggregation =
-    useMemo(
+    useMemo<Aggregation>(
       () =>
         candidates.find(
           (candidate) =>
@@ -156,7 +157,8 @@ function PersonalKpiCandidates({
             candidate.measure ===
               measure &&
             !candidate.dimension_table &&
-            !candidate.dimension
+            !candidate.dimension &&
+            candidate.aggregation !== null
         )?.aggregation ?? "mean",
       [
         candidates,
@@ -215,11 +217,33 @@ function PersonalKpiCandidates({
   ] = useState("");
 
   const [
+    customFormula,
+    setCustomFormula,
+  ] = useState("");
+
+  const [
     builderError,
     setBuilderError,
   ] = useState<string | null>(
     null
   );
+
+  const availableCandidates =
+    useMemo(
+      () =>
+        candidates.filter(
+          (candidate) =>
+            !definitions.some(
+              (definition) =>
+                definition.code ===
+                candidate.code
+            )
+        ),
+      [
+        candidates,
+        definitions,
+      ]
+    );
 
   useEffect(() => {
     setDefinitions(
@@ -352,13 +376,113 @@ function PersonalKpiCandidates({
       ]
     );
 
+  function uniqueCode(
+    cleanTitle: string
+  ): string {
+    const codeBase =
+      normalizeCode(
+        `${cleanTitle}_${factTable}`
+      );
+
+    let code =
+      codeBase ||
+      `kpi_${definitions.length + 1}`;
+
+    let suffix = 2;
+
+    while (
+      definitions.some(
+        (item) =>
+          item.code === code
+      )
+    ) {
+      code =
+        `${codeBase}_${suffix}`;
+
+      suffix += 1;
+    }
+
+    return code;
+  }
+
   function addDefinition() {
     setBuilderError(null);
 
-    if (
-      !factTable ||
-      !measure
-    ) {
+    if (!factTable) {
+      setBuilderError(
+        "Select a fact table."
+      );
+
+      return;
+    }
+
+    if (builderMode === "custom") {
+      const cleanTitle =
+        title.trim();
+
+      const cleanFormula =
+        customFormula.trim();
+
+      if (!cleanTitle) {
+        setBuilderError(
+          "Enter a KPI title for the custom formula."
+        );
+
+        return;
+      }
+
+      if (!cleanFormula) {
+        setBuilderError(
+          "Enter a custom formula."
+        );
+
+        return;
+      }
+
+      const definition:
+        PersonalKpiData = {
+          code:
+            uniqueCode(
+              cleanTitle
+            ),
+          title:
+            cleanTitle,
+          fact_table:
+            factTable,
+          measure:
+            null,
+          aggregation:
+            null,
+          dimension_table:
+            null,
+          dimension:
+            null,
+          filter_value:
+            null,
+          formula_mode:
+            "custom",
+          formula:
+            cleanFormula,
+          description:
+            `${cleanTitle} defined with a custom semantic formula.`,
+          source:
+            "user",
+        };
+
+      setDefinitions(
+        (previous) => [
+          ...previous,
+          definition,
+        ]
+      );
+
+      setTitle("");
+      setCustomFormula("");
+
+      return;
+    }
+
+    if (!measure) {
       setBuilderError(
         "Select a fact table and measure column."
       );
@@ -384,33 +508,14 @@ function PersonalKpiCandidates({
       title.trim() ||
       defaultTitle;
 
-    const codeBase =
-      normalizeCode(
-        `${cleanTitle}_${factTable}`
-      );
-
-    let code =
-      codeBase ||
-      `kpi_${definitions.length + 1}`;
-
-    let suffix = 2;
-
-    while (
-      definitions.some(
-        (item) =>
-          item.code === code
-      )
-    ) {
-      code =
-        `${codeBase}_${suffix}`;
-
-      suffix += 1;
-    }
-
     const definition:
       PersonalKpiData = {
-        code,
-        title: cleanTitle,
+        code:
+          uniqueCode(
+            cleanTitle
+          ),
+        title:
+          cleanTitle,
         fact_table:
           factTable,
         measure,
@@ -449,15 +554,6 @@ function PersonalKpiCandidates({
   function addSuggestion(
     candidate: PersonalKpiData
   ) {
-    if (
-      definitions.some(
-        (item) =>
-          item.code === candidate.code
-      )
-    ) {
-      return;
-    }
-
     setDefinitions(
       (previous) => [
         ...previous,
@@ -478,6 +574,18 @@ function PersonalKpiCandidates({
     );
   }
 
+  const addDisabled =
+    builderMode === "custom"
+      ? (
+          !factTable ||
+          !title.trim() ||
+          !customFormula.trim()
+        )
+      : (
+          !measure ||
+          measureColumns.length === 0
+        );
+
   return (
     <section className="personal-kpi-card kpi-builder-card">
       <div className="personal-kpi-header">
@@ -491,205 +599,272 @@ function PersonalKpiCandidates({
           </h2>
 
           <p>
-            Build safe KPI definitions from the
-            current fact table, measure columns and
-            connected dimensions.
+            Build guided KPIs from the logical model or
+            store a custom semantic formula when the
+            guided builder does not cover your use case.
           </p>
         </div>
 
         <span className="personal-analysis-plan-source">
-          Safe aggregation mode
+          {builderMode === "custom"
+            ? "Custom formula mode"
+            : "Safe aggregation mode"}
         </span>
       </div>
 
-      <div className="kpi-builder-layout">
-        <div className="kpi-builder-form">
-          <div className="kpi-builder-grid">
-            <label>
-              <span>Fact table</span>
+      <div className="kpi-builder-form">
+        <div className="kpi-builder-mode">
+          <button
+            type="button"
+            className={
+              builderMode === "guided"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setBuilderMode(
+                "guided"
+              )
+            }
+          >
+            Guided builder
+          </button>
 
-              <select
-                value={factTable}
-                onChange={(event) =>
-                  setFactTable(
-                    event.target.value
-                  )
-                }
-              >
-                {factTables.map(
-                  (table) => (
-                    <option
-                      key={table.name}
-                      value={table.name}
-                    >
-                      {table.name}
-                    </option>
-                  )
-                )}
-              </select>
-            </label>
+          <button
+            type="button"
+            className={
+              builderMode === "custom"
+                ? "active"
+                : ""
+            }
+            onClick={() =>
+              setBuilderMode(
+                "custom"
+              )
+            }
+          >
+            Custom formula
+          </button>
+        </div>
 
-            <label>
-              <span>
-                Measure column
-              </span>
+        <div className="kpi-builder-grid">
+          <label>
+            <span>Fact table</span>
 
-              <select
-                value={measure}
-                onChange={(event) =>
-                  setMeasure(
-                    event.target.value
-                  )
-                }
-              >
-                {measureColumns.map(
-                  (column) => (
-                    <option
-                      key={column.name}
-                      value={column.name}
-                    >
-                      {column.name}
-                    </option>
-                  )
-                )}
-              </select>
-            </label>
+            <select
+              value={factTable}
+              onChange={(event) =>
+                setFactTable(
+                  event.target.value
+                )
+              }
+            >
+              {factTables.map(
+                (table) => (
+                  <option
+                    key={table.name}
+                    value={table.name}
+                  >
+                    {table.name}
+                  </option>
+                )
+              )}
+            </select>
+          </label>
 
-            <label>
-              <span>
-                Aggregation
-              </span>
-
-              <select
-                value={aggregation}
-                onChange={(event) =>
-                  setAggregation(
-                    event.target.value as
-                      typeof aggregation
-                  )
-                }
-              >
-                <option value="sum">
-                  Sum
-                </option>
-                <option value="mean">
-                  Average
-                </option>
-                <option value="count">
-                  Count
-                </option>
-                <option value="min">
-                  Minimum
-                </option>
-                <option value="max">
-                  Maximum
-                </option>
-              </select>
-            </label>
-
-            <label>
-              <span>
-                Dimension table
-              </span>
-
-              <select
-                value={dimensionTable}
-                onChange={(event) =>
-                  setDimensionTable(
-                    event.target.value
-                  )
-                }
-              >
-                <option value="">
-                  None
-                </option>
-
-                {relationshipOptions.map(
-                  (relationship) => (
-                    <option
-                      key={
-                        relationship.to_table
-                      }
-                      value={
-                        relationship.to_table
-                      }
-                    >
-                      {
-                        relationship.to_table
-                      }
-                    </option>
-                  )
-                )}
-              </select>
-            </label>
-
-            {dimensionTable && (
+          {builderMode === "guided" && (
+            <>
               <label>
                 <span>
-                  Dimension column
+                  Measure column
                 </span>
 
                 <select
-                  value={dimensionColumn}
+                  value={measure}
                   onChange={(event) =>
-                    setDimensionColumn(
+                    setMeasure(
                       event.target.value
                     )
                   }
                 >
-                  {dimensionTableData
-                    ?.columns
-                    .map(
-                      (column) => (
-                        <option
-                          key={column.name}
-                          value={column.name}
-                        >
-                          {column.name}
-                        </option>
-                      )
-                    )}
+                  {measureColumns.map(
+                    (column) => (
+                      <option
+                        key={column.name}
+                        value={column.name}
+                      >
+                        {column.name}
+                      </option>
+                    )
+                  )}
                 </select>
               </label>
-            )}
 
-            <label>
+              <label>
+                <span>
+                  Aggregation
+                </span>
+
+                <select
+                  value={aggregation}
+                  onChange={(event) =>
+                    setAggregation(
+                      event.target.value as
+                        Aggregation
+                    )
+                  }
+                >
+                  <option value="sum">
+                    Sum
+                  </option>
+                  <option value="mean">
+                    Average
+                  </option>
+                  <option value="count">
+                    Count
+                  </option>
+                  <option value="min">
+                    Minimum
+                  </option>
+                  <option value="max">
+                    Maximum
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                <span>
+                  Dimension table
+                </span>
+
+                <select
+                  value={dimensionTable}
+                  onChange={(event) =>
+                    setDimensionTable(
+                      event.target.value
+                    )
+                  }
+                >
+                  <option value="">
+                    None
+                  </option>
+
+                  {relationshipOptions.map(
+                    (relationship) => (
+                      <option
+                        key={
+                          relationship.to_table
+                        }
+                        value={
+                          relationship.to_table
+                        }
+                      >
+                        {
+                          relationship.to_table
+                        }
+                      </option>
+                    )
+                  )}
+                </select>
+              </label>
+
+              {dimensionTable && (
+                <label>
+                  <span>
+                    Dimension column
+                  </span>
+
+                  <select
+                    value={dimensionColumn}
+                    onChange={(event) =>
+                      setDimensionColumn(
+                        event.target.value
+                      )
+                    }
+                  >
+                    {dimensionTableData
+                      ?.columns
+                      .map(
+                        (column) => (
+                          <option
+                            key={column.name}
+                            value={column.name}
+                          >
+                            {column.name}
+                          </option>
+                        )
+                      )}
+                  </select>
+                </label>
+              )}
+
+              <label>
+                <span>
+                  Optional filter value
+                </span>
+
+                <input
+                  value={filterValue}
+                  onChange={(event) =>
+                    setFilterValue(
+                      event.target.value
+                    )
+                  }
+                  placeholder="e.g. West"
+                />
+              </label>
+            </>
+          )}
+
+          <label className="kpi-builder-title-field">
+            <span>
+              KPI title
+            </span>
+
+            <input
+              value={title}
+              onChange={(event) =>
+                setTitle(
+                  event.target.value
+                )
+              }
+              placeholder={
+                builderMode === "custom"
+                  ? "e.g. Conversion rate"
+                  : measure
+                    ? `${aggregationLabel(aggregation)} ${measure}`
+                    : "KPI title"
+              }
+            />
+          </label>
+
+          {builderMode === "custom" && (
+            <label className="kpi-custom-formula-field">
               <span>
-                Optional filter value
+                Custom semantic formula
               </span>
 
-              <input
-                value={filterValue}
+              <textarea
+                value={customFormula}
                 onChange={(event) =>
-                  setFilterValue(
-                    event.target.value
-                  )
-                }
-                placeholder="e.g. West"
-              />
-            </label>
-
-            <label className="kpi-builder-title-field">
-              <span>
-                KPI title
-              </span>
-
-              <input
-                value={title}
-                onChange={(event) =>
-                  setTitle(
+                  setCustomFormula(
                     event.target.value
                   )
                 }
                 placeholder={
-                  measure
-                    ? `${aggregationLabel(aggregation)} ${measure}`
-                    : "KPI title"
+                  "e.g. SAFE_DIVIDE(SUM(fact_orders.revenue), COUNT_ROWS(fact_orders))"
                 }
               />
-            </label>
-          </div>
 
+              <small>
+                Stored as a declarative KPI expression.
+                It is not executed as arbitrary Python or SQL.
+              </small>
+            </label>
+          )}
+        </div>
+
+        {builderMode === "guided" && (
           <div className="kpi-formula-preview">
             <span>
               SAFE FORMULA PREVIEW
@@ -700,34 +875,34 @@ function PersonalKpiCandidates({
                 "Select a fact table and measure."}
             </code>
           </div>
+        )}
 
-          {builderError && (
-            <div className="personal-analysis-error">
-              {builderError}
-            </div>
-          )}
+        {builderError && (
+          <div className="personal-analysis-error">
+            {builderError}
+          </div>
+        )}
 
-          {measureColumns.length === 0 && (
-            <div className="personal-analysis-error">
-              The selected fact table has no columns
-              with the measure role. Edit the Data
-              Model first.
-            </div>
-          )}
+        {builderMode === "guided" &&
+          measureColumns.length === 0 && (
+          <div className="personal-analysis-error">
+            The selected fact table has no columns
+            with the measure role. Edit the Data
+            Model first.
+          </div>
+        )}
 
-          <button
-            type="button"
-            className="new-workspace-button"
-            disabled={
-              !measure ||
-              measureColumns.length === 0
-            }
-            onClick={addDefinition}
-          >
-            + Add KPI definition
-          </button>
-        </div>
+        <button
+          type="button"
+          className="new-workspace-button"
+          disabled={addDisabled}
+          onClick={addDefinition}
+        >
+          + Add KPI definition
+        </button>
+      </div>
 
+      <div className="kpi-library-layout">
         <div className="kpi-builder-definitions">
           <div className="kpi-builder-section-header">
             <div>
@@ -749,7 +924,7 @@ function PersonalKpiCandidates({
               (definition) => (
                 <div
                   key={definition.code}
-                  className="kpi-definition-item"
+                  className="kpi-definition-item selected"
                 >
                   <div>
                     <strong>
@@ -758,7 +933,7 @@ function PersonalKpiCandidates({
 
                     <span>
                       {definition.formula ??
-                        `${definition.aggregation.toUpperCase()}(${definition.measure ?? "—"})`}
+                        "No formula"}
                     </span>
                   </div>
 
@@ -785,9 +960,7 @@ function PersonalKpiCandidates({
             )}
           </div>
         </div>
-      </div>
 
-      {candidates.length > 0 && (
         <div className="kpi-suggestions">
           <div className="kpi-builder-section-header">
             <div>
@@ -802,52 +975,47 @@ function PersonalKpiCandidates({
           </div>
 
           <div className="kpi-suggestion-grid">
-            {candidates.map(
-              (candidate) => {
-                const alreadyAdded =
-                  definitions.some(
-                    (item) =>
-                      item.code ===
-                      candidate.code
-                  );
+            {availableCandidates.map(
+              (candidate) => (
+                <div
+                  key={candidate.code}
+                  className="kpi-suggestion-item"
+                >
+                  <div>
+                    <strong>
+                      {candidate.title}
+                    </strong>
 
-                return (
-                  <div
-                    key={candidate.code}
-                    className="kpi-suggestion-item"
-                  >
-                    <div>
-                      <strong>
-                        {candidate.title}
-                      </strong>
-
-                      <span>
-                        {candidate.formula ??
-                          candidate.description}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      disabled={alreadyAdded}
-                      onClick={() =>
-                        addSuggestion(
-                          candidate
-                        )
-                      }
-                    >
-                      {alreadyAdded
-                        ? "Added"
-                        : "Add"}
-                    </button>
+                    <span>
+                      {candidate.formula ??
+                        candidate.description}
+                    </span>
                   </div>
-                );
-              }
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      addSuggestion(
+                        candidate
+                      )
+                    }
+                  >
+                    Add
+                  </button>
+                </div>
+              )
+            )}
+
+            {availableCandidates.length === 0 && (
+              <p className="kpi-builder-empty">
+                All current suggestions are already
+                in Definitions.
+              </p>
             )}
           </div>
         </div>
-      )}
+      </div>
 
       {error && (
         <p className="personal-analysis-error">
