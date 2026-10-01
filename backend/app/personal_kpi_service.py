@@ -314,6 +314,21 @@ def _preferred_dimension_column(
         ):
             return column.name
 
+    # For ordinary dimensions, the natural key is usually
+    # the clearest grouping label (for example a suburb,
+    # category or region name). Prefer it over secondary
+    # attributes such as postcode or descriptive metadata.
+    for column in table.columns:
+        if (
+            column.role == "key"
+            and (
+                column.derivation is None
+                or column.derivation.type
+                != "multi_column"
+            )
+        ):
+            return column.name
+
     for column in table.columns:
         if column.role in {
             "attribute",
