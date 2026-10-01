@@ -66,19 +66,23 @@ function PersonalBiModel({
     },
     {
       label: "Dimensions",
-      passed: dimensionTables.length > 0,
+      passed: true,
       detail:
         dimensionTables.length > 0
           ? String(dimensionTables.length) + " dimension tables ready"
-          : "No dimension tables found",
+          : "Single-table model — no dimensions required",
     },
     {
       label: "Relationships",
-      passed: activeRelationships.length > 0,
+      passed:
+        dimensionTables.length === 0 ||
+        activeRelationships.length > 0,
       detail:
-        activeRelationships.length > 0
-          ? String(activeRelationships.length) + " active relationships"
-          : "No active relationships found",
+        dimensionTables.length === 0
+          ? "Not required for a single-table model"
+          : activeRelationships.length > 0
+            ? String(activeRelationships.length) + " active relationships"
+            : "Dimension tables need an active relationship",
     },
     {
       label: "Measures",
