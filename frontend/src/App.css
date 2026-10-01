@@ -13272,3 +13272,163 @@
   align-items: center;
   justify-content: center;
 }
+
+
+/* ==================================================
+   KPI BUILDER — COMPACT DEFINITIONS / SUGGESTIONS
+   ================================================== */
+
+.kpi-builder-form {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kpi-builder-mode {
+  display: inline-flex;
+  gap: 4px;
+
+  margin-bottom: 10px;
+  padding: 3px;
+
+  border: 1px solid #dce5ef;
+  border-radius: 8px;
+
+  background: #f3f6fa;
+}
+
+.kpi-builder-mode button {
+  padding: 6px 9px;
+
+  border: 0;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #6f8196;
+
+  cursor: pointer;
+
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.kpi-builder-mode button.active {
+  background: #ffffff;
+  color: #2475d5;
+
+  box-shadow:
+    0 1px 3px rgba(20, 33, 61, 0.1);
+}
+
+.kpi-custom-formula-field {
+  grid-column: 1 / -1;
+}
+
+.kpi-custom-formula-field textarea {
+  width: 100%;
+  min-height: 82px;
+
+  box-sizing: border-box;
+
+  padding: 8px 9px;
+
+  resize: vertical;
+
+  border: 1px solid #d4deea;
+  border-radius: 7px;
+
+  outline: none;
+
+  background: #ffffff;
+  color: #2e425a;
+
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.kpi-custom-formula-field textarea:focus {
+  border-color: #7cafe9;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, 0.07);
+}
+
+.kpi-custom-formula-field small {
+  color: #8392a4;
+
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.kpi-library-layout {
+  display: grid;
+  grid-template-columns:
+    minmax(260px, 0.9fr)
+    minmax(320px, 1.1fr);
+
+  gap: 12px;
+  align-items: start;
+}
+
+.kpi-builder-definitions,
+.kpi-suggestions {
+  min-width: 0;
+}
+
+.kpi-definition-list,
+.kpi-suggestion-grid {
+  max-height: 390px;
+
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  padding-right: 2px;
+}
+
+.kpi-definition-item.selected {
+  border-color: #a9caf0;
+
+  background: #edf6ff;
+}
+
+.kpi-definition-item.selected strong {
+  color: #1f5f9f;
+}
+
+.kpi-suggestion-item {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  justify-content: initial;
+}
+
+.kpi-suggestion-item
+  .secondary-button,
+.kpi-definition-item
+  .secondary-button {
+  flex-shrink: 0;
+
+  padding: 6px 9px;
+
+  font-size: 10px;
+}
+
+@media (max-width: 900px) {
+  .kpi-library-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi-definition-list,
+  .kpi-suggestion-grid {
+    max-height: none;
+  }
+}
