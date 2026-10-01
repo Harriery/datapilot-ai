@@ -368,3 +368,43 @@ def test_kpi_suggestions_prefer_natural_key_over_secondary_attribute():
         grouped[0].title
         == "Average price by region"
     )
+
+
+def test_secondary_measures_only_get_primary_aggregation_suggestion():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="fact_metrics",
+                table_type="fact",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="price",
+                        source_column="price",
+                        role="measure",
+                    ),
+                    PersonalProjectDataModelColumn(
+                        name="distance",
+                        source_column="distance",
+                        role="measure",
+                    ),
+                ],
+            ),
+        ],
+        relationships=[],
+        source="user",
+    )
+
+    result = build_personal_kpi_candidates_from_studio(
+        studio
+    )
+
+    distance_items = [
+        item
+        for item in result
+        if item.measure == "distance"
+    ]
+
+    assert [
+        item.aggregation
+        for item in distance_items
+    ] == ["mean"]
