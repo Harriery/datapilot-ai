@@ -126,6 +126,10 @@ from backend.app.personal_kpi_service import (
     validate_personal_kpi_definitions,
 )
 
+from backend.app.personal_bi_model_service import (
+    validate_personal_bi_model_ready,
+)
+
 from backend.app.personal_data_model_service import (
     build_personal_data_model_plan,
 )
@@ -4514,6 +4518,80 @@ def save_personal_project_kpis(
     )
 
     return definitions
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/bi-model/confirm"
+    ),
+    response_model=Workspace,
+)
+def confirm_personal_bi_model(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "BI semantic model yalnızca personal "
+                "workspace için kullanılabilir."
+            ),
+        )
+
+    if workspace.data_model_studio is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "BI semantic model onaylanmadan önce "
+                "logical data model gerekli."
+            ),
+        )
+
+    try:
+        validate_personal_bi_model_ready(
+            studio=workspace.data_model_studio,
+            definitions=workspace.kpi_definitions,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="bi_ready_dataset",
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Analyze semantic model"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Run analysis"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
 
 
 @router.post(
