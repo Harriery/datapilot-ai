@@ -61,6 +61,7 @@ import PersonalKpiCandidates, {
 } from "./PersonalKpiCandidates";
 
 import PersonalDataModel from "./PersonalDataModel";
+import PersonalBiModel from "./PersonalBiModel";
 
 import WorkspaceStageNavigation from "./WorkspaceStageNavigation";
 
@@ -1166,6 +1167,22 @@ function App() {
   const [
     personalKpiError,
     setPersonalKpiError,
+  ] = useState<string | null>(null);
+
+
+  const [
+    personalKpiSuccess,
+    setPersonalKpiSuccess,
+  ] = useState<string | null>(null);
+
+  const [
+    personalBiModelLoading,
+    setPersonalBiModelLoading,
+  ] = useState(false);
+
+  const [
+    personalBiModelError,
+    setPersonalBiModelError,
   ] = useState<string | null>(null);
 
 
@@ -3235,6 +3252,7 @@ async function savePersonalKpis(
 
   setPersonalKpiLoading(true);
   setPersonalKpiError(null);
+  setPersonalKpiSuccess(null);
 
   try {
     const response = await fetch(
@@ -3291,6 +3309,20 @@ async function savePersonalKpis(
         )
     );
 
+    setPersonalKpiSuccess(
+      `${definitions.length} KPI definitions saved successfully.`
+    );
+
+    window.setTimeout(
+      () =>
+        setPersonalKpiSuccess(null),
+      3200
+    );
+
+    setActiveWorkspaceStage(
+      "bi_dataset"
+    );
+
   } catch (error) {
     setPersonalKpiError(
       error instanceof Error
@@ -3299,6 +3331,66 @@ async function savePersonalKpis(
     );
   } finally {
     setPersonalKpiLoading(false);
+  }
+}
+
+async function confirmPersonalBiModel() {
+  if (!workspaceId) {
+    return;
+  }
+
+  setPersonalBiModelLoading(true);
+  setPersonalBiModelError(null);
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/bi-model/confirm`,
+      {
+        method: "POST",
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "BI semantic model could not be confirmed."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await response.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+    setActiveWorkspaceStage(
+      "analysis"
+    );
+
+  } catch (error) {
+    setPersonalBiModelError(
+      error instanceof Error
+        ? error.message
+        : "BI semantic model could not be confirmed."
+    );
+  } finally {
+    setPersonalBiModelLoading(false);
   }
 }
 
@@ -6014,6 +6106,18 @@ async function restoreWorkspaceVersion(
                       />
                     )}
 
+                    {personalKpiSuccess && (
+                      <div
+                        className="workspace-save-toast"
+                        role="status"
+                      >
+                        <span>✓</span>
+                        <strong>
+                          {personalKpiSuccess}
+                        </strong>
+                      </div>
+                    )}
+
                     {dashboardWorkspace.usage_context !== "personal" && (
                       <div className="workspace-flow">
                         <div className="workspace-flow-step completed">
@@ -6255,6 +6359,28 @@ async function restoreWorkspaceVersion(
                             loading={personalKpiLoading}
                             error={personalKpiError}
                             onSave={savePersonalKpis}
+                          />
+                        )}
+
+                      {dashboardWorkspace.usage_context === "personal" &&
+                        activeWorkspaceStage === "bi_dataset" &&
+                        dashboardWorkspace.data_model_studio && (
+                          <PersonalBiModel
+                            studio={
+                              dashboardWorkspace.data_model_studio
+                            }
+                            definitions={
+                              dashboardWorkspace.kpi_definitions ?? []
+                            }
+                            loading={
+                              personalBiModelLoading
+                            }
+                            error={
+                              personalBiModelError
+                            }
+                            onConfirm={
+                              confirmPersonalBiModel
+                            }
                           />
                         )}
 
