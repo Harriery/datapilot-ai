@@ -470,3 +470,115 @@ def test_validate_personal_kpi_definitions_rejects_empty_custom_formula():
                 ),
             ],
         )
+
+
+def test_custom_kpi_formula_rejects_unknown_function():
+    with pytest.raises(
+        ValueError,
+        match="Unsupported custom KPI function",
+    ):
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="bad_function",
+                    title="Bad function",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation=None,
+                    formula_mode="custom",
+                    formula=(
+                        "MEDIAN("
+                        "fact_sales.amount)"
+                    ),
+                    description="Invalid custom KPI.",
+                    source="user",
+                ),
+            ],
+        )
+
+
+def test_custom_kpi_formula_rejects_unknown_column():
+    with pytest.raises(
+        ValueError,
+        match="unknown column",
+    ):
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="bad_column",
+                    title="Bad column",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation=None,
+                    formula_mode="custom",
+                    formula=(
+                        "SUM("
+                        "fact_sales.missing_amount)"
+                    ),
+                    description="Invalid custom KPI.",
+                    source="user",
+                ),
+            ],
+        )
+
+
+def test_custom_kpi_formula_rejects_unknown_table():
+    with pytest.raises(
+        ValueError,
+        match="unknown table",
+    ):
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="bad_table",
+                    title="Bad table",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation=None,
+                    formula_mode="custom",
+                    formula=(
+                        "COUNT_ROWS("
+                        "fact_missing)"
+                    ),
+                    description="Invalid custom KPI.",
+                    source="user",
+                ),
+            ],
+        )
+
+
+def test_custom_kpi_formula_supports_nested_safe_divide():
+    definitions = validate_personal_kpi_definitions(
+        studio=_build_test_model_studio(),
+        definitions=[
+            PersonalProjectKPIDefinition(
+                code="average_amount",
+                title="Average amount",
+                fact_table="fact_sales",
+                measure=None,
+                aggregation=None,
+                formula_mode="custom",
+                formula=(
+                    "SAFE_DIVIDE("
+                    "SUM(fact_sales.amount),"
+                    "COUNT(fact_sales.amount)"
+                    ")"
+                ),
+                description="Custom semantic KPI.",
+                source="user",
+            ),
+        ],
+    )
+
+    assert (
+        definitions[0].formula
+        == (
+            "SAFE_DIVIDE("
+            "SUM(fact_sales.amount),"
+            "COUNT(fact_sales.amount)"
+            ")"
+        )
+    )
