@@ -292,6 +292,36 @@ def validate_personal_data_model_studio(
                     )
 
                 if (
+                    derivation.type == "multi_column"
+                    and derivation.operation
+                    != "concatenate"
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported multi-column derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    derivation.type == "multi_column"
+                    and len(
+                        [
+                            source
+                            for source
+                            in derivation.source_columns
+                            if source.strip()
+                        ]
+                    ) < 2
+                ):
+                    raise ValueError(
+                        (
+                            "Multi-column derivation requires "
+                            "at least two source columns."
+                        )
+                    )
+
+                if (
                     column.source_column is not None
                     and column.source_column
                     not in derivation.source_columns

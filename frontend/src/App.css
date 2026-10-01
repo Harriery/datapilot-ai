@@ -9175,6 +9175,10 @@
   grid-column: 1 / -1;
 }
 
+.model-editor-derived-type {
+  grid-column: 1 / -1;
+}
+
 .model-editor-column-mode {
   font-weight: 700;
   color: #46617f;

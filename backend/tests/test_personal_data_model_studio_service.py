@@ -213,3 +213,85 @@ def test_data_model_studio_rejects_unknown_date_derivation():
         validate_personal_data_model_studio(
             studio
         )
+
+
+
+def test_data_model_studio_accepts_multi_column_concatenate():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="dim_property_location",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="LocationKey",
+                        role="key",
+                        derivation={
+                            "type": "multi_column",
+                            "operation": "concatenate",
+                            "source_columns": [
+                                "Address",
+                                "Suburb",
+                            ],
+                            "parameters": {
+                                "separator": " | ",
+                            },
+                        },
+                    ),
+                ],
+            )
+        ],
+        relationships=[],
+    )
+
+    result = validate_personal_data_model_studio(
+        studio
+    )
+
+    derived = result.tables[0].columns[0]
+    assert derived.derivation is not None
+    assert derived.derivation.type == "multi_column"
+    assert (
+        derived.derivation.source_columns
+        == ["Address", "Suburb"]
+    )
+    assert (
+        derived.derivation.parameters[
+            "separator"
+        ]
+        == " | "
+    )
+
+
+def test_data_model_studio_rejects_multi_column_with_one_source():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="dim_property_location",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="LocationKey",
+                        role="key",
+                        derivation={
+                            "type": "multi_column",
+                            "operation": "concatenate",
+                            "source_columns": [
+                                "Address",
+                            ],
+                            "parameters": {},
+                        },
+                    ),
+                ],
+            )
+        ],
+        relationships=[],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="at least two source columns",
+    ):
+        validate_personal_data_model_studio(
+            studio
+        )

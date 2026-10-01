@@ -251,7 +251,15 @@ function DataModelTableEditor({
                   mode,
                   name: "",
                   sourceColumn: null,
-                  derivation: null,
+                  derivation:
+                    mode === "derived"
+                      ? {
+                          type: "date_part",
+                          operation: "",
+                          source_columns: [],
+                          parameters: {},
+                        }
+                      : null,
                 }
               : column
         )
@@ -280,12 +288,128 @@ function DataModelTableEditor({
                       ? {
                           type: "date_part",
                           operation: "",
-                          source_columns: [
-                            sourceColumn,
-                          ],
+                          source_columns:
+                            sourceColumn
+                              ? [sourceColumn]
+                              : [],
                           parameters: {},
                         }
                       : null,
+                }
+              : column
+        )
+    );
+  }
+
+
+  function updateDerivedType(
+    id: string,
+    type:
+      | "date_part"
+      | "multi_column",
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) =>
+            column.id === id
+              ? {
+                  ...column,
+                  sourceColumn: null,
+                  derivation:
+                    type === "multi_column"
+                      ? {
+                          type,
+                          operation:
+                            "concatenate",
+                          source_columns:
+                            ["", ""],
+                          parameters: {
+                            separator: " | ",
+                          },
+                        }
+                      : {
+                          type,
+                          operation: "",
+                          source_columns: [],
+                          parameters: {},
+                        },
+                }
+              : column
+        )
+    );
+  }
+
+
+  function updateMultiColumnSource(
+    id: string,
+    sourceIndex: number,
+    sourceColumn: string,
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) => {
+            if (
+              column.id !== id ||
+              column.derivation?.type !==
+                "multi_column"
+            ) {
+              return column;
+            }
+
+            const nextSources = [
+              ...column.derivation
+                .source_columns,
+            ];
+
+            while (
+              nextSources.length < 2
+            ) {
+              nextSources.push("");
+            }
+
+            nextSources[sourceIndex] =
+              sourceColumn;
+
+            return {
+              ...column,
+              sourceColumn: null,
+              derivation: {
+                ...column.derivation,
+                operation:
+                  "concatenate",
+                source_columns:
+                  nextSources,
+              },
+            };
+          }
+        )
+    );
+  }
+
+
+  function updateDerivedParameter(
+    id: string,
+    parameter: string,
+    value: string,
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) =>
+            column.id === id &&
+            column.derivation
+              ? {
+                  ...column,
+                  derivation: {
+                    ...column.derivation,
+                    parameters: {
+                      ...column.derivation
+                        .parameters,
+                      [parameter]: value,
+                    },
+                  },
                 }
               : column
         )
@@ -326,7 +450,7 @@ function DataModelTableEditor({
                           ],
                           parameters: {},
                         }
-                      : null,
+                      : column.derivation,
                 }
               : column
         )
@@ -424,6 +548,68 @@ function DataModelTableEditor({
           (column) =>
             column.name.length > 0
         );
+
+
+    const invalidDerivedColumn =
+      cleanColumns.find(
+        (column) => {
+          if (
+            column.mode !== "derived"
+          ) {
+            return false;
+          }
+
+          const derivation =
+            column.derivation;
+
+          if (!derivation) {
+            return true;
+          }
+
+          const sources =
+            derivation.source_columns
+              .map(
+                (source) =>
+                  source.trim()
+              )
+              .filter(Boolean);
+
+          if (
+            derivation.type ===
+              "date_part"
+          ) {
+            return (
+              sources.length !== 1 ||
+              !derivation.operation
+            );
+          }
+
+          if (
+            derivation.type ===
+              "multi_column"
+          ) {
+            return (
+              derivation.operation !==
+                "concatenate" ||
+              sources.length < 2
+            );
+          }
+
+          return true;
+        }
+      );
+
+
+    if (invalidDerivedColumn) {
+      setError(
+        (
+          `Complete the derived column "${invalidDerivedColumn.name}". ` +
+          "Choose the required source columns and derivation."
+        )
+      );
+
+      return;
+    }
 
 
     if (
@@ -1025,83 +1211,221 @@ function DataModelTableEditor({
                     ) : (
                       <div className="model-editor-derived-fields">
                         <select
-                          value={column.sourceColumn ?? ""}
-                          onChange={(event) =>
-                            updateColumnSource(
-                              column.id,
-                              event.target.value
-                            )
-                          }
-                        >
-                          <option value="">
-                            Select source column...
-                          </option>
-
-                          {sourceColumns.map(
-                            (sourceColumn) => (
-                              <option
-                                key={sourceColumn}
-                                value={sourceColumn}
-                              >
-                                {sourceColumn}
-                              </option>
-                            )
-                          )}
-                        </select>
-
-                        <select
+                          className="model-editor-derived-type"
                           value={
-                            column.derivation?.operation ?? ""
-                          }
-                          disabled={
-                            !column.sourceColumn ||
-                            !timeCandidates.includes(
-                              column.sourceColumn
-                            )
+                            column.derivation?.type ??
+                            "date_part"
                           }
                           onChange={(event) =>
-                            updateDerivedOperation(
+                            updateDerivedType(
                               column.id,
-                              event.target.value
+                              event.target.value as
+                                | "date_part"
+                                | "multi_column"
                             )
                           }
                         >
-                          <option value="">
-                            {
-                              column.sourceColumn &&
-                              !timeCandidates.includes(
-                                column.sourceColumn
-                              )
-                                ? "No supported derivation yet"
-                                : "Select derivation..."
-                            }
+                          <option value="date_part">
+                            Date part
                           </option>
-
-                          {column.sourceColumn &&
-                          timeCandidates.includes(
-                            column.sourceColumn
-                          ) && (
-                            <>
-                              <option value="year">Year</option>
-                              <option value="quarter">Quarter</option>
-                              <option value="month">Month</option>
-                              <option value="month_name">Month name</option>
-                              <option value="day_of_week">Day of week</option>
-                            </>
-                          )}
+                          <option value="multi_column">
+                            Combine columns
+                          </option>
                         </select>
 
-                        <input
-                          type="text"
-                          value={column.name}
-                          placeholder="Derived column name..."
-                          onChange={(event) =>
-                            updateColumnName(
-                              column.id,
-                              event.target.value
-                            )
-                          }
-                        />
+                        {column.derivation?.type ===
+                        "multi_column" ? (
+                          <>
+                            {[0, 1].map(
+                              (sourceIndex) => (
+                                <select
+                                  key={sourceIndex}
+                                  value={
+                                    column.derivation
+                                      ?.source_columns[
+                                        sourceIndex
+                                      ] ?? ""
+                                  }
+                                  onChange={(event) =>
+                                    updateMultiColumnSource(
+                                      column.id,
+                                      sourceIndex,
+                                      event.target.value
+                                    )
+                                  }
+                                >
+                                  <option value="">
+                                    {
+                                      sourceIndex === 0
+                                        ? "First source column..."
+                                        : "Second source column..."
+                                    }
+                                  </option>
+
+                                  {sourceColumns
+                                    .filter(
+                                      (sourceColumn) =>
+                                        !column.derivation
+                                          ?.source_columns
+                                          .some(
+                                            (
+                                              selected,
+                                              selectedIndex,
+                                            ) =>
+                                              selectedIndex !==
+                                                sourceIndex &&
+                                              selected ===
+                                                sourceColumn
+                                          )
+                                    )
+                                    .map(
+                                      (sourceColumn) => (
+                                        <option
+                                          key={sourceColumn}
+                                          value={sourceColumn}
+                                        >
+                                          {sourceColumn}
+                                        </option>
+                                      )
+                                    )}
+                                </select>
+                              )
+                            )}
+
+                            <select
+                              value="concatenate"
+                              disabled
+                            >
+                              <option value="concatenate">
+                                Concatenate
+                              </option>
+                            </select>
+
+                            <input
+                              type="text"
+                              value={
+                                String(
+                                  column.derivation
+                                    ?.parameters
+                                    .separator ??
+                                  " | "
+                                )
+                              }
+                              placeholder="Separator"
+                              onChange={(event) =>
+                                updateDerivedParameter(
+                                  column.id,
+                                  "separator",
+                                  event.target.value
+                                )
+                              }
+                            />
+
+                            <input
+                              type="text"
+                              value={column.name}
+                              placeholder="Derived column name..."
+                              onChange={(event) =>
+                                updateColumnName(
+                                  column.id,
+                                  event.target.value
+                                )
+                              }
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <select
+                              value={column.sourceColumn ?? ""}
+                              onChange={(event) =>
+                                updateColumnSource(
+                                  column.id,
+                                  event.target.value
+                                )
+                              }
+                            >
+                              <option value="">
+                                Select source column...
+                              </option>
+
+                              {sourceColumns.map(
+                                (sourceColumn) => (
+                                  <option
+                                    key={sourceColumn}
+                                    value={sourceColumn}
+                                  >
+                                    {sourceColumn}
+                                  </option>
+                                )
+                              )}
+                            </select>
+
+                            <select
+                              value={
+                                column.derivation
+                                  ?.operation ?? ""
+                              }
+                              disabled={
+                                !column.sourceColumn ||
+                                !timeCandidates.includes(
+                                  column.sourceColumn
+                                )
+                              }
+                              onChange={(event) =>
+                                updateDerivedOperation(
+                                  column.id,
+                                  event.target.value
+                                )
+                              }
+                            >
+                              <option value="">
+                                {
+                                  column.sourceColumn &&
+                                  !timeCandidates.includes(
+                                    column.sourceColumn
+                                  )
+                                    ? "No supported derivation yet"
+                                    : "Select derivation..."
+                                }
+                              </option>
+
+                              {column.sourceColumn &&
+                              timeCandidates.includes(
+                                column.sourceColumn
+                              ) && (
+                                <>
+                                  <option value="year">
+                                    Year
+                                  </option>
+                                  <option value="quarter">
+                                    Quarter
+                                  </option>
+                                  <option value="month">
+                                    Month
+                                  </option>
+                                  <option value="month_name">
+                                    Month name
+                                  </option>
+                                  <option value="day_of_week">
+                                    Day of week
+                                  </option>
+                                </>
+                              )}
+                            </select>
+
+                            <input
+                              type="text"
+                              value={column.name}
+                              placeholder="Derived column name..."
+                              onChange={(event) =>
+                                updateColumnName(
+                                  column.id,
+                                  event.target.value
+                                )
+                              }
+                            />
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
