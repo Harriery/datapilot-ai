@@ -89,3 +89,42 @@ def test_bi_model_ready_requires_kpi_definition():
             studio=_studio(),
             definitions=[],
         )
+
+
+def test_bi_model_ready_accepts_single_table_model():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="fact_metrics",
+                table_type="fact",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="amount",
+                        source_column="amount",
+                        role="measure",
+                    ),
+                ],
+            ),
+        ],
+        relationships=[],
+        source="user",
+    )
+
+    definitions = [
+        PersonalProjectKPIDefinition(
+            code="average_amount",
+            title="Average amount",
+            fact_table="fact_metrics",
+            measure="amount",
+            aggregation="mean",
+            formula_mode="safe_aggregation",
+            formula="MEAN(fact_metrics.amount)",
+            description="Average amount.",
+            source="user",
+        )
+    ]
+
+    validate_personal_bi_model_ready(
+        studio=studio,
+        definitions=definitions,
+    )
