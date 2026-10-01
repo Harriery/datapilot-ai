@@ -397,16 +397,50 @@ def validate_personal_data_model_studio(
                 if (
                     derivation.type == "mapping"
                 ):
-                    if (
-                        not derivation.mapping_rules
-                        or any(
+                    structured_rules_valid = (
+                        bool(
+                            derivation.mapping_rules
+                        )
+                        and all(
                             (
-                                not rule.source_value.strip()
-                                or not rule.display_value.strip()
+                                rule.source_value.strip()
+                                and rule.display_value.strip()
                             )
                             for rule
                             in derivation.mapping_rules
                         )
+                    )
+
+                    legacy_mapping = str(
+                        derivation.parameters.get(
+                            "mapping",
+                            ""
+                        )
+                    ).strip()
+
+                    legacy_rules_valid = False
+
+                    if legacy_mapping:
+                        legacy_rules_valid = all(
+                            (
+                                "=>" in line
+                                and line.split(
+                                    "=>",
+                                    1,
+                                )[0].strip()
+                                and line.split(
+                                    "=>",
+                                    1,
+                                )[1].strip()
+                            )
+                            for line
+                            in legacy_mapping.splitlines()
+                            if line.strip()
+                        )
+
+                    if (
+                        not structured_rules_valid
+                        and not legacy_rules_valid
                     ):
                         raise ValueError(
                             (

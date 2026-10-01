@@ -452,6 +452,99 @@ function SourceColumnPicker({
 }
 
 
+function migrateLegacyMappingDerivation(
+  derivation:
+    DataModelDerivation | null,
+) {
+  if (
+    !derivation ||
+    derivation.type !== "mapping" ||
+    (
+      derivation.mapping_rules &&
+      derivation.mapping_rules.length > 0
+    )
+  ) {
+    return derivation;
+  }
+
+  const legacyMapping =
+    String(
+      derivation.parameters
+        .mapping ?? ""
+    ).trim();
+
+  if (!legacyMapping) {
+    return derivation;
+  }
+
+  const mappingRules =
+    legacyMapping
+      .split("\n")
+      .map(
+        (line) => {
+          const separatorIndex =
+            line.indexOf("=>");
+
+          if (
+            separatorIndex < 0
+          ) {
+            return null;
+          }
+
+          const sourceValue =
+            line
+              .slice(
+                0,
+                separatorIndex
+              )
+              .trim();
+
+          const displayValue =
+            line
+              .slice(
+                separatorIndex + 2
+              )
+              .trim();
+
+          if (
+            !sourceValue ||
+            !displayValue
+          ) {
+            return null;
+          }
+
+          return {
+            source_value:
+              sourceValue,
+            display_value:
+              displayValue,
+          };
+        }
+      )
+      .filter(
+        (
+          rule,
+        ): rule is {
+          source_value: string;
+          display_value: string;
+        } =>
+          rule !== null
+      );
+
+  if (
+    mappingRules.length === 0
+  ) {
+    return derivation;
+  }
+
+  return {
+    ...derivation,
+    mapping_rules:
+      mappingRules,
+  };
+}
+
+
 type DraftColumn = {
   id: string;
 
@@ -576,7 +669,9 @@ function DataModelTableEditor({
                 : "source",
 
             derivation:
-              column.derivation ?? null,
+              migrateLegacyMappingDerivation(
+                column.derivation ?? null
+              ),
           })
         )
       : [

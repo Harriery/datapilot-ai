@@ -462,3 +462,40 @@ def test_data_model_studio_accepts_bucketing_derivation():
         .label
         == "Young"
     )
+
+
+
+def test_data_model_studio_accepts_legacy_mapping_for_existing_workspaces():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="dim_type",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="TypeLabel",
+                        role="attribute",
+                        derivation={
+                            "type": "mapping",
+                            "operation": "map_values",
+                            "source_columns": ["Type"],
+                            "parameters": {
+                                "mapping": (
+                                    "h => House\n"
+                                    "u => Unit\n"
+                                    "t => Townhouse"
+                                )
+                            },
+                        },
+                    ),
+                ],
+            )
+        ],
+        relationships=[],
+    )
+
+    result = validate_personal_data_model_studio(
+        studio
+    )
+
+    assert result.tables[0].name == "dim_type"
