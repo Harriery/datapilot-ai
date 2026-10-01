@@ -3478,24 +3478,36 @@ async function savePersonalDataModelStudio(
     }
 
 
-    const savedStudio:
-      DataModelStudioData =
-        await response.json();
+    await response.json();
+
+
+    const workspaceResponse =
+      await fetch(
+        (
+          "http://127.0.0.1:8000" +
+          `/workspaces/${learnerId}/` +
+          `${dashboardWorkspace.workspace_id}`
+        )
+      );
+
+
+    if (!workspaceResponse.ok) {
+      throw new Error(
+        (
+          "Model Studio kaydedildi fakat " +
+          "workspace yenilenemedi."
+        )
+      );
+    }
+
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await workspaceResponse.json();
 
 
     setDashboardWorkspace(
-      (previous) => {
-
-        if (!previous) {
-          return previous;
-        }
-
-        return {
-          ...previous,
-          data_model_studio:
-            savedStudio,
-        };
-      }
+      updatedWorkspace
     );
 
 
@@ -3504,12 +3516,8 @@ async function savePersonalDataModelStudio(
         previous.map(
           (workspace) =>
             workspace.workspace_id ===
-            dashboardWorkspace.workspace_id
-              ? {
-                  ...workspace,
-                  data_model_studio:
-                    savedStudio,
-                }
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
               : workspace
         )
     );
