@@ -13369,8 +13369,8 @@
 .kpi-library-layout {
   display: grid;
   grid-template-columns:
-    minmax(260px, 0.9fr)
-    minmax(320px, 1.1fr);
+    minmax(320px, 1.1fr)
+    minmax(260px, 0.9fr);
 
   gap: 12px;
   align-items: start;
