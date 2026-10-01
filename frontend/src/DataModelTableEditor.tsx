@@ -59,6 +59,8 @@ type Props = {
   ) => Promise<void>;
 
   saving: boolean;
+
+  sourceColumns?: string[];
 };
 
 
@@ -68,6 +70,7 @@ function DataModelTableEditor({
   onCancel,
   onSave,
   saving,
+  sourceColumns = [],
 }: Props) {
 
   const editingTable =
@@ -198,6 +201,26 @@ function DataModelTableEditor({
         previous.filter(
           (column) =>
             column.id !== id
+        )
+    );
+  }
+
+
+  function updateColumnSource(
+    id: string,
+    sourceColumn: string,
+  ) {
+    setColumns(
+      (previous) =>
+        previous.map(
+          (column) =>
+            column.id === id
+              ? {
+                  ...column,
+                  name: sourceColumn,
+                  sourceColumn,
+                }
+              : column
         )
     );
   }
@@ -815,17 +838,57 @@ function DataModelTableEditor({
                   className="model-editor-column-row"
                 >
 
-                  <input
-                    type="text"
-                    value={column.name}
-                    placeholder="Enter column name..."
-                    onChange={(event) =>
-                      updateColumnName(
-                        column.id,
-                        event.target.value
-                      )
-                    }
-                  />
+                  {column.originalName === null &&
+                  sourceColumns.length > 0 ? (
+                    <select
+                      value={column.sourceColumn ?? ""}
+                      onChange={(event) =>
+                        updateColumnSource(
+                          column.id,
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">
+                        Select source column...
+                      </option>
+
+                      {sourceColumns
+                        .filter(
+                          (sourceColumn) =>
+                            !columns.some(
+                              (candidate) =>
+                                candidate.id !== column.id &&
+                                (
+                                  candidate.sourceColumn === sourceColumn ||
+                                  candidate.name === sourceColumn
+                                )
+                            )
+                        )
+                        .map(
+                          (sourceColumn) => (
+                            <option
+                              key={sourceColumn}
+                              value={sourceColumn}
+                            >
+                              {sourceColumn}
+                            </option>
+                          )
+                        )}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={column.name}
+                      placeholder="Enter column name..."
+                      onChange={(event) =>
+                        updateColumnName(
+                          column.id,
+                          event.target.value
+                        )
+                      }
+                    />
+                  )}
 
 
                   <select

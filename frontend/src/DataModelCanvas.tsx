@@ -106,6 +106,8 @@ type Props = {
   ) => Promise<void>;
 
   saving: boolean;
+
+  sourceColumns?: string[];
 };
 
 
@@ -653,6 +655,7 @@ function DataModelCanvas({
   studio,
   onSaveStudio,
   saving,
+  sourceColumns = [],
 }: Props) {
 
   const initialNodes =
@@ -1361,6 +1364,7 @@ function DataModelCanvas({
           editingTableName
         }
         saving={saving}
+        sourceColumns={sourceColumns}
         onCancel={() => {
           setTableEditorOpen(
             false

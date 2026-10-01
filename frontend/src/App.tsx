@@ -6247,6 +6247,9 @@ async function restoreWorkspaceVersion(
                             studioSaving={
                               personalDataModelStudioSaving
                             }
+                            sourceColumns={
+                              dashboardWorkspace.dataset_profile?.columns ?? []
+                            }
                             onExport={
                               downloadLogicalDataModel
                             }
