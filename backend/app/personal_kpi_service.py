@@ -532,7 +532,13 @@ def build_personal_kpi_candidates_from_studio(
                 )
             )
 
-            for aggregation in aggregations:
+            suggested_aggregations = (
+                aggregations
+                if index == 0
+                else aggregations[:1]
+            )
+
+            for aggregation in suggested_aggregations:
                 label = (
                     _aggregation_label(
                         aggregation
