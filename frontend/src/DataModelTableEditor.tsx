@@ -163,6 +163,146 @@ function DerivationHelp({
 }
 
 
+type DerivationTypePickerProps = {
+  value: DerivationType;
+
+  onChange: (
+    value: DerivationType
+  ) => void;
+};
+
+
+const DERIVATION_TYPE_OPTIONS:
+  Array<{
+    value: DerivationType;
+    label: string;
+  }> = [
+    {
+      value: "date_part",
+      label: "Date part",
+    },
+    {
+      value: "text",
+      label: "Text operation",
+    },
+    {
+      value: "numeric",
+      label: "Numeric operation",
+    },
+    {
+      value: "multi_column",
+      label: "Combine columns",
+    },
+    {
+      value: "mapping",
+      label: "Mapping / Case",
+    },
+  ];
+
+
+function DerivationTypePicker({
+  value,
+  onChange,
+}: DerivationTypePickerProps) {
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
+
+  const selected =
+    DERIVATION_TYPE_OPTIONS.find(
+      (option) =>
+        option.value === value
+    ) ??
+    DERIVATION_TYPE_OPTIONS[0];
+
+
+  return (
+    <div className="model-derived-type-picker">
+
+      <button
+        type="button"
+        className={
+          `model-derived-type-trigger ${
+            open
+              ? "open"
+              : ""
+          }`
+        }
+        onClick={() =>
+          setOpen(
+            (previous) =>
+              !previous
+          )
+        }
+      >
+        <span>
+          {selected.label}
+        </span>
+
+        <span aria-hidden="true">
+          ▾
+        </span>
+      </button>
+
+
+      {open && (
+        <div className="model-derived-type-menu">
+
+          {DERIVATION_TYPE_OPTIONS.map(
+            (option) => {
+              const help =
+                DERIVATION_HELP[
+                  option.value
+                ];
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={
+                    option.value === value
+                      ? "selected"
+                      : ""
+                  }
+                  onClick={() => {
+                    onChange(
+                      option.value
+                    );
+
+                    setOpen(false);
+                  }}
+                >
+                  <strong>
+                    {option.label}
+                  </strong>
+
+                  {help && (
+                    <>
+                      <span>
+                        {help.description}
+                      </span>
+
+                      <small>
+                        Example: {
+                          help.example
+                        }
+                      </small>
+                    </>
+                  )}
+                </button>
+              );
+            }
+          )}
+
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+
 type SourceColumnPickerProps = {
   value: string;
 
@@ -1625,36 +1765,20 @@ function DataModelTableEditor({
                     ) : (
                       <div className="model-editor-derived-fields">
                         <div className="model-editor-derived-selector-row">
-                          <select
-                            className="model-editor-derived-type"
+                          <DerivationTypePicker
                             value={
                               column.derivation?.type ??
                               "date_part"
                             }
-                            onChange={(event) =>
+                            onChange={(
+                              derivationType,
+                            ) =>
                               updateDerivedType(
                                 column.id,
-                                event.target.value as
-                                  DerivationType
+                                derivationType
                               )
                             }
-                          >
-                            <option value="date_part">
-                              Date part
-                            </option>
-                            <option value="text">
-                              Text operation
-                            </option>
-                            <option value="numeric">
-                              Numeric operation
-                            </option>
-                            <option value="multi_column">
-                              Combine columns
-                            </option>
-                            <option value="mapping">
-                              Mapping / Case
-                            </option>
-                          </select>
+                          />
 
                           <DerivationHelp
                             helpKey={
