@@ -300,3 +300,71 @@ def test_validate_personal_kpi_definitions_supports_row_count():
         definitions[0].formula
         == "COUNT_ROWS(fact_sales)"
     )
+
+
+def test_kpi_suggestions_prefer_natural_key_over_secondary_attribute():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="fact_orders",
+                table_type="fact",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="region_id",
+                        source_column="region",
+                        role="foreign_key",
+                    ),
+                    PersonalProjectDataModelColumn(
+                        name="price",
+                        source_column="price",
+                        role="measure",
+                    ),
+                ],
+            ),
+            PersonalProjectDataModelTable(
+                name="dim_region",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="region",
+                        source_column="region",
+                        role="key",
+                    ),
+                    PersonalProjectDataModelColumn(
+                        name="region_code",
+                        source_column="region_code",
+                        role="attribute",
+                    ),
+                ],
+            ),
+        ],
+        relationships=[
+            PersonalProjectDataModelRelationship(
+                from_table="fact_orders",
+                from_column="region_id",
+                to_table="dim_region",
+                to_column="region",
+                cardinality="many_to_one",
+                active=True,
+            ),
+        ],
+        source="user",
+    )
+
+    result = build_personal_kpi_candidates_from_studio(
+        studio
+    )
+
+    grouped = [
+        item
+        for item in result
+        if item.dimension_table == "dim_region"
+    ]
+
+    assert len(grouped) == 1
+    assert grouped[0].aggregation == "mean"
+    assert grouped[0].dimension == "region"
+    assert (
+        grouped[0].title
+        == "Average price by region"
+    )
