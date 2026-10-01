@@ -692,6 +692,7 @@ def validate_personal_kpi_definitions(
                 None,
                 "safe_aggregation",
                 "row_count",
+                "custom",
             }
         ):
             raise ValueError(
@@ -735,6 +736,35 @@ def validate_personal_kpi_definitions(
                             f"COUNT_ROWS("
                             f"{definition.fact_table})"
                         ),
+                    }
+                )
+            )
+
+            continue
+
+        if (
+            definition.formula_mode
+            == "custom"
+        ):
+            custom_formula = (
+                definition.formula or ""
+            ).strip()
+
+            if not custom_formula:
+                raise ValueError(
+                    "Custom KPI formula is required."
+                )
+
+            validated.append(
+                definition.model_copy(
+                    update={
+                        "measure": None,
+                        "aggregation": None,
+                        "dimension_table": None,
+                        "dimension": None,
+                        "filter_value": None,
+                        "formula":
+                            custom_formula,
                     }
                 )
             )
