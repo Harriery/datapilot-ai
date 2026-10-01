@@ -5155,9 +5155,34 @@ def get_workspace(
             detail="Workspace bulunamadı.",
         )
 
-    if reconcile_personal_project_deliverables(
-        workspace
+    workspace_changed = (
+        reconcile_personal_project_deliverables(
+            workspace
+        )
+    )
+
+    if (
+        workspace.usage_context == "personal"
+        and workspace.data_model_studio
+        is not None
     ):
+        fresh_kpi_candidates = (
+            build_personal_kpi_candidates_from_studio(
+                workspace.data_model_studio
+            )
+        )
+
+        if (
+            workspace.kpi_candidates
+            != fresh_kpi_candidates
+        ):
+            workspace.kpi_candidates = (
+                fresh_kpi_candidates
+            )
+
+            workspace_changed = True
+
+    if workspace_changed:
         database.save_workspace(
             workspace=workspace
         )
