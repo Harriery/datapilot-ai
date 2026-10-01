@@ -2,6 +2,7 @@ from backend.app.models import (
     PersonalProjectAnalysisPlan,
     PersonalProjectAnalysisResult,
     PersonalProjectDataModelStudio,
+    PersonalProjectDataModelTable,
     PersonalProjectKPIDefinition,
 )
 
