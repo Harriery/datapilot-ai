@@ -84,6 +84,113 @@ function aggregationLabel(
   }[aggregation];
 }
 
+
+const SUPPORTED_KPI_FUNCTIONS = [
+  "SUM",
+  "MEAN",
+  "COUNT",
+  "COUNT_ROWS",
+  "MIN",
+  "MAX",
+  "SAFE_DIVIDE",
+] as const;
+
+function validateCustomFormulaClient(
+  formula: string,
+  studio: DataModelStudioData
+): string | null {
+  const cleanFormula = formula.trim();
+
+  if (!cleanFormula) {
+    return "Enter a custom formula.";
+  }
+
+  const functionMatches = [
+    ...cleanFormula.matchAll(
+      /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+    ),
+  ];
+
+  for (const match of functionMatches) {
+    const functionName =
+      match[1].toUpperCase();
+
+    if (
+      !SUPPORTED_KPI_FUNCTIONS.includes(
+        functionName as
+          typeof SUPPORTED_KPI_FUNCTIONS[number]
+      )
+    ) {
+      return (
+        `Unsupported function: ${functionName}. ` +
+        `Supported: ${SUPPORTED_KPI_FUNCTIONS.join(", ")}.`
+      );
+    }
+  }
+
+  const tablesByName = new Map(
+    studio.tables.map(
+      (table) => [
+        table.name,
+        table,
+      ]
+    )
+  );
+
+  const columnMatches = [
+    ...cleanFormula.matchAll(
+      /\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/g
+    ),
+  ];
+
+  for (const match of columnMatches) {
+    const tableName = match[1];
+    const columnName = match[2];
+    const table =
+      tablesByName.get(
+        tableName
+      );
+
+    if (!table) {
+      return (
+        `Unknown table in formula: ${tableName}.`
+      );
+    }
+
+    if (
+      !table.columns.some(
+        (column) =>
+          column.name ===
+          columnName
+      )
+    ) {
+      return (
+        `Unknown column in formula: ${tableName}.${columnName}.`
+      );
+    }
+  }
+
+  const rowCountMatches = [
+    ...cleanFormula.matchAll(
+      /COUNT_ROWS\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/gi
+    ),
+  ];
+
+  for (const match of rowCountMatches) {
+    if (
+      !tablesByName.has(
+        match[1]
+      )
+    ) {
+      return (
+        `Unknown table in formula: ${match[1]}.`
+      );
+    }
+  }
+
+  return null;
+}
+
 function PersonalKpiCandidates({
   studio,
   candidates,
@@ -434,6 +541,20 @@ function PersonalKpiCandidates({
       if (!cleanFormula) {
         setBuilderError(
           "Enter a custom formula."
+        );
+
+        return;
+      }
+
+      const customFormulaError =
+        validateCustomFormulaClient(
+          cleanFormula,
+          studio
+        );
+
+      if (customFormulaError) {
+        setBuilderError(
+          customFormulaError
         );
 
         return;
@@ -856,10 +977,35 @@ function PersonalKpiCandidates({
                 }
               />
 
-              <small>
-                Stored as a declarative KPI expression.
-                It is not executed as arbitrary Python or SQL.
-              </small>
+              <div className="kpi-formula-help">
+                <span>
+                  Stored as a declarative KPI expression.
+                  It is not executed as arbitrary Python or SQL.
+                </span>
+
+                <span
+                  className="kpi-formula-help-trigger"
+                  tabIndex={0}
+                >
+                  ? Supported functions
+
+                  <span className="kpi-formula-tooltip">
+                    <strong>
+                      Supported functions
+                    </strong>
+
+                    <span>
+                      SUM, MEAN, COUNT, COUNT_ROWS,
+                      MIN, MAX, SAFE_DIVIDE
+                    </span>
+
+                    <small>
+                      Table and column references must exist
+                      in the current logical model.
+                    </small>
+                  </span>
+                </span>
+              </div>
             </label>
           )}
         </div>
@@ -903,6 +1049,60 @@ function PersonalKpiCandidates({
       </div>
 
       <div className="kpi-library-layout">
+        <div className="kpi-suggestions">
+          <div className="kpi-builder-section-header">
+            <div>
+              <span className="workspace-overview-label">
+                SUGGESTIONS
+              </span>
+
+              <strong>
+                Model-based starting points
+              </strong>
+            </div>
+          </div>
+
+          <div className="kpi-suggestion-grid">
+            {availableCandidates.map(
+              (candidate) => (
+                <div
+                  key={candidate.code}
+                  className="kpi-suggestion-item"
+                >
+                  <div>
+                    <strong>
+                      {candidate.title}
+                    </strong>
+
+                    <span>
+                      {candidate.formula ??
+                        candidate.description}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      addSuggestion(
+                        candidate
+                      )
+                    }
+                  >
+                    Add
+                  </button>
+                </div>
+              )
+            )}
+
+            {availableCandidates.length === 0 && (
+              <p className="kpi-builder-empty">
+                All current suggestions are already
+                in Definitions.
+              </p>
+            )}
+          </div>
+        </div>
         <div className="kpi-builder-definitions">
           <div className="kpi-builder-section-header">
             <div>
@@ -961,60 +1161,6 @@ function PersonalKpiCandidates({
           </div>
         </div>
 
-        <div className="kpi-suggestions">
-          <div className="kpi-builder-section-header">
-            <div>
-              <span className="workspace-overview-label">
-                SUGGESTIONS
-              </span>
-
-              <strong>
-                Model-based starting points
-              </strong>
-            </div>
-          </div>
-
-          <div className="kpi-suggestion-grid">
-            {availableCandidates.map(
-              (candidate) => (
-                <div
-                  key={candidate.code}
-                  className="kpi-suggestion-item"
-                >
-                  <div>
-                    <strong>
-                      {candidate.title}
-                    </strong>
-
-                    <span>
-                      {candidate.formula ??
-                        candidate.description}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() =>
-                      addSuggestion(
-                        candidate
-                      )
-                    }
-                  >
-                    Add
-                  </button>
-                </div>
-              )
-            )}
-
-            {availableCandidates.length === 0 && (
-              <p className="kpi-builder-empty">
-                All current suggestions are already
-                in Definitions.
-              </p>
-            )}
-          </div>
-        </div>
       </div>
 
       {error && (
