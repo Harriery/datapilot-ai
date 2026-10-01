@@ -408,3 +408,65 @@ def test_secondary_measures_only_get_primary_aggregation_suggestion():
         item.aggregation
         for item in distance_items
     ] == ["mean"]
+
+
+def test_validate_personal_kpi_definitions_supports_custom_formula():
+    definitions = validate_personal_kpi_definitions(
+        studio=_build_test_model_studio(),
+        definitions=[
+            PersonalProjectKPIDefinition(
+                code="custom_margin",
+                title="Custom margin",
+                fact_table="fact_sales",
+                measure=None,
+                aggregation=None,
+                dimension_table=None,
+                dimension=None,
+                filter_value=None,
+                formula_mode="custom",
+                formula=(
+                    "SAFE_DIVIDE("
+                    "SUM(fact_sales.amount), "
+                    "COUNT_ROWS(fact_sales))"
+                ),
+                description="Custom semantic KPI.",
+                source="user",
+            ),
+        ],
+    )
+
+    assert len(definitions) == 1
+    assert definitions[0].formula_mode == "custom"
+    assert definitions[0].measure is None
+    assert definitions[0].aggregation is None
+    assert (
+        definitions[0].formula
+        == (
+            "SAFE_DIVIDE("
+            "SUM(fact_sales.amount), "
+            "COUNT_ROWS(fact_sales))"
+        )
+    )
+
+
+def test_validate_personal_kpi_definitions_rejects_empty_custom_formula():
+    with pytest.raises(
+        ValueError,
+        match="Custom KPI formula is required",
+    ):
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="empty_custom",
+                    title="Empty custom",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation=None,
+                    formula_mode="custom",
+                    formula="   ",
+                    description="Invalid custom KPI.",
+                    source="user",
+                ),
+            ],
+        )
