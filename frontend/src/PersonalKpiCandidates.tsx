@@ -127,7 +127,26 @@ function PersonalKpiCandidates({
     "mean" |
     "min" |
     "max"
-  >("sum");
+  >("mean");
+
+  const recommendedAggregation =
+    useMemo(
+      () =>
+        candidates.find(
+          (candidate) =>
+            candidate.fact_table ===
+              factTable &&
+            candidate.measure ===
+              measure &&
+            !candidate.dimension_table &&
+            !candidate.dimension
+        )?.aggregation ?? "mean",
+      [
+        candidates,
+        factTable,
+        measure,
+      ]
+    );
 
   const relationshipOptions =
     useMemo(
@@ -242,6 +261,14 @@ function PersonalKpiCandidates({
     factTable,
     factTables,
     measure,
+  ]);
+
+  useEffect(() => {
+    setAggregation(
+      recommendedAggregation
+    );
+  }, [
+    recommendedAggregation,
   ]);
 
   useEffect(() => {
