@@ -24,6 +24,138 @@ type ColumnRole =
   ColumnData["role"];
 
 
+type SourceColumnPickerProps = {
+  value: string;
+
+  placeholder: string;
+
+  options: string[];
+
+  onChange: (
+    value: string
+  ) => void;
+};
+
+
+function SourceColumnPicker({
+  value,
+  placeholder,
+  options,
+  onChange,
+}: SourceColumnPickerProps) {
+
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
+
+  const [
+    search,
+    setSearch,
+  ] = useState("");
+
+
+  const filteredOptions =
+    options.filter(
+      (option) =>
+        option
+          .toLowerCase()
+          .includes(
+            search
+              .trim()
+              .toLowerCase()
+          )
+    );
+
+
+  return (
+    <div className="model-source-picker">
+
+      <button
+        type="button"
+        className={
+          `model-source-picker-trigger ${
+            open
+              ? "open"
+              : ""
+          }`
+        }
+        onClick={() =>
+          setOpen(
+            (previous) =>
+              !previous
+          )
+        }
+      >
+        <span>
+          {value || placeholder}
+        </span>
+
+        <span aria-hidden="true">
+          ▾
+        </span>
+      </button>
+
+
+      {open && (
+        <div className="model-source-picker-panel">
+
+          <input
+            type="search"
+            value={search}
+            autoFocus
+            placeholder="Search columns..."
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+          />
+
+
+          <div className="model-source-picker-options">
+
+            {filteredOptions.map(
+              (option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={
+                    option === value
+                      ? "selected"
+                      : ""
+                  }
+                  onClick={() => {
+                    onChange(
+                      option
+                    );
+
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                >
+                  {option}
+                </button>
+              )
+            )}
+
+
+            {filteredOptions.length === 0 && (
+              <span className="model-source-picker-empty">
+                No columns found.
+              </span>
+            )}
+
+          </div>
+
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+
 type DraftColumn = {
   id: string;
 
@@ -1237,59 +1369,56 @@ function DataModelTableEditor({
                         "multi_column" ? (
                           <>
                             {[0, 1].map(
-                              (sourceIndex) => (
-                                <select
-                                  key={sourceIndex}
-                                  value={
-                                    column.derivation
-                                      ?.source_columns[
-                                        sourceIndex
-                                      ] ?? ""
-                                  }
-                                  onChange={(event) =>
-                                    updateMultiColumnSource(
-                                      column.id,
-                                      sourceIndex,
-                                      event.target.value
-                                    )
-                                  }
-                                >
-                                  <option value="">
-                                    {
+                              (sourceIndex) => {
+                                const selectedValue =
+                                  column.derivation
+                                    ?.source_columns[
+                                      sourceIndex
+                                    ] ?? "";
+
+                                const availableOptions =
+                                  sourceColumns.filter(
+                                    (sourceColumn) =>
+                                      !column.derivation
+                                        ?.source_columns
+                                        .some(
+                                          (
+                                            selected,
+                                            selectedIndex,
+                                          ) =>
+                                            selectedIndex !==
+                                              sourceIndex &&
+                                            selected ===
+                                              sourceColumn
+                                        )
+                                  );
+
+                                return (
+                                  <SourceColumnPicker
+                                    key={sourceIndex}
+                                    value={
+                                      selectedValue
+                                    }
+                                    placeholder={
                                       sourceIndex === 0
                                         ? "First source column..."
                                         : "Second source column..."
                                     }
-                                  </option>
-
-                                  {sourceColumns
-                                    .filter(
-                                      (sourceColumn) =>
-                                        !column.derivation
-                                          ?.source_columns
-                                          .some(
-                                            (
-                                              selected,
-                                              selectedIndex,
-                                            ) =>
-                                              selectedIndex !==
-                                                sourceIndex &&
-                                              selected ===
-                                                sourceColumn
-                                          )
-                                    )
-                                    .map(
-                                      (sourceColumn) => (
-                                        <option
-                                          key={sourceColumn}
-                                          value={sourceColumn}
-                                        >
-                                          {sourceColumn}
-                                        </option>
+                                    options={
+                                      availableOptions
+                                    }
+                                    onChange={(
+                                      sourceColumn,
+                                    ) =>
+                                      updateMultiColumnSource(
+                                        column.id,
+                                        sourceIndex,
+                                        sourceColumn
                                       )
-                                    )}
-                                </select>
-                              )
+                                    }
+                                  />
+                                );
+                              }
                             )}
 
                             <select
