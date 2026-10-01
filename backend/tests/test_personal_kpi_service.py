@@ -182,13 +182,23 @@ def test_build_personal_kpi_candidates_from_studio():
         item.code
         for item in result
     ] == [
+        "row_count_fact_sales",
         "sum_fact_sales_amount",
         "mean_fact_sales_amount",
-        "count_fact_sales_amount",
-        "min_fact_sales_amount",
-        "max_fact_sales_amount",
-        "mean_fact_sales_amount_by_dim_region",
+        (
+            "sum_fact_sales_amount_"
+            "by_dim_region_region"
+        ),
     ]
+
+    row_count = result[0]
+
+    assert row_count.measure is None
+    assert row_count.formula_mode == "row_count"
+    assert (
+        row_count.formula
+        == "COUNT_ROWS(fact_sales)"
+    )
 
     grouped = result[-1]
 
@@ -199,7 +209,7 @@ def test_build_personal_kpi_candidates_from_studio():
 
     assert (
         grouped.formula
-        == "MEAN(fact_sales.amount) BY dim_region.region"
+        == "SUM(fact_sales.amount) BY dim_region.region"
     )
 
 
@@ -257,3 +267,36 @@ def test_validate_personal_kpi_definitions_rejects_non_measure_column():
                 ),
             ],
         )
+
+
+
+def test_validate_personal_kpi_definitions_supports_row_count():
+    definitions = (
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="record_count",
+                    title="Record Count",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation="count",
+                    dimension_table=None,
+                    dimension=None,
+                    filter_value=None,
+                    formula_mode="row_count",
+                    formula=None,
+                    description="Rows in the fact table.",
+                    source="user",
+                ),
+            ],
+        )
+    )
+
+    assert len(definitions) == 1
+    assert definitions[0].measure is None
+
+    assert (
+        definitions[0].formula
+        == "COUNT_ROWS(fact_sales)"
+    )
