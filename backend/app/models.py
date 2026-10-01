@@ -789,6 +789,7 @@ class PersonalProjectKPIDefinition(BaseModel):
 
     formula_mode: Literal[
         "safe_aggregation",
+        "row_count",
     ] | None = None
 
     formula: str | None = None
