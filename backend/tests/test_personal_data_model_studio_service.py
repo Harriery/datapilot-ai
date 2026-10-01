@@ -295,3 +295,120 @@ def test_data_model_studio_rejects_multi_column_with_one_source():
         validate_personal_data_model_studio(
             studio
         )
+
+
+
+def test_data_model_studio_accepts_text_derivation():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="dim_customer",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="CleanName",
+                        role="attribute",
+                        derivation={
+                            "type": "text",
+                            "operation": "trim",
+                            "source_columns": ["Name"],
+                            "parameters": {},
+                        },
+                    ),
+                ],
+            )
+        ],
+        relationships=[],
+    )
+
+    result = validate_personal_data_model_studio(
+        studio
+    )
+
+    assert (
+        result.tables[0]
+        .columns[0]
+        .derivation
+        .operation
+        == "trim"
+    )
+
+
+def test_data_model_studio_accepts_numeric_arithmetic_derivation():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="fact_sales",
+                table_type="fact",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="Profit",
+                        role="measure",
+                        derivation={
+                            "type": "numeric",
+                            "operation": "subtract",
+                            "source_columns": [
+                                "Revenue",
+                                "Cost",
+                            ],
+                            "parameters": {},
+                        },
+                    ),
+                ],
+            )
+        ],
+        relationships=[],
+    )
+
+    result = validate_personal_data_model_studio(
+        studio
+    )
+
+    assert (
+        result.tables[0]
+        .columns[0]
+        .derivation
+        .source_columns
+        == ["Revenue", "Cost"]
+    )
+
+
+def test_data_model_studio_accepts_mapping_derivation():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="dim_type",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="TypeLabel",
+                        role="attribute",
+                        derivation={
+                            "type": "mapping",
+                            "operation": "map_values",
+                            "source_columns": ["Type"],
+                            "parameters": {
+                                "mapping": (
+                                    "h => House\n"
+                                    "u => Unit"
+                                ),
+                            },
+                        },
+                    ),
+                ],
+            )
+        ],
+        relationships=[],
+    )
+
+    result = validate_personal_data_model_studio(
+        studio
+    )
+
+    assert (
+        result.tables[0]
+        .columns[0]
+        .derivation
+        .type
+        == "mapping"
+    )

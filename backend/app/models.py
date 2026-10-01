@@ -902,6 +902,7 @@ class PersonalProjectDataModelDerivation(BaseModel):
         "numeric",
         "text",
         "multi_column",
+        "mapping",
     ]
 
     operation: str = Field(min_length=1)

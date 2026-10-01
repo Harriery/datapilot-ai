@@ -322,6 +322,92 @@ def validate_personal_data_model_studio(
                     )
 
                 if (
+                    derivation.type == "text"
+                    and derivation.operation
+                    not in {
+                        "trim",
+                        "uppercase",
+                        "lowercase",
+                        "replace",
+                        "substring",
+                    }
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported text derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    derivation.type == "numeric"
+                    and derivation.operation
+                    not in {
+                        "round",
+                        "add",
+                        "subtract",
+                        "multiply",
+                        "divide",
+                    }
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported numeric derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    derivation.type == "numeric"
+                    and derivation.operation
+                    in {
+                        "add",
+                        "subtract",
+                        "multiply",
+                        "divide",
+                    }
+                    and len(
+                        [
+                            source
+                            for source
+                            in derivation.source_columns
+                            if source.strip()
+                        ]
+                    ) < 2
+                ):
+                    raise ValueError(
+                        (
+                            "Numeric arithmetic derivation requires "
+                            "two source columns."
+                        )
+                    )
+
+                if (
+                    derivation.type == "mapping"
+                    and derivation.operation
+                    != "map_values"
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported mapping derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    derivation.type == "mapping"
+                    and not str(
+                        derivation.parameters.get(
+                            "mapping",
+                            ""
+                        )
+                    ).strip()
+                ):
+                    raise ValueError(
+                        "Mapping derivation requires mapping rules."
+                    )
+
+                if (
                     column.source_column is not None
                     and column.source_column
                     not in derivation.source_columns

@@ -32,7 +32,8 @@ export type DataModelDerivation = {
     | "date_part"
     | "numeric"
     | "text"
-    | "multi_column";
+    | "multi_column"
+    | "mapping";
 
   operation: string;
 
