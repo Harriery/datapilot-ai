@@ -13432,3 +13432,91 @@
     max-height: none;
   }
 }
+
+
+.kpi-formula-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  color: #8392a4;
+
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.kpi-formula-help-trigger {
+  position: relative;
+
+  flex-shrink: 0;
+
+  color: #2f75c4;
+  cursor: help;
+
+  font-weight: 700;
+}
+
+.kpi-formula-tooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+
+  z-index: 30;
+
+  display: grid;
+  gap: 4px;
+
+  width: 260px;
+  padding: 10px 11px;
+
+  border: 1px solid #d4e0ec;
+  border-radius: 9px;
+
+  background: #ffffff;
+  color: #40556e;
+
+  box-shadow:
+    0 10px 24px
+    rgba(32, 53, 78, 0.16);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transform: translateY(4px);
+
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    visibility 0s linear 0.16s;
+}
+
+.kpi-formula-help-trigger:hover
+  .kpi-formula-tooltip,
+.kpi-formula-help-trigger:focus
+  .kpi-formula-tooltip {
+  opacity: 1;
+  visibility: visible;
+
+  transform: translateY(0);
+
+  transition-delay: 0.2s;
+}
+
+.kpi-formula-tooltip strong {
+  color: #243a55;
+  font-size: 10px;
+}
+
+.kpi-formula-tooltip span {
+  color: #52677f;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.kpi-formula-tooltip small {
+  color: #7e8ea1;
+  font-size: 8px;
+  line-height: 1.4;
+}
