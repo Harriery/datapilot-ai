@@ -13520,3 +13520,406 @@
   font-size: 8px;
   line-height: 1.4;
 }
+
+
+/* ==================================================
+   KPI SAVE FEEDBACK
+   ================================================== */
+
+.workspace-save-toast {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 180;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 10px 13px;
+
+  border: 1px solid #b9dfc7;
+  border-radius: 10px;
+
+  background: #f1fbf4;
+  color: #25623c;
+
+  box-shadow:
+    0 10px 28px
+    rgba(28, 70, 45, 0.14);
+
+  font-size: 11px;
+
+  animation:
+    workspaceSaveToastIn
+    0.2s ease-out;
+}
+
+.workspace-save-toast > span {
+  display: grid;
+  place-items: center;
+
+  width: 20px;
+  height: 20px;
+
+  border-radius: 50%;
+
+  background: #dff4e6;
+
+  font-weight: 800;
+}
+
+@keyframes workspaceSaveToastIn {
+  from {
+    opacity: 0;
+    transform:
+      translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform:
+      translateY(0);
+  }
+}
+
+
+/* ==================================================
+   BI SEMANTIC MODEL REVIEW
+   ================================================== */
+
+.personal-bi-model {
+  display: grid;
+  gap: 14px;
+
+  padding: 16px;
+
+  border: 1px solid #dbe5f1;
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+.personal-bi-model-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 18px;
+}
+
+.personal-bi-model-header h2 {
+  margin: 4px 0 5px;
+
+  color: #1d304c;
+
+  font-size: 18px;
+}
+
+.personal-bi-model-header p {
+  max-width: 720px;
+
+  margin: 0;
+
+  color: #6c7f96;
+
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.bi-model-readiness {
+  flex-shrink: 0;
+
+  padding: 6px 9px;
+
+  border-radius: 999px;
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.bi-model-readiness.ready {
+  background: #eaf8ef;
+  color: #237a49;
+}
+
+.bi-model-readiness.warning {
+  background: #fff3df;
+  color: #946119;
+}
+
+.bi-model-summary-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 8px;
+}
+
+.bi-model-summary-grid > div {
+  display: grid;
+  gap: 3px;
+
+  padding: 11px 12px;
+
+  border: 1px solid #e0e8f2;
+  border-radius: 9px;
+
+  background: #f8fbff;
+}
+
+.bi-model-summary-grid strong {
+  color: #1e3d63;
+
+  font-size: 18px;
+}
+
+.bi-model-summary-grid span {
+  color: #7b8da3;
+
+  font-size: 9px;
+}
+
+.bi-model-workspace {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 10px;
+}
+
+.bi-model-panel {
+  min-width: 0;
+
+  padding: 12px;
+
+  border: 1px solid #dfe7f0;
+  border-radius: 10px;
+
+  background: #fbfdff;
+}
+
+.bi-model-panel-header {
+  margin-bottom: 9px;
+}
+
+.bi-model-panel-header strong {
+  display: block;
+
+  margin-top: 2px;
+
+  color: #30465f;
+
+  font-size: 11px;
+}
+
+.bi-model-table-list,
+.bi-model-measure-list,
+.bi-model-relationship-list,
+.bi-model-check-list {
+  display: grid;
+  gap: 6px;
+}
+
+.bi-model-table-item,
+.bi-model-measure-item,
+.bi-model-relationship-item,
+.bi-model-check {
+  padding: 8px 9px;
+
+  border: 1px solid #e2e9f0;
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+.bi-model-table-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+}
+
+.bi-model-table-item > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  min-width: 0;
+}
+
+.bi-model-table-item strong,
+.bi-model-measure-item strong,
+.bi-model-relationship-item strong,
+.bi-model-check strong {
+  color: #2b425e;
+
+  font-size: 10px;
+}
+
+.bi-model-table-item span {
+  padding: 3px 6px;
+
+  border-radius: 999px;
+
+  background: #eef4fb;
+  color: #5c7592;
+
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bi-model-table-item small,
+.bi-model-relationship-item small,
+.bi-model-check small {
+  color: #8191a5;
+
+  font-size: 8px;
+}
+
+.bi-model-measure-item {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  gap: 8px;
+  align-items: center;
+}
+
+.bi-model-measure-item > div {
+  display: grid;
+  gap: 3px;
+
+  min-width: 0;
+}
+
+.bi-model-measure-item code {
+  overflow: hidden;
+
+  color: #71849a;
+
+  font-size: 8px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bi-model-measure-item > span {
+  padding: 3px 6px;
+
+  border-radius: 999px;
+
+  background: #eef6ff;
+  color: #2d74c2;
+
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.bi-model-relationship-item {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    minmax(0, 1fr)
+    auto;
+
+  gap: 7px;
+  align-items: center;
+
+  color: #61758e;
+
+  font-size: 8px;
+}
+
+.bi-model-relationship-arrow {
+  color: #2f80ed;
+
+  font-weight: 800;
+}
+
+.bi-model-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bi-model-check > span {
+  display: grid;
+  place-items: center;
+
+  flex: 0 0 22px;
+
+  width: 22px;
+  height: 22px;
+
+  border-radius: 50%;
+
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.bi-model-check > div {
+  display: grid;
+  gap: 2px;
+}
+
+.bi-model-check.passed > span {
+  background: #e7f7ed;
+  color: #247a48;
+}
+
+.bi-model-check.warning > span {
+  background: #fff2dc;
+  color: #9a6312;
+}
+
+.bi-model-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  padding-top: 11px;
+
+  border-top: 1px solid #e3eaf2;
+}
+
+.bi-model-actions > span {
+  color: #74879e;
+
+  font-size: 9px;
+}
+
+@media (max-width: 900px) {
+  .bi-model-summary-grid,
+  .bi-model-workspace {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .personal-bi-model-header,
+  .bi-model-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bi-model-summary-grid,
+  .bi-model-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .bi-model-relationship-item {
+    grid-template-columns: 1fr;
+  }
+
+  .bi-model-relationship-arrow {
+    transform: rotate(90deg);
+  }
+}
