@@ -35,20 +35,19 @@ def validate_personal_bi_model_ready(
         if table.table_type == "dimension"
     ]
 
-    if not dimension_tables:
-        raise ValueError(
-            "BI semantic model requires at least one dimension table."
-        )
-
     active_relationships = [
         relationship
         for relationship in studio.relationships
         if relationship.active
     ]
 
-    if not active_relationships:
+    if (
+        dimension_tables
+        and not active_relationships
+    ):
         raise ValueError(
-            "BI semantic model requires at least one active relationship."
+            "BI semantic model dimensions require at least "
+            "one active relationship."
         )
 
     if not definitions:
