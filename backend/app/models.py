@@ -838,6 +838,12 @@ class PersonalProjectDashboardVisual(BaseModel):
     tooltip_template: str | None = None
 
 
+class PersonalProjectDashboardPreviewRequest(BaseModel):
+    kpi_code: str
+    dimension_table: str | None = None
+    dimension: str | None = None
+
+
 class PersonalProjectDashboardConfig(BaseModel):
     title: str = "Dashboard"
     subtitle: str | None = None
