@@ -740,10 +740,17 @@ function AnalysisWorkspace({
               }
             );
 
+            const rowLimit =
+              sizeIndex === 0
+                ? 0
+                : sizeIndex === 1
+                  ? 5
+                  : 10;
+
             const visibleRows =
               sortedRows.slice(
                 0,
-                10
+                rowLimit
               );
 
 
@@ -851,7 +858,7 @@ function AnalysisWorkspace({
                       onClick={() =>
                         shrinkCard(id)
                       }
-                      title="Make smaller"
+                      title="Show less detail"
                     >
                       −
                     </button>
@@ -864,7 +871,7 @@ function AnalysisWorkspace({
                       onClick={() =>
                         growCard(id)
                       }
-                      title="Make larger"
+                      title="Show more detail"
                     >
                       +
                     </button>
@@ -1003,7 +1010,7 @@ function AnalysisWorkspace({
                           <span>
                             Showing {
                               Math.min(
-                                10,
+                                rowLimit,
                                 result
                                   .grouped_results
                                   .length
