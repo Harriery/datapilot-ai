@@ -613,6 +613,8 @@ function DashboardBarVisual({
   yAxisTitle,
   showValues,
   tooltipTemplate,
+  selectedValue,
+  onSelect,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -623,6 +625,10 @@ function DashboardBarVisual({
   yAxisTitle: string | null;
   showValues: boolean;
   tooltipTemplate?: string | null;
+  selectedValue?: string | null;
+  onSelect?: (
+    value: unknown
+  ) => void;
 }) {
   const semantic =
     Boolean(
@@ -690,7 +696,22 @@ function DashboardBarVisual({
                 "-" +
                 index
               }
-              className="dashboard-bar-row"
+              className={
+                "dashboard-bar-row" +
+                (
+                  selectedValue ===
+                  String(
+                    row.value
+                  )
+                    ? " selected"
+                    : ""
+                )
+              }
+              onClick={() =>
+                onSelect?.(
+                  row.value
+                )
+              }
               title={
                 buildDashboardTooltip(
                   tooltipTemplate,
@@ -752,6 +773,8 @@ function DashboardLineVisual({
   showValues,
   showGridlines,
   tooltipTemplate,
+  selectedValue,
+  onSelect,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -763,6 +786,10 @@ function DashboardLineVisual({
   showValues: boolean;
   showGridlines: boolean;
   tooltipTemplate?: string | null;
+  selectedValue?: string | null;
+  onSelect?: (
+    value: unknown
+  ) => void;
 }) {
   const semantic =
     Boolean(
@@ -895,7 +922,27 @@ function DashboardLineVisual({
               key={index}
               cx={point.x}
               cy={point.y}
-              r="1.6"
+              r={
+                selectedValue ===
+                String(
+                  point.row.value
+                )
+                  ? "2.6"
+                  : "1.6"
+              }
+              className={
+                selectedValue ===
+                String(
+                  point.row.value
+                )
+                  ? "selected"
+                  : ""
+              }
+              onClick={() =>
+                onSelect?.(
+                  point.row.value
+                )
+              }
               vectorEffect="non-scaling-stroke"
             >
               <title>
@@ -969,6 +1016,8 @@ function DashboardColumnVisual({
   showValues,
   showGridlines,
   tooltipTemplate,
+  selectedValue,
+  onSelect,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -978,6 +1027,10 @@ function DashboardColumnVisual({
   showValues: boolean;
   showGridlines: boolean;
   tooltipTemplate?: string | null;
+  selectedValue?: string | null;
+  onSelect?: (
+    value: unknown
+  ) => void;
 }) {
   const semantic =
     Boolean(
@@ -1039,7 +1092,22 @@ function DashboardColumnVisual({
                 "-" +
                 index
               }
-              className="dashboard-column-item dashboard-tooltip-host"
+              className={
+                "dashboard-column-item dashboard-tooltip-host" +
+                (
+                  selectedValue ===
+                  String(
+                    row.value
+                  )
+                    ? " selected"
+                    : ""
+                )
+              }
+              onClick={() =>
+                onSelect?.(
+                  row.value
+                )
+              }
               data-tooltip={
                 buildDashboardTooltip(
                   tooltipTemplate,
@@ -1088,6 +1156,8 @@ function DashboardAreaVisual({
   showValues,
   showGridlines,
   tooltipTemplate,
+  selectedValue,
+  onSelect,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -1097,6 +1167,10 @@ function DashboardAreaVisual({
   showValues: boolean;
   showGridlines: boolean;
   tooltipTemplate?: string | null;
+  selectedValue?: string | null;
+  onSelect?: (
+    value: unknown
+  ) => void;
 }) {
   const semantic =
     Boolean(
@@ -1229,7 +1303,27 @@ function DashboardAreaVisual({
               key={index}
               cx={point.x}
               cy={point.y}
-              r="1.6"
+              r={
+                selectedValue ===
+                String(
+                  point.row.value
+                )
+                  ? "2.6"
+                  : "1.6"
+              }
+              className={
+                selectedValue ===
+                String(
+                  point.row.value
+                )
+                  ? "selected"
+                  : ""
+              }
+              onClick={() =>
+                onSelect?.(
+                  point.row.value
+                )
+              }
               vectorEffect="non-scaling-stroke"
             >
               <title>
