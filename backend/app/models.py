@@ -819,6 +819,7 @@ class PersonalProjectDashboardVisual(BaseModel):
         "top_value",
         "bottom_value",
         "alphabetical",
+        "chronological",
         "highest_count",
         "lowest_count",
     ] = "top_value"
