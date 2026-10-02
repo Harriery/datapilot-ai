@@ -926,12 +926,15 @@ function DashboardTableVisual({
 
 function PersonalDashboardBuilder({
   analyses,
+  kpiDefinitions,
+  dataModelStudio,
   savedVisuals,
   savedTitle,
   savedSubtitle,
   savedTheme,
   loading,
   error,
+  onPreview,
   onSave,
 }: Props) {
   const [
@@ -973,6 +976,27 @@ function PersonalDashboardBuilder({
   ] = useState<
     string | null
   >(null);
+
+
+  const [
+    previewResults,
+    setPreviewResults,
+  ] = useState<
+    Record<
+      string,
+      AnalysisResultData
+    >
+  >({});
+
+  const [
+    previewErrors,
+    setPreviewErrors,
+  ] = useState<
+    Record<
+      string,
+      string
+    >
+  >({});
 
 
   const [
