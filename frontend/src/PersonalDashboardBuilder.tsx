@@ -2166,15 +2166,6 @@ function PersonalDashboardBuilder({
                           accentColor={
                             visual.accent_color
                           }
-                          xAxisTitle={
-                            visual.x_axis_title
-                          }
-                          yAxisTitle={
-                            visual.y_axis_title
-                          }
-                          showValues={
-                            visual.show_values
-                          }
                         />
                       )}
 
@@ -2209,6 +2200,15 @@ function PersonalDashboardBuilder({
                           rows={rows}
                           accentColor={
                             visual.accent_color
+                          }
+                          xAxisTitle={
+                            visual.x_axis_title
+                          }
+                          yAxisTitle={
+                            visual.y_axis_title
+                          }
+                          showValues={
+                            visual.show_values
                           }
                         />
                       )}
