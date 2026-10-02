@@ -2504,6 +2504,31 @@ function PersonalDashboardBuilder({
                             kpiCode
                         );
 
+                      const dimensionTable =
+                        editingVisual.dimension_table ??
+                        editingAnalysis?.dimension_table ??
+                        null;
+
+                      const dimension =
+                        editingVisual.dimension ??
+                        editingAnalysis?.dimension ??
+                        null;
+
+                      const nextSort =
+                        (
+                          isTimeDimension(
+                            dimension
+                          ) &&
+                          [
+                            "line",
+                            "area",
+                          ].includes(
+                            editingVisual.visual_type
+                          )
+                        )
+                          ? "chronological"
+                          : editingVisual.sort_mode;
+
                       updateVisual(
                         editingVisual.visual_id,
                         {
@@ -2514,19 +2539,36 @@ function PersonalDashboardBuilder({
                           y_axis_title:
                             definition?.title ??
                             editingVisual.y_axis_title,
+                          sort_mode:
+                            nextSort,
                         }
                       );
 
-                      await refreshVisualPreview(
-                        editingVisual.visual_id,
-                        kpiCode,
-                        editingVisual.dimension_table ??
-                          editingAnalysis?.dimension_table ??
-                          null,
-                        editingVisual.dimension ??
-                          editingAnalysis?.dimension ??
-                          null,
-                      );
+                      const result =
+                        await refreshVisualPreview(
+                          editingVisual.visual_id,
+                          kpiCode,
+                          dimensionTable,
+                          dimension,
+                        );
+
+                      if (
+                        result &&
+                        editingVisual.auto_title !== false
+                      ) {
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            title:
+                              defaultVisualTitle(
+                                result,
+                                editingVisual.visual_type,
+                                nextSort,
+                                editingVisual.top_n,
+                              ),
+                          }
+                        );
+                      }
                     }}
                   />
                 </label>
@@ -2591,6 +2633,21 @@ function PersonalDashboardBuilder({
                         editingVisual.kpi_code ??
                         editingAnalysis?.kpi_code;
 
+                      const nextSort =
+                        (
+                          isTimeDimension(
+                            dimension
+                          ) &&
+                          [
+                            "line",
+                            "area",
+                          ].includes(
+                            editingVisual.visual_type
+                          )
+                        )
+                          ? "chronological"
+                          : editingVisual.sort_mode;
+
                       updateVisual(
                         editingVisual.visual_id,
                         {
@@ -2601,16 +2658,37 @@ function PersonalDashboardBuilder({
                           dimension,
                           x_axis_title:
                             dimension,
+                          sort_mode:
+                            nextSort,
                         }
                       );
 
                       if (kpiCode) {
-                        await refreshVisualPreview(
-                          editingVisual.visual_id,
-                          kpiCode,
-                          dimensionTable,
-                          dimension,
-                        );
+                        const result =
+                          await refreshVisualPreview(
+                            editingVisual.visual_id,
+                            kpiCode,
+                            dimensionTable,
+                            dimension,
+                          );
+
+                        if (
+                          result &&
+                          editingVisual.auto_title !== false
+                        ) {
+                          updateVisual(
+                            editingVisual.visual_id,
+                            {
+                              title:
+                                defaultVisualTitle(
+                                  result,
+                                  editingVisual.visual_type,
+                                  nextSort,
+                                  editingVisual.top_n,
+                                ),
+                            }
+                          );
+                        }
                       }
                     }}
                   />
