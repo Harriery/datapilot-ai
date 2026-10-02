@@ -4470,10 +4470,17 @@ def preview_personal_dashboard_visual(
                 (
                     item.table,
                     item.column,
-                    item.value,
+                    (
+                        list(item.values)
+                        if len(item.values) > 0
+                        else item.value
+                    ),
                 )
                 for item in request.filters
-                if item.value is not None
+                if (
+                    len(item.values) > 0
+                    or item.value is not None
+                )
             ],
         )
 
