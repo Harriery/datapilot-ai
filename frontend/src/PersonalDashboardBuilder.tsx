@@ -5718,7 +5718,7 @@ function PersonalDashboardBuilder({
                                   ? null
                                   : visual.visual_id
                             );
-                          }
+                          }}
                           title="Edit visual"
                         >
                           ⚙
