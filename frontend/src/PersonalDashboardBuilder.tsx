@@ -1286,6 +1286,13 @@ function DashboardPieVisual({
   showLegend: boolean;
   tooltipTemplate?: string | null;
 }) {
+  const [
+    hoveredSegment,
+    setHoveredSegment,
+  ] = useState<number | null>(
+    null
+  );
+
   const semantic =
     Boolean(
       analysis.kpi_code
@@ -1380,7 +1387,95 @@ function DashboardPieVisual({
             gradient +
             ")",
         }}
+        onMouseMove={(event) => {
+          const rect =
+            event.currentTarget
+              .getBoundingClientRect();
+
+          const centerX =
+            rect.left +
+            rect.width / 2;
+
+          const centerY =
+            rect.top +
+            rect.height / 2;
+
+          const x =
+            event.clientX -
+            centerX;
+
+          const y =
+            event.clientY -
+            centerY;
+
+          const radius =
+            Math.sqrt(
+              x * x +
+              y * y
+            );
+
+          if (
+            donut &&
+            radius <
+              rect.width *
+              0.24
+          ) {
+            setHoveredSegment(
+              null
+            );
+
+            return;
+          }
+
+          const angle =
+            (
+              Math.atan2(
+                y,
+                x
+              ) *
+              180 /
+              Math.PI +
+              450
+            ) % 360;
+
+          const percent =
+            angle /
+            360 *
+            100;
+
+          const index =
+            segments.findIndex(
+              (segment) =>
+                percent >=
+                  segment.start &&
+                percent <
+                  segment.end
+            );
+
+          setHoveredSegment(
+            index >= 0
+              ? index
+              : null
+          );
+        }}
+        onMouseLeave={() =>
+          setHoveredSegment(
+            null
+          )
+        }
       >
+        {hoveredSegment !== null && (
+          <div className="dashboard-pie-tooltip">
+            {buildDashboardTooltip(
+              tooltipTemplate,
+              analysis,
+              segments[
+                hoveredSegment
+              ].row,
+            )}
+          </div>
+        )}
+
         {donut && (
           <div className="dashboard-donut-hole">
             <strong>
@@ -1404,7 +1499,8 @@ function DashboardPieVisual({
                   "-" +
                   index
                 }
-                title={
+                className="dashboard-tooltip-host"
+                data-tooltip={
                   buildDashboardTooltip(
                     tooltipTemplate,
                     analysis,
@@ -3537,6 +3633,10 @@ function PersonalDashboardBuilder({
                           showValues={
                             visual.show_values
                           }
+                          showGridlines={
+                            visual.show_gridlines ??
+                            true
+                          }
                           tooltipTemplate={
                             visual.tooltip_template
                           }
@@ -3581,6 +3681,10 @@ function PersonalDashboardBuilder({
                           showValues={
                             visual.show_values
                           }
+                          showGridlines={
+                            visual.show_gridlines ??
+                            true
+                          }
                           tooltipTemplate={
                             visual.tooltip_template
                           }
@@ -3599,6 +3703,10 @@ function PersonalDashboardBuilder({
                           }
                           showValues={
                             visual.show_values
+                          }
+                          showGridlines={
+                            visual.show_gridlines ??
+                            true
                           }
                           tooltipTemplate={
                             visual.tooltip_template
