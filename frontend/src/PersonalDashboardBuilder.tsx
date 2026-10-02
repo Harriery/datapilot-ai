@@ -802,7 +802,7 @@ function DashboardKpiVisual({
           accentColor,
       } as CSSProperties}
     >
-      <strong>
+      <strong data-format-target="value">
         {formatNumber(
           getMetricValue(
             analysis
@@ -1182,7 +1182,10 @@ function DashboardLineVisual({
         )}
       </svg>
 
-      <div className="dashboard-line-axis">
+      <div
+        className="dashboard-line-axis"
+        data-format-target="axis"
+      >
         <span>
           {points[0]?.label ??
             ""}
@@ -1204,13 +1207,19 @@ function DashboardLineVisual({
       </div>
 
       {yAxisTitle && (
-        <div className="dashboard-line-measure-label">
+        <div
+          className="dashboard-line-measure-label"
+          data-format-target="axis"
+        >
           {yAxisTitle}
         </div>
       )}
 
       {showValues && points.length > 0 && (
-        <div className="dashboard-line-value-summary">
+        <div
+          className="dashboard-line-value-summary"
+          data-format-target="value"
+        >
           <span>
             First: {
               formatNumber(
@@ -1563,7 +1572,10 @@ function DashboardAreaVisual({
         )}
       </svg>
 
-      <div className="dashboard-line-axis">
+      <div
+        className="dashboard-line-axis"
+        data-format-target="axis"
+      >
         <span>
           {String(
             orderedRows[0]
@@ -1582,7 +1594,10 @@ function DashboardAreaVisual({
 
       {showValues &&
         points.length > 0 && (
-        <div className="dashboard-line-value-summary">
+        <div
+          className="dashboard-line-value-summary"
+          data-format-target="value"
+        >
           <span>
             First: {
               formatNumber(
@@ -5257,6 +5272,9 @@ function PersonalDashboardBuilder({
                     );
                     setFormatTarget(
                       "visual"
+                    );
+                    setEditingVisualId(
+                      null
                     );
                   }}
                 >
