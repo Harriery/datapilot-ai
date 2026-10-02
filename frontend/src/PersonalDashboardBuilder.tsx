@@ -3,6 +3,7 @@ import {
   useMemo,
   useState,
   type DragEvent,
+  type CSSProperties,
 } from "react";
 
 import type {
@@ -367,7 +368,7 @@ function DashboardKpiVisual({
       style={{
         "--dashboard-accent":
           accentColor,
-      } as React.CSSProperties}
+      } as CSSProperties}
     >
       <strong>
         {formatNumber(
@@ -434,7 +435,7 @@ function DashboardBarVisual({
       style={{
         "--dashboard-accent":
           accentColor,
-      } as React.CSSProperties}
+      } as CSSProperties}
     >
       {rows.map(
         (row, index) => {
@@ -608,7 +609,7 @@ function DashboardLineVisual({
       style={{
         "--dashboard-accent":
           accentColor,
-      } as React.CSSProperties}
+      } as CSSProperties}
     >
       <svg
         viewBox="0 0 100 100"
