@@ -2540,6 +2540,7 @@ function PersonalDashboardBuilder({
                 dashboardTitle.trim() || "Dashboard",
                 dashboardSubtitle.trim() || null,
                 dashboardTheme,
+                dashboardFilters,
               )
             }
           >
@@ -2649,6 +2650,154 @@ function PersonalDashboardBuilder({
 
       </div>
 
+      <div className="dashboard-slicer-toolbar">
+        <div className="dashboard-slicer-heading">
+          <div>
+            <span className="workspace-overview-label">
+              FILTERS / SLICERS
+            </span>
+
+            <strong>
+              Filter the whole dashboard
+            </strong>
+          </div>
+
+          <button
+            type="button"
+            className="dashboard-reset-button"
+            disabled={
+              !dashboardFilters.some(
+                (filter) =>
+                  filter.value !== null
+              )
+            }
+            onClick={
+              clearDashboardFilters
+            }
+          >
+            Clear filters
+          </button>
+        </div>
+
+        <div className="dashboard-slicer-builder">
+          <DashboardSelect
+            value={
+              pendingFilterKey
+            }
+            options={[
+              {
+                value: "",
+                label:
+                  "Choose dimension",
+              },
+              ...dimensionOptions
+                .filter(
+                  (option) =>
+                    !dashboardFilters.some(
+                      (filter) =>
+                        filter.table ===
+                          option.table &&
+                        filter.column ===
+                          option.column
+                    )
+                )
+                .map(
+                  (option) => ({
+                    value:
+                      option.value,
+                    label:
+                      option.label,
+                  })
+                ),
+            ]}
+            onChange={
+              setPendingFilterKey
+            }
+          />
+
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={
+              !pendingFilterKey
+            }
+            onClick={
+              addDashboardFilter
+            }
+          >
+            + Add slicer
+          </button>
+        </div>
+
+        {dashboardFilters.length > 0 && (
+          <div className="dashboard-slicer-list">
+            {dashboardFilters.map(
+              (filter) => (
+                <div
+                  key={
+                    filter.filter_id
+                  }
+                  className={
+                    "dashboard-slicer-card" +
+                    (
+                      filter.value !== null
+                        ? " active"
+                        : ""
+                    )
+                  }
+                >
+                  <span>
+                    {filter.label}
+                  </span>
+
+                  <DashboardSelect
+                    value={
+                      filter.value ??
+                      ""
+                    }
+                    options={[
+                      {
+                        value: "",
+                        label: "All",
+                      },
+                      ...(
+                        filterValues[
+                          filter.filter_id
+                        ] ?? []
+                      ).map(
+                        (value) => ({
+                          value,
+                          label: value,
+                        })
+                      ),
+                    ]}
+                    onChange={(value) =>
+                      setDashboardFilterValue(
+                        filter.filter_id,
+                        value,
+                      )
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    className="dashboard-slicer-remove"
+                    title="Remove slicer"
+                    onClick={() =>
+                      removeDashboardFilter(
+                        filter.filter_id
+                      )
+                    }
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            )}
+          </div>
+        )}
+      </div>
+
       <div
         className={
           "dashboard-builder-layout" +
@@ -2678,13 +2827,37 @@ function PersonalDashboardBuilder({
                     analysis
                   );
 
+                const isAdded =
+                  visuals.some(
+                    (visual) =>
+                      (
+                        visual.analysis_id ===
+                        analysis.analysis_id
+                      ) ||
+                      (
+                        visual.kpi_code ===
+                          analysis.kpi_code &&
+                        visual.dimension_table ===
+                          analysis.dimension_table &&
+                        visual.dimension ===
+                          analysis.dimension
+                      )
+                  );
+
                 return (
                   <div
                     key={
                       analysis.analysis_id ??
                       index
                     }
-                    className="dashboard-analysis-item"
+                    className={
+                      "dashboard-analysis-item" +
+                      (
+                        isAdded
+                          ? " added"
+                          : ""
+                      )
+                    }
                   >
                     <div>
                       <strong>
@@ -2732,7 +2905,11 @@ function PersonalDashboardBuilder({
 
                     <button
                       type="button"
-                      className="secondary-button"
+                      className={
+                        isAdded
+                          ? "dashboard-added-button"
+                          : "secondary-button"
+                      }
                       disabled={
                         !analysis.analysis_id
                       }
@@ -2742,7 +2919,9 @@ function PersonalDashboardBuilder({
                         )
                       }
                     >
-                      Add
+                      {isAdded
+                        ? "Added"
+                        : "Add"}
                     </button>
                   </div>
                 );
@@ -3793,6 +3972,12 @@ function PersonalDashboardBuilder({
                         visual.animate === false
                           ? " no-animation"
                           : ""
+                      ) +
+                      (
+                        editingVisualId ===
+                        visual.visual_id
+                          ? " selected"
+                          : ""
                       )
                     }
                     style={{
@@ -3801,6 +3986,11 @@ function PersonalDashboardBuilder({
                       color:
                         visual.text_color,
                     }}
+                    onClick={() =>
+                      setEditingVisualId(
+                        visual.visual_id
+                      )
+                    }
                     draggable
                     onDragStart={(
                       event:
