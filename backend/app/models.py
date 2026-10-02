@@ -785,6 +785,51 @@ class PersonalProjectAnalysisDeleteRequest(BaseModel):
     analysis_id: str
 
 
+class PersonalProjectDashboardVisual(BaseModel):
+    visual_id: str
+    analysis_id: str
+
+    visual_type: Literal[
+        "kpi",
+        "bar",
+        "line",
+        "table",
+    ]
+
+    title: str
+
+    size: Literal[
+        "small",
+        "large",
+    ] = "large"
+
+    sort_mode: Literal[
+        "top_value",
+        "bottom_value",
+        "alphabetical",
+        "highest_count",
+        "lowest_count",
+    ] = "top_value"
+
+    top_n: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+    )
+
+
+class PersonalProjectDashboardConfig(BaseModel):
+    visuals: list[
+        PersonalProjectDashboardVisual
+    ] = Field(default_factory=list)
+
+
+class PersonalProjectDashboardSaveRequest(BaseModel):
+    visuals: list[
+        PersonalProjectDashboardVisual
+    ] = Field(default_factory=list)
+
+
 class PersonalProjectKPIDefinition(BaseModel):
     code: str
     title: str
@@ -1501,6 +1546,10 @@ class Workspace(BaseModel):
     analysis_results: list[
         PersonalProjectAnalysisResult
     ] = Field(default_factory=list)
+
+    dashboard_config: PersonalProjectDashboardConfig = Field(
+        default_factory=PersonalProjectDashboardConfig
+    )
 
     kpi_candidates: list[
         PersonalProjectKPIDefinition
