@@ -787,12 +787,20 @@ class PersonalProjectAnalysisDeleteRequest(BaseModel):
 
 class PersonalProjectDashboardVisual(BaseModel):
     visual_id: str
-    analysis_id: str
+    analysis_id: str | None = None
+
+    kpi_code: str | None = None
+    dimension_table: str | None = None
+    dimension: str | None = None
 
     visual_type: Literal[
         "kpi",
         "bar",
+        "column",
         "line",
+        "area",
+        "pie",
+        "donut",
         "table",
     ]
 
@@ -827,6 +835,7 @@ class PersonalProjectDashboardVisual(BaseModel):
     x_axis_title: str | None = None
     y_axis_title: str | None = None
     show_values: bool = True
+    tooltip_template: str | None = None
 
 
 class PersonalProjectDashboardConfig(BaseModel):
