@@ -75,6 +75,32 @@ export type DashboardVisualData = {
   animate?: boolean;
 
   tooltip_template?: string | null;
+
+  grid_column?: number | null;
+
+  title_font_size?: number;
+  title_bold?: boolean;
+  title_color?: string | null;
+
+  subtitle_font_size?: number;
+  subtitle_bold?: boolean;
+  subtitle_color?: string | null;
+
+  category_label_font_size?: number;
+  category_label_bold?: boolean;
+  category_label_color?: string | null;
+
+  value_label_font_size?: number;
+  value_label_bold?: boolean;
+  value_label_color?: string | null;
+
+  axis_label_font_size?: number;
+  axis_label_bold?: boolean;
+  axis_label_color?: string | null;
+
+  legend_label_font_size?: number;
+  legend_label_bold?: boolean;
+  legend_label_color?: string | null;
 };
 
 export type DashboardFilterData = {
@@ -83,6 +109,7 @@ export type DashboardFilterData = {
   column: string;
   label: string;
   value: string | null;
+  values?: string[];
 };
 
 type DashboardCrossFilterData =
