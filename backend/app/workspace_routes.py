@@ -58,6 +58,7 @@ from backend.app.models import (
     PersonalProjectKPIBuilderRequest,
     PersonalProjectDataModelStudio,
     PersonalProjectDashboardSaveRequest,
+    PersonalProjectDashboardPreviewRequest,
 )
 
 import pandas as pd
@@ -4396,6 +4397,90 @@ def run_personal_project_analysis(
 @router.post(
     (
         "/workspaces/{learner_id}/{workspace_id}"
+        "/dashboard/preview"
+    ),
+    response_model=PersonalProjectAnalysisResult,
+)
+def preview_personal_dashboard_visual(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectDashboardPreviewRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.data_model_studio is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Semantic model bulunamadı.",
+        )
+
+    definition = next(
+        (
+            item
+            for item in workspace.kpi_definitions
+            if item.code == request.kpi_code
+        ),
+        None,
+    )
+
+    if definition is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Saved KPI definition not found.",
+        )
+
+    if (
+        (request.dimension_table is None)
+        != (request.dimension is None)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Semantic dimension requires both "
+                "table and column."
+            ),
+        )
+
+    try:
+        working_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+        return build_semantic_analysis_result(
+            df=working_df,
+            studio=workspace.data_model_studio,
+            definition=definition,
+            dimension_table=request.dimension_table,
+            dimension=request.dimension,
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
         "/dashboard/save"
     ),
     response_model=Workspace,
@@ -4444,13 +4529,45 @@ def save_personal_dashboard(
         if result.analysis_id is not None
     }
 
+    known_kpi_codes = {
+        item.code
+        for item in workspace.kpi_definitions
+    }
+
     for visual in request.visuals:
-        if visual.analysis_id not in known_analysis_ids:
+        if (
+            visual.analysis_id is not None
+            and visual.analysis_id not in known_analysis_ids
+        ):
             raise HTTPException(
                 status_code=400,
                 detail=(
                     "Dashboard visual references "
                     "an unknown analysis."
+                ),
+            )
+
+        if (
+            visual.kpi_code is not None
+            and visual.kpi_code not in known_kpi_codes
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Dashboard visual references "
+                    "an unknown KPI."
+                ),
+            )
+
+        if (
+            visual.analysis_id is None
+            and visual.kpi_code is None
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Dashboard visual requires either "
+                    "an analysis or semantic KPI binding."
                 ),
             )
 
