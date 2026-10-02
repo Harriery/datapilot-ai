@@ -4457,6 +4457,9 @@ def save_personal_dashboard(
     workspace.dashboard_config = (
         workspace.dashboard_config.model_copy(
             update={
+                "title": request.title,
+                "subtitle": request.subtitle,
+                "theme": request.theme,
                 "visuals": request.visuals,
             }
         )
