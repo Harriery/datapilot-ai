@@ -3017,152 +3017,207 @@ function PersonalDashboardBuilder({
 
               <div className="dashboard-property-section">
                 <strong>
-                  Labels & axes
+                  Labels & interaction
                 </strong>
 
-                <label className="dashboard-property-field">
-                  <span>
-                    X-axis title
-                  </span>
+                {editingHasAxes && (
+                  <>
+                    <label className="dashboard-property-field">
+                      <span>
+                        X-axis title
+                      </span>
 
-                  <input
-                    type="text"
-                    value={
-                      editingVisual.x_axis_title ??
-                      ""
-                    }
-                    onChange={(event) =>
-                      updateVisual(
-                        editingVisual.visual_id,
-                        {
-                          x_axis_title:
-                            event.target.value ||
-                            null,
+                      <input
+                        type="text"
+                        value={
+                          editingVisual.x_axis_title ??
+                          ""
                         }
-                      )
-                    }
-                  />
-                </label>
-
-                <label className="dashboard-property-field">
-                  <span>
-                    Y-axis title
-                  </span>
-
-                  <input
-                    type="text"
-                    value={
-                      editingVisual.y_axis_title ??
-                      ""
-                    }
-                    onChange={(event) =>
-                      updateVisual(
-                        editingVisual.visual_id,
-                        {
-                          y_axis_title:
-                            event.target.value ||
-                            null,
+                        onChange={(event) =>
+                          updateVisual(
+                            editingVisual.visual_id,
+                            {
+                              x_axis_title:
+                                event.target.value ||
+                                null,
+                            }
+                          )
                         }
-                      )
-                    }
-                  />
-                </label>
+                      />
+                    </label>
 
-                <label className="dashboard-property-check">
-                  <input
-                    type="checkbox"
-                    checked={
-                      editingVisual.show_values
-                    }
-                    onChange={(event) =>
-                      updateVisual(
-                        editingVisual.visual_id,
-                        {
-                          show_values:
-                            event.target.checked,
+                    <label className="dashboard-property-field">
+                      <span>
+                        Y-axis title
+                      </span>
+
+                      <input
+                        type="text"
+                        value={
+                          editingVisual.y_axis_title ??
+                          ""
                         }
-                      )
-                    }
-                  />
-
-                  <span>
-                    Show values
-                  </span>
-                </label>
-
-                <label className="dashboard-property-check">
-                  <input
-                    type="checkbox"
-                    checked={
-                      editingVisual.show_legend ??
-                      true
-                    }
-                    onChange={(event) =>
-                      updateVisual(
-                        editingVisual.visual_id,
-                        {
-                          show_legend:
-                            event.target.checked,
+                        onChange={(event) =>
+                          updateVisual(
+                            editingVisual.visual_id,
+                            {
+                              y_axis_title:
+                                event.target.value ||
+                                null,
+                            }
+                          )
                         }
-                      )
-                    }
-                  />
+                      />
+                    </label>
+                  </>
+                )}
 
-                  <span>
-                    Show legend
-                  </span>
-                </label>
+                {editingVisual.visual_type !== "table" && (
+                  <label className="dashboard-property-check">
+                    <input
+                      type="checkbox"
+                      checked={
+                        editingVisual.show_values
+                      }
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            show_values:
+                              event.target.checked,
+                          }
+                        )
+                      }
+                    />
 
-                <label className="dashboard-property-check">
-                  <input
-                    type="checkbox"
-                    checked={
-                      editingVisual.animate ??
-                      true
-                    }
-                    onChange={(event) =>
-                      updateVisual(
-                        editingVisual.visual_id,
-                        {
-                          animate:
-                            event.target.checked,
+                    <span>
+                      Show values
+                    </span>
+                  </label>
+                )}
+
+                {editingIsPie && (
+                  <label className="dashboard-property-check">
+                    <input
+                      type="checkbox"
+                      checked={
+                        editingVisual.show_legend ??
+                        true
+                      }
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            show_legend:
+                              event.target.checked,
+                          }
+                        )
+                      }
+                    />
+
+                    <span>
+                      Show legend
+                    </span>
+                  </label>
+                )}
+
+                {[
+                  "column",
+                  "line",
+                  "area",
+                ].includes(
+                  editingVisual.visual_type
+                ) && (
+                  <label className="dashboard-property-check">
+                    <input
+                      type="checkbox"
+                      checked={
+                        editingVisual.show_gridlines ??
+                        true
+                      }
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            show_gridlines:
+                              event.target.checked,
+                          }
+                        )
+                      }
+                    />
+
+                    <span>
+                      Show gridlines
+                    </span>
+                  </label>
+                )}
+
+                {![
+                  "kpi",
+                  "table",
+                ].includes(
+                  editingVisual.visual_type
+                ) && (
+                  <label className="dashboard-property-check">
+                    <input
+                      type="checkbox"
+                      checked={
+                        editingVisual.animate ??
+                        true
+                      }
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            animate:
+                              event.target.checked,
+                          }
+                        )
+                      }
+                    />
+
+                    <span>
+                      Animate
+                    </span>
+                  </label>
+                )}
+
+                {![
+                  "kpi",
+                  "table",
+                ].includes(
+                  editingVisual.visual_type
+                ) && (
+                  <>
+                    <label className="dashboard-property-field">
+                      <span>
+                        Tooltip template
+                      </span>
+
+                      <textarea
+                        rows={4}
+                        value={
+                          editingVisual.tooltip_template ??
+                          "{category}\n{measure}: {value}\nRecords: {count}"
                         }
-                      )
-                    }
-                  />
-
-                  <span>
-                    Animate
-                  </span>
-                </label>
-
-                <label className="dashboard-property-field">
-                  <span>
-                    Tooltip template
-                  </span>
-
-                  <textarea
-                    rows={4}
-                    value={
-                      editingVisual.tooltip_template ??
-                      "{category}\n{measure}: {value}\nRecords: {count}"
-                    }
-                    onChange={(event) =>
-                      updateVisual(
-                        editingVisual.visual_id,
-                        {
-                          tooltip_template:
-                            event.target.value ||
-                            null,
+                        onChange={(event) =>
+                          updateVisual(
+                            editingVisual.visual_id,
+                            {
+                              tooltip_template:
+                                event.target.value ||
+                                null,
+                            }
+                          )
                         }
-                      )
-                    }
-                  />
-                </label>
+                      />
+                    </label>
 
-                <small className="dashboard-property-hint">
-                  Available placeholders: {"{category}"}, {"{measure}"}, {"{value}"}, {"{count}"}.
-                </small>
+                    <small className="dashboard-property-hint">
+                      Available placeholders: {"{category}"}, {"{measure}"}, {"{value}"}, {"{count}"}.
+                    </small>
+                  </>
+                )}
               </div>
             </div>
           </aside>
