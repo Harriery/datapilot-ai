@@ -3101,6 +3101,8 @@ async function runWorkspaceValidation() {
 async function runPersonalAnalysis(
   measure: string,
   dimension: string | null,
+  kpiCode?: string | null,
+  dimensionTable?: string | null,
 ) {
   if (!workspaceId) {
     return;
@@ -3119,10 +3121,19 @@ async function runPersonalAnalysis(
           "Content-Type": "application/json",
         },
 
-        body: JSON.stringify({
-          measure,
-          dimension,
-        }),
+        body: JSON.stringify(
+          kpiCode
+            ? {
+                kpi_code: kpiCode,
+                dimension_table:
+                  dimensionTable ?? null,
+                dimension,
+              }
+            : {
+                measure,
+                dimension,
+              }
+        ),
       }
     );
 
@@ -6329,6 +6340,12 @@ async function restoreWorkspaceVersion(
                           <PersonalAnalysisPlan
                             analysisPlan={
                               dashboardWorkspace.analysis_plan
+                            }
+                            dataModelStudio={
+                              dashboardWorkspace.data_model_studio
+                            }
+                            kpiDefinitions={
+                              dashboardWorkspace.kpi_definitions ?? []
                             }
                             analysisResult={
                               dashboardWorkspace.analysis_result
