@@ -13683,9 +13683,18 @@
 .bi-model-workspace {
   display: grid;
   grid-template-columns:
-    repeat(2, minmax(0, 1fr));
+    minmax(0, 1.35fr)
+    minmax(320px, 0.9fr);
 
-  gap: 10px;
+  gap: 12px;
+  align-items: start;
+}
+
+.bi-model-column {
+  display: grid;
+  gap: 12px;
+
+  min-width: 0;
 }
 
 .bi-model-panel {
@@ -13802,9 +13811,12 @@
   color: #71849a;
 
   font-size: 8px;
+  line-height: 1.4;
 
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  cursor: help;
 }
 
 .bi-model-measure-item > span {
@@ -13823,22 +13835,77 @@
   display: grid;
   grid-template-columns:
     minmax(0, 1fr)
-    auto
-    minmax(0, 1fr)
     auto;
 
-  gap: 7px;
+  gap: 10px;
   align-items: center;
 
   color: #61758e;
+}
+
+.bi-model-relationship-path {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    minmax(0, 1fr);
+
+  gap: 10px;
+  align-items: center;
+
+  min-width: 0;
+}
+
+.bi-model-relationship-endpoint {
+  display: grid;
+  gap: 2px;
+
+  min-width: 0;
+}
+
+.bi-model-relationship-endpoint strong {
+  overflow: hidden;
+
+  color: #2b425e;
+
+  font-size: 10px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bi-model-relationship-endpoint small {
+  overflow: hidden;
+
+  color: #8191a5;
 
   font-size: 8px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bi-model-relationship-arrow {
   color: #2f80ed;
 
+  font-size: 12px;
   font-weight: 800;
+}
+
+.bi-model-relationship-meta {
+  flex-shrink: 0;
+
+  padding: 4px 7px;
+
+  border-radius: 999px;
+
+  background: #eef4fb;
+  color: #61758e;
+
+  font-size: 7px;
+  font-weight: 700;
+
+  white-space: nowrap;
 }
 
 .bi-model-check {
@@ -13895,9 +13962,14 @@
   font-size: 9px;
 }
 
-@media (max-width: 900px) {
-  .bi-model-summary-grid,
+@media (max-width: 1100px) {
   .bi-model-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .bi-model-summary-grid {
     grid-template-columns:
       repeat(2, minmax(0, 1fr));
   }
@@ -13915,11 +13987,24 @@
     grid-template-columns: 1fr;
   }
 
-  .bi-model-relationship-item {
+  .bi-model-relationship-item,
+  .bi-model-relationship-path {
     grid-template-columns: 1fr;
+  }
+
+  .bi-model-relationship-meta {
+    justify-self: start;
   }
 
   .bi-model-relationship-arrow {
     transform: rotate(90deg);
+    justify-self: start;
   }
+}
+
+
+.workspace-overview-grid > .personal-bi-model {
+  grid-column: 1 / -1;
+  width: 100%;
+  box-sizing: border-box;
 }
