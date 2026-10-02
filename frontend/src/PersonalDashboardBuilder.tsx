@@ -1929,6 +1929,115 @@ function PersonalDashboardBuilder({
       [dataModelStudio]
     );
 
+
+  useEffect(
+    () => {
+      let cancelled =
+        false;
+
+      async function restoreFilters() {
+        for (
+          const filter
+          of savedFilters
+        ) {
+          try {
+            const values =
+              await onLoadFilterValues(
+                filter.table,
+                filter.column,
+              );
+
+            if (cancelled) {
+              return;
+            }
+
+            setFilterValues(
+              (previous) => ({
+                ...previous,
+                [filter.filter_id]:
+                  values,
+              })
+            );
+          } catch {
+            // Keep the dashboard usable if one slicer
+            // cannot load its distinct values.
+          }
+        }
+
+        if (
+          savedFilters.some(
+            (filter) =>
+              filter.value !== null
+          )
+        ) {
+          for (
+            const visual
+            of savedVisuals
+          ) {
+            const sourceAnalysis =
+              visual.analysis_id
+                ? analyses.find(
+                    (analysis) =>
+                      analysis.analysis_id ===
+                      visual.analysis_id
+                  )
+                : undefined;
+
+            const kpiCode =
+              visual.kpi_code ??
+              sourceAnalysis?.kpi_code;
+
+            if (!kpiCode) {
+              continue;
+            }
+
+            try {
+              const result =
+                await onPreview(
+                  kpiCode,
+                  visual.dimension_table ??
+                    sourceAnalysis?.dimension_table ??
+                    null,
+                  visual.dimension ??
+                    sourceAnalysis?.dimension ??
+                    null,
+                  savedFilters,
+                );
+
+              if (cancelled) {
+                return;
+              }
+
+              setPreviewResults(
+                (previous) => ({
+                  ...previous,
+                  [visual.visual_id]:
+                    result,
+                })
+              );
+            } catch {
+              // Per-visual errors remain available when
+              // the user changes a slicer interactively.
+            }
+          }
+        }
+      }
+
+      void restoreFilters();
+
+      return () => {
+        cancelled = true;
+      };
+    },
+    [
+      savedFilters,
+      savedVisuals,
+      analyses,
+      onLoadFilterValues,
+      onPreview,
+    ]
+  );
+
   async function refreshVisualPreview(
     visualId: string,
     kpiCode: string,
@@ -4044,7 +4153,12 @@ function PersonalDashboardBuilder({
                         )}
                       </div>
 
-                      <div className="dashboard-visual-actions">
+                      <div
+                        className="dashboard-visual-actions"
+                        onClick={(event) =>
+                          event.stopPropagation()
+                        }
+                      >
                         <button
                           type="button"
                           className={
