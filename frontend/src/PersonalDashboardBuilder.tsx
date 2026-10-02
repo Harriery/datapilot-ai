@@ -77,6 +77,14 @@ export type DashboardVisualData = {
   tooltip_template?: string | null;
 };
 
+export type DashboardFilterData = {
+  filter_id: string;
+  table: string;
+  column: string;
+  label: string;
+  value: string | null;
+};
+
 type Props = {
   analyses: AnalysisResultData[];
   kpiDefinitions: PersonalKpiData[];
@@ -85,6 +93,7 @@ type Props = {
   savedTitle: string;
   savedSubtitle: string | null;
   savedTheme: DashboardTheme;
+  savedFilters: DashboardFilterData[];
   loading: boolean;
   error: string | null;
 
@@ -92,13 +101,20 @@ type Props = {
     kpiCode: string,
     dimensionTable: string | null,
     dimension: string | null,
+    filters?: DashboardFilterData[],
   ) => Promise<AnalysisResultData>;
+
+  onLoadFilterValues: (
+    table: string,
+    column: string,
+  ) => Promise<string[]>;
 
   onSave: (
     visuals: DashboardVisualData[],
     title: string,
     subtitle: string | null,
     theme: DashboardTheme,
+    filters: DashboardFilterData[],
   ) => void;
 };
 
