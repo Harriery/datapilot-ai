@@ -16584,3 +16584,136 @@
   opacity: 1;
   cursor: default;
 }
+
+
+/* ==================================================
+   DASHBOARD CROSS-FILTER INTERACTIONS
+   ================================================== */
+
+.dashboard-cross-filter-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  gap: 7px;
+}
+
+.dashboard-cross-filter-label {
+  color: #6e8095;
+
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.dashboard-cross-filter-chip {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 6px;
+
+  padding: 5px 7px;
+
+  border: 1px solid #79abe4;
+  border-radius: 999px;
+
+  background: #e8f3ff;
+  color: #245f9f;
+
+  cursor: pointer;
+
+  font: inherit;
+  font-size: 8px;
+}
+
+.dashboard-cross-filter-chip span {
+  opacity: 0.75;
+}
+
+.dashboard-cross-filter-chip strong {
+  max-width: 160px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-cross-filter-chip i {
+  font-style: normal;
+  font-weight: 900;
+}
+
+.dashboard-bar-row,
+.dashboard-column-item,
+.dashboard-line-chart circle,
+.dashboard-area-chart circle,
+.dashboard-pie-chart,
+.dashboard-pie-legend > div,
+.dashboard-table tbody tr {
+  cursor: pointer;
+}
+
+.dashboard-bar-row.selected {
+  padding: 3px 5px;
+
+  border-radius: 6px;
+
+  background: #eaf4ff;
+}
+
+.dashboard-bar-row.selected
+  .dashboard-bar-track {
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, 0.16);
+}
+
+.dashboard-column-item.selected
+  .dashboard-column-track {
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, 0.2);
+}
+
+.dashboard-column-item.selected
+  .dashboard-column-value {
+  filter: brightness(0.92);
+}
+
+.dashboard-line-chart circle.selected,
+.dashboard-area-chart circle.selected {
+  fill: var(
+    --dashboard-accent,
+    #2f80ed
+  );
+
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.dashboard-pie-chart.has-selection {
+  box-shadow:
+    0 0 0 3px
+    rgba(47, 128, 237, 0.15);
+}
+
+.dashboard-pie-legend > div.selected {
+  padding: 4px 5px;
+
+  border-radius: 6px;
+
+  background: #eaf4ff;
+}
+
+.dashboard-table tbody tr.selected td {
+  background: #eaf4ff;
+  color: #245f9f;
+
+  font-weight: 700;
+}
+
+.dashboard-table tbody tr:hover td {
+  background: #f4f8fc;
+}
