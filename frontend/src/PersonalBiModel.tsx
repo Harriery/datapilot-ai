@@ -174,7 +174,8 @@ function PersonalBiModel({
       </div>
 
       <div className="bi-model-workspace">
-        <section className="bi-model-panel">
+        <div className="bi-model-column bi-model-column-main">
+          <section className="bi-model-panel">
           <div className="bi-model-panel-header">
             <div>
               <span className="workspace-overview-label">
@@ -212,48 +213,6 @@ function PersonalBiModel({
           </div>
         </section>
 
-        <section className="bi-model-panel">
-          <div className="bi-model-panel-header">
-            <div>
-              <span className="workspace-overview-label">
-                MEASURES
-              </span>
-              <strong>
-                Business metrics
-              </strong>
-            </div>
-          </div>
-
-          <div className="bi-model-measure-list">
-            {definitions.map(
-              (definition) => (
-                <div
-                  key={definition.code}
-                  className="bi-model-measure-item"
-                >
-                  <div>
-                    <strong>
-                      {definition.title}
-                    </strong>
-
-                    <code>
-                      {definition.formula ??
-                        "No formula"}
-                    </code>
-                  </div>
-
-                  <span>
-                    {definition.formula_mode ===
-                    "custom"
-                      ? "CUSTOM"
-                      : "GUIDED"}
-                  </span>
-                </div>
-              )
-            )}
-          </div>
-        </section>
-
         <section className="bi-model-panel bi-model-relationships">
           <div className="bi-model-panel-header">
             <div>
@@ -283,37 +242,92 @@ function PersonalBiModel({
                   }
                   className="bi-model-relationship-item"
                 >
-                  <span>
-                    <strong>
-                      {relationship.from_table}
-                    </strong>
-                    .{relationship.from_column}
-                  </span>
+                  <div className="bi-model-relationship-path">
+                    <span className="bi-model-relationship-endpoint">
+                      <strong>
+                        {relationship.from_table}
+                      </strong>
+                      <small>
+                        {relationship.from_column}
+                      </small>
+                    </span>
 
-                  <span className="bi-model-relationship-arrow">
-                    →
-                  </span>
+                    <span className="bi-model-relationship-arrow">
+                      →
+                    </span>
 
-                  <span>
-                    <strong>
-                      {relationship.to_table}
-                    </strong>
-                    .{relationship.to_column}
-                  </span>
+                    <span className="bi-model-relationship-endpoint">
+                      <strong>
+                        {relationship.to_table}
+                      </strong>
+                      <small>
+                        {relationship.to_column}
+                      </small>
+                    </span>
+                  </div>
 
-                  <small>
+                  <span className="bi-model-relationship-meta">
                     {relationship.cardinality}
                     {relationship.active
                       ? " · active"
                       : " · inactive"}
-                  </small>
+                  </span>
+                </div>
+              )
+            )}
+          </div>
+        </section>
+        </div>
+
+        <div className="bi-model-column bi-model-column-side">
+          <section className="bi-model-panel">
+          <div className="bi-model-panel-header">
+            <div>
+              <span className="workspace-overview-label">
+                MEASURES
+              </span>
+              <strong>
+                Business metrics
+              </strong>
+            </div>
+          </div>
+
+          <div className="bi-model-measure-list">
+            {definitions.map(
+              (definition) => (
+                <div
+                  key={definition.code}
+                  className="bi-model-measure-item"
+                >
+                  <div>
+                    <strong>
+                      {definition.title}
+                    </strong>
+
+                    <code
+                      title={
+                        definition.formula ??
+                        "No formula"
+                      }
+                    >
+                      {definition.formula ??
+                        "No formula"}
+                    </code>
+                  </div>
+
+                  <span>
+                    {definition.formula_mode ===
+                    "custom"
+                      ? "CUSTOM"
+                      : "GUIDED"}
+                  </span>
                 </div>
               )
             )}
           </div>
         </section>
 
-        <section className="bi-model-panel bi-model-checks">
+          <section className="bi-model-panel bi-model-checks">
           <div className="bi-model-panel-header">
             <div>
               <span className="workspace-overview-label">
@@ -355,7 +369,8 @@ function PersonalBiModel({
               )
             )}
           </div>
-        </section>
+          </section>
+        </div>
       </div>
 
       {error && (
