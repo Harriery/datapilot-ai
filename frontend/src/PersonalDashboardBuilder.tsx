@@ -3902,7 +3902,6 @@ function PersonalDashboardBuilder({
     );
 
   const activeFormatStyle =
-    currentFormatStyle();  const activeFormatStyle =
     currentFormatStyle();
 
   return (
