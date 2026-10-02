@@ -155,7 +155,6 @@ function AnalysisSortSelect({
 
 const SIZE_CLASSES = [
   "small",
-  "medium",
   "large",
 ] as const;
 
@@ -437,7 +436,7 @@ function AnalysisWorkspace({
         ...previous,
 
         [id]: Math.min(
-          2,
+          1,
           (previous[id] ?? 1) + 1,
         ),
       })
@@ -660,7 +659,10 @@ function AnalysisWorkspace({
               );
 
             const sizeIndex =
-              cardSizes[id] ?? 1;
+              Math.min(
+                cardSizes[id] ?? 1,
+                1
+              );
 
             const size =
               SIZE_CLASSES[
@@ -743,9 +745,7 @@ function AnalysisWorkspace({
             const rowLimit =
               sizeIndex === 0
                 ? 0
-                : sizeIndex === 1
-                  ? 5
-                  : 10;
+                : 10;
 
             const visibleRows =
               sortedRows.slice(
@@ -866,7 +866,7 @@ function AnalysisWorkspace({
                     <button
                       type="button"
                       disabled={
-                        sizeIndex === 2
+                        sizeIndex === 1
                       }
                       onClick={() =>
                         growCard(id)
