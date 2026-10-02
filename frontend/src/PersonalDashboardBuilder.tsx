@@ -452,6 +452,170 @@ function DashboardSelect<T extends string>({
   );
 }
 
+function DashboardMultiSelect({
+  values,
+  selected,
+  onChange,
+}: {
+  values: string[];
+  selected: string[];
+  onChange: (
+    values: string[]
+  ) => void;
+}) {
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
+
+  const [
+    search,
+    setSearch,
+  ] = useState("");
+
+  const visible =
+    values.filter(
+      (value) =>
+        value
+          .toLowerCase()
+          .includes(
+            search
+              .trim()
+              .toLowerCase()
+          )
+    );
+
+  const allSelected =
+    values.length > 0 &&
+    selected.length ===
+      values.length;
+
+  return (
+    <div
+      className={
+        "dashboard-multi-select" +
+        (
+          open
+            ? " open"
+            : ""
+        )
+      }
+    >
+      <button
+        type="button"
+        className="dashboard-select-trigger"
+        onClick={() =>
+          setOpen(
+            (previous) =>
+              !previous
+          )
+        }
+      >
+        <span>
+          {selected.length === 0
+            ? "All"
+            : (
+                selected.length === 1
+                  ? selected[0]
+                  : (
+                      selected.length +
+                      " selected"
+                    )
+              )}
+        </span>
+
+        <span>
+          ▾
+        </span>
+      </button>
+
+      {open && (
+        <div className="dashboard-multi-select-menu">
+          <input
+            type="search"
+            value={search}
+            placeholder="Search values"
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
+          />
+
+          <div className="dashboard-multi-select-actions">
+            <button
+              type="button"
+              onClick={() =>
+                onChange(
+                  allSelected
+                    ? []
+                    : [...values]
+                )
+              }
+            >
+              {allSelected
+                ? "Clear all"
+                : "Select all"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                onChange([])
+              }
+            >
+              All
+            </button>
+          </div>
+
+          <div className="dashboard-multi-select-options">
+            {visible.map(
+              (value) => {
+                const checked =
+                  selected.includes(
+                    value
+                  );
+
+                return (
+                  <label
+                    key={value}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        checked
+                      }
+                      onChange={() =>
+                        onChange(
+                          checked
+                            ? selected.filter(
+                                (item) =>
+                                  item !==
+                                  value
+                              )
+                            : [
+                                ...selected,
+                                value,
+                              ]
+                        )
+                      }
+                    />
+
+                    <span>
+                      {value}
+                    </span>
+                  </label>
+                );
+              }
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function sortRows(
   analysis: AnalysisResultData,
   sortMode: DashboardSortMode,
