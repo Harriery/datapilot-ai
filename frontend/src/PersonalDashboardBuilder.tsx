@@ -3134,11 +3134,29 @@ function PersonalDashboardBuilder({
             currentIndex - 1
           );
 
+    const nextSize =
+      order[nextIndex];
+
+    const nextSpan = {
+      compact: 4,
+      small: 6,
+      medium: 8,
+      large: 12,
+    }[nextSize];
+
     updateVisual(
       visual.visual_id,
       {
         size:
-          order[nextIndex],
+          nextSize,
+        grid_column:
+          visual.grid_column
+            ? Math.min(
+                visual.grid_column,
+                13 -
+                nextSpan
+              )
+            : null,
       }
     );
   }
