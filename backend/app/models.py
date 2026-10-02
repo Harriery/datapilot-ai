@@ -745,6 +745,19 @@ class PersonalProjectAnalysisResult(BaseModel):
     measure: str
     dimension: str | None = None
 
+    # Semantic-model aware metadata. Optional fields keep
+    # older saved analysis records backward compatible.
+    kpi_code: str | None = None
+    dimension_table: str | None = None
+    aggregation: Literal[
+        "count",
+        "sum",
+        "mean",
+        "min",
+        "max",
+        "custom",
+    ] | None = None
+
     overall: dict = Field(
         default_factory=dict
     )
@@ -757,7 +770,15 @@ class PersonalProjectAnalysisResult(BaseModel):
         "local",
     ] = "local"
 class PersonalProjectAnalysisRequest(BaseModel):
-    measure: str
+    # Legacy raw-column analysis input.
+    measure: str | None = None
+
+    # Semantic analysis input. When kpi_code is provided,
+    # the backend resolves the saved KPI definition from
+    # workspace state instead of trusting frontend metadata.
+    kpi_code: str | None = None
+
+    dimension_table: str | None = None
     dimension: str | None = None
 
 class PersonalProjectAnalysisDeleteRequest(BaseModel):
