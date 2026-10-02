@@ -3215,6 +3215,366 @@ function PersonalDashboardBuilder({
     );
   }
 
+  function visualSpan(
+    visual:
+      DashboardVisualData
+  ) {
+    return {
+      compact: 4,
+      small: 6,
+      medium: 8,
+      large: 12,
+    }[visual.size];
+  }
+
+  function updateFormatTargetStyle(
+    patch: {
+      fontSize?: number;
+      bold?: boolean;
+      color?: string | null;
+    }
+  ) {
+    if (!editingVisual) {
+      return;
+    }
+
+    const clamp = (
+      value: number,
+      min: number,
+      max: number,
+    ) =>
+      Math.max(
+        min,
+        Math.min(
+          max,
+          value
+        )
+      );
+
+    if (
+      formatTarget ===
+      "title"
+    ) {
+      updateVisual(
+        editingVisual.visual_id,
+        {
+          title_font_size:
+            patch.fontSize ===
+            undefined
+              ? editingVisual.title_font_size
+              : clamp(
+                  patch.fontSize,
+                  7,
+                  28,
+                ),
+          title_bold:
+            patch.bold ??
+            editingVisual.title_bold,
+          title_color:
+            patch.color ===
+            undefined
+              ? editingVisual.title_color
+              : patch.color,
+        }
+      );
+    }
+
+    if (
+      formatTarget ===
+      "subtitle"
+    ) {
+      updateVisual(
+        editingVisual.visual_id,
+        {
+          subtitle_font_size:
+            patch.fontSize ===
+            undefined
+              ? editingVisual.subtitle_font_size
+              : clamp(
+                  patch.fontSize,
+                  6,
+                  20,
+                ),
+          subtitle_bold:
+            patch.bold ??
+            editingVisual.subtitle_bold,
+          subtitle_color:
+            patch.color ===
+            undefined
+              ? editingVisual.subtitle_color
+              : patch.color,
+        }
+      );
+    }
+
+    if (
+      formatTarget ===
+      "category"
+    ) {
+      updateVisual(
+        editingVisual.visual_id,
+        {
+          category_label_font_size:
+            patch.fontSize ===
+            undefined
+              ? editingVisual.category_label_font_size
+              : clamp(
+                  patch.fontSize,
+                  6,
+                  22,
+                ),
+          category_label_bold:
+            patch.bold ??
+            editingVisual.category_label_bold,
+          category_label_color:
+            patch.color ===
+            undefined
+              ? editingVisual.category_label_color
+              : patch.color,
+        }
+      );
+    }
+
+    if (
+      formatTarget ===
+      "value"
+    ) {
+      updateVisual(
+        editingVisual.visual_id,
+        {
+          value_label_font_size:
+            patch.fontSize ===
+            undefined
+              ? editingVisual.value_label_font_size
+              : clamp(
+                  patch.fontSize,
+                  6,
+                  22,
+                ),
+          value_label_bold:
+            patch.bold ??
+            editingVisual.value_label_bold,
+          value_label_color:
+            patch.color ===
+            undefined
+              ? editingVisual.value_label_color
+              : patch.color,
+        }
+      );
+    }
+
+    if (
+      formatTarget ===
+      "axis"
+    ) {
+      updateVisual(
+        editingVisual.visual_id,
+        {
+          axis_label_font_size:
+            patch.fontSize ===
+            undefined
+              ? editingVisual.axis_label_font_size
+              : clamp(
+                  patch.fontSize,
+                  6,
+                  20,
+                ),
+          axis_label_bold:
+            patch.bold ??
+            editingVisual.axis_label_bold,
+          axis_label_color:
+            patch.color ===
+            undefined
+              ? editingVisual.axis_label_color
+              : patch.color,
+        }
+      );
+    }
+
+    if (
+      formatTarget ===
+      "legend"
+    ) {
+      updateVisual(
+        editingVisual.visual_id,
+        {
+          legend_label_font_size:
+            patch.fontSize ===
+            undefined
+              ? editingVisual.legend_label_font_size
+              : clamp(
+                  patch.fontSize,
+                  6,
+                  20,
+                ),
+          legend_label_bold:
+            patch.bold ??
+            editingVisual.legend_label_bold,
+          legend_label_color:
+            patch.color ===
+            undefined
+              ? editingVisual.legend_label_color
+              : patch.color,
+        }
+      );
+    }
+  }
+
+  function currentFormatStyle() {
+    if (!editingVisual) {
+      return {
+        fontSize: 8,
+        bold: false,
+        color: "#213854",
+      };
+    }
+
+    if (
+      formatTarget ===
+      "title"
+    ) {
+      return {
+        fontSize:
+          editingVisual.title_font_size ??
+          10,
+        bold:
+          editingVisual.title_bold ??
+          true,
+        color:
+          editingVisual.title_color ??
+          editingVisual.text_color,
+      };
+    }
+
+    if (
+      formatTarget ===
+      "subtitle"
+    ) {
+      return {
+        fontSize:
+          editingVisual.subtitle_font_size ??
+          7,
+        bold:
+          editingVisual.subtitle_bold ??
+          false,
+        color:
+          editingVisual.subtitle_color ??
+          editingVisual.text_color,
+      };
+    }
+
+    if (
+      formatTarget ===
+      "category"
+    ) {
+      return {
+        fontSize:
+          editingVisual.category_label_font_size ??
+          8,
+        bold:
+          editingVisual.category_label_bold ??
+          false,
+        color:
+          editingVisual.category_label_color ??
+          editingVisual.text_color,
+      };
+    }
+
+    if (
+      formatTarget ===
+      "value"
+    ) {
+      return {
+        fontSize:
+          editingVisual.value_label_font_size ??
+          8,
+        bold:
+          editingVisual.value_label_bold ??
+          true,
+        color:
+          editingVisual.value_label_color ??
+          editingVisual.text_color,
+      };
+    }
+
+    if (
+      formatTarget ===
+      "axis"
+    ) {
+      return {
+        fontSize:
+          editingVisual.axis_label_font_size ??
+          8,
+        bold:
+          editingVisual.axis_label_bold ??
+          false,
+        color:
+          editingVisual.axis_label_color ??
+          editingVisual.text_color,
+      };
+    }
+
+    return {
+      fontSize:
+        editingVisual.legend_label_font_size ??
+        8,
+      bold:
+        editingVisual.legend_label_bold ??
+        false,
+      color:
+        editingVisual.legend_label_color ??
+        editingVisual.text_color,
+    };
+  }
+
+  function handleCanvasDrop(
+    event:
+      DragEvent<HTMLDivElement>
+  ) {
+    if (!draggingId) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const rect =
+      event.currentTarget
+        .getBoundingClientRect();
+
+    const ratio =
+      (
+        event.clientX -
+        rect.left
+      ) /
+      Math.max(
+        rect.width,
+        1
+      );
+
+    const column =
+      Math.max(
+        1,
+        Math.min(
+          12,
+          Math.floor(
+            ratio * 12
+          ) + 1
+        )
+      );
+
+    updateVisual(
+      draggingId,
+      {
+        grid_column:
+          column,
+      }
+    );
+
+    setDraggingId(
+      null
+    );
+  }
+
   return (
     <section className="personal-dashboard-builder">
       <div className="dashboard-builder-header">
