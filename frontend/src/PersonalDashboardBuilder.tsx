@@ -2130,6 +2130,9 @@ function PersonalDashboardBuilder({
   async function refreshAllVisuals(
     nextFilters:
       DashboardFilterData[],
+    nextCrossFilters:
+      DashboardCrossFilterData[] =
+        crossFilters,
   ) {
     await Promise.all(
       visuals.map(
@@ -2154,6 +2157,29 @@ function PersonalDashboardBuilder({
             return;
           }
 
+          const interactionFilters:
+            DashboardFilterData[] =
+              nextCrossFilters
+                .filter(
+                  (filter) =>
+                    filter.source_visual_id !==
+                    visual.visual_id
+                )
+                .map(
+                  (filter) => ({
+                    filter_id:
+                      filter.filter_id,
+                    table:
+                      filter.table,
+                    column:
+                      filter.column,
+                    label:
+                      filter.label,
+                    value:
+                      filter.value,
+                  })
+                );
+
           await refreshVisualPreview(
             visual.visual_id,
             kpiCode,
@@ -2163,7 +2189,10 @@ function PersonalDashboardBuilder({
             visual.dimension ??
               sourceAnalysis?.dimension ??
               null,
-            nextFilters,
+            [
+              ...nextFilters,
+              ...interactionFilters,
+            ],
           );
         }
       )
@@ -2298,8 +2327,102 @@ function PersonalDashboardBuilder({
       nextFilters
     );
 
+    setCrossFilters(
+      []
+    );
+
     await refreshAllVisuals(
-      nextFilters
+      nextFilters,
+      [],
+    );
+  }
+
+  async function toggleCrossFilter(
+    sourceVisualId: string,
+    table: string | null | undefined,
+    column: string | null | undefined,
+    value: unknown,
+  ) {
+    if (
+      !table ||
+      !column ||
+      value === null ||
+      value === undefined
+    ) {
+      return;
+    }
+
+    const normalizedValue =
+      String(value);
+
+    const current =
+      crossFilters.find(
+        (filter) =>
+          filter.source_visual_id ===
+          sourceVisualId
+      );
+
+    const nextCrossFilters =
+      (
+        current &&
+        current.table === table &&
+        current.column === column &&
+        current.value ===
+          normalizedValue
+      )
+        ? crossFilters.filter(
+            (filter) =>
+              filter.source_visual_id !==
+              sourceVisualId
+          )
+        : [
+            ...crossFilters.filter(
+              (filter) =>
+                filter.source_visual_id !==
+                sourceVisualId
+            ),
+            {
+              filter_id:
+                "cross-" +
+                sourceVisualId,
+              source_visual_id:
+                sourceVisualId,
+              table,
+              column,
+              label:
+                column,
+              value:
+                normalizedValue,
+            },
+          ];
+
+    setCrossFilters(
+      nextCrossFilters
+    );
+
+    await refreshAllVisuals(
+      dashboardFilters,
+      nextCrossFilters,
+    );
+  }
+
+  async function removeCrossFilter(
+    sourceVisualId: string
+  ) {
+    const nextCrossFilters =
+      crossFilters.filter(
+        (filter) =>
+          filter.source_visual_id !==
+          sourceVisualId
+      );
+
+    setCrossFilters(
+      nextCrossFilters
+    );
+
+    await refreshAllVisuals(
+      dashboardFilters,
+      nextCrossFilters,
     );
   }
 
