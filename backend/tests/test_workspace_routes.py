@@ -5130,3 +5130,219 @@ def test_confirm_personal_bi_model_advances_to_analysis(
         ]
         == "Analyze semantic model"
     )
+
+
+def test_run_personal_semantic_analysis_uses_saved_kpi_and_model(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Semantic Analysis Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.validation_result = (
+        WorkspaceValidationResponse(
+            passed=True,
+            source_row_count=3,
+            working_row_count=3,
+            checks=[],
+        )
+    )
+
+    workspace.data_model_studio = (
+        PersonalProjectDataModelStudio(
+            tables=[
+                PersonalProjectDataModelTable(
+                    name="fact_sales",
+                    table_type="fact",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="Price",
+                            source_column="Price",
+                            role="measure",
+                        ),
+                        PersonalProjectDataModelColumn(
+                            name="Type",
+                            source_column="Type",
+                            role="foreign_key",
+                        ),
+                    ],
+                ),
+                PersonalProjectDataModelTable(
+                    name="dim_type",
+                    table_type="dimension",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="Type",
+                            source_column="Type",
+                            role="key",
+                        ),
+                        PersonalProjectDataModelColumn(
+                            name="TypeLabel",
+                            source_column="Type",
+                            role="attribute",
+                            derivation={
+                                "type": "mapping",
+                                "operation": "map_values",
+                                "source_columns": ["Type"],
+                                "parameters": {},
+                                "mapping_rules": [
+                                    {
+                                        "source_value": "h",
+                                        "display_value": "House",
+                                    },
+                                    {
+                                        "source_value": "u",
+                                        "display_value": "Unit",
+                                    },
+                                ],
+                            },
+                        ),
+                    ],
+                ),
+            ],
+            relationships=[
+                PersonalProjectDataModelRelationship(
+                    from_table="fact_sales",
+                    from_column="Type",
+                    to_table="dim_type",
+                    to_column="Type",
+                    cardinality="many_to_one",
+                    active=True,
+                ),
+            ],
+            source="user",
+        )
+    )
+
+    workspace.kpi_definitions = [
+        PersonalProjectKPIDefinition(
+            code="average_price",
+            title="Average Price",
+            fact_table="fact_sales",
+            measure="Price",
+            aggregation="mean",
+            formula_mode="safe_aggregation",
+            formula="MEAN(fact_sales.Price)",
+            description="Average price.",
+            source="user",
+        )
+    ]
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+            "data_model",
+            "kpi_definitions",
+            "bi_ready_dataset",
+        }:
+            deliverable.status = "completed"
+
+        if deliverable.code == "analysis":
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_working_dataframe",
+        lambda workspace_id: pd.DataFrame(
+            {
+                "Price": [
+                    400000,
+                    600000,
+                    300000,
+                ],
+                "Type": [
+                    "h",
+                    "h",
+                    "u",
+                ],
+            }
+        ),
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/analysis/run"
+        ),
+        json={
+            "kpi_code": "average_price",
+            "dimension_table": "dim_type",
+            "dimension": "TypeLabel",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["measure"] == "Average Price"
+    assert body["kpi_code"] == "average_price"
+    assert (
+        body["overall"]["metric_value"]
+        == 433333.3333333333
+    )
+
+    grouped = {
+        item["value"]:
+            item["metric_value"]
+        for item in body["grouped_results"]
+    }
+
+    assert grouped == {
+        "House": 500000.0,
+        "Unit": 300000.0,
+    }
+
+    workspace_after = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    ).json()
+
+    deliverables = {
+        item["code"]: item["status"]
+        for item in workspace_after[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables["analysis"]
+        == "completed"
+    )
+
+    assert (
+        deliverables["dashboard"]
+        == "in_progress"
+    )
