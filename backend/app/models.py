@@ -848,6 +848,13 @@ class PersonalProjectDashboardVisual(BaseModel):
         le=12,
     )
 
+    # Fine-grained dashboard canvas layout. Optional fields keep
+    # previously saved grid-based dashboards backward compatible.
+    canvas_x: int | None = Field(default=None, ge=0, le=10000)
+    canvas_y: int | None = Field(default=None, ge=0, le=10000)
+    canvas_width: int | None = Field(default=None, ge=160, le=4000)
+    canvas_height: int | None = Field(default=None, ge=120, le=4000)
+
     title_font_size: int = Field(
         default=10,
         ge=7,

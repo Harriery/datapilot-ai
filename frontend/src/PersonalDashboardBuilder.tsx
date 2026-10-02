@@ -2,7 +2,8 @@ import {
   useEffect,
   useMemo,
   useState,
-  type DragEvent,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type CSSProperties,
 } from "react";
 
@@ -77,6 +78,11 @@ export type DashboardVisualData = {
   tooltip_template?: string | null;
 
   grid_column?: number | null;
+
+  canvas_x?: number | null;
+  canvas_y?: number | null;
+  canvas_width?: number | null;
+  canvas_height?: number | null;
 
   title_font_size?: number;
   title_bold?: boolean;
@@ -353,6 +359,137 @@ const DASHBOARD_THEMES: Record<
     text: "#26384a",
   },
 };
+
+const DASHBOARD_GRID_SIZE = 8;
+const DASHBOARD_CANVAS_MIN_WIDTH = 1040;
+const DASHBOARD_CANVAS_MIN_HEIGHT = 620;
+const DASHBOARD_VISUAL_GAP = 16;
+const DASHBOARD_VISUAL_MIN_WIDTH = 240;
+const DASHBOARD_VISUAL_MIN_HEIGHT = 180;
+
+function defaultVisualCanvasSize(
+  visual: DashboardVisualData
+) {
+  if (visual.visual_type === "kpi") {
+    return { width: 320, height: 220 };
+  }
+
+  return {
+    compact: { width: 320, height: 220 },
+    small: { width: 400, height: 260 },
+    medium: { width: 480, height: 300 },
+    large: { width: 992, height: 320 },
+  }[visual.size];
+}
+
+function normalizeVisualLayouts(
+  source: DashboardVisualData[]
+): DashboardVisualData[] {
+  let cursorX = 0;
+  let cursorY = 0;
+  let rowHeight = 0;
+
+  return source.map((visual) => {
+    const defaults =
+      defaultVisualCanvasSize(visual);
+
+    const width =
+      visual.canvas_width ??
+      defaults.width;
+    const height =
+      visual.canvas_height ??
+      defaults.height;
+
+    const hasSavedLayout =
+      visual.canvas_x !== null &&
+      visual.canvas_x !== undefined &&
+      visual.canvas_y !== null &&
+      visual.canvas_y !== undefined &&
+      visual.canvas_width !== null &&
+      visual.canvas_width !== undefined &&
+      visual.canvas_height !== null &&
+      visual.canvas_height !== undefined;
+
+    if (hasSavedLayout) {
+      return {
+        ...visual,
+        canvas_width: width,
+        canvas_height: height,
+      };
+    }
+
+    if (
+      cursorX > 0 &&
+      cursorX + width >
+        DASHBOARD_CANVAS_MIN_WIDTH
+    ) {
+      cursorX = 0;
+      cursorY +=
+        rowHeight +
+        DASHBOARD_VISUAL_GAP;
+      rowHeight = 0;
+    }
+
+    let x = cursorX;
+
+    if (visual.grid_column) {
+      const legacyX =
+        Math.round(
+          (
+            (visual.grid_column - 1) /
+            12
+          ) *
+          DASHBOARD_CANVAS_MIN_WIDTH
+        );
+
+      x = Math.min(
+        legacyX,
+        Math.max(
+          0,
+          DASHBOARD_CANVAS_MIN_WIDTH -
+            width
+        )
+      );
+    }
+
+    const normalized = {
+      ...visual,
+      canvas_x: x,
+      canvas_y: cursorY,
+      canvas_width: width,
+      canvas_height: height,
+    };
+
+    cursorX =
+      x +
+      width +
+      DASHBOARD_VISUAL_GAP;
+    rowHeight =
+      Math.max(
+        rowHeight,
+        height
+      );
+
+    return normalized;
+  });
+}
+
+function snapCanvasValue(
+  value: number,
+  enabled: boolean
+) {
+  if (!enabled) {
+    return Math.round(value);
+  }
+
+  return (
+    Math.round(
+      value /
+        DASHBOARD_GRID_SIZE
+    ) *
+    DASHBOARD_GRID_SIZE
+  );
+}
 
 
 function DashboardSelect<T extends string>({
@@ -2051,7 +2188,9 @@ function PersonalDashboardBuilder({
   ] = useState<
     DashboardVisualData[]
   >(
-    savedVisuals
+    normalizeVisualLayouts(
+      savedVisuals
+    )
   );
 
 
@@ -2114,14 +2253,6 @@ function PersonalDashboardBuilder({
   );
 
   const [
-    draggingId,
-    setDraggingId,
-  ] = useState<
-    string | null
-  >(null);
-
-
-  const [
     previewResults,
     setPreviewResults,
   ] = useState<
@@ -2178,7 +2309,9 @@ function PersonalDashboardBuilder({
   useEffect(
     () => {
       setVisuals(
-        savedVisuals
+        normalizeVisualLayouts(
+          savedVisuals
+        )
       );
 
       setDashboardTitle(
@@ -3005,10 +3138,13 @@ function PersonalDashboardBuilder({
     }
 
     setVisuals(
-      (previous) => [
-        ...previous,
-        visual,
-      ]
+      (previous) =>
+        normalizeVisualLayouts(
+          [
+            ...previous,
+            visual,
+          ]
+        )
     );
   }
 
@@ -3021,7 +3157,10 @@ function PersonalDashboardBuilder({
         )
         .slice(0, 8)
         .map(
-          createVisual
+          (analysis) =>
+            createVisual(
+              analysis
+            )
         )
         .filter(
           (
@@ -3032,7 +3171,9 @@ function PersonalDashboardBuilder({
         );
 
     setVisuals(
-      next
+      normalizeVisualLayouts(
+        next
+      )
     );
   }
 
@@ -3110,53 +3251,32 @@ function PersonalDashboardBuilder({
     direction:
       "smaller" | "larger",
   ) {
-    const order:
-      DashboardVisualData["size"][] = [
-        "compact",
-        "small",
-        "medium",
-        "large",
-      ];
-
-    const currentIndex =
-      order.indexOf(
-        visual.size
-      );
-
-    const nextIndex =
+    const step =
       direction === "larger"
-        ? Math.min(
-            order.length - 1,
-            currentIndex + 1
-          )
-        : Math.max(
-            0,
-            currentIndex - 1
-          );
-
-    const nextSize =
-      order[nextIndex];
-
-    const nextSpan = {
-      compact: 4,
-      small: 6,
-      medium: 8,
-      large: 12,
-    }[nextSize];
+        ? 48
+        : -48;
 
     updateVisual(
       visual.visual_id,
       {
-        size:
-          nextSize,
-        grid_column:
-          visual.grid_column
-            ? Math.min(
-                visual.grid_column,
-                13 -
-                nextSpan
-              )
-            : null,
+        canvas_width:
+          snapCanvasValue(
+            Math.max(
+              DASHBOARD_VISUAL_MIN_WIDTH,
+              (visual.canvas_width ?? 480) +
+                step
+            ),
+            showCanvasGrid
+          ),
+        canvas_height:
+          snapCanvasValue(
+            Math.max(
+              DASHBOARD_VISUAL_MIN_HEIGHT,
+              (visual.canvas_height ?? 300) +
+                step
+            ),
+            showCanvasGrid
+          ),
       }
     );
   }
@@ -3165,6 +3285,8 @@ function PersonalDashboardBuilder({
     visual:
       DashboardVisualData
   ) {
+    const offset = 24;
+
     setVisuals(
       (previous) => [
         ...previous,
@@ -3182,86 +3304,18 @@ function PersonalDashboardBuilder({
           title:
             visual.title +
             " copy",
+          canvas_x:
+            (visual.canvas_x ?? 0) +
+            offset,
+          canvas_y:
+            (visual.canvas_y ?? 0) +
+            offset,
         },
       ]
     );
   }
 
-  function handleDrop(
-    targetId: string
-  ) {
-    if (
-      !draggingId ||
-      draggingId ===
-        targetId
-    ) {
-      setDraggingId(
-        null
-      );
-      return;
-    }
-
-    setVisuals(
-      (previous) => {
-        const next = [
-          ...previous,
-        ];
-
-        const from =
-          next.findIndex(
-            (item) =>
-              item.visual_id ===
-              draggingId
-          );
-
-        const to =
-          next.findIndex(
-            (item) =>
-              item.visual_id ===
-              targetId
-          );
-
-        if (
-          from < 0 ||
-          to < 0
-        ) {
-          return previous;
-        }
-
-        const [moved] =
-          next.splice(
-            from,
-            1
-          );
-
-        next.splice(
-          to,
-          0,
-          moved
-        );
-
-        return next;
-      }
-    );
-
-    setDraggingId(
-      null
-    );
-  }
-
-  function visualSpan(
-    visual:
-      DashboardVisualData
-  ) {
-    return {
-      compact: 4,
-      small: 6,
-      medium: 8,
-      large: 12,
-    }[visual.size];
-  }
-
-  function updateFormatTargetStyle(
+  function updateFormatTargetStyle(  function updateFormatTargetStyle(
     patch: {
       fontSize?: number;
       bold?: boolean;
@@ -3561,69 +3615,294 @@ function PersonalDashboardBuilder({
     };
   }
 
-  function handleCanvasDrop(
+  function beginVisualMove(
     event:
-      DragEvent<HTMLDivElement>
+      ReactPointerEvent<HTMLElement>,
+    visual:
+      DashboardVisualData
   ) {
-    if (!draggingId) {
+    if (dashboardMode !== "edit") {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    setEditingVisualId(
+      visual.visual_id
+    );
+    setFormatTarget("visual");
+
+    const canvas =
+      event.currentTarget.closest(
+        ".dashboard-visual-grid"
+      ) as HTMLElement | null;
+
+    const canvasWidth =
+      canvas?.clientWidth ??
+      DASHBOARD_CANVAS_MIN_WIDTH;
+
+    const pointerX = event.clientX;
+    const pointerY = event.clientY;
+    const startX =
+      visual.canvas_x ?? 0;
+    const startY =
+      visual.canvas_y ?? 0;
+    const width =
+      visual.canvas_width ?? 480;
+
+    const move = (
+      moveEvent: PointerEvent
+    ) => {
+      const maxX =
+        Math.max(
+          0,
+          canvasWidth - width
+        );
+
+      const nextX =
+        Math.min(
+          maxX,
+          Math.max(
+            0,
+            snapCanvasValue(
+              startX +
+                moveEvent.clientX -
+                pointerX,
+              showCanvasGrid
+            )
+          )
+        );
+
+      const nextY =
+        Math.max(
+          0,
+          snapCanvasValue(
+            startY +
+              moveEvent.clientY -
+              pointerY,
+            showCanvasGrid
+          )
+        );
+
+      updateVisual(
+        visual.visual_id,
+        {
+          canvas_x: nextX,
+          canvas_y: nextY,
+        }
+      );
+    };
+
+    const stop = () => {
+      globalThis.removeEventListener(
+        "pointermove",
+        move
+      );
+      globalThis.removeEventListener(
+        "pointerup",
+        stop
+      );
+    };
+
+    globalThis.addEventListener(
+      "pointermove",
+      move
+    );
+    globalThis.addEventListener(
+      "pointerup",
+      stop
+    );
+  }
+
+  function beginVisualResize(
+    event:
+      ReactPointerEvent<HTMLButtonElement>,
+    visual:
+      DashboardVisualData
+  ) {
+    if (dashboardMode !== "edit") {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    setEditingVisualId(
+      visual.visual_id
+    );
+    setFormatTarget("visual");
+
+    const canvas =
+      event.currentTarget.closest(
+        ".dashboard-visual-grid"
+      ) as HTMLElement | null;
+
+    const canvasWidth =
+      canvas?.clientWidth ??
+      DASHBOARD_CANVAS_MIN_WIDTH;
+
+    const pointerX = event.clientX;
+    const pointerY = event.clientY;
+    const startWidth =
+      visual.canvas_width ?? 480;
+    const startHeight =
+      visual.canvas_height ?? 300;
+    const x =
+      visual.canvas_x ?? 0;
+
+    const move = (
+      moveEvent: PointerEvent
+    ) => {
+      const maxWidth =
+        Math.max(
+          DASHBOARD_VISUAL_MIN_WIDTH,
+          canvasWidth - x
+        );
+
+      const nextWidth =
+        Math.min(
+          maxWidth,
+          Math.max(
+            DASHBOARD_VISUAL_MIN_WIDTH,
+            snapCanvasValue(
+              startWidth +
+                moveEvent.clientX -
+                pointerX,
+              showCanvasGrid
+            )
+          )
+        );
+
+      const nextHeight =
+        Math.max(
+          DASHBOARD_VISUAL_MIN_HEIGHT,
+          snapCanvasValue(
+            startHeight +
+              moveEvent.clientY -
+              pointerY,
+            showCanvasGrid
+          )
+        );
+
+      updateVisual(
+        visual.visual_id,
+        {
+          canvas_width:
+            nextWidth,
+          canvas_height:
+            nextHeight,
+        }
+      );
+    };
+
+    const stop = () => {
+      globalThis.removeEventListener(
+        "pointermove",
+        move
+      );
+      globalThis.removeEventListener(
+        "pointerup",
+        stop
+      );
+    };
+
+    globalThis.addEventListener(
+      "pointermove",
+      move
+    );
+    globalThis.addEventListener(
+      "pointerup",
+      stop
+    );
+  }
+
+  function handleVisualKeyDown(
+    event:
+      KeyboardEvent<HTMLElement>,
+    visual:
+      DashboardVisualData
+  ) {
+    if (dashboardMode !== "edit") {
+      return;
+    }
+
+    const delta =
+      event.shiftKey
+        ? 10
+        : 1;
+
+    const directions:
+      Record<
+        string,
+        [number, number]
+      > = {
+        ArrowLeft: [-delta, 0],
+        ArrowRight: [delta, 0],
+        ArrowUp: [0, -delta],
+        ArrowDown: [0, delta],
+      };
+
+    const direction =
+      directions[event.key];
+
+    if (!direction) {
       return;
     }
 
     event.preventDefault();
 
-    const rect =
-      event.currentTarget
-        .getBoundingClientRect();
+    const canvas =
+      event.currentTarget.closest(
+        ".dashboard-visual-grid"
+      ) as HTMLElement | null;
 
-    const ratio =
-      (
-        event.clientX -
-        rect.left
-      ) /
+    const canvasWidth =
+      canvas?.clientWidth ??
+      DASHBOARD_CANVAS_MIN_WIDTH;
+    const width =
+      visual.canvas_width ?? 480;
+    const maxX =
       Math.max(
-        rect.width,
-        1
-      );
-
-    const draggingVisual =
-      visuals.find(
-        (visual) =>
-          visual.visual_id ===
-          draggingId
-      );
-
-    const span =
-      draggingVisual
-        ? visualSpan(
-            draggingVisual
-          )
-        : 4;
-
-    const column =
-      Math.max(
-        1,
-        Math.min(
-          13 - span,
-          Math.floor(
-            ratio * 12
-          ) + 1
-        )
+        0,
+        canvasWidth - width
       );
 
     updateVisual(
-      draggingId,
+      visual.visual_id,
       {
-        grid_column:
-          column,
+        canvas_x:
+          Math.min(
+            maxX,
+            Math.max(
+              0,
+              (visual.canvas_x ?? 0) +
+                direction[0]
+            )
+          ),
+        canvas_y:
+          Math.max(
+            0,
+            (visual.canvas_y ?? 0) +
+              direction[1]
+          ),
       }
-    );
-
-    setDraggingId(
-      null
     );
   }
 
+  const canvasHeight =
+    Math.max(
+      DASHBOARD_CANVAS_MIN_HEIGHT,
+      ...visuals.map(
+        (visual) =>
+          (visual.canvas_y ?? 0) +
+          (visual.canvas_height ?? 300) +
+          32
+      )
+    );
+
   const activeFormatStyle =
+    currentFormatStyle();  const activeFormatStyle =
     currentFormatStyle();
 
   return (
@@ -3978,6 +4257,8 @@ function PersonalDashboardBuilder({
         className={
           "dashboard-builder-layout" +
           (
+            dashboardMode ===
+              "edit" &&
             editingVisual
               ? " properties-open"
               : ""
@@ -4113,7 +4394,8 @@ function PersonalDashboardBuilder({
           )}
         </aside>
 
-        {editingVisual && (
+        {dashboardMode === "edit" &&
+          editingVisual && (
           <aside className="dashboard-properties-panel">
             <div className="dashboard-properties-header">
               <div>
@@ -4292,71 +4574,68 @@ function PersonalDashboardBuilder({
 
               <div className="dashboard-property-section">
                 <strong>
-                  POSITION & GRID
+                  POSITION & SIZE
                 </strong>
 
-                <label className="dashboard-property-field">
-                  <span>
-                    Grid column start
-                  </span>
+                <div className="dashboard-layout-fields">
+                  {[
+                    ["X", "canvas_x", 0],
+                    ["Y", "canvas_y", 0],
+                    ["W", "canvas_width", DASHBOARD_VISUAL_MIN_WIDTH],
+                    ["H", "canvas_height", DASHBOARD_VISUAL_MIN_HEIGHT],
+                  ].map(
+                    ([label, key, minimum]) => (
+                      <label
+                        key={String(key)}
+                        className="dashboard-property-field"
+                      >
+                        <span>
+                          {String(label)}
+                        </span>
 
-                  <input
-                    type="number"
-                    min="1"
-                    max={
-                      13 -
-                      visualSpan(
-                        editingVisual
-                      )
-                    }
-                    value={
-                      editingVisual.grid_column ??
-                      ""
-                    }
-                    placeholder="Auto"
-                    onChange={(event) =>
-                      updateVisual(
-                        editingVisual.visual_id,
-                        {
-                          grid_column:
-                            event.target.value
-                              ? Math.max(
-                                  1,
-                                  Math.min(
-                                    13 -
-                                    visualSpan(
-                                      editingVisual
-                                    ),
+                        <input
+                          type="number"
+                          min={Number(minimum)}
+                          value={
+                            Number(
+                              editingVisual[
+                                key as
+                                  | "canvas_x"
+                                  | "canvas_y"
+                                  | "canvas_width"
+                                  | "canvas_height"
+                              ] ?? 0
+                            )
+                          }
+                          onChange={(event) =>
+                            updateVisual(
+                              editingVisual.visual_id,
+                              {
+                                [key]:
+                                  Math.max(
+                                    Number(minimum),
                                     Number(
                                       event.target.value
-                                    )
-                                  )
-                                )
-                              : null,
-                        }
-                      )
-                    }
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  className="dashboard-reset-button"
-                  onClick={() =>
-                    updateVisual(
-                      editingVisual.visual_id,
-                      {
-                        grid_column:
-                          null,
-                      }
+                                    ) || 0
+                                  ),
+                              }
+                            )
+                          }
+                        />
+                      </label>
                     )
-                  }
-                >
-                  Auto position
-                </button>
+                  )}
+                </div>
+
+                <small className="dashboard-property-hint">
+                  Drag the handle to move. Drag the bottom-right corner to resize. Arrow keys move 1 px; Shift + Arrow moves 10 px.
+                </small>
               </div>
 
               <label className="dashboard-property-field">
+                <span>
+                  Chart title
+                </span>              <label className="dashboard-property-field">
                 <span>
                   Chart title
                 </span>
@@ -5400,12 +5679,11 @@ function PersonalDashboardBuilder({
                   : " interact-mode"
               )
             }
-            onDragOver={(event) =>
-              event.preventDefault()
-            }
-            onDrop={
-              handleCanvasDrop
-            }
+            style={{
+              minHeight:
+                canvasHeight +
+                "px",
+            }}
           >
             {visuals.map(
               (visual) => {
@@ -5506,21 +5784,18 @@ function PersonalDashboardBuilder({
                         visual.background_color,
                       color:
                         visual.text_color,
-                      gridColumn:
-                        visual.grid_column
-                          ? (
-                              visual.grid_column +
-                              " / span " +
-                              visualSpan(
-                                visual
-                              )
-                            )
-                          : (
-                              "span " +
-                              visualSpan(
-                                visual
-                              )
-                            ),
+                      left:
+                        (visual.canvas_x ?? 0) +
+                        "px",
+                      top:
+                        (visual.canvas_y ?? 0) +
+                        "px",
+                      width:
+                        (visual.canvas_width ?? 480) +
+                        "px",
+                      height:
+                        (visual.canvas_height ?? 300) +
+                        "px",
                       "--dashboard-title-size":
                         (visual.title_font_size ?? 10) + "px",
                       "--dashboard-title-weight":
@@ -5627,46 +5902,29 @@ function PersonalDashboardBuilder({
                         );
                       }
                     }}
-                    draggable={
+                    tabIndex={
                       dashboardMode ===
                       "edit"
+                        ? 0
+                        : -1
                     }
-                    onDragStart={(
-                      event:
-                        DragEvent<HTMLElement>
-                    ) => {
-                      setDraggingId(
-                        visual.visual_id
-                      );
-
-                      event
-                        .dataTransfer
-                        .setData(
-                          "text/plain",
-                          visual.visual_id
-                        );
-                    }}
-                    onDragOver={(
-                      event
-                    ) =>
-                      event
-                        .preventDefault()
-                    }
-                    onDrop={() =>
-                      handleDrop(
-                        visual.visual_id
-                      )
-                    }
-                    onDragEnd={() =>
-                      setDraggingId(
-                        null
+                    onKeyDown={(event) =>
+                      handleVisualKeyDown(
+                        event,
+                        visual
                       )
                     }
                   >
                     <header className="dashboard-visual-header">
                       <span
                         className="dashboard-visual-drag"
-                        title="Drag to reorder"
+                        title="Drag visual"
+                        onPointerDown={(event) =>
+                          beginVisualMove(
+                            event,
+                            visual
+                          )
+                        }
                       >
                         ⋮⋮
                       </span>
@@ -5727,8 +5985,10 @@ function PersonalDashboardBuilder({
                         <button
                           type="button"
                           disabled={
-                            visual.size ===
-                            "compact"
+                            (visual.canvas_width ?? 480) <=
+                              DASHBOARD_VISUAL_MIN_WIDTH &&
+                            (visual.canvas_height ?? 300) <=
+                              DASHBOARD_VISUAL_MIN_HEIGHT
                           }
                           onClick={() =>
                             resizeVisual(
@@ -5743,10 +6003,6 @@ function PersonalDashboardBuilder({
 
                         <button
                           type="button"
-                          disabled={
-                            visual.size ===
-                            "large"
-                          }
                           onClick={() =>
                             resizeVisual(
                               visual,
@@ -5783,6 +6039,21 @@ function PersonalDashboardBuilder({
                         </button>
                       </div>
                     </header>
+
+                    {dashboardMode === "edit" && (
+                      <button
+                        type="button"
+                        className="dashboard-visual-resize-handle"
+                        aria-label="Resize visual"
+                        title="Drag to resize"
+                        onPointerDown={(event) =>
+                          beginVisualResize(
+                            event,
+                            visual
+                          )
+                        }
+                      />
+                    )}
 
                     <div className="dashboard-visual-content">
                       {visual.visual_type ===

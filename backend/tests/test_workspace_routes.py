@@ -5455,6 +5455,10 @@ def test_save_personal_dashboard_persists_visuals_and_advances(
                     "size": "large",
                     "sort_mode": "top_value",
                     "top_n": 10,
+                    "canvas_x": 24,
+                    "canvas_y": 40,
+                    "canvas_width": 520,
+                    "canvas_height": 304,
                 },
             ],
         },
@@ -5471,6 +5475,16 @@ def test_save_personal_dashboard_persists_visuals_and_advances(
         == "analysis-001"
     )
 
+    saved_visual = (
+        body["dashboard_config"][
+            "visuals"
+        ][0]
+    )
+
+    assert saved_visual["canvas_x"] == 24
+    assert saved_visual["canvas_y"] == 40
+    assert saved_visual["canvas_width"] == 520
+    assert saved_visual["canvas_height"] == 304
 
     assert (
         body["dashboard_config"]["title"]
