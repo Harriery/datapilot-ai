@@ -471,6 +471,54 @@ function getMetricValue(
     : analysis.overall.mean;
 }
 
+function buildDashboardTooltip(
+  template: string | null | undefined,
+  analysis: AnalysisResultData,
+  row: AnalysisResultData["grouped_results"][number],
+): string {
+  const semantic =
+    Boolean(
+      analysis.kpi_code
+    );
+
+  const value =
+    semantic
+      ? row.metric_value
+      : row.mean;
+
+  const fallback =
+    "{category}\n{measure}: {value}\nRecords: {count}";
+
+  return (
+    template ||
+    fallback
+  )
+    .replaceAll(
+      "{category}",
+      String(
+        row.value ??
+        "Missing"
+      )
+    )
+    .replaceAll(
+      "{measure}",
+      analysis.measure
+    )
+    .replaceAll(
+      "{value}",
+      formatNumber(
+        value
+      )
+    )
+    .replaceAll(
+      "{count}",
+      formatNumber(
+        row.count
+      )
+    );
+}
+
+
 function DashboardKpiVisual({
   analysis,
   accentColor,
@@ -520,6 +568,7 @@ function DashboardBarVisual({
   xAxisTitle,
   yAxisTitle,
   showValues,
+  tooltipTemplate,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -529,6 +578,7 @@ function DashboardBarVisual({
   xAxisTitle: string | null;
   yAxisTitle: string | null;
   showValues: boolean;
+  tooltipTemplate?: string | null;
 }) {
   const semantic =
     Boolean(
@@ -597,6 +647,13 @@ function DashboardBarVisual({
                 index
               }
               className="dashboard-bar-row"
+              title={
+                buildDashboardTooltip(
+                  tooltipTemplate,
+                  analysis,
+                  row,
+                )
+              }
             >
               <span
                 title={
@@ -848,6 +905,491 @@ function DashboardLineVisual({
     </div>
   );
 }
+
+function DashboardColumnVisual({
+  analysis,
+  rows,
+  accentColor,
+  showValues,
+  tooltipTemplate,
+}: {
+  analysis: AnalysisResultData;
+  rows: AnalysisResultData[
+    "grouped_results"
+  ];
+  accentColor: string;
+  showValues: boolean;
+  tooltipTemplate?: string | null;
+}) {
+  const semantic =
+    Boolean(
+      analysis.kpi_code
+    );
+
+  const values =
+    rows.map(
+      (row) =>
+        (
+          semantic
+            ? row.metric_value
+            : row.mean
+        ) ?? 0
+    );
+
+  const maxValue =
+    Math.max(
+      ...values.map(
+        (value) =>
+          Math.abs(value)
+      ),
+      1
+    );
+
+  return (
+    <div
+      className="dashboard-column-chart"
+      style={{
+        "--dashboard-accent":
+          accentColor,
+      } as CSSProperties}
+    >
+      {rows.map(
+        (row, index) => {
+          const value =
+            values[index];
+
+          const height =
+            Math.max(
+              3,
+              (
+                Math.abs(value) /
+                maxValue
+              ) * 100
+            );
+
+          return (
+            <div
+              key={
+                String(row.value) +
+                "-" +
+                index
+              }
+              className="dashboard-column-item"
+              title={
+                buildDashboardTooltip(
+                  tooltipTemplate,
+                  analysis,
+                  row,
+                )
+              }
+            >
+              {showValues && (
+                <strong>
+                  {formatNumber(
+                    value
+                  )}
+                </strong>
+              )}
+
+              <div className="dashboard-column-track">
+                <div
+                  className="dashboard-column-value"
+                  style={{
+                    height:
+                      height + "%",
+                  }}
+                />
+              </div>
+
+              <span>
+                {String(
+                  row.value ??
+                  "Missing"
+                )}
+              </span>
+            </div>
+          );
+        }
+      )}
+    </div>
+  );
+}
+
+
+function DashboardAreaVisual({
+  analysis,
+  rows,
+  accentColor,
+  showValues,
+  tooltipTemplate,
+}: {
+  analysis: AnalysisResultData;
+  rows: AnalysisResultData[
+    "grouped_results"
+  ];
+  accentColor: string;
+  showValues: boolean;
+  tooltipTemplate?: string | null;
+}) {
+  const semantic =
+    Boolean(
+      analysis.kpi_code
+    );
+
+  const orderedRows = [
+    ...rows,
+  ].sort(
+    (left, right) =>
+      String(
+        left.value ?? ""
+      ).localeCompare(
+        String(
+          right.value ?? ""
+        ),
+        undefined,
+        {
+          numeric: true,
+        }
+      )
+  );
+
+  const values =
+    orderedRows.map(
+      (row) =>
+        (
+          semantic
+            ? row.metric_value
+            : row.mean
+        ) ?? 0
+    );
+
+  const min =
+    Math.min(
+      ...values,
+      0
+    );
+
+  const max =
+    Math.max(
+      ...values,
+      1
+    );
+
+  const range =
+    max - min || 1;
+
+  const points =
+    orderedRows.map(
+      (row, index) => ({
+        row,
+        x:
+          orderedRows.length <= 1
+            ? 50
+            : (
+                index /
+                (
+                  orderedRows.length -
+                  1
+                )
+              ) * 100,
+        y:
+          88 -
+          (
+            (
+              values[index] - min
+            ) /
+            range
+          ) * 76,
+        value:
+          values[index],
+      })
+    );
+
+  const polygon =
+    [
+      "0,92",
+      ...points.map(
+        (point) =>
+          point.x +
+          "," +
+          point.y
+      ),
+      "100,92",
+    ].join(" ");
+
+  return (
+    <div
+      className="dashboard-area-chart"
+      style={{
+        "--dashboard-accent":
+          accentColor,
+      } as CSSProperties}
+    >
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <polygon
+          points={polygon}
+          className="dashboard-area-fill"
+        />
+
+        <polyline
+          points={
+            points
+              .map(
+                (point) =>
+                  point.x +
+                  "," +
+                  point.y
+              )
+              .join(" ")
+          }
+          fill="none"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {points.map(
+          (point, index) => (
+            <circle
+              key={index}
+              cx={point.x}
+              cy={point.y}
+              r="1.6"
+              vectorEffect="non-scaling-stroke"
+            >
+              <title>
+                {buildDashboardTooltip(
+                  tooltipTemplate,
+                  analysis,
+                  point.row,
+                )}
+              </title>
+            </circle>
+          )
+        )}
+      </svg>
+
+      <div className="dashboard-line-axis">
+        <span>
+          {String(
+            orderedRows[0]
+              ?.value ?? ""
+          )}
+        </span>
+
+        <span>
+          {String(
+            orderedRows[
+              orderedRows.length - 1
+            ]?.value ?? ""
+          )}
+        </span>
+      </div>
+
+      {showValues &&
+        points.length > 0 && (
+        <div className="dashboard-line-value-summary">
+          <span>
+            First: {
+              formatNumber(
+                points[0].value
+              )
+            }
+          </span>
+
+          <span>
+            Last: {
+              formatNumber(
+                points[
+                  points.length - 1
+                ].value
+              )
+            }
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function DashboardPieVisual({
+  analysis,
+  rows,
+  accentColor,
+  donut,
+  showValues,
+  showLegend,
+  tooltipTemplate,
+}: {
+  analysis: AnalysisResultData;
+  rows: AnalysisResultData[
+    "grouped_results"
+  ];
+  accentColor: string;
+  donut: boolean;
+  showValues: boolean;
+  showLegend: boolean;
+  tooltipTemplate?: string | null;
+}) {
+  const semantic =
+    Boolean(
+      analysis.kpi_code
+    );
+
+  const palette = [
+    accentColor,
+    "#7c5ce6",
+    "#e8873a",
+    "#0f9f8f",
+    "#52677f",
+    "#d95f76",
+    "#e0b43c",
+    "#5d8fd8",
+  ];
+
+  const values =
+    rows.map(
+      (row) =>
+        Math.max(
+          0,
+          (
+            semantic
+              ? row.metric_value
+              : row.mean
+          ) ?? 0
+        )
+    );
+
+  const total =
+    values.reduce(
+      (sum, value) =>
+        sum + value,
+      0
+    ) || 1;
+
+  let cursor = 0;
+
+  const segments =
+    rows.map(
+      (row, index) => {
+        const start =
+          cursor;
+
+        const percent =
+          (
+            values[index] /
+            total
+          ) * 100;
+
+        cursor += percent;
+
+        return {
+          row,
+          color:
+            palette[
+              index %
+              palette.length
+            ],
+          start,
+          end:
+            cursor,
+          percent,
+        };
+      }
+    );
+
+  const gradient =
+    segments
+      .map(
+        (segment) =>
+          segment.color +
+          " " +
+          segment.start +
+          "% " +
+          segment.end +
+          "%"
+      )
+      .join(", ");
+
+  return (
+    <div className="dashboard-pie-layout">
+      <div
+        className={
+          donut
+            ? "dashboard-pie-chart donut"
+            : "dashboard-pie-chart"
+        }
+        style={{
+          background:
+            "conic-gradient(" +
+            gradient +
+            ")",
+        }}
+      >
+        {donut && (
+          <div className="dashboard-donut-hole">
+            <strong>
+              {formatNumber(
+                total
+              )}
+            </strong>
+          </div>
+        )}
+      </div>
+
+      {showLegend && (
+        <div className="dashboard-pie-legend">
+          {segments.map(
+            (segment, index) => (
+              <div
+                key={
+                  String(
+                    segment.row.value
+                  ) +
+                  "-" +
+                  index
+                }
+                title={
+                  buildDashboardTooltip(
+                    tooltipTemplate,
+                    analysis,
+                    segment.row,
+                  )
+                }
+              >
+                <i
+                  style={{
+                    background:
+                      segment.color,
+                  }}
+                />
+
+                <span>
+                  {String(
+                    segment.row.value ??
+                    "Missing"
+                  )}
+                </span>
+
+                {showValues && (
+                  <strong>
+                    {
+                      segment.percent
+                        .toFixed(1)
+                    }%
+                  </strong>
+                )}
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function DashboardTableVisual({
   analysis,
