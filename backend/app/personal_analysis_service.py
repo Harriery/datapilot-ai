@@ -852,6 +852,11 @@ def build_semantic_analysis_result(
             str,
             object,
         ]
+        | tuple[
+            str,
+            str,
+            list[object],
+        ]
     ] | None = None,
 ) -> PersonalProjectAnalysisResult:
     if definition.fact_table is None:
@@ -875,8 +880,28 @@ def build_semantic_analysis_result(
             )
         )
 
-        if filter_value is None:
+        if isinstance(
+            filter_value,
+            list,
+        ):
+            if len(filter_value) == 0:
+                continue
+
+            accepted = {
+                str(value)
+                for value in filter_value
+            }
+
+            mask = (
+                filter_series
+                .astype("string")
+                .fillna("")
+                .isin(accepted)
+            )
+
+        elif filter_value is None:
             mask = filter_series.isna()
+
         else:
             mask = (
                 filter_series
