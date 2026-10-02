@@ -5346,3 +5346,198 @@ def test_run_personal_semantic_analysis_uses_saved_kpi_and_model(
         deliverables["dashboard"]
         == "in_progress"
     )
+
+
+def test_save_personal_dashboard_persists_visuals_and_advances(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Dashboard Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    analysis = PersonalProjectAnalysisResult(
+        analysis_id="analysis-001",
+        measure="Average Price",
+        dimension="Suburb",
+        kpi_code="average_price",
+        dimension_table="dim_suburb",
+        aggregation="mean",
+        overall={
+            "count": 3,
+            "metric_value": 500000.0,
+            "mean": 500000.0,
+            "min": None,
+            "max": None,
+        },
+        grouped_results=[
+            {
+                "value": "A",
+                "count": 2,
+                "metric_value": 600000.0,
+                "mean": None,
+                "min": None,
+                "max": None,
+            },
+            {
+                "value": "B",
+                "count": 1,
+                "metric_value": 300000.0,
+                "mean": None,
+                "min": None,
+                "max": None,
+            },
+        ],
+        source="local",
+    )
+
+    workspace.analysis_result = analysis
+    workspace.analysis_results = [
+        analysis
+    ]
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+            "data_model",
+            "kpi_definitions",
+            "bi_ready_dataset",
+            "analysis",
+        }:
+            deliverable.status = "completed"
+
+        if deliverable.code == "dashboard":
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/dashboard/save"
+        ),
+        json={
+            "visuals": [
+                {
+                    "visual_id": "visual-001",
+                    "analysis_id": "analysis-001",
+                    "visual_type": "bar",
+                    "title": "Average Price by Suburb",
+                    "size": "large",
+                    "sort_mode": "top_value",
+                    "top_n": 10,
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert (
+        body["dashboard_config"][
+            "visuals"
+        ][0]["analysis_id"]
+        == "analysis-001"
+    )
+
+    deliverables = {
+        item["code"]:
+            item["status"]
+        for item in body[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables["dashboard"]
+        == "completed"
+    )
+
+    assert (
+        deliverables["insight_summary"]
+        == "in_progress"
+    )
+
+    assert (
+        body["checkpoint"][
+            "current_focus"
+        ]
+        == "Review insights"
+    )
+
+
+def test_save_personal_dashboard_rejects_unknown_analysis(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Dashboard Invalid Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/dashboard/save"
+        ),
+        json={
+            "visuals": [
+                {
+                    "visual_id": "visual-001",
+                    "analysis_id": "missing-analysis",
+                    "visual_type": "bar",
+                    "title": "Invalid",
+                    "size": "large",
+                    "sort_mode": "top_value",
+                    "top_n": 10,
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        "unknown analysis"
+        in response.json()[
+            "detail"
+        ]
+    )
