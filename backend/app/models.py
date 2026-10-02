@@ -817,14 +817,40 @@ class PersonalProjectDashboardVisual(BaseModel):
         le=50,
     )
 
+    accent_color: str = "#2f80ed"
+    background_color: str = "#ffffff"
+    text_color: str = "#213854"
+
 
 class PersonalProjectDashboardConfig(BaseModel):
+    title: str = "Dashboard"
+    subtitle: str | None = None
+
+    theme: Literal[
+        "ocean",
+        "teal",
+        "violet",
+        "sunset",
+        "slate",
+    ] = "ocean"
+
     visuals: list[
         PersonalProjectDashboardVisual
     ] = Field(default_factory=list)
 
 
 class PersonalProjectDashboardSaveRequest(BaseModel):
+    title: str = "Dashboard"
+    subtitle: str | None = None
+
+    theme: Literal[
+        "ocean",
+        "teal",
+        "violet",
+        "sunset",
+        "slate",
+    ] = "ocean"
+
     visuals: list[
         PersonalProjectDashboardVisual
     ] = Field(
