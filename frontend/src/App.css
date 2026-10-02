@@ -15523,3 +15523,21 @@
   .dashboard-kpi-visual span {
   color: inherit;
 }
+
+
+.dashboard-visual-card
+  .dashboard-visual-header,
+.dashboard-visual-card
+  .dashboard-visual-settings {
+  background: transparent;
+}
+
+.dashboard-visual-card
+  .dashboard-table th,
+.dashboard-visual-card
+  .dashboard-line-axis,
+.dashboard-visual-card
+  .dashboard-visual-settings label {
+  color: inherit;
+  opacity: 0.74;
+}
