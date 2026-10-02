@@ -3068,7 +3068,8 @@ function PersonalDashboardBuilder({
               !dashboardFilters.some(
                 (filter) =>
                   filter.value !== null
-              )
+              ) &&
+              crossFilters.length === 0
             }
             onClick={
               clearDashboardFilters
@@ -3191,6 +3192,44 @@ function PersonalDashboardBuilder({
                     ×
                   </button>
                 </div>
+              )
+            )}
+          </div>
+        )}
+
+        {crossFilters.length > 0 && (
+          <div className="dashboard-cross-filter-list">
+            <span className="dashboard-cross-filter-label">
+              Visual selections
+            </span>
+
+            {crossFilters.map(
+              (filter) => (
+                <button
+                  key={
+                    filter.filter_id
+                  }
+                  type="button"
+                  className="dashboard-cross-filter-chip"
+                  title="Remove visual filter"
+                  onClick={() =>
+                    removeCrossFilter(
+                      filter.source_visual_id
+                    )
+                  }
+                >
+                  <span>
+                    {filter.label}
+                  </span>
+
+                  <strong>
+                    {filter.value}
+                  </strong>
+
+                  <i>
+                    ×
+                  </i>
+                </button>
               )
             )}
           </div>
@@ -4360,6 +4399,37 @@ function PersonalDashboardBuilder({
                     visual.top_n
                   );
 
+                const visualDimensionTable =
+                  visual.dimension_table ??
+                  analysis.dimension_table ??
+                  null;
+
+                const visualDimension =
+                  visual.dimension ??
+                  analysis.dimension ??
+                  null;
+
+                const selectedCrossFilter =
+                  crossFilters.find(
+                    (filter) =>
+                      filter.source_visual_id ===
+                      visual.visual_id
+                  );
+
+                const selectedValue =
+                  selectedCrossFilter?.value ??
+                  null;
+
+                const selectCategory = (
+                  value: unknown
+                ) =>
+                  toggleCrossFilter(
+                    visual.visual_id,
+                    visualDimensionTable,
+                    visualDimension,
+                    value,
+                  );
+
                 return (
                   <article
                     key={
@@ -4567,6 +4637,12 @@ function PersonalDashboardBuilder({
                           tooltipTemplate={
                             visual.tooltip_template
                           }
+                          selectedValue={
+                            selectedValue
+                          }
+                          onSelect={
+                            selectCategory
+                          }
                         />
                       )}
 
@@ -4596,6 +4672,12 @@ function PersonalDashboardBuilder({
                           tooltipTemplate={
                             visual.tooltip_template
                           }
+                          selectedValue={
+                            selectedValue
+                          }
+                          onSelect={
+                            selectCategory
+                          }
                         />
                       )}
 
@@ -4619,6 +4701,12 @@ function PersonalDashboardBuilder({
                           tooltipTemplate={
                             visual.tooltip_template
                           }
+                          selectedValue={
+                            selectedValue
+                          }
+                          onSelect={
+                            selectCategory
+                          }
                         />
                       )}
 
@@ -4641,6 +4729,12 @@ function PersonalDashboardBuilder({
                           }
                           tooltipTemplate={
                             visual.tooltip_template
+                          }
+                          selectedValue={
+                            selectedValue
+                          }
+                          onSelect={
+                            selectCategory
                           }
                         />
                       )}
@@ -4671,6 +4765,12 @@ function PersonalDashboardBuilder({
                           tooltipTemplate={
                             visual.tooltip_template
                           }
+                          selectedValue={
+                            selectedValue
+                          }
+                          onSelect={
+                            selectCategory
+                          }
                         />
                       )}
 
@@ -4683,6 +4783,12 @@ function PersonalDashboardBuilder({
                             analysis
                           }
                           rows={rows}
+                          selectedValue={
+                            selectedValue
+                          }
+                          onSelect={
+                            selectCategory
+                          }
                         />
                       )}
                     </div>
