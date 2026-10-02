@@ -1067,6 +1067,96 @@ function PersonalDashboardBuilder({
       [analyses]
     );
 
+
+  const dimensionOptions =
+    useMemo(
+      () => {
+        if (!dataModelStudio) {
+          return [];
+        }
+
+        return dataModelStudio.tables
+          .filter(
+            (table) =>
+              table.table_type ===
+              "dimension"
+          )
+          .flatMap(
+            (table) =>
+              table.columns
+                .filter(
+                  (column) =>
+                    [
+                      "key",
+                      "dimension",
+                      "attribute",
+                      "time",
+                    ].includes(
+                      column.role
+                    )
+                )
+                .map(
+                  (column) => ({
+                    value:
+                      table.name +
+                      "." +
+                      column.name,
+                    table:
+                      table.name,
+                    column:
+                      column.name,
+                    label:
+                      column.name +
+                      " · " +
+                      table.name,
+                  })
+                )
+          );
+      },
+      [dataModelStudio]
+    );
+
+  async function refreshVisualPreview(
+    visualId: string,
+    kpiCode: string,
+    dimensionTable: string | null,
+    dimension: string | null,
+  ) {
+    setPreviewErrors(
+      (previous) => ({
+        ...previous,
+        [visualId]: "",
+      })
+    );
+
+    try {
+      const result =
+        await onPreview(
+          kpiCode,
+          dimensionTable,
+          dimension,
+        );
+
+      setPreviewResults(
+        (previous) => ({
+          ...previous,
+          [visualId]: result,
+        })
+      );
+
+    } catch (error) {
+      setPreviewErrors(
+        (previous) => ({
+          ...previous,
+          [visualId]:
+            error instanceof Error
+              ? error.message
+              : "Preview could not be refreshed.",
+        })
+      );
+    }
+  }
+
   function createVisual(
     analysis:
       AnalysisResultData
@@ -1096,6 +1186,15 @@ function PersonalDashboardBuilder({
         ),
       analysis_id:
         analysis.analysis_id,
+      kpi_code:
+        analysis.kpi_code ??
+        null,
+      dimension_table:
+        analysis.dimension_table ??
+        null,
+      dimension:
+        analysis.dimension ??
+        null,
       visual_type:
         visualType,
       title:
@@ -1146,6 +1245,11 @@ function PersonalDashboardBuilder({
       y_axis_title:
         analysis.measure,
       show_values: true,
+      show_legend: true,
+      show_gridlines: true,
+      animate: true,
+      tooltip_template:
+        "{category}\n{measure}: {value}\nRecords: {count}",
     };
   }
 
