@@ -2210,10 +2210,33 @@ function PersonalDashboardBuilder({
     kpiCode: string,
     dimensionTable: string | null,
     dimension: string | null,
-    filters:
-      DashboardFilterData[] =
-        dashboardFilters,
+    filters?: DashboardFilterData[],
   ) {
+    const effectiveFilters =
+      filters ??
+      [
+        ...dashboardFilters,
+        ...crossFilters
+          .filter(
+            (filter) =>
+              filter.source_visual_id !==
+              visualId
+          )
+          .map(
+            (filter) => ({
+              filter_id:
+                filter.filter_id,
+              table:
+                filter.table,
+              column:
+                filter.column,
+              label:
+                filter.label,
+              value:
+                filter.value,
+            })
+          ),
+      ];
     setPreviewErrors(
       (previous) => ({
         ...previous,
@@ -2227,7 +2250,7 @@ function PersonalDashboardBuilder({
           kpiCode,
           dimensionTable,
           dimension,
-          filters,
+          effectiveFilters,
         );
 
       setPreviewResults(
@@ -2744,7 +2767,7 @@ function PersonalDashboardBuilder({
     );
   }
 
-  function removeVisual(
+  async function removeVisual(
     visualId: string
   ) {
     setVisuals(
@@ -2762,6 +2785,30 @@ function PersonalDashboardBuilder({
     ) {
       setEditingVisualId(
         null
+      );
+    }
+
+    if (
+      crossFilters.some(
+        (filter) =>
+          filter.source_visual_id ===
+          visualId
+      )
+    ) {
+      const nextCrossFilters =
+        crossFilters.filter(
+          (filter) =>
+            filter.source_visual_id !==
+            visualId
+        );
+
+      setCrossFilters(
+        nextCrossFilters
+      );
+
+      await refreshAllVisuals(
+        dashboardFilters,
+        nextCrossFilters,
       );
     }
   }
@@ -3663,6 +3710,18 @@ function PersonalDashboardBuilder({
                     onChange={async (
                       dimensionKey
                     ) => {
+                      if (
+                        crossFilters.some(
+                          (filter) =>
+                            filter.source_visual_id ===
+                            editingVisual.visual_id
+                        )
+                      ) {
+                        await removeCrossFilter(
+                          editingVisual.visual_id
+                        );
+                      }
+
                       const selected =
                         dimensionOptions.find(
                           (item) =>
@@ -4329,9 +4388,10 @@ function PersonalDashboardBuilder({
               disabled={
                 visuals.length === 0
               }
-              onClick={() =>
-                setVisuals([])
-              }
+              onClick={() => {
+                setVisuals([]);
+                setCrossFilters([]);
+              }}
             >
               Reset canvas
             </button>
