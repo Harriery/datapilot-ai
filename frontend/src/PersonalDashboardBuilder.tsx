@@ -36,12 +36,20 @@ export type DashboardVisualData = {
   analysis_id: string;
   visual_type: DashboardVisualType;
   title: string;
-  size: "small" | "large";
+  subtitle: string | null;
+  size:
+    | "compact"
+    | "small"
+    | "medium"
+    | "large";
   sort_mode: DashboardSortMode;
   top_n: number;
   accent_color: string;
   background_color: string;
   text_color: string;
+  x_axis_title: string | null;
+  y_axis_title: string | null;
+  show_values: boolean;
 };
 
 type Props = {
@@ -98,6 +106,82 @@ function isTimeDimension(
     dimension
       .replace(/[^a-z]/gi, "")
       .toLowerCase()
+  );
+}
+
+function defaultVisualTitle(
+  analysis: AnalysisResultData,
+  visualType: DashboardVisualType,
+  sortMode: DashboardSortMode,
+  topN: number,
+): string {
+  const base =
+    analysis.measure;
+
+  if (!analysis.dimension) {
+    return base;
+  }
+
+  if (
+    visualType === "line" &&
+    isTimeDimension(
+      analysis.dimension
+    )
+  ) {
+    return (
+      base +
+      " over " +
+      analysis.dimension
+    );
+  }
+
+  if (
+    visualType === "bar" &&
+    sortMode === "top_value"
+  ) {
+    return (
+      "Top " +
+      topN +
+      " " +
+      analysis.dimension +
+      " by " +
+      base
+    );
+  }
+
+  if (
+    visualType === "bar" &&
+    sortMode === "bottom_value"
+  ) {
+    return (
+      "Bottom " +
+      topN +
+      " " +
+      analysis.dimension +
+      " by " +
+      base
+    );
+  }
+
+  return (
+    base +
+    " by " +
+    analysis.dimension
+  );
+}
+
+function defaultVisualSubtitle(
+  analysis: AnalysisResultData,
+): string | null {
+  if (!analysis.dimension) {
+    return "Overall semantic KPI";
+  }
+
+  return (
+    "Based on saved analysis: " +
+    analysis.measure +
+    " by " +
+    analysis.dimension
   );
 }
 
@@ -866,19 +950,26 @@ function PersonalDashboardBuilder({
       visual_type:
         visualType,
       title:
-        analysis.measure +
-        (
-          analysis.dimension
-            ? (
-                " by " +
-                analysis.dimension
-              )
-            : ""
+        defaultVisualTitle(
+          analysis,
+          visualType,
+          isTimeDimension(
+            analysis.dimension
+          )
+            ? "alphabetical"
+            : "top_value",
+          visualType === "line"
+            ? 20
+            : 10,
+        ),
+      subtitle:
+        defaultVisualSubtitle(
+          analysis
         ),
       size:
         visualType === "kpi"
-          ? "small"
-          : "large",
+          ? "compact"
+          : "medium",
       sort_mode:
         isTimeDimension(
           analysis.dimension
@@ -901,6 +992,11 @@ function PersonalDashboardBuilder({
         DASHBOARD_THEMES[
           dashboardTheme
         ].text,
+      x_axis_title:
+        analysis.dimension,
+      y_axis_title:
+        analysis.measure,
+      show_values: true,
     };
   }
 
@@ -981,6 +1077,45 @@ function PersonalDashboardBuilder({
             visual.visual_id !==
             visualId
         )
+    );
+  }
+
+  function resizeVisual(
+    visual:
+      DashboardVisualData,
+    direction:
+      "smaller" | "larger",
+  ) {
+    const order:
+      DashboardVisualData["size"][] = [
+        "compact",
+        "small",
+        "medium",
+        "large",
+      ];
+
+    const currentIndex =
+      order.indexOf(
+        visual.size
+      );
+
+    const nextIndex =
+      direction === "larger"
+        ? Math.min(
+            order.length - 1,
+            currentIndex + 1
+          )
+        : Math.max(
+            0,
+            currentIndex - 1
+          );
+
+    updateVisual(
+      visual.visual_id,
+      {
+        size:
+          order[nextIndex],
+      }
     );
   }
 
@@ -1335,6 +1470,30 @@ function PersonalDashboardBuilder({
                           )
                         }
                       </span>
+
+                      {visuals
+                        .filter(
+                          (visual) =>
+                            visual.analysis_id ===
+                            analysis.analysis_id
+                        )
+                        .slice(0, 2)
+                        .map(
+                          (visual) => (
+                            <small
+                              key={
+                                visual.visual_id
+                              }
+                              title={
+                                visual.title
+                              }
+                            >
+                              Dashboard: {
+                                visual.title
+                              }
+                            </small>
+                          )
+                        )}
                     </div>
 
                     <button
@@ -1512,47 +1671,51 @@ function PersonalDashboardBuilder({
                         ⋮⋮
                       </span>
 
-                      <input
-                        value={
-                          visual.title
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          updateVisual(
-                            visual.visual_id,
-                            {
-                              title:
-                                event
-                                  .target
-                                  .value,
-                            }
-                          )
-                        }
-                        aria-label="Visual title"
-                      />
+                      <div className="dashboard-visual-title-block">
+                        <strong>
+                          {visual.title}
+                        </strong>
+
+                        {visual.subtitle && (
+                          <span>
+                            {visual.subtitle}
+                          </span>
+                        )}
+                      </div>
 
                       <div className="dashboard-visual-actions">
                         <button
                           type="button"
+                          disabled={
+                            visual.size ===
+                            "compact"
+                          }
                           onClick={() =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                size:
-                                  visual.size ===
-                                  "small"
-                                    ? "large"
-                                    : "small",
-                              }
+                            resizeVisual(
+                              visual,
+                              "smaller",
                             )
                           }
-                          title="Toggle size"
+                          title="Make smaller"
                         >
-                          {visual.size ===
-                          "small"
-                            ? "+"
-                            : "−"}
+                          −
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={
+                            visual.size ===
+                            "large"
+                          }
+                          onClick={() =>
+                            resizeVisual(
+                              visual,
+                              "larger",
+                            )
+                          }
+                          title="Make larger"
+                        >
+                          +
                         </button>
 
                         <button
@@ -1582,6 +1745,61 @@ function PersonalDashboardBuilder({
                     </header>
 
                     <div className="dashboard-visual-settings">
+                      <label className="dashboard-text-control">
+                        <span>
+                          Chart title
+                        </span>
+
+                        <input
+                          type="text"
+                          value={
+                            visual.title
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            updateVisual(
+                              visual.visual_id,
+                              {
+                                title:
+                                  event
+                                    .target
+                                    .value,
+                              }
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label className="dashboard-text-control dashboard-text-control-wide">
+                        <span>
+                          Subtitle
+                        </span>
+
+                        <input
+                          type="text"
+                          value={
+                            visual.subtitle ??
+                            ""
+                          }
+                          placeholder="What does this visual tell the reader?"
+                          onChange={(
+                            event
+                          ) =>
+                            updateVisual(
+                              visual.visual_id,
+                              {
+                                subtitle:
+                                  event
+                                    .target
+                                    .value ||
+                                  null,
+                              }
+                            )
+                          }
+                        />
+                      </label>
+
                       <label className="dashboard-color-control">
                         <span>
                           Accent
@@ -1658,6 +1876,88 @@ function PersonalDashboardBuilder({
                             )
                           }
                         />
+                      </label>
+
+                      <label className="dashboard-text-control">
+                        <span>
+                          X-axis
+                        </span>
+
+                        <input
+                          type="text"
+                          value={
+                            visual.x_axis_title ??
+                            ""
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            updateVisual(
+                              visual.visual_id,
+                              {
+                                x_axis_title:
+                                  event
+                                    .target
+                                    .value ||
+                                  null,
+                              }
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label className="dashboard-text-control">
+                        <span>
+                          Y-axis
+                        </span>
+
+                        <input
+                          type="text"
+                          value={
+                            visual.y_axis_title ??
+                            ""
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            updateVisual(
+                              visual.visual_id,
+                              {
+                                y_axis_title:
+                                  event
+                                    .target
+                                    .value ||
+                                  null,
+                              }
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label className="dashboard-check-control">
+                        <input
+                          type="checkbox"
+                          checked={
+                            visual.show_values
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            updateVisual(
+                              visual.visual_id,
+                              {
+                                show_values:
+                                  event
+                                    .target
+                                    .checked,
+                              }
+                            )
+                          }
+                        />
+
+                        <span>
+                          Show values
+                        </span>
                       </label>
 
                       <label>
