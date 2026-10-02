@@ -3020,7 +3020,8 @@ function PersonalDashboardBuilder({
                           : "secondary-button"
                       }
                       disabled={
-                        !analysis.analysis_id
+                        !analysis.analysis_id ||
+                        isAdded
                       }
                       onClick={() =>
                         addAnalysis(
