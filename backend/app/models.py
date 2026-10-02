@@ -835,6 +835,9 @@ class PersonalProjectDashboardVisual(BaseModel):
     x_axis_title: str | None = None
     y_axis_title: str | None = None
     show_values: bool = True
+    show_legend: bool = True
+    show_gridlines: bool = True
+    animate: bool = True
     tooltip_template: str | None = None
 
 
