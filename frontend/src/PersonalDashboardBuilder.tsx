@@ -2873,8 +2873,25 @@ function PersonalDashboardBuilder({
                   />
                 </label>
 
-                {editingAnalysis &&
-                  editingAnalysis.grouped_results.length > 0 && (
+                {editingNonAdditivePie && (
+                  <div className="dashboard-property-warning">
+                    <strong>
+                      Check this chart choice
+                    </strong>
+
+                    <span>
+                      Pie and donut charts show part-to-whole relationships.
+                      This KPI uses {
+                        editingKpiDefinition?.aggregation ??
+                        "a non-additive calculation"
+                      }, so percentages can be misleading. A bar or column chart
+                      is usually clearer.
+                    </span>
+                  </div>
+                )}
+
+                {editingHasGroups &&
+                  editingVisual.visual_type !== "kpi" && (
                   <>
                     <label className="dashboard-property-field">
                       <span>
@@ -2885,28 +2902,45 @@ function PersonalDashboardBuilder({
                         value={
                           editingVisual.sort_mode
                         }
-                        options={[
-                          {
-                            value: "top_value",
-                            label: "Top value",
-                          },
-                          {
-                            value: "bottom_value",
-                            label: "Bottom value",
-                          },
-                          {
-                            value: "alphabetical",
-                            label: "Alphabetical",
-                          },
-                          {
-                            value: "highest_count",
-                            label: "Highest count",
-                          },
-                          {
-                            value: "lowest_count",
-                            label: "Lowest count",
-                          },
-                        ]}
+                        options={
+                          (
+                            editingIsTime &&
+                            [
+                              "line",
+                              "area",
+                            ].includes(
+                              editingVisual.visual_type
+                            )
+                          )
+                            ? [
+                                {
+                                  value: "chronological",
+                                  label: "Chronological",
+                                },
+                              ]
+                            : [
+                                {
+                                  value: "top_value",
+                                  label: "Top value",
+                                },
+                                {
+                                  value: "bottom_value",
+                                  label: "Bottom value",
+                                },
+                                {
+                                  value: "alphabetical",
+                                  label: "Alphabetical",
+                                },
+                                {
+                                  value: "highest_count",
+                                  label: "Highest count",
+                                },
+                                {
+                                  value: "lowest_count",
+                                  label: "Lowest count",
+                                },
+                              ]
+                        }
                         onChange={(sortMode) =>
                           updateVisual(
                             editingVisual.visual_id,
