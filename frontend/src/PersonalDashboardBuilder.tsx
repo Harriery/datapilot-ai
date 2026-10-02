@@ -2384,7 +2384,10 @@ function PersonalDashboardBuilder({
         if (
           savedFilters.some(
             (filter) =>
-              filter.value !== null
+              (
+                  filter.value !== null ||
+                  (filter.values?.length ?? 0) > 0
+                )
           )
         ) {
           for (
@@ -2674,6 +2677,7 @@ function PersonalDashboardBuilder({
           option.column,
         value:
           null,
+        values: [],
       };
 
     const nextFilters = [
@@ -2694,9 +2698,9 @@ function PersonalDashboardBuilder({
     );
   }
 
-  async function setDashboardFilterValue(
+  async function setDashboardFilterValues(
     filterId: string,
-    value: string,
+    values: string[],
   ) {
     const nextFilters =
       dashboardFilters.map(
@@ -2705,10 +2709,11 @@ function PersonalDashboardBuilder({
           filterId
             ? {
                 ...filter,
+                values,
                 value:
-                  value === ""
-                    ? null
-                    : value,
+                  values.length === 1
+                    ? values[0]
+                    : null,
               }
             : filter
       );
@@ -2747,6 +2752,7 @@ function PersonalDashboardBuilder({
         (filter) => ({
           ...filter,
           value: null,
+          values: [],
         })
       );
 
@@ -3383,7 +3389,10 @@ function PersonalDashboardBuilder({
             disabled={
               !dashboardFilters.some(
                 (filter) =>
-                  filter.value !== null
+                  (
+                  filter.value !== null ||
+                  (filter.values?.length ?? 0) > 0
+                )
               ) &&
               crossFilters.length === 0
             }
@@ -3456,7 +3465,10 @@ function PersonalDashboardBuilder({
                   className={
                     "dashboard-slicer-card" +
                     (
-                      filter.value !== null
+                      (
+                  filter.value !== null ||
+                  (filter.values?.length ?? 0) > 0
+                )
                         ? " active"
                         : ""
                     )
@@ -3466,31 +3478,30 @@ function PersonalDashboardBuilder({
                     {filter.label}
                   </span>
 
-                  <DashboardSelect
-                    value={
-                      filter.value ??
-                      ""
+                  <DashboardMultiSelect
+                    values={
+                      filterValues[
+                        filter.filter_id
+                      ] ?? []
                     }
-                    options={[
-                      {
-                        value: "",
-                        label: "All",
-                      },
-                      ...(
-                        filterValues[
-                          filter.filter_id
-                        ] ?? []
-                      ).map(
-                        (value) => ({
-                          value,
-                          label: value,
-                        })
-                      ),
-                    ]}
-                    onChange={(value) =>
-                      setDashboardFilterValue(
+                    selected={
+                      (
+                        filter.values &&
+                        filter.values.length > 0
+                      )
+                        ? filter.values
+                        : (
+                            filter.value !== null
+                              ? [
+                                  filter.value,
+                                ]
+                              : []
+                          )
+                    }
+                    onChange={(values) =>
+                      setDashboardFilterValues(
                         filter.filter_id,
-                        value,
+                        values,
                       )
                     }
                   />
