@@ -59,6 +59,8 @@ from backend.app.models import (
     PersonalProjectDataModelStudio,
     PersonalProjectDashboardSaveRequest,
     PersonalProjectDashboardPreviewRequest,
+    PersonalProjectDashboardFilterValuesRequest,
+    PersonalProjectDashboardFilterValuesResponse,
 )
 
 import pandas as pd
@@ -121,6 +123,7 @@ from backend.app.personal_analysis_service import (
     build_personal_analysis_plan,
     build_personal_analysis_result,
     build_semantic_analysis_result,
+    materialize_semantic_column,
 )
 
 from backend.app.personal_kpi_service import (
@@ -4463,6 +4466,96 @@ def preview_personal_dashboard_visual(
             definition=definition,
             dimension_table=request.dimension_table,
             dimension=request.dimension,
+            filters=[
+                (
+                    item.table,
+                    item.column,
+                    item.value,
+                )
+                for item in request.filters
+                if item.value is not None
+            ],
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/dashboard/filter-values"
+    ),
+    response_model=PersonalProjectDashboardFilterValuesResponse,
+)
+def get_personal_dashboard_filter_values(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectDashboardFilterValuesRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.data_model_studio is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Semantic model bulunamadı.",
+        )
+
+    try:
+        working_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+        series = (
+            materialize_semantic_column(
+                df=working_df,
+                studio=workspace.data_model_studio,
+                table_name=request.table,
+                column_name=request.column,
+            )
+        )
+
+        values = []
+
+        for value in series.drop_duplicates().tolist():
+            if pd.isna(value):
+                continue
+
+            if hasattr(value, "item"):
+                value = value.item()
+
+            values.append(value)
+
+        values = sorted(
+            values,
+            key=lambda value:
+                str(value)
+        )
+
+        return (
+            PersonalProjectDashboardFilterValuesResponse(
+                values=values[:500]
+            )
         )
 
     except FileNotFoundError as exc:
@@ -4578,6 +4671,7 @@ def save_personal_dashboard(
                 "subtitle": request.subtitle,
                 "theme": request.theme,
                 "visuals": request.visuals,
+                "filters": request.filters,
             }
         )
     )
