@@ -105,6 +105,111 @@ type SemanticDimensionOption = {
   isTime: boolean;
 };
 
+
+type AnalysisSelectOption = {
+  value: string;
+  label: string;
+};
+
+type AnalysisSelectProps = {
+  value: string;
+  options: AnalysisSelectOption[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+};
+
+function AnalysisSelect({
+  value,
+  options,
+  onChange,
+  placeholder = "Select",
+}: AnalysisSelectProps) {
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
+
+  const selected =
+    options.find(
+      (option) =>
+        option.value === value
+    );
+
+  return (
+    <div
+      className={
+        `analysis-select ${
+          open
+            ? "open"
+            : ""
+        }`
+      }
+    >
+      <button
+        type="button"
+        className="analysis-select-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() =>
+          setOpen(
+            (previous) =>
+              !previous
+          )
+        }
+      >
+        <span>
+          {selected?.label ??
+            placeholder}
+        </span>
+
+        <span
+          className="analysis-select-chevron"
+          aria-hidden="true"
+        >
+          ▾
+        </span>
+      </button>
+
+      {open && (
+        <div
+          className="analysis-select-menu"
+          role="listbox"
+        >
+          {options.map(
+            (option) => (
+              <button
+                key={
+                  option.value ||
+                  "__empty__"
+                }
+                type="button"
+                role="option"
+                aria-selected={
+                  option.value === value
+                }
+                className={
+                  option.value === value
+                    ? "analysis-select-option selected"
+                    : "analysis-select-option"
+                }
+                onClick={() => {
+                  onChange(
+                    option.value
+                  );
+
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PersonalAnalysisPlan({
   analysisPlan,
   dataModelStudio = null,
@@ -542,25 +647,22 @@ function PersonalAnalysisPlan({
                   Measure / KPI
                 </span>
 
-                <select
+                <AnalysisSelect
                   value={selectedKpiCode}
-                  onChange={(event) =>
-                    setSelectedKpiCode(
-                      event.target.value
+                  options={
+                    kpiDefinitions.map(
+                      (item) => ({
+                        value:
+                          item.code,
+                        label:
+                          item.title,
+                      })
                     )
                   }
-                >
-                  {kpiDefinitions.map(
-                    (item) => (
-                      <option
-                        key={item.code}
-                        value={item.code}
-                      >
-                        {item.title}
-                      </option>
-                    )
-                  )}
-                </select>
+                  onChange={
+                    setSelectedKpiCode
+                  }
+                />
               </label>
 
               <label>
@@ -568,31 +670,29 @@ function PersonalAnalysisPlan({
                   Dimension
                 </span>
 
-                <select
+                <AnalysisSelect
                   value={
                     selectedSemanticDimension
                   }
-                  onChange={(event) =>
-                    setSelectedSemanticDimension(
-                      event.target.value
-                    )
+                  options={[
+                    {
+                      value: "",
+                      label:
+                        "No dimension",
+                    },
+                    ...semanticDimensions.map(
+                      (item) => ({
+                        value:
+                          item.key,
+                        label:
+                          item.label,
+                      })
+                    ),
+                  ]}
+                  onChange={
+                    setSelectedSemanticDimension
                   }
-                >
-                  <option value="">
-                    No dimension
-                  </option>
-
-                  {semanticDimensions.map(
-                    (item) => (
-                      <option
-                        key={item.key}
-                        value={item.key}
-                      >
-                        {item.label}
-                      </option>
-                    )
-                  )}
-                </select>
+                />
               </label>
 
               <button
@@ -731,53 +831,52 @@ function PersonalAnalysisPlan({
               <label>
                 <span>Measure</span>
 
-                <select
+                <AnalysisSelect
                   value={selectedMeasure}
-                  onChange={(event) =>
-                    setSelectedMeasure(
-                      event.target.value
-                    )
+                  options={
+                    analysisPlan
+                      .measure_candidates
+                      .map(
+                        (measure) => ({
+                          value:
+                            measure,
+                          label:
+                            measure,
+                        })
+                      )
                   }
-                >
-                  {analysisPlan.measure_candidates.map(
-                    (measure) => (
-                      <option
-                        key={measure}
-                        value={measure}
-                      >
-                        {measure}
-                      </option>
-                    )
-                  )}
-                </select>
+                  onChange={
+                    setSelectedMeasure
+                  }
+                />
               </label>
 
               <label>
                 <span>Dimension</span>
 
-                <select
+                <AnalysisSelect
                   value={selectedDimension}
-                  onChange={(event) =>
-                    setSelectedDimension(
-                      event.target.value
-                    )
+                  options={[
+                    {
+                      value: "",
+                      label:
+                        "No dimension",
+                    },
+                    ...analysisPlan
+                      .dimension_candidates
+                      .map(
+                        (dimension) => ({
+                          value:
+                            dimension,
+                          label:
+                            dimension,
+                        })
+                      ),
+                  ]}
+                  onChange={
+                    setSelectedDimension
                   }
-                >
-                  <option value="">
-                    No dimension
-                  </option>
-
-                  {analysisPlan.dimension_candidates.map(
-                    (dimension) => (
-                      <option
-                        key={dimension}
-                        value={dimension}
-                      >
-                        {dimension}
-                      </option>
-                    )
-                  )}
-                </select>
+                />
               </label>
 
               <button
