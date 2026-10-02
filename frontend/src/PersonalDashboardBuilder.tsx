@@ -1622,6 +1622,72 @@ function PersonalDashboardBuilder({
         )
       : null;
 
+
+  const editingKpiDefinition =
+    editingVisual
+      ? kpiDefinitions.find(
+          (item) =>
+            item.code ===
+            (
+              editingVisual.kpi_code ??
+              editingAnalysis?.kpi_code
+            )
+        ) ?? null
+      : null;
+
+  const editingDimension =
+    editingVisual?.dimension ??
+    editingAnalysis?.dimension ??
+    null;
+
+  const editingIsTime =
+    isTimeDimension(
+      editingDimension
+    );
+
+  const editingHasAxes =
+    Boolean(
+      editingVisual &&
+      [
+        "bar",
+        "column",
+        "line",
+        "area",
+      ].includes(
+        editingVisual.visual_type
+      )
+    );
+
+  const editingIsPie =
+    Boolean(
+      editingVisual &&
+      [
+        "pie",
+        "donut",
+      ].includes(
+        editingVisual.visual_type
+      )
+    );
+
+  const editingHasGroups =
+    Boolean(
+      editingAnalysis &&
+      editingAnalysis.grouped_results.length > 0
+    );
+
+  const editingNonAdditivePie =
+    Boolean(
+      editingIsPie &&
+      editingKpiDefinition &&
+      ![
+        "sum",
+        "count",
+      ].includes(
+        editingKpiDefinition.aggregation ??
+        ""
+      )
+    );
+
   const analysesById =
     useMemo(
       () =>
@@ -1718,6 +1784,8 @@ function PersonalDashboardBuilder({
         })
       );
 
+      return result;
+
     } catch (error) {
       setPreviewErrors(
         (previous) => ({
@@ -1728,6 +1796,8 @@ function PersonalDashboardBuilder({
               : "Preview could not be refreshed.",
         })
       );
+
+      return null;
     }
   }
 
