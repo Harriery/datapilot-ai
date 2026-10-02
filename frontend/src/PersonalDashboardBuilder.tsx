@@ -1934,6 +1934,9 @@ function PersonalDashboardBuilder({
     kpiCode: string,
     dimensionTable: string | null,
     dimension: string | null,
+    filters:
+      DashboardFilterData[] =
+        dashboardFilters,
   ) {
     setPreviewErrors(
       (previous) => ({
@@ -1948,6 +1951,7 @@ function PersonalDashboardBuilder({
           kpiCode,
           dimensionTable,
           dimension,
+          filters,
         );
 
       setPreviewResults(
@@ -1972,6 +1976,209 @@ function PersonalDashboardBuilder({
 
       return null;
     }
+  }
+
+  async function ensureFilterValues(
+    filter:
+      DashboardFilterData
+  ) {
+    if (
+      filterValues[
+        filter.filter_id
+      ]
+    ) {
+      return;
+    }
+
+    const values =
+      await onLoadFilterValues(
+        filter.table,
+        filter.column,
+      );
+
+    setFilterValues(
+      (previous) => ({
+        ...previous,
+        [filter.filter_id]:
+          values,
+      })
+    );
+  }
+
+  async function refreshAllVisuals(
+    nextFilters:
+      DashboardFilterData[],
+  ) {
+    await Promise.all(
+      visuals.map(
+        async (visual) => {
+          const sourceAnalysis =
+            previewResults[
+              visual.visual_id
+            ] ??
+            (
+              visual.analysis_id
+                ? analysesById.get(
+                    visual.analysis_id
+                  )
+                : undefined
+            );
+
+          const kpiCode =
+            visual.kpi_code ??
+            sourceAnalysis?.kpi_code;
+
+          if (!kpiCode) {
+            return;
+          }
+
+          await refreshVisualPreview(
+            visual.visual_id,
+            kpiCode,
+            visual.dimension_table ??
+              sourceAnalysis?.dimension_table ??
+              null,
+            visual.dimension ??
+              sourceAnalysis?.dimension ??
+              null,
+            nextFilters,
+          );
+        }
+      )
+    );
+  }
+
+  async function addDashboardFilter() {
+    const option =
+      dimensionOptions.find(
+        (item) =>
+          item.value ===
+          pendingFilterKey
+      );
+
+    if (!option) {
+      return;
+    }
+
+    const existing =
+      dashboardFilters.find(
+        (item) =>
+          item.table ===
+            option.table &&
+          item.column ===
+            option.column
+      );
+
+    if (existing) {
+      await ensureFilterValues(
+        existing
+      );
+
+      return;
+    }
+
+    const filter:
+      DashboardFilterData = {
+        filter_id:
+          (
+            globalThis.crypto
+              ?.randomUUID?.()
+          ) ??
+          (
+            "filter-" +
+            Date.now()
+          ),
+        table:
+          option.table,
+        column:
+          option.column,
+        label:
+          option.column,
+        value:
+          null,
+      };
+
+    const nextFilters = [
+      ...dashboardFilters,
+      filter,
+    ];
+
+    setDashboardFilters(
+      nextFilters
+    );
+
+    setPendingFilterKey(
+      ""
+    );
+
+    await ensureFilterValues(
+      filter
+    );
+  }
+
+  async function setDashboardFilterValue(
+    filterId: string,
+    value: string,
+  ) {
+    const nextFilters =
+      dashboardFilters.map(
+        (filter) =>
+          filter.filter_id ===
+          filterId
+            ? {
+                ...filter,
+                value:
+                  value === ""
+                    ? null
+                    : value,
+              }
+            : filter
+      );
+
+    setDashboardFilters(
+      nextFilters
+    );
+
+    await refreshAllVisuals(
+      nextFilters
+    );
+  }
+
+  async function removeDashboardFilter(
+    filterId: string
+  ) {
+    const nextFilters =
+      dashboardFilters.filter(
+        (filter) =>
+          filter.filter_id !==
+          filterId
+      );
+
+    setDashboardFilters(
+      nextFilters
+    );
+
+    await refreshAllVisuals(
+      nextFilters
+    );
+  }
+
+  async function clearDashboardFilters() {
+    const nextFilters =
+      dashboardFilters.map(
+        (filter) => ({
+          ...filter,
+          value: null,
+        })
+      );
+
+    setDashboardFilters(
+      nextFilters
+    );
+
+    await refreshAllVisuals(
+      nextFilters
+    );
   }
 
   function createVisual(
