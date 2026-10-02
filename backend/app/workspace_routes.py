@@ -57,6 +57,7 @@ from backend.app.models import (
     WorkspaceNotebookMentorResponse,
     PersonalProjectKPIBuilderRequest,
     PersonalProjectDataModelStudio,
+    PersonalProjectDashboardSaveRequest,
 )
 
 import pandas as pd
@@ -4384,6 +4385,97 @@ def run_personal_project_analysis(
     )
 
     return result
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/dashboard/save"
+    ),
+    response_model=Workspace,
+)
+def save_personal_dashboard(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectDashboardSaveRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Dashboard yalnızca personal "
+                "workspace için kullanılabilir."
+            ),
+        )
+
+    if not any(
+        deliverable.code == "dashboard"
+        for deliverable
+        in workspace.project_deliverables
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu personal project type "
+                "dashboard deliverable içermiyor."
+            ),
+        )
+
+    known_analysis_ids = {
+        result.analysis_id
+        for result in workspace.analysis_results
+        if result.analysis_id is not None
+    }
+
+    for visual in request.visuals:
+        if visual.analysis_id not in known_analysis_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Dashboard visual references "
+                    "an unknown analysis."
+                ),
+            )
+
+    workspace.dashboard_config = (
+        workspace.dashboard_config.model_copy(
+            update={
+                "visuals": request.visuals,
+            }
+        )
+    )
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="dashboard",
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Review insights"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Review insights"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
+
 
 @router.delete(
     (
