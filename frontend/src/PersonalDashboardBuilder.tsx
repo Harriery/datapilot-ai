@@ -1390,6 +1390,8 @@ function DashboardPieVisual({
   showValues,
   showLegend,
   tooltipTemplate,
+  selectedValue,
+  onSelect,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -1400,6 +1402,10 @@ function DashboardPieVisual({
   showValues: boolean;
   showLegend: boolean;
   tooltipTemplate?: string | null;
+  selectedValue?: string | null;
+  onSelect?: (
+    value: unknown
+  ) => void;
 }) {
   const [
     hoveredSegment,
@@ -1492,9 +1498,16 @@ function DashboardPieVisual({
     <div className="dashboard-pie-layout">
       <div
         className={
-          donut
-            ? "dashboard-pie-chart donut"
-            : "dashboard-pie-chart"
+          (
+            donut
+              ? "dashboard-pie-chart donut"
+              : "dashboard-pie-chart"
+          ) +
+          (
+            selectedValue
+              ? " has-selection"
+              : ""
+          )
         }
         style={{
           background:
@@ -1578,6 +1591,19 @@ function DashboardPieVisual({
             null
           )
         }
+        onClick={() => {
+          if (
+            hoveredSegment === null
+          ) {
+            return;
+          }
+
+          onSelect?.(
+            segments[
+              hoveredSegment
+            ].row.value
+          );
+        }}
       >
         {hoveredSegment !== null && (
           <div className="dashboard-pie-tooltip">
@@ -1614,7 +1640,22 @@ function DashboardPieVisual({
                   "-" +
                   index
                 }
-                className="dashboard-tooltip-host"
+                className={
+                  "dashboard-tooltip-host" +
+                  (
+                    selectedValue ===
+                    String(
+                      segment.row.value
+                    )
+                      ? " selected"
+                      : ""
+                  )
+                }
+                onClick={() =>
+                  onSelect?.(
+                    segment.row.value
+                  )
+                }
                 data-tooltip={
                   buildDashboardTooltip(
                     tooltipTemplate,
@@ -1658,11 +1699,17 @@ function DashboardPieVisual({
 function DashboardTableVisual({
   analysis,
   rows,
+  selectedValue,
+  onSelect,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
     "grouped_results"
   ];
+  selectedValue?: string | null;
+  onSelect?: (
+    value: unknown
+  ) => void;
 }) {
   const semantic =
     Boolean(
@@ -1699,6 +1746,19 @@ function DashboardTableVisual({
                   ) +
                   "-" +
                   index
+                }
+                className={
+                  selectedValue ===
+                  String(
+                    row.value
+                  )
+                    ? "selected"
+                    : ""
+                }
+                onClick={() =>
+                  onSelect?.(
+                    row.value
+                  )
                 }
               >
                 <td>
