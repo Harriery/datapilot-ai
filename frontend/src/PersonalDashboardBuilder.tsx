@@ -2820,7 +2820,21 @@ function PersonalDashboardBuilder({
                           )
                         )
                           ? "chronological"
-                          : editingVisual.sort_mode;
+                          : (
+                              editingVisual.sort_mode ===
+                              "chronological"
+                                ? (
+                                    [
+                                      "line",
+                                      "area",
+                                    ].includes(
+                                      editingVisual.visual_type
+                                    )
+                                      ? "alphabetical"
+                                      : "top_value"
+                                  )
+                                : editingVisual.sort_mode
+                            );
 
                       updateVisual(
                         editingVisual.visual_id,
