@@ -3633,10 +3633,6 @@ function PersonalDashboardBuilder({
                           showValues={
                             visual.show_values
                           }
-                          showGridlines={
-                            visual.show_gridlines ??
-                            true
-                          }
                           tooltipTemplate={
                             visual.tooltip_template
                           }
@@ -3661,6 +3657,10 @@ function PersonalDashboardBuilder({
                           }
                           showValues={
                             visual.show_values
+                          }
+                          showGridlines={
+                            visual.show_gridlines ??
+                            true
                           }
                           tooltipTemplate={
                             visual.tooltip_template
