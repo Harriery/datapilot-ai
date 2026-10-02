@@ -2306,6 +2306,16 @@ function PersonalDashboardBuilder({
     setShowCanvasGrid,
   ] = useState(true);
 
+  const savedVisualsSignature =
+    JSON.stringify(
+      savedVisuals
+    );
+
+  const savedFiltersSignature =
+    JSON.stringify(
+      savedFilters
+    );
+
   useEffect(
     () => {
       setVisuals(
@@ -2331,11 +2341,11 @@ function PersonalDashboardBuilder({
       );
     },
     [
-      savedVisuals,
+      savedVisualsSignature,
       savedTitle,
       savedSubtitle,
       savedTheme,
-      savedFilters,
+      savedFiltersSignature,
     ]
   );
 
