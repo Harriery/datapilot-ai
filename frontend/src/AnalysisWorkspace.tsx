@@ -33,6 +33,126 @@ type SortMode =
   | "lowest_count";
 
 
+const SORT_OPTIONS: {
+  value: SortMode;
+  label: string;
+}[] = [
+  {
+    value: "top_value",
+    label: "Top KPI value",
+  },
+  {
+    value: "bottom_value",
+    label: "Bottom KPI value",
+  },
+  {
+    value: "alphabetical",
+    label: "Alphabetical",
+  },
+  {
+    value: "highest_count",
+    label: "Highest count",
+  },
+  {
+    value: "lowest_count",
+    label: "Lowest count",
+  },
+];
+
+
+function AnalysisSortSelect({
+  value,
+  onChange,
+}: {
+  value: SortMode;
+  onChange: (
+    value: SortMode
+  ) => void;
+}) {
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
+
+  const selectedLabel =
+    SORT_OPTIONS.find(
+      (option) =>
+        option.value === value
+    )?.label ??
+    "Sort";
+
+  return (
+    <div
+      className={
+        `analysis-sort-select ${
+          open
+            ? "open"
+            : ""
+        }`
+      }
+    >
+      <button
+        type="button"
+        className="analysis-sort-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() =>
+          setOpen(
+            (previous) =>
+              !previous
+          )
+        }
+      >
+        <span>
+          {selectedLabel}
+        </span>
+
+        <span
+          className="analysis-sort-chevron"
+          aria-hidden="true"
+        >
+          ▾
+        </span>
+      </button>
+
+      {open && (
+        <div
+          className="analysis-sort-menu"
+          role="listbox"
+        >
+          {SORT_OPTIONS.map(
+            (option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={
+                  option.value === value
+                }
+                className={
+                  option.value === value
+                    ? "analysis-sort-option selected"
+                    : "analysis-sort-option"
+                }
+                onClick={() => {
+                  onChange(
+                    option.value
+                  );
+
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 const SIZE_CLASSES = [
   "small",
   "medium",
@@ -895,47 +1015,24 @@ function AnalysisWorkspace({
                             } groups
                           </span>
 
-                          <label>
+                          <div className="analysis-sort-control">
                             <span>
                               Sort
                             </span>
 
-                            <select
+                            <AnalysisSortSelect
                               value={sortMode}
-                              onChange={(event) =>
+                              onChange={(nextMode) =>
                                 setSortModes(
                                   (previous) => ({
                                     ...previous,
                                     [id]:
-                                      event
-                                        .target
-                                        .value as
-                                        SortMode,
+                                      nextMode,
                                   })
                                 )
                               }
-                            >
-                              <option value="top_value">
-                                Top KPI value
-                              </option>
-
-                              <option value="bottom_value">
-                                Bottom KPI value
-                              </option>
-
-                              <option value="alphabetical">
-                                Alphabetical
-                              </option>
-
-                              <option value="highest_count">
-                                Highest count
-                              </option>
-
-                              <option value="lowest_count">
-                                Lowest count
-                              </option>
-                            </select>
-                          </label>
+                            />
+                          </div>
                         </div>
 
                         <div className="analysis-card-table-wrap">
