@@ -16413,3 +16413,168 @@
   transform:
     translate(0, 0);
 }
+
+
+/* ==================================================
+   DASHBOARD SLICERS + SELECTION STATES
+   ================================================== */
+
+.dashboard-analysis-item.added {
+  border-color: #9fc3eb;
+
+  background: #edf5ff;
+}
+
+.dashboard-added-button {
+  padding: 5px 8px;
+
+  border: 1px solid #78aee8;
+  border-radius: 7px;
+
+  background: #dcecff;
+  color: #176cc7;
+
+  font: inherit;
+  font-size: 8px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.dashboard-visual-card.selected {
+  border-color: #2f80ed;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, 0.14),
+    0 10px 24px
+    rgba(27, 48, 74, 0.1);
+}
+
+.dashboard-visual-card.selected
+  .dashboard-visual-header {
+  background: #edf5ff;
+}
+
+.dashboard-slicer-toolbar {
+  display: grid;
+
+  gap: 10px;
+
+  padding: 10px 11px;
+
+  border: 1px solid #dfe7f0;
+  border-radius: 9px;
+
+  background: #fbfdff;
+}
+
+.dashboard-slicer-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+}
+
+.dashboard-slicer-heading strong {
+  display: block;
+
+  margin-top: 2px;
+
+  color: #2e445e;
+
+  font-size: 10px;
+}
+
+.dashboard-slicer-builder {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+
+  max-width: 430px;
+}
+
+.dashboard-slicer-builder
+  .dashboard-select {
+  flex: 1 1 auto;
+}
+
+.dashboard-slicer-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  gap: 8px;
+}
+
+.dashboard-slicer-card {
+  display: grid;
+  grid-template-columns:
+    auto
+    minmax(120px, 170px)
+    auto;
+
+  gap: 7px;
+  align-items: center;
+
+  padding: 7px 8px;
+
+  border: 1px solid #d9e3ee;
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+.dashboard-slicer-card.active {
+  border-color: #86b3e7;
+
+  background: #edf5ff;
+}
+
+.dashboard-slicer-card > span {
+  color: #5c7189;
+
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.dashboard-slicer-remove {
+  display: grid;
+  place-items: center;
+
+  width: 23px;
+  height: 23px;
+
+  padding: 0;
+
+  border: 1px solid #d6e1ec;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #6a7d93;
+
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .dashboard-slicer-builder {
+    align-items: stretch;
+    flex-direction: column;
+
+    max-width: none;
+  }
+
+  .dashboard-slicer-card {
+    grid-template-columns:
+      1fr
+      auto;
+  }
+
+  .dashboard-slicer-card
+    .dashboard-select {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
