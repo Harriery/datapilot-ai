@@ -2266,69 +2266,7 @@ function PersonalDashboardBuilder({
           />
         </label>
 
-        <div className="dashboard-theme-swatches">
-          {(
-            Object.entries(
-              DASHBOARD_THEMES
-            ) as [
-              DashboardTheme,
-              {
-                label: string;
-                accent: string;
-              },
-            ][]
-          ).map(
-            ([
-              themeKey,
-              theme,
-            ]) => (
-              <button
-                key={
-                  themeKey
-                }
-                type="button"
-                title={
-                  theme.label
-                }
-                className={
-                  themeKey ===
-                  dashboardTheme
-                    ? "active"
-                    : ""
-                }
-                style={{
-                  background:
-                    theme.accent,
-                }}
-                onClick={() => {
-                  setDashboardTheme(
-                    themeKey
-                  );
 
-                  const palette =
-                    DASHBOARD_THEMES[
-                      themeKey
-                    ];
-
-                  setVisuals(
-                    (previous) =>
-                      previous.map(
-                        (visual) => ({
-                          ...visual,
-                          accent_color:
-                            palette.accent,
-                          background_color:
-                            palette.background,
-                          text_color:
-                            palette.text,
-                        })
-                      )
-                  );
-                }}
-              />
-            )
-          )}
-        </div>
       </div>
 
       <div
@@ -2497,6 +2435,8 @@ function PersonalDashboardBuilder({
                       {
                         title:
                           event.target.value,
+                        auto_title:
+                          false,
                       }
                     )
                   }
