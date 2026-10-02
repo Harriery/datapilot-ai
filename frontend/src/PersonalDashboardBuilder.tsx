@@ -2280,6 +2280,11 @@ function PersonalDashboardBuilder({
     string | null
   >(null);
 
+  const [
+    propertiesPanelOpen,
+    setPropertiesPanelOpen,
+  ] = useState(false);
+
 
   const [
     dashboardMode,
@@ -3228,6 +3233,9 @@ function PersonalDashboardBuilder({
       setEditingVisualId(
         null
       );
+      setPropertiesPanelOpen(
+        false
+      );
     }
 
     if (
@@ -3641,6 +3649,9 @@ function PersonalDashboardBuilder({
     setEditingVisualId(
       visual.visual_id
     );
+    setPropertiesPanelOpen(
+      true
+    );
     setFormatTarget("visual");
 
     const canvas =
@@ -3740,6 +3751,9 @@ function PersonalDashboardBuilder({
 
     setEditingVisualId(
       visual.visual_id
+    );
+    setPropertiesPanelOpen(
+      true
     );
     setFormatTarget("visual");
 
@@ -4268,7 +4282,8 @@ function PersonalDashboardBuilder({
           (
             dashboardMode ===
               "edit" &&
-            editingVisual
+            editingVisual &&
+            propertiesPanelOpen
               ? " properties-open"
               : ""
           )
@@ -4404,7 +4419,8 @@ function PersonalDashboardBuilder({
         </aside>
 
         {dashboardMode === "edit" &&
-          editingVisual && (
+          editingVisual &&
+          propertiesPanelOpen && (
           <aside className="dashboard-properties-panel">
             <div className="dashboard-properties-header">
               <div>
@@ -4435,13 +4451,14 @@ function PersonalDashboardBuilder({
               <button
                 type="button"
                 onClick={() =>
-                  setEditingVisualId(
-                    null
+                  setPropertiesPanelOpen(
+                    false
                   )
                 }
-                title="Close properties"
+                title="Hide properties"
+                aria-label="Hide visual properties"
               >
-                ×
+                →
               </button>
             </div>
 
@@ -5536,6 +5553,25 @@ function PersonalDashboardBuilder({
           </aside>
         )}
 
+        {dashboardMode === "edit" &&
+          editingVisual &&
+          !propertiesPanelOpen && (
+          <button
+            type="button"
+            className="dashboard-properties-rail-toggle"
+            onClick={() =>
+              setPropertiesPanelOpen(
+                true
+              )
+            }
+            title="Open visual properties"
+            aria-label="Open visual properties"
+          >
+            <span>‹</span>
+            <strong>Properties</strong>
+          </button>
+        )}
+
         <main
           className="dashboard-canvas"
           style={{
@@ -5579,6 +5615,9 @@ function PersonalDashboardBuilder({
                     setEditingVisualId(
                       null
                     );
+                    setPropertiesPanelOpen(
+                      false
+                    );
                   }}
                 >
                   Interact
@@ -5601,6 +5640,36 @@ function PersonalDashboardBuilder({
                   Edit
                 </button>
               </div>
+
+              {dashboardMode === "edit" && (
+                <button
+                  type="button"
+                  className={
+                    "dashboard-properties-toolbar-button" +
+                    (
+                      propertiesPanelOpen
+                        ? " active"
+                        : ""
+                    )
+                  }
+                  disabled={
+                    !editingVisual
+                  }
+                  onClick={() =>
+                    setPropertiesPanelOpen(
+                      (previous) =>
+                        !previous
+                    )
+                  }
+                  title={
+                    editingVisual
+                      ? "Show or hide visual properties"
+                      : "Select a visual first"
+                  }
+                >
+                  Properties
+                </button>
+              )}
 
               <label className="dashboard-grid-toggle">
                 <input
@@ -5868,6 +5937,9 @@ function PersonalDashboardBuilder({
                       setEditingVisualId(
                         visual.visual_id
                       );
+                      setPropertiesPanelOpen(
+                        true
+                      );
 
                       const target =
                         (
@@ -5976,11 +6048,10 @@ function PersonalDashboardBuilder({
                             );
 
                             setEditingVisualId(
-                              (previous) =>
-                                previous ===
-                                visual.visual_id
-                                  ? null
-                                  : visual.visual_id
+                              visual.visual_id
+                            );
+                            setPropertiesPanelOpen(
+                              true
                             );
                           }}
                           title="Edit visual"
