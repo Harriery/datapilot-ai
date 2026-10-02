@@ -3208,6 +3208,54 @@ async function runPersonalAnalysis(
   }
 }
 
+async function previewPersonalDashboardVisual(
+  kpiCode: string,
+  dimensionTable: string | null,
+  dimension: string | null,
+): Promise<AnalysisResultData> {
+  if (!workspaceId) {
+    throw new Error(
+      "Workspace bulunamadı."
+    );
+  }
+
+  const response = await fetch(
+    (
+      `http://127.0.0.1:8000/workspaces/` +
+      `demo-learner/${workspaceId}/dashboard/preview`
+    ),
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      body: JSON.stringify({
+        kpi_code: kpiCode,
+        dimension_table:
+          dimensionTable,
+        dimension,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData =
+      await response.json();
+
+    throw new Error(
+      errorData.detail ||
+        "Dashboard preview could not be generated."
+    );
+  }
+
+  return (
+    await response.json()
+  ) as AnalysisResultData;
+}
+
 async function savePersonalDashboard(
   visuals: DashboardVisualData[],
   title: string,
@@ -6467,6 +6515,12 @@ async function restoreWorkspaceVersion(
                             analyses={
                               dashboardWorkspace.analysis_results ?? []
                             }
+                            kpiDefinitions={
+                              dashboardWorkspace.kpi_definitions ?? []
+                            }
+                            dataModelStudio={
+                              dashboardWorkspace.data_model_studio ?? null
+                            }
                             savedVisuals={
                               dashboardWorkspace.dashboard_config?.visuals ?? []
                             }
@@ -6487,6 +6541,9 @@ async function restoreWorkspaceVersion(
                             }
                             error={
                               personalDashboardError
+                            }
+                            onPreview={
+                              previewPersonalDashboardVisual
                             }
                             onSave={
                               savePersonalDashboard
