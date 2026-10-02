@@ -16260,3 +16260,15 @@
     min-width: 48px;
   }
 }
+
+
+.dashboard-visual-card.no-animation
+  .dashboard-column-value,
+.dashboard-visual-card.no-animation
+  .dashboard-pie-chart,
+.dashboard-visual-card.no-animation
+  .dashboard-line-chart polyline,
+.dashboard-visual-card.no-animation
+  .dashboard-area-chart polyline {
+  animation: none;
+}
