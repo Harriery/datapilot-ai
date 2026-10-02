@@ -3552,11 +3552,25 @@ function PersonalDashboardBuilder({
         1
       );
 
+    const draggingVisual =
+      visuals.find(
+        (visual) =>
+          visual.visual_id ===
+          draggingId
+      );
+
+    const span =
+      draggingVisual
+        ? visualSpan(
+            draggingVisual
+          )
+        : 4;
+
     const column =
       Math.max(
         1,
         Math.min(
-          12,
+          13 - span,
           Math.floor(
             ratio * 12
           ) + 1
@@ -4256,7 +4270,12 @@ function PersonalDashboardBuilder({
                   <input
                     type="number"
                     min="1"
-                    max="12"
+                    max={
+                      13 -
+                      visualSpan(
+                        editingVisual
+                      )
+                    }
                     value={
                       editingVisual.grid_column ??
                       ""
@@ -4271,7 +4290,10 @@ function PersonalDashboardBuilder({
                               ? Math.max(
                                   1,
                                   Math.min(
-                                    12,
+                                    13 -
+                                    visualSpan(
+                                      editingVisual
+                                    ),
                                     Number(
                                       event.target.value
                                     )
@@ -5397,6 +5419,20 @@ function PersonalDashboardBuilder({
                   selectedCrossFilter?.value ??
                   null;
 
+                const visualIsFiltered =
+                  dashboardFilters.some(
+                    (filter) =>
+                      (
+                        filter.value !== null ||
+                        (filter.values?.length ?? 0) > 0
+                      )
+                  ) ||
+                  crossFilters.some(
+                    (filter) =>
+                      filter.source_visual_id !==
+                      visual.visual_id
+                  );
+
                 const selectCategory = (
                   value: unknown
                 ) =>
@@ -5610,6 +5646,12 @@ function PersonalDashboardBuilder({
                           </span>
                         )}
                       </div>
+
+                      {visualIsFiltered && (
+                        <span className="dashboard-filtered-badge">
+                          Filtered
+                        </span>
+                      )}
 
                       <div
                         className="dashboard-visual-actions"
