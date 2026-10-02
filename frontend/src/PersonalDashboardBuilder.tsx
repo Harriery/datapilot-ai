@@ -1364,7 +1364,15 @@ function PersonalDashboardBuilder({
           )}
         </aside>
 
-        <main className="dashboard-canvas">
+        <main
+          className="dashboard-canvas"
+          style={{
+            "--dashboard-theme-accent":
+              DASHBOARD_THEMES[
+                dashboardTheme
+              ].accent,
+          } as CSSProperties}
+        >
           <div className="dashboard-canvas-heading">
             <div>
               <span className="workspace-overview-label">
@@ -1391,6 +1399,27 @@ function PersonalDashboardBuilder({
             >
               Reset canvas
             </button>
+          </div>
+
+          <div className="dashboard-report-heading">
+            <div>
+              <h3>
+                {dashboardTitle.trim() ||
+                  "Dashboard"}
+              </h3>
+
+              {dashboardSubtitle.trim() && (
+                <p>
+                  {dashboardSubtitle}
+                </p>
+              )}
+            </div>
+
+            <span>
+              {DASHBOARD_THEMES[
+                dashboardTheme
+              ].label}
+            </span>
           </div>
 
           {visuals.length === 0 && (
