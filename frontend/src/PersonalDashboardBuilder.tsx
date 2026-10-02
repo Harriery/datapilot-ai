@@ -85,6 +85,11 @@ export type DashboardFilterData = {
   value: string | null;
 };
 
+type DashboardCrossFilterData =
+  DashboardFilterData & {
+    source_visual_id: string;
+  };
+
 type Props = {
   analyses: AnalysisResultData[];
   kpiDefinitions: PersonalKpiData[];
@@ -1688,6 +1693,14 @@ function PersonalDashboardBuilder({
   >(
     savedFilters
   );
+
+
+  const [
+    crossFilters,
+    setCrossFilters,
+  ] = useState<
+    DashboardCrossFilterData[]
+  >([]);
 
   const [
     filterValues,
