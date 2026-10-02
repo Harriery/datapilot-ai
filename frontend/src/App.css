@@ -15322,8 +15322,7 @@
   grid-template-columns:
     minmax(220px, 1fr)
     minmax(220px, 1fr)
-    minmax(130px, auto)
-    auto;
+    minmax(130px, 180px);
 
   gap: 10px;
   align-items: end;
@@ -16271,4 +16270,146 @@
 .dashboard-visual-card.no-animation
   .dashboard-area-chart polyline {
   animation: none;
+}
+
+
+/* ==================================================
+   DASHBOARD SMART BUILDER POLISH
+   ================================================== */
+
+.dashboard-property-warning {
+  display: grid;
+
+  gap: 4px;
+
+  padding: 8px 9px;
+
+  border: 1px solid #ead7a6;
+  border-radius: 7px;
+
+  background: #fffaf0;
+  color: #765b22;
+}
+
+.dashboard-property-warning strong {
+  font-size: 8px;
+}
+
+.dashboard-property-warning span {
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.dashboard-tooltip-host {
+  position: relative;
+}
+
+.dashboard-tooltip-host::after {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+
+  z-index: 180;
+
+  width: max-content;
+  max-width: 220px;
+
+  padding: 7px 9px;
+
+  border: 1px solid rgba(35, 56, 82, 0.12);
+  border-radius: 7px;
+
+  background: #213854;
+  color: #ffffff;
+
+  box-shadow:
+    0 8px 22px
+    rgba(25, 42, 65, 0.2);
+
+  content: attr(data-tooltip);
+
+  font-size: 8px;
+  line-height: 1.45;
+
+  opacity: 0;
+  pointer-events: none;
+
+  transform:
+    translate(-50%, 4px);
+
+  transition:
+    opacity 130ms ease,
+    transform 130ms ease;
+
+  white-space: pre-line;
+}
+
+.dashboard-tooltip-host:hover::after {
+  opacity: 1;
+
+  transform:
+    translate(-50%, 0);
+}
+
+.dashboard-pie-tooltip {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+
+  z-index: 5;
+
+  max-width: 190px;
+
+  padding: 7px 9px;
+
+  border-radius: 7px;
+
+  background: #213854;
+  color: #ffffff;
+
+  box-shadow:
+    0 8px 22px
+    rgba(25, 42, 65, 0.2);
+
+  font-size: 8px;
+  line-height: 1.45;
+
+  pointer-events: none;
+
+  transform: translateX(-50%);
+
+  white-space: pre-line;
+}
+
+.dashboard-column-chart.with-gridlines,
+.dashboard-line-chart.with-gridlines svg,
+.dashboard-area-chart.with-gridlines svg {
+  background-image:
+    repeating-linear-gradient(
+      to top,
+      transparent 0,
+      transparent 39px,
+      rgba(92, 116, 143, 0.12) 40px
+    );
+}
+
+.dashboard-column-chart.with-gridlines {
+  border-bottom:
+    1px solid
+    rgba(92, 116, 143, 0.16);
+}
+
+.dashboard-pie-legend
+  .dashboard-tooltip-host::after {
+  left: auto;
+  right: 0;
+
+  transform:
+    translate(0, 4px);
+}
+
+.dashboard-pie-legend
+  .dashboard-tooltip-host:hover::after {
+  transform:
+    translate(0, 0);
 }
