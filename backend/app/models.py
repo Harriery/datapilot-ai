@@ -797,9 +797,12 @@ class PersonalProjectDashboardVisual(BaseModel):
     ]
 
     title: str
+    subtitle: str | None = None
 
     size: Literal[
+        "compact",
         "small",
+        "medium",
         "large",
     ] = "large"
 
@@ -820,6 +823,10 @@ class PersonalProjectDashboardVisual(BaseModel):
     accent_color: str = "#2f80ed"
     background_color: str = "#ffffff"
     text_color: str = "#213854"
+
+    x_axis_title: str | None = None
+    y_axis_title: str | None = None
+    show_values: bool = True
 
 
 class PersonalProjectDashboardConfig(BaseModel):
