@@ -843,10 +843,37 @@ class PersonalProjectDashboardVisual(BaseModel):
     tooltip_template: str | None = None
 
 
+class PersonalProjectDashboardFilter(BaseModel):
+    filter_id: str
+
+    table: str
+    column: str
+    label: str
+
+    value: (
+        str | int | float | bool | None
+    ) = None
+
+
 class PersonalProjectDashboardPreviewRequest(BaseModel):
     kpi_code: str
     dimension_table: str | None = None
     dimension: str | None = None
+
+    filters: list[
+        PersonalProjectDashboardFilter
+    ] = Field(default_factory=list)
+
+
+class PersonalProjectDashboardFilterValuesRequest(BaseModel):
+    table: str
+    column: str
+
+
+class PersonalProjectDashboardFilterValuesResponse(BaseModel):
+    values: list[
+        str | int | float | bool | None
+    ] = Field(default_factory=list)
 
 
 class PersonalProjectDashboardConfig(BaseModel):
@@ -863,6 +890,10 @@ class PersonalProjectDashboardConfig(BaseModel):
 
     visuals: list[
         PersonalProjectDashboardVisual
+    ] = Field(default_factory=list)
+
+    filters: list[
+        PersonalProjectDashboardFilter
     ] = Field(default_factory=list)
 
 
@@ -883,6 +914,10 @@ class PersonalProjectDashboardSaveRequest(BaseModel):
     ] = Field(
         min_length=1
     )
+
+    filters: list[
+        PersonalProjectDashboardFilter
+    ] = Field(default_factory=list)
 
 
 class PersonalProjectKPIDefinition(BaseModel):
