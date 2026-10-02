@@ -118,6 +118,7 @@ from backend.app.personal_project_service import (
 from backend.app.personal_analysis_service import (
     build_personal_analysis_plan,
     build_personal_analysis_result,
+    build_semantic_analysis_result,
 )
 
 from backend.app.personal_kpi_service import (
@@ -4232,12 +4233,6 @@ def run_personal_project_analysis(
             ),
         )
 
-    if workspace.analysis_plan is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Analysis plan bulunamadı.",
-        )
-
     has_analysis_deliverable = any(
         deliverable.code == "analysis"
         for deliverable
@@ -4253,31 +4248,6 @@ def run_personal_project_analysis(
             ),
         )
 
-    if (
-        request.measure
-        not in
-        workspace.analysis_plan.measure_candidates
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Geçersiz analysis measure."
-            ),
-        )
-
-    if (
-        request.dimension is not None
-        and request.dimension
-        not in
-        workspace.analysis_plan.dimension_candidates
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Geçersiz analysis dimension."
-            ),
-        )
-
     try:
         working_df = (
             load_workspace_working_dataframe(
@@ -4285,13 +4255,89 @@ def run_personal_project_analysis(
             )
         )
 
-        result = (
-            build_personal_analysis_result(
-                df=working_df,
-                measure=request.measure,
-                dimension=request.dimension,
+        if request.kpi_code:
+            if workspace.data_model_studio is None:
+                raise ValueError(
+                    "Semantic model is required for KPI analysis."
+                )
+
+            definition = next(
+                (
+                    item
+                    for item in workspace.kpi_definitions
+                    if item.code == request.kpi_code
+                ),
+                None,
             )
-        )
+
+            if definition is None:
+                raise ValueError(
+                    "Saved KPI definition not found."
+                )
+
+            dimension_table = (
+                request.dimension_table
+                or definition.dimension_table
+            )
+
+            dimension = (
+                request.dimension
+                or definition.dimension
+            )
+
+            if (
+                (dimension_table is None)
+                != (dimension is None)
+            ):
+                raise ValueError(
+                    "Semantic dimension requires both "
+                    "table and column."
+                )
+
+            result = (
+                build_semantic_analysis_result(
+                    df=working_df,
+                    studio=workspace.data_model_studio,
+                    definition=definition,
+                    dimension_table=dimension_table,
+                    dimension=dimension,
+                )
+            )
+
+        else:
+            if workspace.analysis_plan is None:
+                raise ValueError(
+                    "Analysis plan bulunamadı."
+                )
+
+            if (
+                request.measure is None
+                or request.measure
+                not in
+                workspace.analysis_plan.measure_candidates
+            ):
+                raise ValueError(
+                    "Geçersiz analysis measure."
+                )
+
+            if (
+                request.dimension is not None
+                and request.dimension
+                not in
+                workspace.analysis_plan.dimension_candidates
+            ):
+                raise ValueError(
+                    "Geçersiz analysis dimension."
+                )
+
+            result = (
+                build_personal_analysis_result(
+                    df=working_df,
+                    measure=request.measure,
+                    dimension=request.dimension,
+                )
+            )
+
         result = result.model_copy(
             update={
                 "analysis_id": str(
@@ -4312,15 +4358,11 @@ def run_personal_project_analysis(
             detail=str(exc),
         )
 
-    # Son çalıştırılan analysis mevcut kodlarla
-    # uyumluluk için burada kalır.
     workspace.analysis_result = result
-    
-    # Bütün analysis sonuçlarını ayrıca saklıyoruz.
+
     workspace.analysis_results.append(
         result
     )
-    
 
     complete_and_advance_personal_project_deliverable(
         workspace=workspace,
@@ -4328,11 +4370,11 @@ def run_personal_project_analysis(
     )
 
     workspace.checkpoint.current_focus = (
-        "Build analytical data model"
+        "Build dashboard"
     )
 
     workspace.checkpoint.next_actions = [
-        "Build data model"
+        "Build dashboard"
     ]
 
     workspace.checkpoint.last_error = None
@@ -4342,7 +4384,6 @@ def run_personal_project_analysis(
     )
 
     return result
-
 
 @router.delete(
     (
