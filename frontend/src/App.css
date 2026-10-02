@@ -17737,11 +17737,6 @@
   background: #e8eef6;
 }
 
-.app-shell:has(.dashboard-properties-panel)
-  .main-content {
-  padding-right: 354px;
-}
-
 .dashboard-properties-rail-toggle {
   position: fixed;
   right: 0;
@@ -17823,8 +17818,90 @@
     width: 300px;
   }
 
-  .app-shell:has(.dashboard-properties-panel)
-    .main-content {
-    padding-right: 332px;
+}
+
+
+/* ==================================================
+   DASHBOARD INSPECTOR — NO LAYOUT SHIFT
+   ================================================== */
+
+.dashboard-properties-panel {
+  width: 320px;
+
+  background: #f1f4f8;
+}
+
+.dashboard-properties-header {
+  padding-right: 58px;
+}
+
+.dashboard-properties-header > button {
+  top: 18px;
+  left: auto;
+  right: 18px;
+
+  width: 30px;
+  height: 30px;
+
+  border-radius: 8px;
+
+  box-shadow: none;
+
+  background: #ffffff;
+  color: #63758b;
+
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.dashboard-properties-header > button:hover {
+  border-color: #b9cee8;
+  background: #e8eef6;
+  color: #2f80ed;
+}
+
+/* Opening the inspector overlays the right edge and must never
+   recalculate the dashboard/page width. */
+.app-shell:has(.dashboard-properties-panel)
+  .main-content {
+  padding-right: inherit;
+}
+
+/* Closed-state affordance: compact tab, no chevron arrow. */
+.dashboard-properties-rail-toggle {
+  gap: 7px;
+
+  padding:
+    10px 10px
+    10px 9px;
+
+  border-radius:
+    10px 0 0 10px;
+
+  background: #f8fbff;
+}
+
+.dashboard-properties-rail-toggle span {
+  display: grid;
+  place-items: center;
+
+  width: 18px;
+  height: 18px;
+
+  color: #2f80ed;
+
+  font-size: 14px;
+  line-height: 1;
+}
+
+.dashboard-properties-rail-toggle strong {
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+
+@media (max-width: 1350px) {
+  .dashboard-properties-panel {
+    width: 300px;
   }
 }
