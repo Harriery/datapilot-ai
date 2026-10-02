@@ -729,6 +729,7 @@ function DashboardLineVisual({
   xAxisTitle,
   yAxisTitle,
   showValues,
+  showGridlines,
   tooltipTemplate,
 }: {
   analysis: AnalysisResultData;
@@ -739,6 +740,7 @@ function DashboardLineVisual({
   xAxisTitle: string | null;
   yAxisTitle: string | null;
   showValues: boolean;
+  showGridlines: boolean;
   tooltipTemplate?: string | null;
 }) {
   const semantic =
@@ -839,7 +841,14 @@ function DashboardLineVisual({
 
   return (
     <div
-      className="dashboard-line-chart"
+      className={
+        "dashboard-line-chart" +
+        (
+          showGridlines
+            ? " with-gridlines"
+            : ""
+        )
+      }
       style={{
         "--dashboard-accent":
           accentColor,
@@ -937,6 +946,7 @@ function DashboardColumnVisual({
   rows,
   accentColor,
   showValues,
+  showGridlines,
   tooltipTemplate,
 }: {
   analysis: AnalysisResultData;
@@ -945,6 +955,7 @@ function DashboardColumnVisual({
   ];
   accentColor: string;
   showValues: boolean;
+  showGridlines: boolean;
   tooltipTemplate?: string | null;
 }) {
   const semantic =
@@ -973,7 +984,14 @@ function DashboardColumnVisual({
 
   return (
     <div
-      className="dashboard-column-chart"
+      className={
+        "dashboard-column-chart" +
+        (
+          showGridlines
+            ? " with-gridlines"
+            : ""
+        )
+      }
       style={{
         "--dashboard-accent":
           accentColor,
@@ -1000,8 +1018,8 @@ function DashboardColumnVisual({
                 "-" +
                 index
               }
-              className="dashboard-column-item"
-              title={
+              className="dashboard-column-item dashboard-tooltip-host"
+              data-tooltip={
                 buildDashboardTooltip(
                   tooltipTemplate,
                   analysis,
@@ -1047,6 +1065,7 @@ function DashboardAreaVisual({
   rows,
   accentColor,
   showValues,
+  showGridlines,
   tooltipTemplate,
 }: {
   analysis: AnalysisResultData;
@@ -1055,6 +1074,7 @@ function DashboardAreaVisual({
   ];
   accentColor: string;
   showValues: boolean;
+  showGridlines: boolean;
   tooltipTemplate?: string | null;
 }) {
   const semantic =
@@ -1145,7 +1165,14 @@ function DashboardAreaVisual({
 
   return (
     <div
-      className="dashboard-area-chart"
+      className={
+        "dashboard-area-chart" +
+        (
+          showGridlines
+            ? " with-gridlines"
+            : ""
+        )
+      }
       style={{
         "--dashboard-accent":
           accentColor,
