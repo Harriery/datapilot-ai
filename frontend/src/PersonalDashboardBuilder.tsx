@@ -243,8 +243,12 @@ function recommendationLabel(
 ): string {
   return {
     kpi: "KPI card",
-    bar: "Bar chart",
+    bar: "Horizontal bar",
+    column: "Column chart",
     line: "Line chart",
+    area: "Area chart",
+    pie: "Pie chart",
+    donut: "Donut chart",
     table: "Table",
   }[type];
 }
@@ -1583,11 +1587,17 @@ function PersonalDashboardBuilder({
 
   const editingAnalysis =
     editingVisual
-      ? analyses.find(
-          (analysis) =>
-            analysis.analysis_id ===
-            editingVisual.analysis_id
-        ) ?? null
+      ? (
+          previewResults[
+            editingVisual.visual_id
+          ] ??
+          analyses.find(
+            (analysis) =>
+              analysis.analysis_id ===
+              editingVisual.analysis_id
+          ) ??
+          null
+        )
       : null;
 
   const analysesById =
@@ -2427,6 +2437,172 @@ function PersonalDashboardBuilder({
 
               <div className="dashboard-property-section">
                 <strong>
+                  Semantic data
+                </strong>
+
+                <label className="dashboard-property-field">
+                  <span>
+                    Measure / KPI
+                  </span>
+
+                  <DashboardSelect
+                    value={
+                      editingVisual.kpi_code ??
+                      editingAnalysis?.kpi_code ??
+                      ""
+                    }
+                    options={
+                      kpiDefinitions.map(
+                        (item) => ({
+                          value:
+                            item.code,
+                          label:
+                            item.title,
+                        })
+                      )
+                    }
+                    onChange={async (
+                      kpiCode
+                    ) => {
+                      const definition =
+                        kpiDefinitions.find(
+                          (item) =>
+                            item.code ===
+                            kpiCode
+                        );
+
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          analysis_id:
+                            null,
+                          kpi_code:
+                            kpiCode,
+                          y_axis_title:
+                            definition?.title ??
+                            editingVisual.y_axis_title,
+                        }
+                      );
+
+                      await refreshVisualPreview(
+                        editingVisual.visual_id,
+                        kpiCode,
+                        editingVisual.dimension_table ??
+                          editingAnalysis?.dimension_table ??
+                          null,
+                        editingVisual.dimension ??
+                          editingAnalysis?.dimension ??
+                          null,
+                      );
+                    }}
+                  />
+                </label>
+
+                <label className="dashboard-property-field">
+                  <span>
+                    Category / Dimension
+                  </span>
+
+                  <DashboardSelect
+                    value={
+                      editingVisual.dimension_table &&
+                      editingVisual.dimension
+                        ? (
+                            editingVisual.dimension_table +
+                            "." +
+                            editingVisual.dimension
+                          )
+                        : editingAnalysis?.dimension_table &&
+                          editingAnalysis?.dimension
+                          ? (
+                              editingAnalysis.dimension_table +
+                              "." +
+                              editingAnalysis.dimension
+                            )
+                          : ""
+                    }
+                    options={[
+                      {
+                        value: "",
+                        label:
+                          "No dimension",
+                      },
+                      ...dimensionOptions.map(
+                        (item) => ({
+                          value:
+                            item.value,
+                          label:
+                            item.label,
+                        })
+                      ),
+                    ]}
+                    onChange={async (
+                      dimensionKey
+                    ) => {
+                      const selected =
+                        dimensionOptions.find(
+                          (item) =>
+                            item.value ===
+                            dimensionKey
+                        );
+
+                      const dimensionTable =
+                        selected?.table ??
+                        null;
+
+                      const dimension =
+                        selected?.column ??
+                        null;
+
+                      const kpiCode =
+                        editingVisual.kpi_code ??
+                        editingAnalysis?.kpi_code;
+
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          analysis_id:
+                            null,
+                          dimension_table:
+                            dimensionTable,
+                          dimension,
+                          x_axis_title:
+                            dimension,
+                        }
+                      );
+
+                      if (kpiCode) {
+                        await refreshVisualPreview(
+                          editingVisual.visual_id,
+                          kpiCode,
+                          dimensionTable,
+                          dimension,
+                        );
+                      }
+                    }}
+                  />
+                </label>
+
+                {previewErrors[
+                  editingVisual.visual_id
+                ] && (
+                  <p className="dashboard-property-error">
+                    {
+                      previewErrors[
+                        editingVisual.visual_id
+                      ]
+                    }
+                  </p>
+                )}
+
+                <small className="dashboard-property-hint">
+                  Data binding controls the real semantic query.
+                  Axis titles below only change the displayed labels.
+                </small>
+              </div>
+
+              <div className="dashboard-property-section">
+                <strong>
                   Appearance
                 </strong>
 
@@ -2520,11 +2696,27 @@ function PersonalDashboardBuilder({
                       },
                       {
                         value: "bar",
-                        label: "Bar chart",
+                        label: "Horizontal bar",
+                      },
+                      {
+                        value: "column",
+                        label: "Column chart",
                       },
                       {
                         value: "line",
                         label: "Line chart",
+                      },
+                      {
+                        value: "area",
+                        label: "Area chart",
+                      },
+                      {
+                        value: "pie",
+                        label: "Pie chart",
+                      },
+                      {
+                        value: "donut",
+                        label: "Donut chart",
                       },
                       {
                         value: "table",
@@ -2698,6 +2890,57 @@ function PersonalDashboardBuilder({
                     Show values
                   </span>
                 </label>
+
+                <label className="dashboard-property-check">
+                  <input
+                    type="checkbox"
+                    checked={
+                      editingVisual.show_legend ??
+                      true
+                    }
+                    onChange={(event) =>
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          show_legend:
+                            event.target.checked,
+                        }
+                      )
+                    }
+                  />
+
+                  <span>
+                    Show legend
+                  </span>
+                </label>
+
+                <label className="dashboard-property-field">
+                  <span>
+                    Tooltip template
+                  </span>
+
+                  <textarea
+                    rows={4}
+                    value={
+                      editingVisual.tooltip_template ??
+                      "{category}\n{measure}: {value}\nRecords: {count}"
+                    }
+                    onChange={(event) =>
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          tooltip_template:
+                            event.target.value ||
+                            null,
+                        }
+                      )
+                    }
+                  />
+                </label>
+
+                <small className="dashboard-property-hint">
+                  Available placeholders: {"{category}"}, {"{measure}"}, {"{value}"}, {"{count}"}.
+                </small>
               </div>
             </div>
           </aside>
