@@ -806,6 +806,7 @@ class PersonalProjectDashboardVisual(BaseModel):
 
     title: str
     subtitle: str | None = None
+    auto_title: bool = True
 
     size: Literal[
         "compact",
