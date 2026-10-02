@@ -710,6 +710,7 @@ function DashboardLineVisual({
   xAxisTitle,
   yAxisTitle,
   showValues,
+  tooltipTemplate,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -719,6 +720,7 @@ function DashboardLineVisual({
   xAxisTitle: string | null;
   yAxisTitle: string | null;
   showValues: boolean;
+  tooltipTemplate?: string | null;
 }) {
   const semantic =
     Boolean(
@@ -794,6 +796,7 @@ function DashboardLineVisual({
           ) * 76;
 
         return {
+          row,
           x,
           y,
           value,
@@ -847,11 +850,11 @@ function DashboardLineVisual({
               vectorEffect="non-scaling-stroke"
             >
               <title>
-                {point.label +
-                  ": " +
-                  formatNumber(
-                    point.value
-                  )}
+                {buildDashboardTooltip(
+                  tooltipTemplate,
+                  analysis,
+                  point.row,
+                )}
               </title>
             </circle>
           )
@@ -3252,6 +3255,9 @@ function PersonalDashboardBuilder({
                           }
                           showValues={
                             visual.show_values
+                          }
+                          tooltipTemplate={
+                            visual.tooltip_template
                           }
                         />
                       )}
