@@ -842,6 +842,60 @@ class PersonalProjectDashboardVisual(BaseModel):
     animate: bool = True
     tooltip_template: str | None = None
 
+    grid_column: int | None = Field(
+        default=None,
+        ge=1,
+        le=12,
+    )
+
+    title_font_size: int = Field(
+        default=10,
+        ge=7,
+        le=28,
+    )
+    title_bold: bool = True
+    title_color: str | None = None
+
+    subtitle_font_size: int = Field(
+        default=7,
+        ge=6,
+        le=20,
+    )
+    subtitle_bold: bool = False
+    subtitle_color: str | None = None
+
+    category_label_font_size: int = Field(
+        default=8,
+        ge=6,
+        le=22,
+    )
+    category_label_bold: bool = False
+    category_label_color: str | None = None
+
+    value_label_font_size: int = Field(
+        default=8,
+        ge=6,
+        le=22,
+    )
+    value_label_bold: bool = True
+    value_label_color: str | None = None
+
+    axis_label_font_size: int = Field(
+        default=8,
+        ge=6,
+        le=20,
+    )
+    axis_label_bold: bool = False
+    axis_label_color: str | None = None
+
+    legend_label_font_size: int = Field(
+        default=8,
+        ge=6,
+        le=20,
+    )
+    legend_label_bold: bool = False
+    legend_label_color: str | None = None
+
 
 class PersonalProjectDashboardFilter(BaseModel):
     filter_id: str
@@ -853,6 +907,10 @@ class PersonalProjectDashboardFilter(BaseModel):
     value: (
         str | int | float | bool | None
     ) = None
+
+    values: list[
+        str | int | float | bool
+    ] = Field(default_factory=list)
 
 
 class PersonalProjectDashboardPreviewRequest(BaseModel):
