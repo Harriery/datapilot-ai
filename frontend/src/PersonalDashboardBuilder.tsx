@@ -2917,6 +2917,29 @@ function PersonalDashboardBuilder({
                   </span>
                 </label>
 
+                <label className="dashboard-property-check">
+                  <input
+                    type="checkbox"
+                    checked={
+                      editingVisual.animate ??
+                      true
+                    }
+                    onChange={(event) =>
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          animate:
+                            event.target.checked,
+                        }
+                      )
+                    }
+                  />
+
+                  <span>
+                    Animate
+                  </span>
+                </label>
+
                 <label className="dashboard-property-field">
                   <span>
                     Tooltip template
@@ -3055,7 +3078,12 @@ function PersonalDashboardBuilder({
                     }
                     className={
                       "dashboard-visual-card size-" +
-                      visual.size
+                      visual.size +
+                      (
+                        visual.animate === false
+                          ? " no-animation"
+                          : ""
+                      )
                     }
                     style={{
                       background:
