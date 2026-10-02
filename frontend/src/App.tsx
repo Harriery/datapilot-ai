@@ -63,6 +63,7 @@ import PersonalKpiCandidates, {
 import PersonalDataModel from "./PersonalDataModel";
 import PersonalBiModel from "./PersonalBiModel";
 import PersonalDashboardBuilder, {
+  type DashboardFilterData,
   type DashboardTheme,
   type DashboardVisualData,
 } from "./PersonalDashboardBuilder";
@@ -300,6 +301,7 @@ type DashboardWorkspace = {
     subtitle: string | null;
     theme: DashboardTheme;
     visuals: DashboardVisualData[];
+    filters: DashboardFilterData[];
   };
 
   
@@ -3208,10 +3210,61 @@ async function runPersonalAnalysis(
   }
 }
 
+async function loadPersonalDashboardFilterValues(
+  table: string,
+  column: string,
+): Promise<string[]> {
+  if (!workspaceId) {
+    throw new Error(
+      "Workspace bulunamadı."
+    );
+  }
+
+  const response = await fetch(
+    (
+      `http://127.0.0.1:8000/workspaces/` +
+      `demo-learner/${workspaceId}/dashboard/filter-values`
+    ),
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+
+      body: JSON.stringify({
+        table,
+        column,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData =
+      await response.json();
+
+    throw new Error(
+      errorData.detail ||
+        "Filter values could not be loaded."
+    );
+  }
+
+  const data = await response.json();
+
+  return (
+    data.values ?? []
+  ).map(
+    (value: unknown) =>
+      String(value)
+  );
+}
+
 async function previewPersonalDashboardVisual(
   kpiCode: string,
   dimensionTable: string | null,
   dimension: string | null,
+  filters: DashboardFilterData[] = [],
 ): Promise<AnalysisResultData> {
   if (!workspaceId) {
     throw new Error(
@@ -3237,6 +3290,7 @@ async function previewPersonalDashboardVisual(
         dimension_table:
           dimensionTable,
         dimension,
+        filters,
       }),
     }
   );
@@ -3261,6 +3315,7 @@ async function savePersonalDashboard(
   title: string,
   subtitle: string | null,
   theme: DashboardTheme,
+  filters: DashboardFilterData[],
 ) {
   if (!workspaceId) {
     return;
@@ -3288,6 +3343,7 @@ async function savePersonalDashboard(
           subtitle,
           theme,
           visuals,
+          filters,
         }),
       }
     );
@@ -6536,6 +6592,9 @@ async function restoreWorkspaceVersion(
                               dashboardWorkspace.dashboard_config?.theme ??
                               "ocean"
                             }
+                            savedFilters={
+                              dashboardWorkspace.dashboard_config?.filters ?? []
+                            }
                             loading={
                               personalDashboardLoading
                             }
@@ -6544,6 +6603,9 @@ async function restoreWorkspaceVersion(
                             }
                             onPreview={
                               previewPersonalDashboardVisual
+                            }
+                            onLoadFilterValues={
+                              loadPersonalDashboardFilterValues
                             }
                             onSave={
                               savePersonalDashboard
