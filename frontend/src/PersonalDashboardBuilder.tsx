@@ -3210,7 +3210,7 @@ function PersonalDashboardBuilder({
                                   : editingVisual.title,
                             }
                           );
-                        }
+                        }}
                       />
                     </label>
                   </>
