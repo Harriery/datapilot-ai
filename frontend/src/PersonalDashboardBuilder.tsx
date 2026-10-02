@@ -2566,6 +2566,43 @@ function PersonalDashboardBuilder({
                 />
               </label>
 
+              <label className="dashboard-property-check">
+                <input
+                  type="checkbox"
+                  checked={
+                    editingVisual.auto_title !== false
+                  }
+                  onChange={(event) => {
+                    const autoTitle =
+                      event.target.checked;
+
+                    updateVisual(
+                      editingVisual.visual_id,
+                      {
+                        auto_title:
+                          autoTitle,
+                        title:
+                          (
+                            autoTitle &&
+                            editingAnalysis
+                          )
+                            ? defaultVisualTitle(
+                                editingAnalysis,
+                                editingVisual.visual_type,
+                                editingVisual.sort_mode,
+                                editingVisual.top_n,
+                              )
+                            : editingVisual.title,
+                      }
+                    );
+                  }}
+                />
+
+                <span>
+                  Auto-update title from data binding
+                </span>
+              </label>
+
               <label className="dashboard-property-field">
                 <span>
                   Subtitle
