@@ -17477,3 +17477,125 @@
     width: 290px;
   }
 }
+
+
+/* ==================================================
+   DASHBOARD RIGHT INSPECTOR SHELL
+   Dashboard-only fixed sidebar. It must not become a
+   third column inside the report-builder grid.
+   ================================================== */
+
+.dashboard-builder-layout.properties-open {
+  grid-template-areas:
+    "library canvas";
+  grid-template-columns:
+    minmax(205px, 235px)
+    minmax(760px, 1fr);
+}
+
+.dashboard-properties-panel {
+  grid-area: unset;
+  grid-column: unset;
+
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+
+  z-index: 45;
+
+  width: 330px;
+  height: 100vh;
+  max-height: none;
+
+  box-sizing: border-box;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+
+  border: 0;
+  border-left: 1px solid #dce5ef;
+  border-radius: 0;
+
+  background: #ffffff;
+
+  box-shadow:
+    -10px 0 30px
+    rgba(21, 35, 60, 0.08);
+
+  scrollbar-width: thin;
+}
+
+.dashboard-properties-header {
+  position: sticky;
+  top: 0;
+
+  z-index: 5;
+
+  min-height: 78px;
+  box-sizing: border-box;
+
+  padding: 20px 22px;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid #e4eaf1;
+}
+
+.dashboard-properties-body {
+  padding: 18px 22px 28px;
+}
+
+.dashboard-properties-header > button {
+  position: absolute;
+  top: 18px;
+  left: -14px;
+
+  width: 28px;
+  height: 28px;
+
+  border: 1px solid #dce5ef;
+  border-radius: 50%;
+
+  background: #ffffff;
+  color: #53657d;
+
+  box-shadow:
+    0 2px 8px
+    rgba(21, 35, 60, 0.08);
+}
+
+.dashboard-properties-header > button:hover {
+  background: #f2f6fb;
+}
+
+.app-shell:has(.dashboard-properties-panel)
+  .main-content {
+  padding-right: 364px;
+  transition:
+    padding-right 0.2s ease;
+}
+
+.dashboard-canvas {
+  min-width: 0;
+}
+
+@media (max-width: 1250px) {
+  .dashboard-builder-layout.properties-open {
+    grid-template-areas:
+      "library canvas";
+    grid-template-columns:
+      minmax(190px, 220px)
+      minmax(760px, 1fr);
+  }
+
+  .dashboard-properties-panel {
+    width: 300px;
+  }
+
+  .app-shell:has(.dashboard-properties-panel)
+    .main-content {
+    padding-right: 334px;
+  }
+}
