@@ -827,7 +827,9 @@ class PersonalProjectDashboardConfig(BaseModel):
 class PersonalProjectDashboardSaveRequest(BaseModel):
     visuals: list[
         PersonalProjectDashboardVisual
-    ] = Field(default_factory=list)
+    ] = Field(
+        min_length=1
+    )
 
 
 class PersonalProjectKPIDefinition(BaseModel):
