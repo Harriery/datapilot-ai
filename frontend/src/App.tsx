@@ -63,6 +63,7 @@ import PersonalKpiCandidates, {
 import PersonalDataModel from "./PersonalDataModel";
 import PersonalBiModel from "./PersonalBiModel";
 import PersonalDashboardBuilder, {
+  type DashboardTheme,
   type DashboardVisualData,
 } from "./PersonalDashboardBuilder";
 
@@ -295,6 +296,9 @@ type DashboardWorkspace = {
   analysis_results?: AnalysisResultData[];
 
   dashboard_config?: {
+    title: string;
+    subtitle: string | null;
+    theme: DashboardTheme;
     visuals: DashboardVisualData[];
   };
 
@@ -3206,6 +3210,9 @@ async function runPersonalAnalysis(
 
 async function savePersonalDashboard(
   visuals: DashboardVisualData[],
+  title: string,
+  subtitle: string | null,
+  theme: DashboardTheme,
 ) {
   if (!workspaceId) {
     return;
@@ -3229,6 +3236,9 @@ async function savePersonalDashboard(
         },
 
         body: JSON.stringify({
+          title,
+          subtitle,
+          theme,
           visuals,
         }),
       }
@@ -6459,6 +6469,18 @@ async function restoreWorkspaceVersion(
                             }
                             savedVisuals={
                               dashboardWorkspace.dashboard_config?.visuals ?? []
+                            }
+                            savedTitle={
+                              dashboardWorkspace.dashboard_config?.title ??
+                              dashboardWorkspace.title
+                            }
+                            savedSubtitle={
+                              dashboardWorkspace.dashboard_config?.subtitle ??
+                              null
+                            }
+                            savedTheme={
+                              dashboardWorkspace.dashboard_config?.theme ??
+                              "ocean"
                             }
                             loading={
                               personalDashboardLoading
