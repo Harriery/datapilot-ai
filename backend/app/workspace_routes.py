@@ -1004,6 +1004,7 @@ def transform_workspace_workbench_data(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1196,6 +1197,7 @@ def apply_workspace_pipeline_to_full_dataset(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1416,6 +1418,7 @@ def create_workspace_development_sample(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1926,6 +1929,7 @@ def profile_workspace_data(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
 
@@ -2929,6 +2933,7 @@ def activate_workspace_processed_dataset(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -3331,6 +3336,7 @@ def restore_workspace_version(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -3615,6 +3621,7 @@ def transform_workspace_data(
             workspace.analysis_plan = None
             workspace.analysis_result = None
             workspace.analysis_results = []
+            workspace.dashboard_config.visuals = []
             workspace.kpi_candidates = []
             workspace.kpi_definitions = []
 
@@ -4542,6 +4549,12 @@ def delete_personal_project_analysis(
             if workspace.analysis_results
             else None
         )
+
+    workspace.dashboard_config.visuals = [
+        visual
+        for visual in workspace.dashboard_config.visuals
+        if visual.analysis_id != request.analysis_id
+    ]
 
 
     database.save_workspace(
