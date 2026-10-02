@@ -14484,3 +14484,65 @@
     min-width: 160px;
   }
 }
+
+
+/* ==================================================
+   ANALYSIS DETAIL LEVEL LAYOUT
+   ================================================== */
+
+.analysis-board {
+  grid-template-columns: 1fr;
+}
+
+.analysis-board-card.size-small,
+.analysis-board-card.size-medium,
+.analysis-board-card.size-large {
+  grid-column: auto;
+  width: 100%;
+}
+
+.analysis-board-card.size-small
+  .analysis-card-summary,
+.analysis-board-card.size-medium
+  .analysis-card-summary,
+.analysis-board-card.size-large
+  .analysis-card-summary {
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+}
+
+.analysis-board-card.size-small
+  .analysis-card-table-section {
+  display: none;
+}
+
+.analysis-board-card.size-medium
+  .analysis-card-table-section,
+.analysis-board-card.size-large
+  .analysis-card-table-section {
+  display: block;
+}
+
+.analysis-board-card.size-small
+  .analysis-card-body-inner {
+  padding-bottom: 10px;
+}
+
+.analysis-board-card.size-medium
+  .analysis-card-body-inner,
+.analysis-board-card.size-large
+  .analysis-card-body-inner {
+  padding-bottom: 12px;
+}
+
+@media (max-width: 800px) {
+  .analysis-board-card.size-small
+    .analysis-card-summary,
+  .analysis-board-card.size-medium
+    .analysis-card-summary,
+  .analysis-board-card.size-large
+    .analysis-card-summary {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
