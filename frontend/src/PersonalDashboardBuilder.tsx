@@ -485,12 +485,18 @@ function DashboardBarVisual({
   analysis,
   rows,
   accentColor,
+  xAxisTitle,
+  yAxisTitle,
+  showValues,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
     "grouped_results"
   ];
   accentColor: string;
+  xAxisTitle: string | null;
+  yAxisTitle: string | null;
+  showValues: boolean;
 }) {
   const semantic =
     Boolean(
@@ -521,6 +527,22 @@ function DashboardBarVisual({
           accentColor,
       } as CSSProperties}
     >
+      {(xAxisTitle || yAxisTitle) && (
+        <div className="dashboard-axis-summary">
+          {xAxisTitle && (
+            <span>
+              Category: {xAxisTitle}
+            </span>
+          )}
+
+          {yAxisTitle && (
+            <span>
+              Measure: {yAxisTitle}
+            </span>
+          )}
+        </div>
+      )}
+
       {rows.map(
         (row, index) => {
           const value =
@@ -568,11 +590,18 @@ function DashboardBarVisual({
                 />
               </div>
 
-              <strong>
-                {formatNumber(
-                  value
-                )}
-              </strong>
+              {showValues ? (
+                <strong>
+                  {formatNumber(
+                    value
+                  )}
+                </strong>
+              ) : (
+                <span
+                  className="dashboard-bar-value-hidden"
+                  aria-hidden="true"
+                />
+              )}
             </div>
           );
         }
@@ -585,12 +614,18 @@ function DashboardLineVisual({
   analysis,
   rows,
   accentColor,
+  xAxisTitle,
+  yAxisTitle,
+  showValues,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
     "grouped_results"
   ];
   accentColor: string;
+  xAxisTitle: string | null;
+  yAxisTitle: string | null;
+  showValues: boolean;
 }) {
   const semantic =
     Boolean(
@@ -736,6 +771,12 @@ function DashboardLineVisual({
             ""}
         </span>
 
+        {xAxisTitle && (
+          <strong>
+            {xAxisTitle}
+          </strong>
+        )}
+
         <span>
           {
             points[
@@ -744,6 +785,34 @@ function DashboardLineVisual({
           }
         </span>
       </div>
+
+      {yAxisTitle && (
+        <div className="dashboard-line-measure-label">
+          {yAxisTitle}
+        </div>
+      )}
+
+      {showValues && points.length > 0 && (
+        <div className="dashboard-line-value-summary">
+          <span>
+            First: {
+              formatNumber(
+                points[0].value
+              )
+            }
+          </span>
+
+          <span>
+            Last: {
+              formatNumber(
+                points[
+                  points.length - 1
+                ].value
+              )
+            }
+          </span>
+        </div>
+      )
     </div>
   );
 }
@@ -2097,6 +2166,15 @@ function PersonalDashboardBuilder({
                           accentColor={
                             visual.accent_color
                           }
+                          xAxisTitle={
+                            visual.x_axis_title
+                          }
+                          yAxisTitle={
+                            visual.y_axis_title
+                          }
+                          showValues={
+                            visual.show_values
+                          }
                         />
                       )}
 
@@ -2109,6 +2187,15 @@ function PersonalDashboardBuilder({
                           rows={rows}
                           accentColor={
                             visual.accent_color
+                          }
+                          xAxisTitle={
+                            visual.x_axis_title
+                          }
+                          yAxisTitle={
+                            visual.y_axis_title
+                          }
+                          showValues={
+                            visual.show_values
                           }
                         />
                       )}
