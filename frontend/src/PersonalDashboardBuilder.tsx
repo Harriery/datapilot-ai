@@ -374,6 +374,11 @@ function DashboardSelect<T extends string>({
     setOpen,
   ] = useState(false);
 
+  const [
+    search,
+    setSearch,
+  ] = useState("");
+
   const selected =
     options.find(
       (option) =>
@@ -418,7 +423,35 @@ function DashboardSelect<T extends string>({
           className="dashboard-select-menu"
           role="listbox"
         >
-          {options.map(
+          {options.length > 10 && (
+            <input
+              className="dashboard-select-search"
+              type="search"
+              value={search}
+              placeholder="Search..."
+              onClick={(event) =>
+                event.stopPropagation()
+              }
+              onChange={(event) =>
+                setSearch(
+                  event.target.value
+                )
+              }
+            />
+          )}
+
+          {options
+            .filter(
+              (option) =>
+                option.label
+                  .toLowerCase()
+                  .includes(
+                    search
+                      .trim()
+                      .toLowerCase()
+                  )
+            )
+            .map(
             (option) => (
               <button
                 key={option.value}
@@ -2100,6 +2133,32 @@ function PersonalDashboardBuilder({
     string | null
   >(null);
 
+
+  const [
+    dashboardMode,
+    setDashboardMode,
+  ] = useState<
+    "interact" | "edit"
+  >("interact");
+
+  const [
+    formatTarget,
+    setFormatTarget,
+  ] = useState<
+    | "visual"
+    | "title"
+    | "subtitle"
+    | "category"
+    | "value"
+    | "axis"
+    | "legend"
+  >("visual");
+
+  const [
+    showCanvasGrid,
+    setShowCanvasGrid,
+  ] = useState(true);
+
   useEffect(
     () => {
       setVisuals(
@@ -2888,6 +2947,25 @@ function PersonalDashboardBuilder({
       animate: true,
       tooltip_template:
         "{category}\n{measure}: {value}\nRecords: {count}",
+      grid_column: null,
+      title_font_size: 10,
+      title_bold: true,
+      title_color: null,
+      subtitle_font_size: 7,
+      subtitle_bold: false,
+      subtitle_color: null,
+      category_label_font_size: 8,
+      category_label_bold: false,
+      category_label_color: null,
+      value_label_font_size: 8,
+      value_label_bold: true,
+      value_label_color: null,
+      axis_label_font_size: 8,
+      axis_label_bold: false,
+      axis_label_color: null,
+      legend_label_font_size: 8,
+      legend_label_bold: false,
+      legend_label_color: null,
     };
   }
 
