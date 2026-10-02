@@ -349,6 +349,121 @@ def test_semantic_analysis_uses_saved_mapping_dimension():
     }
 
 
+def test_semantic_analysis_applies_multi_value_filter():
+    df = pd.DataFrame(
+        {
+            "Price": [
+                100.0,
+                200.0,
+                300.0,
+                400.0,
+            ],
+            "Type": [
+                "a",
+                "b",
+                "c",
+                "a",
+            ],
+        }
+    )
+
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="fact_sales",
+                table_type="fact",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="Price",
+                        source_column="Price",
+                        role="measure",
+                    ),
+                    PersonalProjectDataModelColumn(
+                        name="Type",
+                        source_column="Type",
+                        role="foreign_key",
+                    ),
+                ],
+            ),
+            PersonalProjectDataModelTable(
+                name="dim_type",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="Type",
+                        source_column="Type",
+                        role="key",
+                    ),
+                ],
+            ),
+        ],
+        relationships=[
+            PersonalProjectDataModelRelationship(
+                from_table="fact_sales",
+                from_column="Type",
+                to_table="dim_type",
+                to_column="Type",
+                cardinality="many_to_one",
+                active=True,
+            ),
+        ],
+        source="user",
+    )
+
+    definition = PersonalProjectKPIDefinition(
+        code="average_price",
+        title="Average Price",
+        fact_table="fact_sales",
+        measure="Price",
+        aggregation="mean",
+        formula_mode="safe_aggregation",
+        formula="MEAN(fact_sales.Price)",
+        description="Average price.",
+        source="user",
+    )
+
+    result = build_semantic_analysis_result(
+        df=df,
+        studio=studio,
+        definition=definition,
+        dimension_table="dim_type",
+        dimension="Type",
+        filters=[
+            (
+                "dim_type",
+                "Type",
+                [
+                    "a",
+                    "c",
+                ],
+            ),
+        ],
+    )
+
+    assert result.overall[
+        "count"
+    ] == 3
+
+    assert result.overall[
+        "metric_value"
+    ] == (
+        100.0 +
+        300.0 +
+        400.0
+    ) / 3
+
+    grouped = {
+        item["value"]:
+            item["metric_value"]
+        for item in result.grouped_results
+    }
+
+    assert grouped == {
+        "a": 250.0,
+        "c": 300.0,
+    }
+
+
 def test_semantic_analysis_materializes_date_part():
     df = pd.DataFrame(
         {
