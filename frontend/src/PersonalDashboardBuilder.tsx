@@ -3576,6 +3576,9 @@ function PersonalDashboardBuilder({
     );
   }
 
+  const activeFormatStyle =
+    currentFormatStyle();
+
   return (
     <section className="personal-dashboard-builder">
       <div className="dashboard-builder-header">
@@ -4105,6 +4108,199 @@ function PersonalDashboardBuilder({
             </div>
 
             <div className="dashboard-properties-body">
+              <div className="dashboard-property-section dashboard-format-target-section">
+                <strong>
+                  FORMAT TARGET
+                </strong>
+
+                <div className="dashboard-format-targets">
+                  {[
+                    ["visual", "Visual"],
+                    ["title", "Title"],
+                    ["subtitle", "Subtitle"],
+                    ["category", "Category labels"],
+                    ["value", "Value labels"],
+                    ["axis", "Axis labels"],
+                    ["legend", "Legend"],
+                  ].map(
+                    ([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={
+                          formatTarget ===
+                          value
+                            ? "active"
+                            : ""
+                        }
+                        onClick={() =>
+                          setFormatTarget(
+                            value as
+                              | "visual"
+                              | "title"
+                              | "subtitle"
+                              | "category"
+                              | "value"
+                              | "axis"
+                              | "legend"
+                          )
+                        }
+                      >
+                        {label}
+                      </button>
+                    )
+                  )}
+                </div>
+
+                {formatTarget !== "visual" && (
+                  <div className="dashboard-format-controls">
+                    <div className="dashboard-font-stepper">
+                      <span>
+                        Font size
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateFormatTargetStyle(
+                            {
+                              fontSize:
+                                activeFormatStyle.fontSize -
+                                1,
+                            }
+                          )
+                        }
+                      >
+                        −
+                      </button>
+
+                      <strong>
+                        {activeFormatStyle.fontSize}
+                      </strong>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateFormatTargetStyle(
+                            {
+                              fontSize:
+                                activeFormatStyle.fontSize +
+                                1,
+                            }
+                          )
+                        }
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <label className="dashboard-property-check">
+                      <input
+                        type="checkbox"
+                        checked={
+                          activeFormatStyle.bold
+                        }
+                        onChange={(event) =>
+                          updateFormatTargetStyle(
+                            {
+                              bold:
+                                event.target.checked,
+                            }
+                          )
+                        }
+                      />
+
+                      <span>
+                        Bold
+                      </span>
+                    </label>
+
+                    <label className="dashboard-format-color">
+                      <span>
+                        Color
+                      </span>
+
+                      <input
+                        type="color"
+                        value={
+                          activeFormatStyle.color
+                        }
+                        onChange={(event) =>
+                          updateFormatTargetStyle(
+                            {
+                              color:
+                                event.target.value,
+                            }
+                          )
+                        }
+                      />
+                    </label>
+                  </div>
+                )}
+
+                <small className="dashboard-property-hint">
+                  In Edit mode, click a title, label or value inside the visual to select its formatting group. In Interact mode, data marks filter the other visuals.
+                </small>
+              </div>
+
+              <div className="dashboard-property-section">
+                <strong>
+                  POSITION & GRID
+                </strong>
+
+                <label className="dashboard-property-field">
+                  <span>
+                    Grid column start
+                  </span>
+
+                  <input
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={
+                      editingVisual.grid_column ??
+                      ""
+                    }
+                    placeholder="Auto"
+                    onChange={(event) =>
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          grid_column:
+                            event.target.value
+                              ? Math.max(
+                                  1,
+                                  Math.min(
+                                    12,
+                                    Number(
+                                      event.target.value
+                                    )
+                                  )
+                                )
+                              : null,
+                        }
+                      )
+                    }
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  className="dashboard-reset-button"
+                  onClick={() =>
+                    updateVisual(
+                      editingVisual.visual_id,
+                      {
+                        grid_column:
+                          null,
+                      }
+                    )
+                  }
+                >
+                  Auto position
+                </button>
+              </div>
+
               <label className="dashboard-property-field">
                 <span>
                   Chart title
@@ -5023,6 +5219,65 @@ function PersonalDashboardBuilder({
               </strong>
             </div>
 
+            <div className="dashboard-canvas-mode-controls">
+              <div className="dashboard-mode-toggle">
+                <button
+                  type="button"
+                  className={
+                    dashboardMode ===
+                    "interact"
+                      ? "active"
+                      : ""
+                  }
+                  onClick={() => {
+                    setDashboardMode(
+                      "interact"
+                    );
+                    setFormatTarget(
+                      "visual"
+                    );
+                  }}
+                >
+                  Interact
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    dashboardMode ===
+                    "edit"
+                      ? "active"
+                      : ""
+                  }
+                  onClick={() =>
+                    setDashboardMode(
+                      "edit"
+                    )
+                  }
+                >
+                  Edit
+                </button>
+              </div>
+
+              <label className="dashboard-grid-toggle">
+                <input
+                  type="checkbox"
+                  checked={
+                    showCanvasGrid
+                  }
+                  onChange={(event) =>
+                    setShowCanvasGrid(
+                      event.target.checked
+                    )
+                  }
+                />
+
+                <span>
+                  Grid
+                </span>
+              </label>
+            </div>
+
             <button
               type="button"
               className="dashboard-reset-button"
@@ -5072,7 +5327,28 @@ function PersonalDashboardBuilder({
             </div>
           )}
 
-          <div className="dashboard-visual-grid">
+          <div
+            className={
+              "dashboard-visual-grid" +
+              (
+                showCanvasGrid
+                  ? " show-grid"
+                  : ""
+              ) +
+              (
+                dashboardMode ===
+                "edit"
+                  ? " edit-mode"
+                  : " interact-mode"
+              )
+            }
+            onDragOver={(event) =>
+              event.preventDefault()
+            }
+            onDrop={
+              handleCanvasDrop
+            }
+          >
             {visuals.map(
               (visual) => {
                 const analysis =
@@ -5145,6 +5421,8 @@ function PersonalDashboardBuilder({
                           : ""
                       ) +
                       (
+                        dashboardMode ===
+                        "edit" &&
                         editingVisualId ===
                         visual.visual_id
                           ? " selected"
@@ -5156,13 +5434,131 @@ function PersonalDashboardBuilder({
                         visual.background_color,
                       color:
                         visual.text_color,
-                    }}
-                    onClick={() =>
+                      gridColumn:
+                        visual.grid_column
+                          ? (
+                              visual.grid_column +
+                              " / span " +
+                              visualSpan(
+                                visual
+                              )
+                            )
+                          : (
+                              "span " +
+                              visualSpan(
+                                visual
+                              )
+                            ),
+                      "--dashboard-title-size":
+                        (visual.title_font_size ?? 10) + "px",
+                      "--dashboard-title-weight":
+                        visual.title_bold === false
+                          ? 400
+                          : 800,
+                      "--dashboard-title-color":
+                        visual.title_color ??
+                        visual.text_color,
+                      "--dashboard-subtitle-size":
+                        (visual.subtitle_font_size ?? 7) + "px",
+                      "--dashboard-subtitle-weight":
+                        visual.subtitle_bold
+                          ? 700
+                          : 400,
+                      "--dashboard-subtitle-color":
+                        visual.subtitle_color ??
+                        visual.text_color,
+                      "--dashboard-category-size":
+                        (visual.category_label_font_size ?? 8) + "px",
+                      "--dashboard-category-weight":
+                        visual.category_label_bold
+                          ? 700
+                          : 400,
+                      "--dashboard-category-color":
+                        visual.category_label_color ??
+                        visual.text_color,
+                      "--dashboard-value-size":
+                        (visual.value_label_font_size ?? 8) + "px",
+                      "--dashboard-value-weight":
+                        visual.value_label_bold === false
+                          ? 400
+                          : 700,
+                      "--dashboard-value-color":
+                        visual.value_label_color ??
+                        visual.text_color,
+                      "--dashboard-axis-size":
+                        (visual.axis_label_font_size ?? 8) + "px",
+                      "--dashboard-axis-weight":
+                        visual.axis_label_bold
+                          ? 700
+                          : 400,
+                      "--dashboard-axis-color":
+                        visual.axis_label_color ??
+                        visual.text_color,
+                      "--dashboard-legend-size":
+                        (visual.legend_label_font_size ?? 8) + "px",
+                      "--dashboard-legend-weight":
+                        visual.legend_label_bold
+                          ? 700
+                          : 400,
+                      "--dashboard-legend-color":
+                        visual.legend_label_color ??
+                        visual.text_color,
+                    } as CSSProperties}
+                    onClick={(event) => {
+                      if (
+                        dashboardMode !==
+                        "edit"
+                      ) {
+                        return;
+                      }
+
                       setEditingVisualId(
                         visual.visual_id
-                      )
+                      );
+
+                      const target =
+                        (
+                          event.target as HTMLElement
+                        ).closest(
+                          "[data-format-target]"
+                        ) as HTMLElement | null;
+
+                      const nextTarget =
+                        target?.dataset
+                          .formatTarget;
+
+                      if (
+                        nextTarget &&
+                        [
+                          "title",
+                          "subtitle",
+                          "category",
+                          "value",
+                          "axis",
+                          "legend",
+                        ].includes(
+                          nextTarget
+                        )
+                      ) {
+                        setFormatTarget(
+                          nextTarget as
+                            | "title"
+                            | "subtitle"
+                            | "category"
+                            | "value"
+                            | "axis"
+                            | "legend"
+                        );
+                      } else {
+                        setFormatTarget(
+                          "visual"
+                        );
+                      }
+                    }}
+                    draggable={
+                      dashboardMode ===
+                      "edit"
                     }
-                    draggable
                     onDragStart={(
                       event:
                         DragEvent<HTMLElement>
@@ -5229,14 +5625,22 @@ function PersonalDashboardBuilder({
                               ? "active"
                               : ""
                           }
-                          onClick={() =>
+                          onClick={() => {
+                            setDashboardMode(
+                              "edit"
+                            );
+
+                            setFormatTarget(
+                              "visual"
+                            );
+
                             setEditingVisualId(
                               (previous) =>
                                 previous ===
                                 visual.visual_id
                                   ? null
                                   : visual.visual_id
-                            )
+                            );
                           }
                           title="Edit visual"
                         >
@@ -5342,7 +5746,10 @@ function PersonalDashboardBuilder({
                             selectedValue
                           }
                           onSelect={
-                            selectCategory
+                            dashboardMode ===
+                            "interact"
+                              ? selectCategory
+                              : undefined
                           }
                         />
                       )}
@@ -5377,7 +5784,10 @@ function PersonalDashboardBuilder({
                             selectedValue
                           }
                           onSelect={
-                            selectCategory
+                            dashboardMode ===
+                            "interact"
+                              ? selectCategory
+                              : undefined
                           }
                         />
                       )}
@@ -5406,7 +5816,10 @@ function PersonalDashboardBuilder({
                             selectedValue
                           }
                           onSelect={
-                            selectCategory
+                            dashboardMode ===
+                            "interact"
+                              ? selectCategory
+                              : undefined
                           }
                         />
                       )}
@@ -5435,7 +5848,10 @@ function PersonalDashboardBuilder({
                             selectedValue
                           }
                           onSelect={
-                            selectCategory
+                            dashboardMode ===
+                            "interact"
+                              ? selectCategory
+                              : undefined
                           }
                         />
                       )}
@@ -5470,7 +5886,10 @@ function PersonalDashboardBuilder({
                             selectedValue
                           }
                           onSelect={
-                            selectCategory
+                            dashboardMode ===
+                            "interact"
+                              ? selectCategory
+                              : undefined
                           }
                         />
                       )}
@@ -5488,7 +5907,10 @@ function PersonalDashboardBuilder({
                             selectedValue
                           }
                           onSelect={
-                            selectCategory
+                            dashboardMode ===
+                            "interact"
+                              ? selectCategory
+                              : undefined
                           }
                         />
                       )}
