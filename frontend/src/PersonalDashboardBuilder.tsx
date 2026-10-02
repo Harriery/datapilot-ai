@@ -1639,9 +1639,11 @@ function PersonalDashboardBuilder({
   savedTitle,
   savedSubtitle,
   savedTheme,
+  savedFilters,
   loading,
   error,
   onPreview,
+  onLoadFilterValues,
   onSave,
 }: Props) {
   const [
@@ -1675,6 +1677,33 @@ function PersonalDashboardBuilder({
     DashboardTheme
   >(
     savedTheme
+  );
+
+
+  const [
+    dashboardFilters,
+    setDashboardFilters,
+  ] = useState<
+    DashboardFilterData[]
+  >(
+    savedFilters
+  );
+
+  const [
+    filterValues,
+    setFilterValues,
+  ] = useState<
+    Record<
+      string,
+      string[]
+    >
+  >({});
+
+  const [
+    pendingFilterKey,
+    setPendingFilterKey,
+  ] = useState(
+    ""
   );
 
   const [
@@ -1730,12 +1759,17 @@ function PersonalDashboardBuilder({
       setDashboardTheme(
         savedTheme
       );
+
+      setDashboardFilters(
+        savedFilters
+      );
     },
     [
       savedVisuals,
       savedTitle,
       savedSubtitle,
       savedTheme,
+      savedFilters,
     ]
   );
 
