@@ -102,13 +102,7 @@ function recommendedVisual(
     return "line";
   }
 
-  if (
-    analysis.grouped_results.length <= 20
-  ) {
-    return "bar";
-  }
-
-  return "table";
+  return "bar";
 }
 
 function recommendationLabel(
@@ -120,6 +114,104 @@ function recommendationLabel(
     line: "Line chart",
     table: "Table",
   }[type];
+}
+
+
+function DashboardSelect<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: {
+    value: T;
+    label: string;
+  }[];
+  onChange: (
+    value: T
+  ) => void;
+}) {
+  const [
+    open,
+    setOpen,
+  ] = useState(false);
+
+  const selected =
+    options.find(
+      (option) =>
+        option.value === value
+    );
+
+  return (
+    <div
+      className={
+        "dashboard-select" +
+        (
+          open
+            ? " open"
+            : ""
+        )
+      }
+    >
+      <button
+        type="button"
+        className="dashboard-select-trigger"
+        onClick={() =>
+          setOpen(
+            (previous) =>
+              !previous
+          )
+        }
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span>
+          {selected?.label ??
+            value}
+        </span>
+
+        <span aria-hidden="true">
+          ▾
+        </span>
+      </button>
+
+      {open && (
+        <div
+          className="dashboard-select-menu"
+          role="listbox"
+        >
+          {options.map(
+            (option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={
+                  option.value ===
+                  value
+                }
+                className={
+                  option.value ===
+                  value
+                    ? "dashboard-select-option selected"
+                    : "dashboard-select-option"
+                }
+                onClick={() => {
+                  onChange(
+                    option.value
+                  );
+
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function sortRows(
@@ -1157,38 +1249,40 @@ function PersonalDashboardBuilder({
                           Visual
                         </span>
 
-                        <select
+                        <DashboardSelect
                           value={
                             visual.visual_type
                           }
+                          options={[
+                            {
+                              value: "kpi",
+                              label: "KPI card",
+                            },
+                            {
+                              value: "bar",
+                              label: "Bar chart",
+                            },
+                            {
+                              value: "line",
+                              label: "Line chart",
+                            },
+                            {
+                              value: "table",
+                              label: "Table",
+                            },
+                          ]}
                           onChange={(
-                            event
+                            visualType
                           ) =>
                             updateVisual(
                               visual.visual_id,
                               {
                                 visual_type:
-                                  event
-                                    .target
-                                    .value as
-                                    DashboardVisualType,
+                                  visualType,
                               }
                             )
                           }
-                        >
-                          <option value="kpi">
-                            KPI card
-                          </option>
-                          <option value="bar">
-                            Bar chart
-                          </option>
-                          <option value="line">
-                            Line chart
-                          </option>
-                          <option value="table">
-                            Table
-                          </option>
-                        </select>
+                        />
                       </label>
 
                       {analysis.grouped_results.length > 0 && (
@@ -1198,41 +1292,44 @@ function PersonalDashboardBuilder({
                               Sort
                             </span>
 
-                            <select
+                            <DashboardSelect
                               value={
                                 visual.sort_mode
                               }
+                              options={[
+                                {
+                                  value: "top_value",
+                                  label: "Top value",
+                                },
+                                {
+                                  value: "bottom_value",
+                                  label: "Bottom value",
+                                },
+                                {
+                                  value: "alphabetical",
+                                  label: "Alphabetical",
+                                },
+                                {
+                                  value: "highest_count",
+                                  label: "Highest count",
+                                },
+                                {
+                                  value: "lowest_count",
+                                  label: "Lowest count",
+                                },
+                              ]}
                               onChange={(
-                                event
+                                sortMode
                               ) =>
                                 updateVisual(
                                   visual.visual_id,
                                   {
                                     sort_mode:
-                                      event
-                                        .target
-                                        .value as
-                                        DashboardSortMode,
+                                      sortMode,
                                   }
                                 )
                               }
-                            >
-                              <option value="top_value">
-                                Top value
-                              </option>
-                              <option value="bottom_value">
-                                Bottom value
-                              </option>
-                              <option value="alphabetical">
-                                Alphabetical
-                              </option>
-                              <option value="highest_count">
-                                Highest count
-                              </option>
-                              <option value="lowest_count">
-                                Lowest count
-                              </option>
-                            </select>
+                            />
                           </label>
 
                           <label>
