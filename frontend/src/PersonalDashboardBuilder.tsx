@@ -3315,7 +3315,7 @@ function PersonalDashboardBuilder({
     );
   }
 
-  function updateFormatTargetStyle(  function updateFormatTargetStyle(
+  function updateFormatTargetStyle(
     patch: {
       fontSize?: number;
       bold?: boolean;
@@ -4633,9 +4633,6 @@ function PersonalDashboardBuilder({
               </div>
 
               <label className="dashboard-property-field">
-                <span>
-                  Chart title
-                </span>              <label className="dashboard-property-field">
                 <span>
                   Chart title
                 </span>
