@@ -5647,18 +5647,17 @@ function PersonalDashboardBuilder({
                         )}
                       </div>
 
-                      {visualIsFiltered && (
-                        <span className="dashboard-filtered-badge">
-                          Filtered
-                        </span>
-                      )}
-
                       <div
                         className="dashboard-visual-actions"
                         onClick={(event) =>
                           event.stopPropagation()
                         }
                       >
+                        {visualIsFiltered && (
+                          <span className="dashboard-filtered-badge">
+                            Filtered
+                          </span>
+                        )}
                         <button
                           type="button"
                           className={
