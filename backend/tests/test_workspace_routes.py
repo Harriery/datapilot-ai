@@ -5443,6 +5443,9 @@ def test_save_personal_dashboard_persists_visuals_and_advances(
             f"{workspace_id}/dashboard/save"
         ),
         json={
+            "title": "Melbourne Housing Overview",
+            "subtitle": "Semantic BI dashboard",
+            "theme": "teal",
             "visuals": [
                 {
                     "visual_id": "visual-001",
@@ -5466,6 +5469,29 @@ def test_save_personal_dashboard_persists_visuals_and_advances(
             "visuals"
         ][0]["analysis_id"]
         == "analysis-001"
+    )
+
+
+    assert (
+        body["dashboard_config"]["title"]
+        == "Melbourne Housing Overview"
+    )
+
+    assert (
+        body["dashboard_config"]["subtitle"]
+        == "Semantic BI dashboard"
+    )
+
+    assert (
+        body["dashboard_config"]["theme"]
+        == "teal"
+    )
+
+    assert (
+        body["dashboard_config"]["visuals"][0][
+            "accent_color"
+        ]
+        == "#2f80ed"
     )
 
     deliverables = {
