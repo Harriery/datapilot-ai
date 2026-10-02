@@ -33,6 +33,7 @@ export type DashboardSortMode =
   | "top_value"
   | "bottom_value"
   | "alphabetical"
+  | "chronological"
   | "highest_count"
   | "lowest_count";
 
@@ -54,6 +55,7 @@ export type DashboardVisualData = {
   visual_type: DashboardVisualType;
   title: string;
   subtitle: string | null;
+  auto_title?: boolean;
   size:
     | "compact"
     | "small"
@@ -155,7 +157,10 @@ function defaultVisualTitle(
   }
 
   if (
-    visualType === "line" &&
+    (
+      visualType === "line" ||
+      visualType === "area"
+    ) &&
     isTimeDimension(
       analysis.dimension
     )
@@ -168,7 +173,10 @@ function defaultVisualTitle(
   }
 
   if (
-    visualType === "bar" &&
+    (
+      visualType === "bar" ||
+      visualType === "column"
+    ) &&
     sortMode === "top_value"
   ) {
     return (
@@ -182,7 +190,10 @@ function defaultVisualTitle(
   }
 
   if (
-    visualType === "bar" &&
+    (
+      visualType === "bar" ||
+      visualType === "column"
+    ) &&
     sortMode === "bottom_value"
   ) {
     return (
@@ -408,14 +419,22 @@ function sortRows(
     (left, right) => {
       if (
         sortMode ===
-        "alphabetical"
+        "alphabetical" ||
+        sortMode ===
+        "chronological"
       ) {
         return String(
           left.value ?? ""
         ).localeCompare(
           String(
             right.value ?? ""
-          )
+          ),
+          undefined,
+          {
+            numeric:
+              sortMode ===
+              "chronological",
+          }
         );
       }
 
@@ -1769,6 +1788,7 @@ function PersonalDashboardBuilder({
         defaultVisualSubtitle(
           analysis
         ),
+      auto_title: true,
       size:
         visualType === "kpi"
           ? "compact"
