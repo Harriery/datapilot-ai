@@ -62,6 +62,9 @@ import PersonalKpiCandidates, {
 
 import PersonalDataModel from "./PersonalDataModel";
 import PersonalBiModel from "./PersonalBiModel";
+import PersonalDashboardBuilder, {
+  type DashboardVisualData,
+} from "./PersonalDashboardBuilder";
 
 import WorkspaceStageNavigation from "./WorkspaceStageNavigation";
 
@@ -290,6 +293,10 @@ type DashboardWorkspace = {
   analysis_result?: AnalysisResultData | null;
 
   analysis_results?: AnalysisResultData[];
+
+  dashboard_config?: {
+    visuals: DashboardVisualData[];
+  };
 
   
   kpi_candidates?: PersonalKpiData[];
@@ -1057,6 +1064,16 @@ function App() {
   const [
     personalAnalysisError,
     setPersonalAnalysisError,
+  ] = useState<string | null>(null);
+
+  const [
+    personalDashboardLoading,
+    setPersonalDashboardLoading,
+  ] = useState(false);
+
+  const [
+    personalDashboardError,
+    setPersonalDashboardError,
   ] = useState<string | null>(null);
 
   const [
@@ -3184,6 +3201,80 @@ async function runPersonalAnalysis(
     );
   } finally {
     setPersonalAnalysisLoading(false);
+  }
+}
+
+async function savePersonalDashboard(
+  visuals: DashboardVisualData[],
+) {
+  if (!workspaceId) {
+    return;
+  }
+
+  setPersonalDashboardLoading(true);
+  setPersonalDashboardError(null);
+
+  try {
+    const response = await fetch(
+      (
+        `http://127.0.0.1:8000/workspaces/` +
+        `demo-learner/${workspaceId}/dashboard/save`
+      ),
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          visuals,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData =
+        await response.json();
+
+      throw new Error(
+        errorData.detail ||
+          "Dashboard could not be saved."
+      );
+    }
+
+    const updatedWorkspace:
+      DashboardWorkspace =
+        await response.json();
+
+    setDashboardWorkspace(
+      updatedWorkspace
+    );
+
+    setDashboardWorkspaces(
+      (previous) =>
+        previous.map(
+          (workspace) =>
+            workspace.workspace_id ===
+            updatedWorkspace.workspace_id
+              ? updatedWorkspace
+              : workspace
+        )
+    );
+
+    setActiveWorkspaceStage(
+      "insights"
+    );
+
+  } catch (error) {
+    setPersonalDashboardError(
+      error instanceof Error
+        ? error.message
+        : "Dashboard could not be saved."
+    );
+  } finally {
+    setPersonalDashboardLoading(false);
   }
 }
 
@@ -6357,6 +6448,27 @@ async function restoreWorkspaceVersion(
                             error={personalAnalysisError}
                             onRunAnalysis={runPersonalAnalysis}
                             onDeleteAnalysis={deletePersonalAnalysis}
+                          />
+                        )}
+
+                      {dashboardWorkspace.usage_context === "personal" &&
+                        activeWorkspaceStage === "dashboard" && (
+                          <PersonalDashboardBuilder
+                            analyses={
+                              dashboardWorkspace.analysis_results ?? []
+                            }
+                            savedVisuals={
+                              dashboardWorkspace.dashboard_config?.visuals ?? []
+                            }
+                            loading={
+                              personalDashboardLoading
+                            }
+                            error={
+                              personalDashboardError
+                            }
+                            onSave={
+                              savePersonalDashboard
+                            }
                           />
                         )}
 
