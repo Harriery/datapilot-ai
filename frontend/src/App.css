@@ -15448,3 +15448,78 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+.dashboard-report-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-top: 10px;
+  padding: 10px 12px;
+
+  border-left: 4px solid var(
+    --dashboard-theme-accent,
+    #2f80ed
+  );
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+.dashboard-report-heading h3 {
+  margin: 0;
+
+  color: #233a55;
+
+  font-size: 15px;
+}
+
+.dashboard-report-heading p {
+  margin: 3px 0 0;
+
+  color: #7a8ca2;
+
+  font-size: 9px;
+}
+
+.dashboard-report-heading > span {
+  flex-shrink: 0;
+
+  padding: 4px 7px;
+
+  border-radius: 999px;
+
+  background:
+    color-mix(
+      in srgb,
+      var(
+        --dashboard-theme-accent,
+        #2f80ed
+      ) 10%,
+      white
+    );
+
+  color: var(
+    --dashboard-theme-accent,
+    #2f80ed
+  );
+
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.dashboard-visual-card
+  .dashboard-visual-header input,
+.dashboard-visual-card
+  .dashboard-table td,
+.dashboard-visual-card
+  .dashboard-bar-row > span,
+.dashboard-visual-card
+  .dashboard-bar-row > strong,
+.dashboard-visual-card
+  .dashboard-kpi-visual span {
+  color: inherit;
+}
