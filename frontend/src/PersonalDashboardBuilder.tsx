@@ -2834,14 +2834,41 @@ function PersonalDashboardBuilder({
                         label: "Table",
                       },
                     ]}
-                    onChange={(visualType) =>
+                    onChange={(visualType) => {
+                      const nextSort =
+                        (
+                          editingIsTime &&
+                          [
+                            "line",
+                            "area",
+                          ].includes(
+                            visualType
+                          )
+                        )
+                          ? "chronological"
+                          : editingVisual.sort_mode;
+
                       updateVisual(
                         editingVisual.visual_id,
                         {
                           visual_type:
                             visualType,
+                          sort_mode:
+                            nextSort,
+                          title:
+                            (
+                              editingVisual.auto_title !== false &&
+                              editingAnalysis
+                            )
+                              ? defaultVisualTitle(
+                                  editingAnalysis,
+                                  visualType,
+                                  nextSort,
+                                  editingVisual.top_n,
+                                )
+                              : editingVisual.title,
                         }
-                      )
+                      );
                     }
                   />
                 </label>
@@ -2886,6 +2913,18 @@ function PersonalDashboardBuilder({
                             {
                               sort_mode:
                                 sortMode,
+                              title:
+                                (
+                                  editingVisual.auto_title !== false &&
+                                  editingAnalysis
+                                )
+                                  ? defaultVisualTitle(
+                                      editingAnalysis,
+                                      editingVisual.visual_type,
+                                      sortMode,
+                                      editingVisual.top_n,
+                                    )
+                                  : editingVisual.title,
                             }
                           )
                         }
@@ -2904,22 +2943,37 @@ function PersonalDashboardBuilder({
                         value={
                           editingVisual.top_n
                         }
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const topN =
+                            Math.max(
+                              1,
+                              Math.min(
+                                50,
+                                Number(
+                                  event.target.value
+                                ) || 1
+                              )
+                            );
+
                           updateVisual(
                             editingVisual.visual_id,
                             {
                               top_n:
-                                Math.max(
-                                  1,
-                                  Math.min(
-                                    50,
-                                    Number(
-                                      event.target.value
-                                    ) || 1
-                                  )
-                                ),
+                                topN,
+                              title:
+                                (
+                                  editingVisual.auto_title !== false &&
+                                  editingAnalysis
+                                )
+                                  ? defaultVisualTitle(
+                                      editingAnalysis,
+                                      editingVisual.visual_type,
+                                      editingVisual.sort_mode,
+                                      topN,
+                                    )
+                                  : editingVisual.title,
                             }
-                          )
+                          );
                         }
                       />
                     </label>
