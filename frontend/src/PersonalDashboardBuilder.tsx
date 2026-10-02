@@ -23,6 +23,13 @@ export type DashboardSortMode =
   | "highest_count"
   | "lowest_count";
 
+export type DashboardTheme =
+  | "ocean"
+  | "teal"
+  | "violet"
+  | "sunset"
+  | "slate";
+
 export type DashboardVisualData = {
   visual_id: string;
   analysis_id: string;
@@ -31,15 +38,24 @@ export type DashboardVisualData = {
   size: "small" | "large";
   sort_mode: DashboardSortMode;
   top_n: number;
+  accent_color: string;
+  background_color: string;
+  text_color: string;
 };
 
 type Props = {
   analyses: AnalysisResultData[];
   savedVisuals: DashboardVisualData[];
+  savedTitle: string;
+  savedSubtitle: string | null;
+  savedTheme: DashboardTheme;
   loading: boolean;
   error: string | null;
   onSave: (
-    visuals: DashboardVisualData[]
+    visuals: DashboardVisualData[],
+    title: string,
+    subtitle: string | null,
+    theme: DashboardTheme,
   ) => void;
 };
 
@@ -115,6 +131,48 @@ function recommendationLabel(
     table: "Table",
   }[type];
 }
+
+
+const DASHBOARD_THEMES: Record<
+  DashboardTheme,
+  {
+    label: string;
+    accent: string;
+    background: string;
+    text: string;
+  }
+> = {
+  ocean: {
+    label: "Ocean",
+    accent: "#2f80ed",
+    background: "#ffffff",
+    text: "#213854",
+  },
+  teal: {
+    label: "Teal",
+    accent: "#0f9f8f",
+    background: "#fbfffe",
+    text: "#183f3a",
+  },
+  violet: {
+    label: "Violet",
+    accent: "#7c5ce6",
+    background: "#fdfcff",
+    text: "#302650",
+  },
+  sunset: {
+    label: "Sunset",
+    accent: "#e8873a",
+    background: "#fffdf9",
+    text: "#51311f",
+  },
+  slate: {
+    label: "Slate",
+    accent: "#52677f",
+    background: "#fbfcfd",
+    text: "#26384a",
+  },
+};
 
 
 function DashboardSelect<T extends string>({
@@ -298,11 +356,19 @@ function getMetricValue(
 
 function DashboardKpiVisual({
   analysis,
+  accentColor,
 }: {
   analysis: AnalysisResultData;
+  accentColor: string;
 }) {
   return (
-    <div className="dashboard-kpi-visual">
+    <div
+      className="dashboard-kpi-visual"
+      style={{
+        "--dashboard-accent":
+          accentColor,
+      } as React.CSSProperties}
+    >
       <strong>
         {formatNumber(
           getMetricValue(
@@ -333,11 +399,13 @@ function DashboardKpiVisual({
 function DashboardBarVisual({
   analysis,
   rows,
+  accentColor,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
     "grouped_results"
   ];
+  accentColor: string;
 }) {
   const semantic =
     Boolean(
@@ -361,7 +429,13 @@ function DashboardBarVisual({
     );
 
   return (
-    <div className="dashboard-bar-chart">
+    <div
+      className="dashboard-bar-chart"
+      style={{
+        "--dashboard-accent":
+          accentColor,
+      } as React.CSSProperties}
+    >
       {rows.map(
         (row, index) => {
           const value =
@@ -425,11 +499,13 @@ function DashboardBarVisual({
 function DashboardLineVisual({
   analysis,
   rows,
+  accentColor,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
     "grouped_results"
   ];
+  accentColor: string;
 }) {
   const semantic =
     Boolean(
@@ -527,7 +603,13 @@ function DashboardLineVisual({
       .join(" ");
 
   return (
-    <div className="dashboard-line-chart">
+    <div
+      className="dashboard-line-chart"
+      style={{
+        "--dashboard-accent":
+          accentColor,
+      } as React.CSSProperties}
+    >
       <svg
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
@@ -659,6 +741,9 @@ function DashboardTableVisual({
 function PersonalDashboardBuilder({
   analyses,
   savedVisuals,
+  savedTitle,
+  savedSubtitle,
+  savedTheme,
   loading,
   error,
   onSave,
@@ -670,6 +755,30 @@ function PersonalDashboardBuilder({
     DashboardVisualData[]
   >(
     savedVisuals
+  );
+
+
+  const [
+    dashboardTitle,
+    setDashboardTitle,
+  ] = useState(
+    savedTitle
+  );
+
+  const [
+    dashboardSubtitle,
+    setDashboardSubtitle,
+  ] = useState(
+    savedSubtitle ?? ""
+  );
+
+  const [
+    dashboardTheme,
+    setDashboardTheme,
+  ] = useState<
+    DashboardTheme
+  >(
+    savedTheme
   );
 
   const [
@@ -684,8 +793,25 @@ function PersonalDashboardBuilder({
       setVisuals(
         savedVisuals
       );
+
+      setDashboardTitle(
+        savedTitle
+      );
+
+      setDashboardSubtitle(
+        savedSubtitle ?? ""
+      );
+
+      setDashboardTheme(
+        savedTheme
+      );
     },
-    [savedVisuals]
+    [
+      savedVisuals,
+      savedTitle,
+      savedSubtitle,
+      savedTheme,
+    ]
   );
 
   const analysesById =
@@ -762,6 +888,18 @@ function PersonalDashboardBuilder({
         visualType === "line"
           ? 20
           : 10,
+      accent_color:
+        DASHBOARD_THEMES[
+          dashboardTheme
+        ].accent,
+      background_color:
+        DASHBOARD_THEMES[
+          dashboardTheme
+        ].background,
+      text_color:
+        DASHBOARD_THEMES[
+          dashboardTheme
+        ].text,
     };
   }
 
@@ -975,7 +1113,10 @@ function PersonalDashboardBuilder({
             }
             onClick={() =>
               onSave(
-                visuals
+                visuals,
+                dashboardTitle.trim() || "Dashboard",
+                dashboardSubtitle.trim() || null,
+                dashboardTheme,
               )
             }
           >
@@ -983,6 +1124,167 @@ function PersonalDashboardBuilder({
               ? "Saving..."
               : "Save dashboard"}
           </button>
+        </div>
+      </div>
+
+      <div className="dashboard-style-toolbar">
+        <label>
+          <span>
+            Dashboard title
+          </span>
+
+          <input
+            value={
+              dashboardTitle
+            }
+            onChange={(event) =>
+              setDashboardTitle(
+                event.target.value
+              )
+            }
+          />
+        </label>
+
+        <label>
+          <span>
+            Subtitle
+          </span>
+
+          <input
+            value={
+              dashboardSubtitle
+            }
+            placeholder="Optional"
+            onChange={(event) =>
+              setDashboardSubtitle(
+                event.target.value
+              )
+            }
+          />
+        </label>
+
+        <label>
+          <span>
+            Theme
+          </span>
+
+          <DashboardSelect
+            value={
+              dashboardTheme
+            }
+            options={
+              (
+                Object.entries(
+                  DASHBOARD_THEMES
+                ) as [
+                  DashboardTheme,
+                  {
+                    label: string;
+                  },
+                ][]
+              ).map(
+                ([
+                  value,
+                  theme,
+                ]) => ({
+                  value,
+                  label:
+                    theme.label,
+                })
+              )
+            }
+            onChange={(
+              theme
+            ) => {
+              setDashboardTheme(
+                theme
+              );
+
+              const palette =
+                DASHBOARD_THEMES[
+                  theme
+                ];
+
+              setVisuals(
+                (previous) =>
+                  previous.map(
+                    (visual) => ({
+                      ...visual,
+                      accent_color:
+                        palette.accent,
+                      background_color:
+                        palette.background,
+                      text_color:
+                        palette.text,
+                    })
+                  )
+              );
+            }}
+          />
+        </label>
+
+        <div className="dashboard-theme-swatches">
+          {(
+            Object.entries(
+              DASHBOARD_THEMES
+            ) as [
+              DashboardTheme,
+              {
+                label: string;
+                accent: string;
+              },
+            ][]
+          ).map(
+            ([
+              themeKey,
+              theme,
+            ]) => (
+              <button
+                key={
+                  themeKey
+                }
+                type="button"
+                title={
+                  theme.label
+                }
+                className={
+                  themeKey ===
+                  dashboardTheme
+                    ? "active"
+                    : ""
+                }
+                style={{
+                  background:
+                    theme.accent,
+                }}
+                onClick={() => {
+                  setDashboardTheme(
+                    themeKey
+                  );
+
+                  const palette =
+                    DASHBOARD_THEMES[
+                      themeKey
+                    ];
+
+                  setVisuals(
+                    (previous) =>
+                      previous.map(
+                        (visual) => ({
+                          ...visual,
+                          accent_color:
+                            palette.accent,
+                          background_color:
+                            palette.background,
+                          text_color:
+                            palette.text,
+                        })
+                      )
+                  );
+                }}
+              />
+            )
+          )}
         </div>
       </div>
 
@@ -1133,6 +1435,12 @@ function PersonalDashboardBuilder({
                       "dashboard-visual-card size-" +
                       visual.size
                     }
+                    style={{
+                      background:
+                        visual.background_color,
+                      color:
+                        visual.text_color,
+                    }}
                     draggable
                     onDragStart={(
                       event:
@@ -1213,8 +1521,8 @@ function PersonalDashboardBuilder({
                         >
                           {visual.size ===
                           "small"
-                            ? "L"
-                            : "S"}
+                            ? "+"
+                            : "−"}
                         </button>
 
                         <button
@@ -1244,6 +1552,84 @@ function PersonalDashboardBuilder({
                     </header>
 
                     <div className="dashboard-visual-settings">
+                      <label className="dashboard-color-control">
+                        <span>
+                          Accent
+                        </span>
+
+                        <input
+                          type="color"
+                          value={
+                            visual.accent_color
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            updateVisual(
+                              visual.visual_id,
+                              {
+                                accent_color:
+                                  event
+                                    .target
+                                    .value,
+                              }
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label className="dashboard-color-control">
+                        <span>
+                          Card
+                        </span>
+
+                        <input
+                          type="color"
+                          value={
+                            visual.background_color
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            updateVisual(
+                              visual.visual_id,
+                              {
+                                background_color:
+                                  event
+                                    .target
+                                    .value,
+                              }
+                            )
+                          }
+                        />
+                      </label>
+
+                      <label className="dashboard-color-control">
+                        <span>
+                          Text
+                        </span>
+
+                        <input
+                          type="color"
+                          value={
+                            visual.text_color
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            updateVisual(
+                              visual.visual_id,
+                              {
+                                text_color:
+                                  event
+                                    .target
+                                    .value,
+                              }
+                            )
+                          }
+                        />
+                      </label>
+
                       <label>
                         <span>
                           Visual
@@ -1378,6 +1764,9 @@ function PersonalDashboardBuilder({
                           analysis={
                             analysis
                           }
+                          accentColor={
+                            visual.accent_color
+                          }
                         />
                       )}
 
@@ -1388,6 +1777,9 @@ function PersonalDashboardBuilder({
                             analysis
                           }
                           rows={rows}
+                          accentColor={
+                            visual.accent_color
+                          }
                         />
                       )}
 
@@ -1398,6 +1790,9 @@ function PersonalDashboardBuilder({
                             analysis
                           }
                           rows={rows}
+                          accentColor={
+                            visual.accent_color
+                          }
                         />
                       )}
 
