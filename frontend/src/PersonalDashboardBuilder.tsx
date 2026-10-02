@@ -4455,10 +4455,10 @@ function PersonalDashboardBuilder({
                     false
                   )
                 }
-                title="Hide properties"
-                aria-label="Hide visual properties"
+                title="Close properties"
+                aria-label="Close visual properties"
               >
-                →
+                ×
               </button>
             </div>
 
@@ -5567,7 +5567,7 @@ function PersonalDashboardBuilder({
             title="Open visual properties"
             aria-label="Open visual properties"
           >
-            <span>‹</span>
+            <span aria-hidden="true">⚙</span>
             <strong>Properties</strong>
           </button>
         )}
