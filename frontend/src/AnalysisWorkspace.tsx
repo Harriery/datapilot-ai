@@ -666,15 +666,26 @@ function AnalysisWorkspace({
 
                       <div>
                         <span>
-                          Mean
+                          {result.kpi_code
+                            ? "KPI value"
+                            : "Mean"}
                         </span>
 
                         <strong>
                           {
-                            result
-                              .overall
-                              .mean ??
-                            "—"
+                            result.kpi_code
+                              ? (
+                                  result
+                                    .overall
+                                    .metric_value ??
+                                  "—"
+                                )
+                              : (
+                                  result
+                                    .overall
+                                    .mean ??
+                                  "—"
+                                )
                           }
                         </strong>
                       </div>
@@ -727,7 +738,11 @@ function AnalysisWorkspace({
                               </th>
 
                               <th>Count</th>
-                              <th>Mean</th>
+                              <th>
+                                {result.kpi_code
+                                  ? "KPI value"
+                                  : "Mean"}
+                              </th>
                               <th>Min</th>
                               <th>Max</th>
                             </tr>
@@ -766,8 +781,15 @@ function AnalysisWorkspace({
                                     </td>
 
                                     <td>
-                                      {row.mean ??
-                                        "—"}
+                                      {result.kpi_code
+                                        ? (
+                                            row.metric_value ??
+                                            "—"
+                                          )
+                                        : (
+                                            row.mean ??
+                                            "—"
+                                          )}
                                     </td>
 
                                     <td>
