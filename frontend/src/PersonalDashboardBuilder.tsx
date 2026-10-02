@@ -886,13 +886,13 @@ function DashboardBarVisual({
       {(xAxisTitle || yAxisTitle) && (
         <div className="dashboard-axis-summary">
           {xAxisTitle && (
-            <span>
+            <span data-format-target="axis">
               Category: {xAxisTitle}
             </span>
           )}
 
           {yAxisTitle && (
-            <span>
+            <span data-format-target="axis">
               Measure: {yAxisTitle}
             </span>
           )}
@@ -945,6 +945,7 @@ function DashboardBarVisual({
               }
             >
               <span
+                data-format-target="category"
                 title={
                   String(
                     row.value ??
@@ -969,7 +970,7 @@ function DashboardBarVisual({
               </div>
 
               {showValues ? (
-                <strong>
+                <strong data-format-target="value">
                   {formatNumber(
                     value
                   )}
@@ -1341,7 +1342,7 @@ function DashboardColumnVisual({
               }
             >
               {showValues && (
-                <strong>
+                <strong data-format-target="value">
                   {formatNumber(
                     value
                   )}
@@ -1358,7 +1359,7 @@ function DashboardColumnVisual({
                 />
               </div>
 
-              <span>
+              <span data-format-target="category">
                 {String(
                   row.value ??
                   "Missing"
@@ -1895,7 +1896,7 @@ function DashboardPieVisual({
                   }}
                 />
 
-                <span>
+                <span data-format-target="legend">
                   {String(
                     segment.row.value ??
                     "Missing"
@@ -1903,7 +1904,7 @@ function DashboardPieVisual({
                 </span>
 
                 {showValues && (
-                  <strong>
+                  <strong data-format-target="value">
                     {
                       segment.percent
                         .toFixed(1)
@@ -1985,7 +1986,7 @@ function DashboardTableVisual({
                   )
                 }
               >
-                <td>
+                <td data-format-target="category">
                   {String(
                     row.value ??
                     "Missing"
@@ -1998,7 +1999,7 @@ function DashboardTableVisual({
                   )}
                 </td>
 
-                <td>
+                <td data-format-target="value">
                   {formatNumber(
                     semantic
                       ? row.metric_value
@@ -5203,12 +5204,12 @@ function PersonalDashboardBuilder({
                       </span>
 
                       <div className="dashboard-visual-title-block">
-                        <strong>
+                        <strong data-format-target="title">
                           {visual.title}
                         </strong>
 
                         {visual.subtitle && (
-                          <span>
+                          <span data-format-target="subtitle">
                             {visual.subtitle}
                           </span>
                         )}
