@@ -10,11 +10,23 @@ import type {
   AnalysisResultData,
 } from "./PersonalAnalysisPlan";
 
+import type {
+  PersonalKpiData,
+} from "./PersonalKpiCandidates";
+
+import type {
+  DataModelStudioData,
+} from "./DataModelCanvas";
+
 
 export type DashboardVisualType =
   | "kpi"
   | "bar"
+  | "column"
   | "line"
+  | "area"
+  | "pie"
+  | "donut"
   | "table";
 
 export type DashboardSortMode =
@@ -33,7 +45,12 @@ export type DashboardTheme =
 
 export type DashboardVisualData = {
   visual_id: string;
-  analysis_id: string;
+  analysis_id: string | null;
+
+  kpi_code?: string | null;
+  dimension_table?: string | null;
+  dimension?: string | null;
+
   visual_type: DashboardVisualType;
   title: string;
   subtitle: string | null;
@@ -50,16 +67,31 @@ export type DashboardVisualData = {
   x_axis_title: string | null;
   y_axis_title: string | null;
   show_values: boolean;
+
+  show_legend?: boolean;
+  show_gridlines?: boolean;
+  animate?: boolean;
+
+  tooltip_template?: string | null;
 };
 
 type Props = {
   analyses: AnalysisResultData[];
+  kpiDefinitions: PersonalKpiData[];
+  dataModelStudio: DataModelStudioData | null;
   savedVisuals: DashboardVisualData[];
   savedTitle: string;
   savedSubtitle: string | null;
   savedTheme: DashboardTheme;
   loading: boolean;
   error: string | null;
+
+  onPreview: (
+    kpiCode: string,
+    dimensionTable: string | null,
+    dimension: string | null,
+  ) => Promise<AnalysisResultData>;
+
   onSave: (
     visuals: DashboardVisualData[],
     title: string,
