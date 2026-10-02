@@ -3021,8 +3021,15 @@ function PersonalDashboardBuilder({
             {visuals.map(
               (visual) => {
                 const analysis =
-                  analysesById.get(
+                  previewResults[
+                    visual.visual_id
+                  ] ??
+                  (
                     visual.analysis_id
+                      ? analysesById.get(
+                          visual.analysis_id
+                        )
+                      : undefined
                   );
 
                 if (!analysis) {
@@ -3221,6 +3228,9 @@ function PersonalDashboardBuilder({
                           showValues={
                             visual.show_values
                           }
+                          tooltipTemplate={
+                            visual.tooltip_template
+                          }
                         />
                       )}
 
@@ -3245,6 +3255,75 @@ function PersonalDashboardBuilder({
                           }
                         />
                       )}
+
+                      {visual.visual_type ===
+                        "column" && (
+                        <DashboardColumnVisual
+                          analysis={
+                            analysis
+                          }
+                          rows={rows}
+                          accentColor={
+                            visual.accent_color
+                          }
+                          showValues={
+                            visual.show_values
+                          }
+                          tooltipTemplate={
+                            visual.tooltip_template
+                          }
+                        />
+                      )}
+
+                      {visual.visual_type ===
+                        "area" && (
+                        <DashboardAreaVisual
+                          analysis={
+                            analysis
+                          }
+                          rows={rows}
+                          accentColor={
+                            visual.accent_color
+                          }
+                          showValues={
+                            visual.show_values
+                          }
+                          tooltipTemplate={
+                            visual.tooltip_template
+                          }
+                        />
+                      )}
+
+                      {(visual.visual_type ===
+                        "pie" ||
+                        visual.visual_type ===
+                          "donut") && (
+                        <DashboardPieVisual
+                          analysis={
+                            analysis
+                          }
+                          rows={rows}
+                          accentColor={
+                            visual.accent_color
+                          }
+                          donut={
+                            visual.visual_type ===
+                            "donut"
+                          }
+                          showValues={
+                            visual.show_values
+                          }
+                          showLegend={
+                            visual.show_legend ??
+                            true
+                          }
+                          tooltipTemplate={
+                            visual.tooltip_template
+                          }
+                        />
+                      )}
+
+
 
                       {visual.visual_type ===
                         "table" && (
