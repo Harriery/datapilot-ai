@@ -326,9 +326,25 @@ function PersonalAnalysisPlan({
           if (
             definition.dimension
           ) {
+            const suffix =
+              " by " +
+              definition.dimension;
+
+            const baseTitle =
+              definition.title
+                .toLowerCase()
+                .endsWith(
+                  suffix.toLowerCase()
+                )
+                ? definition.title.slice(
+                    0,
+                    -suffix.length
+                  )
+                : definition.title;
+
             questions.push(
               "How does " +
-              definition.title +
+              baseTitle +
               " vary by " +
               definition.dimension +
               "?"
