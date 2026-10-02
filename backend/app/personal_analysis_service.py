@@ -846,11 +846,48 @@ def build_semantic_analysis_result(
     definition: PersonalProjectKPIDefinition,
     dimension_table: str | None = None,
     dimension: str | None = None,
+    filters: list[
+        tuple[
+            str,
+            str,
+            object,
+        ]
+    ] | None = None,
 ) -> PersonalProjectAnalysisResult:
     if definition.fact_table is None:
         raise ValueError(
             "Saved KPI has no fact table."
         )
+
+    filtered_df = df
+
+    for (
+        filter_table,
+        filter_column,
+        filter_value,
+    ) in (filters or []):
+        filter_series = (
+            materialize_semantic_column(
+                df=filtered_df,
+                studio=studio,
+                table_name=filter_table,
+                column_name=filter_column,
+            )
+        )
+
+        if filter_value is None:
+            mask = filter_series.isna()
+        else:
+            mask = (
+                filter_series
+                .astype("string")
+                .fillna("")
+                == str(filter_value)
+            )
+
+        filtered_df = filtered_df.loc[
+            mask
+        ]
 
     def evaluate_metric(
         scoped_df: pd.DataFrame,
@@ -898,7 +935,7 @@ def build_semantic_analysis_result(
         )
 
     metric_value = evaluate_metric(
-        df
+        filtered_df
     )
 
     grouped_results: list[dict] = []
@@ -909,7 +946,7 @@ def build_semantic_analysis_result(
     ):
         dimension_series = (
             materialize_semantic_column(
-                df=df,
+                df=filtered_df,
                 studio=studio,
                 table_name=dimension_table,
                 column_name=dimension,
@@ -920,7 +957,7 @@ def build_semantic_analysis_result(
             {
                 "__dimension": dimension_series,
             },
-            index=df.index,
+            index=filtered_df.index,
         )
 
         for (
@@ -930,7 +967,7 @@ def build_semantic_analysis_result(
             "__dimension",
             dropna=False,
         ).groups.items():
-            scoped_df = df.loc[
+            scoped_df = filtered_df.loc[
                 index_values
             ]
 
@@ -970,7 +1007,7 @@ def build_semantic_analysis_result(
             else definition.aggregation
         ),
         overall={
-            "count": int(len(df)),
+            "count": int(len(filtered_df)),
             "metric_value":
                 metric_value,
             "mean": (
