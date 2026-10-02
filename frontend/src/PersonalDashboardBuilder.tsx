@@ -812,7 +812,7 @@ function DashboardLineVisual({
             }
           </span>
         </div>
-      )
+      )}
     </div>
   );
 }
