@@ -942,6 +942,14 @@ function PersonalDashboardBuilder({
     string | null
   >(null);
 
+
+  const [
+    editingVisualId,
+    setEditingVisualId,
+  ] = useState<
+    string | null
+  >(null);
+
   useEffect(
     () => {
       setVisuals(
@@ -967,6 +975,22 @@ function PersonalDashboardBuilder({
       savedTheme,
     ]
   );
+
+  const editingVisual =
+    visuals.find(
+      (visual) =>
+        visual.visual_id ===
+        editingVisualId
+    ) ?? null;
+
+  const editingAnalysis =
+    editingVisual
+      ? analyses.find(
+          (analysis) =>
+            analysis.analysis_id ===
+            editingVisual.analysis_id
+        ) ?? null
+      : null;
 
   const analysesById =
     useMemo(
@@ -1147,6 +1171,15 @@ function PersonalDashboardBuilder({
             visualId
         )
     );
+
+    if (
+      editingVisualId ===
+      visualId
+    ) {
+      setEditingVisualId(
+        null
+      );
+    }
   }
 
   function resizeVisual(
@@ -1493,7 +1526,16 @@ function PersonalDashboardBuilder({
         </div>
       </div>
 
-      <div className="dashboard-builder-layout">
+      <div
+        className={
+          "dashboard-builder-layout" +
+          (
+            editingVisual
+              ? " properties-open"
+              : ""
+          )
+        }
+      >
         <aside className="dashboard-analysis-library">
           <div className="dashboard-panel-heading">
             <span className="workspace-overview-label">
@@ -1591,6 +1633,373 @@ function PersonalDashboardBuilder({
             </p>
           )}
         </aside>
+
+        {editingVisual && (
+          <aside className="dashboard-properties-panel">
+            <div className="dashboard-properties-header">
+              <div>
+                <span className="workspace-overview-label">
+                  VISUAL PROPERTIES
+                </span>
+
+                <strong>
+                  Edit visual
+                </strong>
+
+                {editingAnalysis && (
+                  <small>
+                    Source: {
+                      editingAnalysis.measure
+                    }{
+                      editingAnalysis.dimension
+                        ? (
+                            " by " +
+                            editingAnalysis.dimension
+                          )
+                        : ""
+                    }
+                  </small>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setEditingVisualId(
+                    null
+                  )
+                }
+                title="Close properties"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="dashboard-properties-body">
+              <label className="dashboard-property-field">
+                <span>
+                  Chart title
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    editingVisual.title
+                  }
+                  onChange={(event) =>
+                    updateVisual(
+                      editingVisual.visual_id,
+                      {
+                        title:
+                          event.target.value,
+                      }
+                    )
+                  }
+                />
+              </label>
+
+              <label className="dashboard-property-field">
+                <span>
+                  Subtitle
+                </span>
+
+                <textarea
+                  rows={3}
+                  value={
+                    editingVisual.subtitle ??
+                    ""
+                  }
+                  placeholder="What does this visual tell the reader?"
+                  onChange={(event) =>
+                    updateVisual(
+                      editingVisual.visual_id,
+                      {
+                        subtitle:
+                          event.target.value ||
+                          null,
+                      }
+                    )
+                  }
+                />
+              </label>
+
+              <div className="dashboard-property-section">
+                <strong>
+                  Appearance
+                </strong>
+
+                <div className="dashboard-property-colors">
+                  <label>
+                    <span>
+                      Accent
+                    </span>
+
+                    <input
+                      type="color"
+                      value={
+                        editingVisual.accent_color
+                      }
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            accent_color:
+                              event.target.value,
+                          }
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    <span>
+                      Card
+                    </span>
+
+                    <input
+                      type="color"
+                      value={
+                        editingVisual.background_color
+                      }
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            background_color:
+                              event.target.value,
+                          }
+                        )
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    <span>
+                      Text
+                    </span>
+
+                    <input
+                      type="color"
+                      value={
+                        editingVisual.text_color
+                      }
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            text_color:
+                              event.target.value,
+                          }
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="dashboard-property-section">
+                <strong>
+                  Visual
+                </strong>
+
+                <label className="dashboard-property-field">
+                  <span>
+                    Type
+                  </span>
+
+                  <DashboardSelect
+                    value={
+                      editingVisual.visual_type
+                    }
+                    options={[
+                      {
+                        value: "kpi",
+                        label: "KPI card",
+                      },
+                      {
+                        value: "bar",
+                        label: "Bar chart",
+                      },
+                      {
+                        value: "line",
+                        label: "Line chart",
+                      },
+                      {
+                        value: "table",
+                        label: "Table",
+                      },
+                    ]}
+                    onChange={(visualType) =>
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          visual_type:
+                            visualType,
+                        }
+                      )
+                    }
+                  />
+                </label>
+
+                {editingAnalysis &&
+                  editingAnalysis.grouped_results.length > 0 && (
+                  <>
+                    <label className="dashboard-property-field">
+                      <span>
+                        Sort
+                      </span>
+
+                      <DashboardSelect
+                        value={
+                          editingVisual.sort_mode
+                        }
+                        options={[
+                          {
+                            value: "top_value",
+                            label: "Top value",
+                          },
+                          {
+                            value: "bottom_value",
+                            label: "Bottom value",
+                          },
+                          {
+                            value: "alphabetical",
+                            label: "Alphabetical",
+                          },
+                          {
+                            value: "highest_count",
+                            label: "Highest count",
+                          },
+                          {
+                            value: "lowest_count",
+                            label: "Lowest count",
+                          },
+                        ]}
+                        onChange={(sortMode) =>
+                          updateVisual(
+                            editingVisual.visual_id,
+                            {
+                              sort_mode:
+                                sortMode,
+                            }
+                          )
+                        }
+                      />
+                    </label>
+
+                    <label className="dashboard-property-field">
+                      <span>
+                        Top N
+                      </span>
+
+                      <input
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={
+                          editingVisual.top_n
+                        }
+                        onChange={(event) =>
+                          updateVisual(
+                            editingVisual.visual_id,
+                            {
+                              top_n:
+                                Math.max(
+                                  1,
+                                  Math.min(
+                                    50,
+                                    Number(
+                                      event.target.value
+                                    ) || 1
+                                  )
+                                ),
+                            }
+                          )
+                        }
+                      />
+                    </label>
+                  </>
+                )}
+              </div>
+
+              <div className="dashboard-property-section">
+                <strong>
+                  Labels & axes
+                </strong>
+
+                <label className="dashboard-property-field">
+                  <span>
+                    X-axis title
+                  </span>
+
+                  <input
+                    type="text"
+                    value={
+                      editingVisual.x_axis_title ??
+                      ""
+                    }
+                    onChange={(event) =>
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          x_axis_title:
+                            event.target.value ||
+                            null,
+                        }
+                      )
+                    }
+                  />
+                </label>
+
+                <label className="dashboard-property-field">
+                  <span>
+                    Y-axis title
+                  </span>
+
+                  <input
+                    type="text"
+                    value={
+                      editingVisual.y_axis_title ??
+                      ""
+                    }
+                    onChange={(event) =>
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          y_axis_title:
+                            event.target.value ||
+                            null,
+                        }
+                      )
+                    }
+                  />
+                </label>
+
+                <label className="dashboard-property-check">
+                  <input
+                    type="checkbox"
+                    checked={
+                      editingVisual.show_values
+                    }
+                    onChange={(event) =>
+                      updateVisual(
+                        editingVisual.visual_id,
+                        {
+                          show_values:
+                            event.target.checked,
+                        }
+                      )
+                    }
+                  />
+
+                  <span>
+                    Show values
+                  </span>
+                </label>
+              </div>
+            </div>
+          </aside>
+        )}
 
         <main
           className="dashboard-canvas"
@@ -1755,6 +2164,28 @@ function PersonalDashboardBuilder({
                       <div className="dashboard-visual-actions">
                         <button
                           type="button"
+                          className={
+                            editingVisualId ===
+                            visual.visual_id
+                              ? "active"
+                              : ""
+                          }
+                          onClick={() =>
+                            setEditingVisualId(
+                              (previous) =>
+                                previous ===
+                                visual.visual_id
+                                  ? null
+                                  : visual.visual_id
+                            )
+                          }
+                          title="Edit visual"
+                        >
+                          ⚙
+                        </button>
+
+                        <button
+                          type="button"
                           disabled={
                             visual.size ===
                             "compact"
@@ -1812,349 +2243,6 @@ function PersonalDashboardBuilder({
                         </button>
                       </div>
                     </header>
-
-                    <div className="dashboard-visual-settings">
-                      <label className="dashboard-text-control">
-                        <span>
-                          Chart title
-                        </span>
-
-                        <input
-                          type="text"
-                          value={
-                            visual.title
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                title:
-                                  event
-                                    .target
-                                    .value,
-                              }
-                            )
-                          }
-                        />
-                      </label>
-
-                      <label className="dashboard-text-control dashboard-text-control-wide">
-                        <span>
-                          Subtitle
-                        </span>
-
-                        <input
-                          type="text"
-                          value={
-                            visual.subtitle ??
-                            ""
-                          }
-                          placeholder="What does this visual tell the reader?"
-                          onChange={(
-                            event
-                          ) =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                subtitle:
-                                  event
-                                    .target
-                                    .value ||
-                                  null,
-                              }
-                            )
-                          }
-                        />
-                      </label>
-
-                      <label className="dashboard-color-control">
-                        <span>
-                          Accent
-                        </span>
-
-                        <input
-                          type="color"
-                          value={
-                            visual.accent_color
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                accent_color:
-                                  event
-                                    .target
-                                    .value,
-                              }
-                            )
-                          }
-                        />
-                      </label>
-
-                      <label className="dashboard-color-control">
-                        <span>
-                          Card
-                        </span>
-
-                        <input
-                          type="color"
-                          value={
-                            visual.background_color
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                background_color:
-                                  event
-                                    .target
-                                    .value,
-                              }
-                            )
-                          }
-                        />
-                      </label>
-
-                      <label className="dashboard-color-control">
-                        <span>
-                          Text
-                        </span>
-
-                        <input
-                          type="color"
-                          value={
-                            visual.text_color
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                text_color:
-                                  event
-                                    .target
-                                    .value,
-                              }
-                            )
-                          }
-                        />
-                      </label>
-
-                      <label className="dashboard-text-control">
-                        <span>
-                          X-axis
-                        </span>
-
-                        <input
-                          type="text"
-                          value={
-                            visual.x_axis_title ??
-                            ""
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                x_axis_title:
-                                  event
-                                    .target
-                                    .value ||
-                                  null,
-                              }
-                            )
-                          }
-                        />
-                      </label>
-
-                      <label className="dashboard-text-control">
-                        <span>
-                          Y-axis
-                        </span>
-
-                        <input
-                          type="text"
-                          value={
-                            visual.y_axis_title ??
-                            ""
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                y_axis_title:
-                                  event
-                                    .target
-                                    .value ||
-                                  null,
-                              }
-                            )
-                          }
-                        />
-                      </label>
-
-                      <label className="dashboard-check-control">
-                        <input
-                          type="checkbox"
-                          checked={
-                            visual.show_values
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                show_values:
-                                  event
-                                    .target
-                                    .checked,
-                              }
-                            )
-                          }
-                        />
-
-                        <span>
-                          Show values
-                        </span>
-                      </label>
-
-                      <label>
-                        <span>
-                          Visual
-                        </span>
-
-                        <DashboardSelect
-                          value={
-                            visual.visual_type
-                          }
-                          options={[
-                            {
-                              value: "kpi",
-                              label: "KPI card",
-                            },
-                            {
-                              value: "bar",
-                              label: "Bar chart",
-                            },
-                            {
-                              value: "line",
-                              label: "Line chart",
-                            },
-                            {
-                              value: "table",
-                              label: "Table",
-                            },
-                          ]}
-                          onChange={(
-                            visualType
-                          ) =>
-                            updateVisual(
-                              visual.visual_id,
-                              {
-                                visual_type:
-                                  visualType,
-                              }
-                            )
-                          }
-                        />
-                      </label>
-
-                      {analysis.grouped_results.length > 0 && (
-                        <>
-                          <label>
-                            <span>
-                              Sort
-                            </span>
-
-                            <DashboardSelect
-                              value={
-                                visual.sort_mode
-                              }
-                              options={[
-                                {
-                                  value: "top_value",
-                                  label: "Top value",
-                                },
-                                {
-                                  value: "bottom_value",
-                                  label: "Bottom value",
-                                },
-                                {
-                                  value: "alphabetical",
-                                  label: "Alphabetical",
-                                },
-                                {
-                                  value: "highest_count",
-                                  label: "Highest count",
-                                },
-                                {
-                                  value: "lowest_count",
-                                  label: "Lowest count",
-                                },
-                              ]}
-                              onChange={(
-                                sortMode
-                              ) =>
-                                updateVisual(
-                                  visual.visual_id,
-                                  {
-                                    sort_mode:
-                                      sortMode,
-                                  }
-                                )
-                              }
-                            />
-                          </label>
-
-                          <label>
-                            <span>
-                              Top N
-                            </span>
-
-                            <input
-                              type="number"
-                              min="1"
-                              max="50"
-                              value={
-                                visual.top_n
-                              }
-                              onChange={(
-                                event
-                              ) =>
-                                updateVisual(
-                                  visual.visual_id,
-                                  {
-                                    top_n:
-                                      Math.max(
-                                        1,
-                                        Math.min(
-                                          50,
-                                          Number(
-                                            event
-                                              .target
-                                              .value
-                                          ) || 1
-                                        )
-                                      ),
-                                  }
-                                )
-                              }
-                            />
-                          </label>
-                        </>
-                      )}
-                    </div>
 
                     <div className="dashboard-visual-content">
                       {visual.visual_type ===
