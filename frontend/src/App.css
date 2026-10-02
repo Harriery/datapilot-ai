@@ -14546,3 +14546,78 @@
       repeat(2, minmax(0, 1fr));
   }
 }
+
+
+/* ==================================================
+   ANALYSIS CARD VISUAL POLISH
+   ================================================== */
+
+.analysis-board-card {
+  border-color: #cbd8e8;
+
+  background: #fbfdff;
+}
+
+.analysis-board-card-header {
+  background: #eef4fb;
+}
+
+.analysis-card-body-inner {
+  background: #fbfdff;
+}
+
+.analysis-card-summary > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 72px;
+
+  text-align: center;
+
+  background: #eef4fb;
+  border-color: #d6e2ef;
+}
+
+.analysis-card-summary span,
+.analysis-card-summary strong {
+  text-align: center;
+}
+
+.analysis-card-summary strong {
+  width: 100%;
+}
+
+.analysis-summary-text {
+  text-align: center;
+}
+
+.analysis-board-card.size-small,
+.analysis-board-card.size-large {
+  grid-column: auto;
+  width: 100%;
+}
+
+.analysis-board-card.size-small
+  .analysis-card-summary,
+.analysis-board-card.size-large
+  .analysis-card-summary {
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+}
+
+.analysis-board-card.size-large
+  .analysis-card-table-section {
+  display: block;
+}
+
+@media (max-width: 800px) {
+  .analysis-board-card.size-small
+    .analysis-card-summary,
+  .analysis-board-card.size-large
+    .analysis-card-summary {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
