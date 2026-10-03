@@ -67,6 +67,8 @@ import PersonalDashboardBuilder, {
   type DashboardTheme,
   type DashboardVisualData,
 } from "./PersonalDashboardBuilder";
+import PersonalInsights from "./PersonalInsights";
+import PersonalDocs from "./PersonalDocs";
 
 import WorkspaceStageNavigation from "./WorkspaceStageNavigation";
 
@@ -3362,6 +3364,27 @@ async function savePersonalDashboard(
       DashboardWorkspace =
         await response.json();
 
+    const savedConfig =
+      updatedWorkspace.dashboard_config;
+
+    if (
+      !savedConfig ||
+      savedConfig.visuals.length !==
+        visuals.length ||
+      savedConfig.filters.length !==
+        filters.length
+    ) {
+      throw new Error(
+        (
+          "Dashboard save verification failed. " +
+          `Sent ${visuals.length} visuals / ${filters.length} filters, ` +
+          `but workspace returned ${savedConfig?.visuals.length ?? 0} visuals / ` +
+          `${savedConfig?.filters.length ?? 0} filters. ` +
+          "Your local dashboard draft has been kept."
+        )
+      );
+    }
+
     setDashboardWorkspace(
       updatedWorkspace
     );
@@ -3390,6 +3413,92 @@ async function savePersonalDashboard(
   } finally {
     setPersonalDashboardLoading(false);
   }
+}
+
+async function confirmPersonalInsights() {
+  if (!workspaceId) {
+    return;
+  }
+
+  const response = await fetch(
+    `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/insights/confirm`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+
+    throw new Error(
+      errorData.detail ||
+        "Insights could not be confirmed."
+    );
+  }
+
+  const updatedWorkspace:
+    DashboardWorkspace =
+      await response.json();
+
+  setDashboardWorkspace(
+    updatedWorkspace
+  );
+
+  setDashboardWorkspaces(
+    (previous) =>
+      previous.map(
+        (workspace) =>
+          workspace.workspace_id ===
+          updatedWorkspace.workspace_id
+            ? updatedWorkspace
+            : workspace
+      )
+  );
+
+  setActiveWorkspaceStage(
+    "docs"
+  );
+}
+
+async function completePersonalDocumentation() {
+  if (!workspaceId) {
+    return;
+  }
+
+  const response = await fetch(
+    `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/documentation/complete`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+
+    throw new Error(
+      errorData.detail ||
+        "Documentation could not be completed."
+    );
+  }
+
+  const updatedWorkspace:
+    DashboardWorkspace =
+      await response.json();
+
+  setDashboardWorkspace(
+    updatedWorkspace
+  );
+
+  setDashboardWorkspaces(
+    (previous) =>
+      previous.map(
+        (workspace) =>
+          workspace.workspace_id ===
+          updatedWorkspace.workspace_id
+            ? updatedWorkspace
+            : workspace
+      )
+  );
 }
 
 async function deletePersonalAnalysis(
@@ -6595,6 +6704,9 @@ async function restoreWorkspaceVersion(
                             savedFilters={
                               dashboardWorkspace.dashboard_config?.filters ?? []
                             }
+                            draftKey={
+                              `datapilot-dashboard-draft:${dashboardWorkspace.workspace_id}`
+                            }
                             loading={
                               personalDashboardLoading
                             }
@@ -6609,6 +6721,63 @@ async function restoreWorkspaceVersion(
                             }
                             onSave={
                               savePersonalDashboard
+                            }
+                          />
+                        )}
+
+                      {dashboardWorkspace.usage_context === "personal" &&
+                        activeWorkspaceStage === "insights" && (
+                          <PersonalInsights
+                            analyses={
+                              dashboardWorkspace.analysis_results ?? []
+                            }
+                            dataModelStudio={
+                              dashboardWorkspace.data_model_studio ?? null
+                            }
+                            kpiDefinitions={
+                              dashboardWorkspace.kpi_definitions ?? []
+                            }
+                            onConfirm={
+                              confirmPersonalInsights
+                            }
+                          />
+                        )}
+
+                      {dashboardWorkspace.usage_context === "personal" &&
+                        activeWorkspaceStage === "docs" && (
+                          <PersonalDocs
+                            projectTitle={
+                              dashboardWorkspace.title
+                            }
+                            datasetFilename={
+                              dashboardWorkspace.dataset_filename ?? null
+                            }
+                            taskBrief={
+                              dashboardWorkspace.task_brief
+                            }
+                            desiredOutcome={
+                              dashboardWorkspace.desired_outcome
+                            }
+                            validationResult={
+                              dashboardWorkspace.validation_result ?? null
+                            }
+                            workbenchOperations={
+                              dashboardWorkspace.workbench_operations ?? []
+                            }
+                            dataModelStudio={
+                              dashboardWorkspace.data_model_studio ?? null
+                            }
+                            kpiDefinitions={
+                              dashboardWorkspace.kpi_definitions ?? []
+                            }
+                            analyses={
+                              dashboardWorkspace.analysis_results ?? []
+                            }
+                            dashboardConfig={
+                              dashboardWorkspace.dashboard_config ?? null
+                            }
+                            onComplete={
+                              completePersonalDocumentation
                             }
                           />
                         )}

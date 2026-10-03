@@ -94,6 +94,11 @@ export type DashboardVisualData = {
   kpi_show_secondary?: boolean;
   kpi_value_alignment?: "left" | "center" | "right";
   kpi_vertical_alignment?: "top" | "center" | "bottom";
+  kpi_stat?:
+    | "metric"
+    | "count"
+    | "min"
+    | "max";
 
   title_font_size?: number;
   title_bold?: boolean;
@@ -143,6 +148,7 @@ type Props = {
   savedSubtitle: string | null;
   savedTheme: DashboardTheme;
   savedFilters: DashboardFilterData[];
+  draftKey: string;
   loading: boolean;
   error: string | null;
 
@@ -164,8 +170,53 @@ type Props = {
     subtitle: string | null,
     theme: DashboardTheme,
     filters: DashboardFilterData[],
-  ) => void;
+  ) => Promise<void>;
 };
+
+type DashboardDraftData = {
+  visuals: DashboardVisualData[];
+  title: string;
+  subtitle: string;
+  theme: DashboardTheme;
+  filters: DashboardFilterData[];
+  updated_at: string;
+};
+
+function loadDashboardDraft(
+  draftKey: string,
+): DashboardDraftData | null {
+  try {
+    const raw =
+      window.localStorage.getItem(
+        draftKey,
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed =
+      JSON.parse(
+        raw,
+      ) as DashboardDraftData;
+
+    if (
+      !Array.isArray(
+        parsed.visuals,
+      ) ||
+      !Array.isArray(
+        parsed.filters,
+      ) ||
+      typeof parsed.title !== "string"
+    ) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 function formatNumber(
   value: number | null | undefined
@@ -1048,6 +1099,7 @@ function DashboardKpiVisual({
   labelColor,
   valueAlignment,
   verticalAlignment,
+  stat,
 }: {
   analysis: AnalysisResultData;
   accentColor: string;
@@ -1058,7 +1110,23 @@ function DashboardKpiVisual({
   labelColor: string;
   valueAlignment: "left" | "center" | "right";
   verticalAlignment: "top" | "center" | "bottom";
+  stat:
+    | "metric"
+    | "count"
+    | "min"
+    | "max";
 }) {
+  const value =
+    stat === "count"
+      ? analysis.overall.count
+      : stat === "min"
+        ? analysis.overall.min
+        : stat === "max"
+          ? analysis.overall.max
+          : getMetricValue(
+              analysis
+            );
+
   const secondary =
     analysis.dimension
       ? (
@@ -1095,9 +1163,7 @@ function DashboardKpiVisual({
     >
       <strong data-format-target="value">
         {formatNumber(
-          getMetricValue(
-            analysis
-          )
+          value
         )}
       </strong>
 
@@ -2655,12 +2721,29 @@ function PersonalDashboardBuilder({
   savedSubtitle,
   savedTheme,
   savedFilters,
+  draftKey,
   loading,
   error,
   onPreview,
   onLoadFilterValues,
   onSave,
 }: Props) {
+  const initialDraftRef =
+    useRef<
+      DashboardDraftData | null
+    >(
+      loadDashboardDraft(
+        draftKey,
+      )
+    );
+
+  const [
+    draftRecovered,
+    setDraftRecovered,
+  ] = useState(
+    initialDraftRef.current !== null
+  );
+
   const [
     visuals,
     setVisuals,
@@ -2668,7 +2751,8 @@ function PersonalDashboardBuilder({
     DashboardVisualData[]
   >(
     normalizeVisualLayouts(
-      savedVisuals
+      initialDraftRef.current?.visuals ??
+        savedVisuals
     )
   );
 
@@ -2677,14 +2761,17 @@ function PersonalDashboardBuilder({
     dashboardTitle,
     setDashboardTitle,
   ] = useState(
-    savedTitle
+    initialDraftRef.current?.title ??
+      savedTitle
   );
 
   const [
     dashboardSubtitle,
     setDashboardSubtitle,
   ] = useState(
-    savedSubtitle ?? ""
+    initialDraftRef.current?.subtitle ??
+      savedSubtitle ??
+      ""
   );
 
   const [
@@ -2693,7 +2780,8 @@ function PersonalDashboardBuilder({
   ] = useState<
     DashboardTheme
   >(
-    savedTheme
+    initialDraftRef.current?.theme ??
+      savedTheme
   );
 
 
@@ -2703,7 +2791,8 @@ function PersonalDashboardBuilder({
   ] = useState<
     DashboardFilterData[]
   >(
-    savedFilters
+    initialDraftRef.current?.filters ??
+      savedFilters
   );
 
 
@@ -2794,6 +2883,17 @@ function PersonalDashboardBuilder({
   ] = useState<string[]>([]);
 
   const [
+    snapGuides,
+    setSnapGuides,
+  ] = useState<{
+    x: number | null;
+    y: number | null;
+  }>({
+    x: null,
+    y: null,
+  });
+
+  const [
     propertiesPanelOpen,
     setPropertiesPanelOpen,
   ] = useState(false);
@@ -2844,8 +2944,22 @@ function PersonalDashboardBuilder({
       savedFilters
     );
 
+  const skippedInitialSavedSyncRef =
+    useRef(
+      initialDraftRef.current !== null
+    );
+
   useEffect(
     () => {
+      if (
+        skippedInitialSavedSyncRef.current
+      ) {
+        skippedInitialSavedSyncRef.current =
+          false;
+
+        return;
+      }
+
       setVisuals(
         normalizeVisualLayouts(
           savedVisuals
@@ -2867,6 +2981,10 @@ function PersonalDashboardBuilder({
       setDashboardFilters(
         savedFilters
       );
+
+      setDraftRecovered(
+        false
+      );
     },
     [
       savedVisualsSignature,
@@ -2874,6 +2992,45 @@ function PersonalDashboardBuilder({
       savedSubtitle,
       savedTheme,
       savedFiltersSignature,
+    ]
+  );
+
+  useEffect(
+    () => {
+      const draft:
+        DashboardDraftData = {
+          visuals,
+          title:
+            dashboardTitle,
+          subtitle:
+            dashboardSubtitle,
+          theme:
+            dashboardTheme,
+          filters:
+            dashboardFilters,
+          updated_at:
+            new Date().toISOString(),
+        };
+
+      try {
+        window.localStorage.setItem(
+          draftKey,
+          JSON.stringify(
+            draft,
+          ),
+        );
+      } catch {
+        // Keep dashboard editing usable when
+        // local storage is unavailable.
+      }
+    },
+    [
+      draftKey,
+      visuals,
+      dashboardTitle,
+      dashboardSubtitle,
+      dashboardTheme,
+      dashboardFilters,
     ]
   );
 
@@ -3783,6 +3940,7 @@ function PersonalDashboardBuilder({
       kpi_show_secondary: false,
       kpi_value_alignment: "center",
       kpi_vertical_alignment: "center",
+      kpi_stat: "metric",
       tooltip_template:
         "{category}\n{measure}: {value}\nRecords: {count}",
       grid_column: null,
@@ -3960,33 +4118,530 @@ function PersonalDashboardBuilder({
     }
   }
 
-  function addSuggestedDashboard() {
-    const next =
-      analyses
-        .filter(
+  async function addSuggestedDashboard() {
+    setCreatingVisual(true);
+    setCreateVisualError("");
+
+    try {
+      const suggested:
+        DashboardVisualData[] = [];
+
+      const suggestedResults:
+        Record<
+          string,
+          AnalysisResultData
+        > = {};
+
+      const baseKpi =
+        reusableKpiDefinitions[0] ??
+        null;
+
+      if (baseKpi) {
+        const preview =
+          await onPreview(
+            baseKpi.code,
+            null,
+            null,
+            dashboardFilters,
+          );
+
+        const baseAnalysis:
+          AnalysisResultData = {
+          ...preview,
+          analysis_id: null,
+          kpi_code:
+            baseKpi.code,
+          dimension_table: null,
+          dimension: null,
+          measure:
+            preview.measure ||
+            baseKpi.title ||
+            baseKpi.code,
+        };
+
+        const kpiSpecs:
+          Array<{
+            stat:
+              | "metric"
+              | "count"
+              | "min"
+              | "max";
+            title: string;
+          }> = [
+          {
+            stat: "metric",
+            title:
+              baseKpi.title,
+          },
+          {
+            stat: "count",
+            title:
+              "Records",
+          },
+          {
+            stat: "min",
+            title:
+              "Minimum " +
+              baseAnalysis.measure,
+          },
+          {
+            stat: "max",
+            title:
+              "Maximum " +
+              baseAnalysis.measure,
+          },
+        ];
+
+        kpiSpecs.forEach(
+          (spec) => {
+            const visual =
+              createVisual(
+                baseAnalysis,
+                "kpi",
+              );
+
+            if (!visual) {
+              return;
+            }
+
+            const configured = {
+              ...visual,
+              title:
+                spec.title,
+              subtitle: null,
+              auto_title: false,
+              kpi_stat:
+                spec.stat,
+              kpi_show_secondary:
+                spec.stat ===
+                "metric",
+              kpi_value_alignment:
+                "left" as const,
+            };
+
+            suggested.push(
+              configured
+            );
+
+            suggestedResults[
+              configured.visual_id
+            ] =
+              baseAnalysis;
+          }
+        );
+      }
+
+      const dimensionAnalyses =
+        analyses.filter(
           (analysis) =>
-            analysis.analysis_id
-        )
-        .slice(0, 8)
-        .map(
-          (analysis) =>
-            createVisual(
-              analysis
-            )
-        )
-        .filter(
-          (
-            visual,
-          ): visual is
-            DashboardVisualData =>
-              visual !== null
+            Boolean(
+              analysis.dimension
+            ) &&
+            analysis.grouped_results
+              .length > 0
         );
 
-    setVisuals(
-      normalizeVisualLayouts(
-        next
-      )
-    );
+      const timeAnalyses =
+        dimensionAnalyses.filter(
+          (analysis) =>
+            isSemanticTimeDimension(
+              dataModelStudio,
+              analysis.dimension_table ??
+                null,
+              analysis.dimension,
+            )
+        );
+
+      const categoricalAnalyses =
+        dimensionAnalyses.filter(
+          (analysis) =>
+            !isSemanticTimeDimension(
+              dataModelStudio,
+              analysis.dimension_table ??
+                null,
+              analysis.dimension,
+            )
+        );
+
+      const usedAnalysisIds =
+        new Set<string>();
+
+      const addFromAnalysis = (
+        analysis:
+          AnalysisResultData | undefined,
+        visualType:
+          DashboardVisualType
+      ) => {
+        if (!analysis) {
+          return;
+        }
+
+        const visual =
+          createVisual(
+            analysis,
+            visualType,
+          );
+
+        if (!visual) {
+          return;
+        }
+
+        suggested.push(
+          visual
+        );
+
+        if (
+          analysis.analysis_id
+        ) {
+          usedAnalysisIds.add(
+            analysis.analysis_id
+          );
+        }
+      };
+
+      addFromAnalysis(
+        timeAnalyses[0],
+        "line",
+      );
+
+      addFromAnalysis(
+        categoricalAnalyses[0],
+        "bar",
+      );
+
+      addFromAnalysis(
+        categoricalAnalyses[1] ??
+          categoricalAnalyses[0],
+        "column",
+      );
+
+      const additiveCategorical =
+        categoricalAnalyses.find(
+          (analysis) => {
+            const definition =
+              kpiDefinitions.find(
+                (item) =>
+                  item.code ===
+                  analysis.kpi_code
+              );
+
+            return [
+              "sum",
+              "count",
+            ].includes(
+              definition?.aggregation ??
+              ""
+            );
+          }
+        );
+
+      addFromAnalysis(
+        additiveCategorical,
+        "donut",
+      );
+
+      const tableAnalysis =
+        dimensionAnalyses.find(
+          (analysis) =>
+            !analysis.analysis_id ||
+            !usedAnalysisIds.has(
+              analysis.analysis_id
+            )
+        ) ??
+        dimensionAnalyses[0];
+
+      addFromAnalysis(
+        tableAnalysis,
+        "table",
+      );
+
+      if (suggested.length === 0) {
+        setCreateVisualError(
+          "Create at least one KPI or saved analysis before building a suggested dashboard."
+        );
+        return;
+      }
+
+      const canvasWidth =
+        Math.max(
+          DASHBOARD_CANVAS_MIN_WIDTH,
+          canvasSurfaceRef.current
+            ?.clientWidth ??
+            DASHBOARD_CANVAS_MIN_WIDTH
+        );
+
+      const padding = 16;
+      const gap = 16;
+      const availableWidth =
+        canvasWidth -
+        padding * 2;
+
+      const kpis =
+        suggested.filter(
+          (visual) =>
+            visual.visual_type ===
+            "kpi"
+        );
+
+      const line =
+        suggested.find(
+          (visual) =>
+            visual.visual_type ===
+            "line" ||
+            visual.visual_type ===
+            "area"
+        ) ??
+        null;
+
+      const donut =
+        suggested.find(
+          (visual) =>
+            visual.visual_type ===
+            "donut" ||
+            visual.visual_type ===
+            "pie"
+        ) ??
+        null;
+
+      const comparisons =
+        suggested.filter(
+          (visual) =>
+            visual.visual_type ===
+              "bar" ||
+            visual.visual_type ===
+              "column"
+        );
+
+      const table =
+        suggested.find(
+          (visual) =>
+            visual.visual_type ===
+            "table"
+        ) ??
+        null;
+
+      const arranged =
+        new Map<
+          string,
+          DashboardVisualData
+        >();
+
+      let y = padding;
+
+      if (kpis.length > 0) {
+        const columns =
+          Math.min(
+            4,
+            kpis.length
+          );
+
+        const width =
+          Math.floor(
+            (
+              availableWidth -
+              gap *
+                (columns - 1)
+            ) /
+            columns
+          );
+
+        kpis.forEach(
+          (visual, index) => {
+            arranged.set(
+              visual.visual_id,
+              {
+                ...visual,
+                canvas_x:
+                  padding +
+                  index *
+                    (
+                      width +
+                      gap
+                    ),
+                canvas_y: y,
+                canvas_width:
+                  width,
+                canvas_height:
+                  136,
+              }
+            );
+          }
+        );
+
+        y += 152;
+      }
+
+      if (line && donut) {
+        const rowWidth =
+          availableWidth -
+          gap;
+
+        const lineWidth =
+          Math.floor(
+            rowWidth *
+            0.66
+          );
+
+        arranged.set(
+          line.visual_id,
+          {
+            ...line,
+            canvas_x: padding,
+            canvas_y: y,
+            canvas_width:
+              lineWidth,
+            canvas_height: 320,
+          }
+        );
+
+        arranged.set(
+          donut.visual_id,
+          {
+            ...donut,
+            canvas_x:
+              padding +
+              lineWidth +
+              gap,
+            canvas_y: y,
+            canvas_width:
+              rowWidth -
+              lineWidth,
+            canvas_height: 320,
+          }
+        );
+
+        y += 336;
+      } else if (line) {
+        arranged.set(
+          line.visual_id,
+          {
+            ...line,
+            canvas_x: padding,
+            canvas_y: y,
+            canvas_width:
+              availableWidth,
+            canvas_height: 320,
+          }
+        );
+
+        y += 336;
+      } else if (donut) {
+        arranged.set(
+          donut.visual_id,
+          {
+            ...donut,
+            canvas_x: padding,
+            canvas_y: y,
+            canvas_width:
+              Math.min(
+                420,
+                availableWidth
+              ),
+            canvas_height: 300,
+          }
+        );
+
+        y += 316;
+      }
+
+      if (
+        comparisons.length > 0
+      ) {
+        const columns =
+          Math.min(
+            2,
+            comparisons.length
+          );
+
+        const width =
+          Math.floor(
+            (
+              availableWidth -
+              gap *
+                (columns - 1)
+            ) /
+            columns
+          );
+
+        comparisons.forEach(
+          (visual, index) => {
+            arranged.set(
+              visual.visual_id,
+              {
+                ...visual,
+                canvas_x:
+                  padding +
+                  index *
+                    (
+                      width +
+                      gap
+                    ),
+                canvas_y: y,
+                canvas_width:
+                  width,
+                canvas_height:
+                  280,
+              }
+            );
+          }
+        );
+
+        y += 296;
+      }
+
+      if (table) {
+        arranged.set(
+          table.visual_id,
+          {
+            ...table,
+            canvas_x: padding,
+            canvas_y: y,
+            canvas_width:
+              availableWidth,
+            canvas_height: 300,
+          }
+        );
+      }
+
+      const nextVisuals =
+        suggested.map(
+          (visual) =>
+            arranged.get(
+              visual.visual_id
+            ) ??
+            placeVisualInFreeSlot(
+              [],
+              visual
+            )
+        );
+
+      setPreviewResults(
+        (previous) => ({
+          ...previous,
+          ...suggestedResults,
+        })
+      );
+
+      setVisuals(
+        nextVisuals
+      );
+
+      setSelectedVisualIds(
+        []
+      );
+
+      setEditingVisualId(
+        null
+      );
+    } catch (error) {
+      setCreateVisualError(
+        error instanceof Error
+          ? error.message
+          : "Could not build the suggested dashboard."
+      );
+    } finally {
+      setCreatingVisual(false);
+    }
   }
 
   function updateVisual(
@@ -4203,9 +4858,13 @@ function PersonalDashboardBuilder({
   function alignSelectedVisuals(
     action:
       | "left"
+      | "right"
       | "top"
+      | "bottom"
       | "same-width"
       | "same-height"
+      | "distribute-horizontal"
+      | "distribute-vertical"
   ) {
     if (
       selectedVisualIds.length <
@@ -4254,6 +4913,222 @@ function PersonalDashboardBuilder({
           anchor.canvas_height ??
           anchorDefaults.height;
 
+        if (
+          action ===
+          "distribute-horizontal" &&
+          selected.length >= 3
+        ) {
+          const ordered =
+            [...selected].sort(
+              (left, right) =>
+                (left.canvas_x ?? 0) -
+                (right.canvas_x ?? 0)
+            );
+
+          const leftEdge =
+            ordered[0].canvas_x ?? 0;
+
+          const last =
+            ordered[
+              ordered.length - 1
+            ];
+
+          const lastDefaults =
+            defaultVisualCanvasSize(
+              last
+            );
+
+          const rightEdge =
+            (last.canvas_x ?? 0) +
+            (
+              last.canvas_width ??
+              lastDefaults.width
+            );
+
+          const totalWidth =
+            ordered.reduce(
+              (sum, visual) => {
+                const defaults =
+                  defaultVisualCanvasSize(
+                    visual
+                  );
+
+                return (
+                  sum +
+                  (
+                    visual.canvas_width ??
+                    defaults.width
+                  )
+                );
+              },
+              0
+            );
+
+          const gap =
+            Math.max(
+              0,
+              (
+                rightEdge -
+                leftEdge -
+                totalWidth
+              ) /
+              (ordered.length - 1)
+            );
+
+          const positions =
+            new Map<
+              string,
+              number
+            >();
+
+          let cursor =
+            leftEdge;
+
+          ordered.forEach(
+            (visual) => {
+              positions.set(
+                visual.visual_id,
+                cursor
+              );
+
+              const defaults =
+                defaultVisualCanvasSize(
+                  visual
+                );
+
+              cursor +=
+                (
+                  visual.canvas_width ??
+                  defaults.width
+                ) +
+                gap;
+            }
+          );
+
+          return previous.map(
+            (visual) =>
+              positions.has(
+                visual.visual_id
+              )
+                ? {
+                    ...visual,
+                    canvas_x:
+                      positions.get(
+                        visual.visual_id
+                      )!,
+                  }
+                : visual
+          );
+        }
+
+        if (
+          action ===
+          "distribute-vertical" &&
+          selected.length >= 3
+        ) {
+          const ordered =
+            [...selected].sort(
+              (left, right) =>
+                (left.canvas_y ?? 0) -
+                (right.canvas_y ?? 0)
+            );
+
+          const topEdge =
+            ordered[0].canvas_y ?? 0;
+
+          const last =
+            ordered[
+              ordered.length - 1
+            ];
+
+          const lastDefaults =
+            defaultVisualCanvasSize(
+              last
+            );
+
+          const bottomEdge =
+            (last.canvas_y ?? 0) +
+            (
+              last.canvas_height ??
+              lastDefaults.height
+            );
+
+          const totalHeight =
+            ordered.reduce(
+              (sum, visual) => {
+                const defaults =
+                  defaultVisualCanvasSize(
+                    visual
+                  );
+
+                return (
+                  sum +
+                  (
+                    visual.canvas_height ??
+                    defaults.height
+                  )
+                );
+              },
+              0
+            );
+
+          const gap =
+            Math.max(
+              0,
+              (
+                bottomEdge -
+                topEdge -
+                totalHeight
+              ) /
+              (ordered.length - 1)
+            );
+
+          const positions =
+            new Map<
+              string,
+              number
+            >();
+
+          let cursor =
+            topEdge;
+
+          ordered.forEach(
+            (visual) => {
+              positions.set(
+                visual.visual_id,
+                cursor
+              );
+
+              const defaults =
+                defaultVisualCanvasSize(
+                  visual
+                );
+
+              cursor +=
+                (
+                  visual.canvas_height ??
+                  defaults.height
+                ) +
+                gap;
+            }
+          );
+
+          return previous.map(
+            (visual) =>
+              positions.has(
+                visual.visual_id
+              )
+                ? {
+                    ...visual,
+                    canvas_y:
+                      positions.get(
+                        visual.visual_id
+                      )!,
+                  }
+                : visual
+          );
+        }
+
         return previous.map(
           (visual) => {
             if (
@@ -4272,11 +5147,49 @@ function PersonalDashboardBuilder({
               };
             }
 
+            if (action === "right") {
+              const defaults =
+                defaultVisualCanvasSize(
+                  visual
+                );
+
+              const width =
+                visual.canvas_width ??
+                defaults.width;
+
+              return {
+                ...visual,
+                canvas_x:
+                  anchorX +
+                  anchorWidth -
+                  width,
+              };
+            }
+
             if (action === "top") {
               return {
                 ...visual,
                 canvas_y:
                   anchorY,
+              };
+            }
+
+            if (action === "bottom") {
+              const defaults =
+                defaultVisualCanvasSize(
+                  visual
+                );
+
+              const height =
+                visual.canvas_height ??
+                defaults.height;
+
+              return {
+                ...visual,
+                canvas_y:
+                  anchorY +
+                  anchorHeight -
+                  height,
               };
             }
 
@@ -4327,6 +5240,10 @@ function PersonalDashboardBuilder({
         measuredWidth
       );
 
+    const availableWidth =
+      canvasWidth -
+      padding * 2;
+
     setVisuals(
       (previous) => {
         const kpis =
@@ -4352,140 +5269,186 @@ function PersonalDashboardBuilder({
         let nextY = padding;
 
         if (kpis.length > 0) {
-          const perRow =
-            Math.min(
-              4,
-              kpis.length
-            );
+          const cardHeight = 136;
 
-          const cardWidth =
-            Math.floor(
-              (
-                canvasWidth -
-                padding * 2 -
-                gap *
-                  (perRow - 1)
-              ) /
-              perRow
-            );
-
-          const cardHeight = 144;
-
-          kpis.forEach(
-            (visual, index) => {
-              const row =
-                Math.floor(
-                  index /
-                  perRow
-                );
-
-              const column =
-                index %
-                perRow;
-
-              arranged.set(
-                visual.visual_id,
-                {
-                  ...visual,
-                  canvas_x:
-                    padding +
-                    column *
-                      (
-                        cardWidth +
-                        gap
-                      ),
-                  canvas_y:
-                    padding +
-                    row *
-                      (
-                        cardHeight +
-                        gap
-                      ),
-                  canvas_width:
-                    cardWidth,
-                  canvas_height:
-                    cardHeight,
-                }
+          if (kpis.length === 1) {
+            const cardWidth =
+              Math.min(
+                340,
+                Math.max(
+                  260,
+                  Math.floor(
+                    availableWidth *
+                    0.28
+                  )
+                )
               );
-            }
-          );
 
-          nextY +=
-            Math.ceil(
-              kpis.length /
-              perRow
-            ) *
-              (
-                cardHeight +
-                gap
-              );
-        }
-
-        if (charts.length > 0) {
-          if (charts.length === 1) {
             arranged.set(
-              charts[0].visual_id,
+              kpis[0].visual_id,
               {
-                ...charts[0],
+                ...kpis[0],
                 canvas_x: padding,
                 canvas_y: nextY,
                 canvas_width:
-                  canvasWidth -
-                  padding * 2,
-                canvas_height: 320,
+                  cardWidth,
+                canvas_height:
+                  cardHeight,
               }
             );
 
-            nextY += 336;
-          } else {
-            const available =
-              canvasWidth -
-              padding * 2 -
+            nextY +=
+              cardHeight +
               gap;
-
-            const primaryWidth =
-              Math.floor(
-                available *
-                0.62
+          } else {
+            const perRow =
+              Math.min(
+                4,
+                kpis.length
               );
 
-            const secondaryWidth =
-              available -
-              primaryWidth;
+            const cardWidth =
+              Math.floor(
+                (
+                  availableWidth -
+                  gap *
+                    (perRow - 1)
+                ) /
+                perRow
+              );
 
-            arranged.set(
-              charts[0].visual_id,
-              {
-                ...charts[0],
-                canvas_x: padding,
-                canvas_y: nextY,
-                canvas_width:
-                  primaryWidth,
-                canvas_height: 320,
+            kpis.forEach(
+              (visual, index) => {
+                const row =
+                  Math.floor(
+                    index /
+                    perRow
+                  );
+
+                const column =
+                  index %
+                  perRow;
+
+                arranged.set(
+                  visual.visual_id,
+                  {
+                    ...visual,
+                    canvas_x:
+                      padding +
+                      column *
+                        (
+                          cardWidth +
+                          gap
+                        ),
+                    canvas_y:
+                      nextY +
+                      row *
+                        (
+                          cardHeight +
+                          gap
+                        ),
+                    canvas_width:
+                      cardWidth,
+                    canvas_height:
+                      cardHeight,
+                  }
+                );
               }
             );
 
-            arranged.set(
-              charts[1].visual_id,
-              {
-                ...charts[1],
-                canvas_x:
-                  padding +
-                  primaryWidth +
-                  gap,
-                canvas_y: nextY,
-                canvas_width:
-                  secondaryWidth,
-                canvas_height: 320,
-              }
-            );
-
-            nextY += 336;
+            nextY +=
+              Math.ceil(
+                kpis.length /
+                perRow
+              ) *
+                (
+                  cardHeight +
+                  gap
+                );
           }
         }
 
+        if (charts.length === 1) {
+          arranged.set(
+            charts[0].visual_id,
+            {
+              ...charts[0],
+              canvas_x: padding,
+              canvas_y: nextY,
+              canvas_width:
+                availableWidth,
+              canvas_height: 320,
+            }
+          );
+
+          nextY += 336;
+        }
+
+        if (charts.length >= 2) {
+          const rowWidth =
+            availableWidth -
+            gap;
+
+          const primaryWidth =
+            Math.floor(
+              rowWidth *
+              0.62
+            );
+
+          const secondaryWidth =
+            rowWidth -
+            primaryWidth;
+
+          arranged.set(
+            charts[0].visual_id,
+            {
+              ...charts[0],
+              canvas_x: padding,
+              canvas_y: nextY,
+              canvas_width:
+                primaryWidth,
+              canvas_height: 320,
+            }
+          );
+
+          arranged.set(
+            charts[1].visual_id,
+            {
+              ...charts[1],
+              canvas_x:
+                padding +
+                primaryWidth +
+                gap,
+              canvas_y: nextY,
+              canvas_width:
+                secondaryWidth,
+              canvas_height: 320,
+            }
+          );
+
+          nextY += 336;
+        }
+
+        if (charts.length === 3) {
+          arranged.set(
+            charts[2].visual_id,
+            {
+              ...charts[2],
+              canvas_x: padding,
+              canvas_y: nextY,
+              canvas_width:
+                availableWidth,
+              canvas_height: 280,
+            }
+          );
+
+          nextY += 296;
+        }
+
         const remaining =
-          charts.slice(2);
+          charts.length === 3
+            ? []
+            : charts.slice(2);
 
         if (remaining.length > 0) {
           const columns =
@@ -4496,8 +5459,7 @@ function PersonalDashboardBuilder({
           const cardWidth =
             Math.floor(
               (
-                canvasWidth -
-                padding * 2 -
+                availableWidth -
                 gap *
                   (columns - 1)
               ) /
@@ -4973,6 +5935,8 @@ function PersonalDashboardBuilder({
       visual.canvas_y ?? 0;
     const width =
       visual.canvas_width ?? 480;
+    const height =
+      visual.canvas_height ?? 300;
 
     const move = (
       moveEvent: PointerEvent
@@ -4983,7 +5947,7 @@ function PersonalDashboardBuilder({
           canvasWidth - width
         );
 
-      const nextX =
+      let nextX =
         Math.min(
           maxX,
           Math.max(
@@ -4997,7 +5961,7 @@ function PersonalDashboardBuilder({
           )
         );
 
-      const nextY =
+      let nextY =
         Math.max(
           0,
           snapCanvasValue(
@@ -5007,6 +5971,194 @@ function PersonalDashboardBuilder({
             showCanvasGrid
           )
         );
+
+      const tolerance = 6;
+
+      let guideX:
+        number | null = null;
+      let guideY:
+        number | null = null;
+
+      const otherVisuals =
+        visuals.filter(
+          (item) =>
+            item.visual_id !==
+            visual.visual_id
+        );
+
+      const xCandidates:
+        Array<{
+          snap: number;
+          guide: number;
+        }> = [];
+
+      const yCandidates:
+        Array<{
+          snap: number;
+          guide: number;
+        }> = [];
+
+      otherVisuals.forEach(
+        (item) => {
+          const defaults =
+            defaultVisualCanvasSize(
+              item
+            );
+
+          const itemX =
+            item.canvas_x ?? 0;
+          const itemY =
+            item.canvas_y ?? 0;
+          const itemWidth =
+            item.canvas_width ??
+            defaults.width;
+          const itemHeight =
+            item.canvas_height ??
+            defaults.height;
+
+          const itemCenterX =
+            itemX +
+            itemWidth / 2;
+          const itemCenterY =
+            itemY +
+            itemHeight / 2;
+
+          const movingCenterX =
+            width / 2;
+          const movingCenterY =
+            height / 2;
+
+          [
+            {
+              snap: itemX,
+              guide: itemX,
+            },
+            {
+              snap:
+                itemCenterX -
+                movingCenterX,
+              guide:
+                itemCenterX,
+            },
+            {
+              snap:
+                itemX +
+                itemWidth -
+                width,
+              guide:
+                itemX +
+                itemWidth,
+            },
+          ].forEach(
+            (candidate) =>
+              xCandidates.push(
+                candidate
+              )
+          );
+
+          [
+            {
+              snap: itemY,
+              guide: itemY,
+            },
+            {
+              snap:
+                itemCenterY -
+                movingCenterY,
+              guide:
+                itemCenterY,
+            },
+            {
+              snap:
+                itemY +
+                itemHeight -
+                height,
+              guide:
+                itemY +
+                itemHeight,
+            },
+          ].forEach(
+            (candidate) =>
+              yCandidates.push(
+                candidate
+              )
+          );
+        }
+      );
+
+      const xMatch =
+        xCandidates
+          .map(
+            (candidate) => ({
+              ...candidate,
+              distance:
+                Math.abs(
+                  candidate.snap -
+                  nextX
+                ),
+            })
+          )
+          .filter(
+            (candidate) =>
+              candidate.distance <=
+              tolerance
+          )
+          .sort(
+            (left, right) =>
+              left.distance -
+              right.distance
+          )[0];
+
+      if (xMatch) {
+        nextX =
+          Math.min(
+            maxX,
+            Math.max(
+              0,
+              xMatch.snap
+            )
+          );
+        guideX =
+          xMatch.guide;
+      }
+
+      const yMatch =
+        yCandidates
+          .map(
+            (candidate) => ({
+              ...candidate,
+              distance:
+                Math.abs(
+                  candidate.snap -
+                  nextY
+                ),
+            })
+          )
+          .filter(
+            (candidate) =>
+              candidate.distance <=
+              tolerance
+          )
+          .sort(
+            (left, right) =>
+              left.distance -
+              right.distance
+          )[0];
+
+      if (yMatch) {
+        nextY =
+          Math.max(
+            0,
+            yMatch.snap
+          );
+        guideY =
+          yMatch.guide;
+      }
+
+      setSnapGuides({
+        x: guideX,
+        y: guideY,
+      });
 
       updateVisual(
         visual.visual_id,
@@ -5018,6 +6170,11 @@ function PersonalDashboardBuilder({
     };
 
     const stop = () => {
+      setSnapGuides({
+        x: null,
+        y: null,
+      });
+
       globalThis.removeEventListener(
         "pointermove",
         move
@@ -5253,6 +6410,15 @@ function PersonalDashboardBuilder({
         dashboardMode
       }
     >
+      {draftRecovered && (
+        <div className="dashboard-draft-recovered">
+          <strong>Unsaved dashboard draft restored.</strong>
+          <span>
+            Your latest local canvas was recovered. Save the dashboard to persist it to the workspace.
+          </span>
+        </div>
+      )}
+
       <div className="dashboard-builder-header">
         <div>
           <span className="workspace-overview-label">
@@ -5275,13 +6441,19 @@ function PersonalDashboardBuilder({
             type="button"
             className="secondary-button"
             disabled={
-              analyses.length === 0
+              (
+                analyses.length === 0 &&
+                reusableKpiDefinitions.length === 0
+              ) ||
+              creatingVisual
             }
-            onClick={
-              addSuggestedDashboard
+            onClick={() =>
+              void addSuggestedDashboard()
             }
           >
-            Build suggested dashboard
+            {creatingVisual
+              ? "Building dashboard..."
+              : "Build suggested dashboard"}
           </button>
 
           <button
@@ -5292,13 +6464,25 @@ function PersonalDashboardBuilder({
               visuals.length === 0
             }
             onClick={() =>
-              onSave(
+              void onSave(
                 visuals,
                 dashboardTitle.trim() || "Dashboard",
                 dashboardSubtitle.trim() || null,
                 dashboardTheme,
                 dashboardFilters,
-              )
+              ).then(() => {
+                try {
+                  window.localStorage.removeItem(
+                    draftKey,
+                  );
+                } catch {
+                  // Saving to the server already succeeded.
+                }
+
+                setDraftRecovered(
+                  false
+                );
+              })
             }
           >
             {loading
@@ -5405,232 +6589,6 @@ function PersonalDashboardBuilder({
         </label>
 
 
-      </div>
-
-      <div
-        className={
-          "dashboard-slicer-toolbar mode-" +
-          dashboardMode
-        }
-      >
-        <div className="dashboard-slicer-heading">
-          <div>
-            <span className="workspace-overview-label">
-              FILTERS / SLICERS
-            </span>
-
-            <strong>
-              Filter the whole dashboard
-            </strong>
-          </div>
-
-          <button
-            type="button"
-            className="dashboard-reset-button"
-            disabled={
-              !dashboardFilters.some(
-                (filter) =>
-                  (
-                  filter.value !== null ||
-                  (filter.values?.length ?? 0) > 0
-                )
-              ) &&
-              crossFilters.length === 0
-            }
-            onClick={
-              clearDashboardFilters
-            }
-          >
-            Clear filters
-          </button>
-        </div>
-
-        {dashboardMode === "edit" && (
-          <div className="dashboard-slicer-builder">
-            <div className="dashboard-slicer-picker">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() =>
-                  setSlicerPickerOpen(
-                    (previous) =>
-                      !previous
-                  )
-                }
-                aria-expanded={
-                  slicerPickerOpen
-                }
-              >
-                + Add slicer
-              </button>
-
-              {slicerPickerOpen && (
-                <div className="dashboard-slicer-picker-menu">
-                  {dimensionOptions
-                    .filter(
-                      (option) =>
-                        !dashboardFilters.some(
-                          (filter) =>
-                            filter.table ===
-                              option.table &&
-                            filter.column ===
-                              option.column
-                        )
-                    )
-                    .map(
-                      (option) => (
-                        <button
-                          key={
-                            option.value
-                          }
-                          type="button"
-                          onClick={() => {
-                            setSlicerPickerOpen(
-                              false
-                            );
-                            void addDashboardFilterByKey(
-                              option.value
-                            );
-                          }}
-                        >
-                          <span>
-                            {option.column}
-                          </span>
-
-                          <small>
-                            {option.table}
-                          </small>
-                        </button>
-                      )
-                    )}
-
-                  {dimensionOptions.filter(
-                    (option) =>
-                      !dashboardFilters.some(
-                        (filter) =>
-                          filter.table ===
-                            option.table &&
-                          filter.column ===
-                            option.column
-                      )
-                  ).length === 0 && (
-                    <p>
-                      All available dimensions are already added.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {dashboardFilters.length > 0 && (
-          <div className="dashboard-slicer-list">
-            {dashboardFilters.map(
-              (filter) => (
-                <div
-                  key={
-                    filter.filter_id
-                  }
-                  className={
-                    "dashboard-slicer-card" +
-                    (
-                      (
-                  filter.value !== null ||
-                  (filter.values?.length ?? 0) > 0
-                )
-                        ? " active"
-                        : ""
-                    )
-                  }
-                >
-                  <span>
-                    {filter.label}
-                  </span>
-
-                  <DashboardMultiSelect
-                    values={
-                      filterValues[
-                        filter.filter_id
-                      ] ?? []
-                    }
-                    selected={
-                      (
-                        filter.values &&
-                        filter.values.length > 0
-                      )
-                        ? filter.values
-                        : (
-                            filter.value !== null
-                              ? [
-                                  filter.value,
-                                ]
-                              : []
-                          )
-                    }
-                    onChange={(values) =>
-                      setDashboardFilterValues(
-                        filter.filter_id,
-                        values,
-                      )
-                    }
-                  />
-
-                  <button
-                    type="button"
-                    className="dashboard-slicer-remove"
-                    title="Remove slicer"
-                    onClick={() =>
-                      removeDashboardFilter(
-                        filter.filter_id
-                      )
-                    }
-                  >
-                    ×
-                  </button>
-                </div>
-              )
-            )}
-          </div>
-        )}
-
-        {crossFilters.length > 0 && (
-          <div className="dashboard-cross-filter-list">
-            <span className="dashboard-cross-filter-label">
-              Visual selections
-            </span>
-
-            {crossFilters.map(
-              (filter) => (
-                <button
-                  key={
-                    filter.filter_id
-                  }
-                  type="button"
-                  className="dashboard-cross-filter-chip"
-                  title="Remove visual filter"
-                  onClick={() =>
-                    removeCrossFilter(
-                      filter.source_visual_id
-                    )
-                  }
-                >
-                  <span>
-                    {filter.label}
-                  </span>
-
-                  <strong>
-                    {filter.value}
-                  </strong>
-
-                  <i>
-                    ×
-                  </i>
-                </button>
-              )
-            )}
-          </div>
-        )}
       </div>
 
       <div
@@ -7511,66 +8469,143 @@ function PersonalDashboardBuilder({
               )}
 
               {dashboardMode === "edit" && (
-                <div className="dashboard-align-toolbar">
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "left"
-                      )
-                    }
-                    title="Align selected visuals to the same left edge"
-                  >
-                    Left
-                  </button>
+                <div
+                  className="dashboard-align-toolbar"
+                  aria-label="Visual alignment tools"
+                >
+                  <div className="dashboard-align-group">
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "left"
+                        )
+                      }
+                      title="Align left"
+                      aria-label="Align left"
+                    >
+                      ↤
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "top"
-                      )
-                    }
-                    title="Align selected visuals to the same top edge"
-                  >
-                    Top
-                  </button>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "right"
+                        )
+                      }
+                      title="Align right"
+                      aria-label="Align right"
+                    >
+                      ↦
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "same-width"
-                      )
-                    }
-                    title="Make selected visuals the same width"
-                  >
-                    Same W
-                  </button>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "top"
+                        )
+                      }
+                      title="Align top"
+                      aria-label="Align top"
+                    >
+                      ↥
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "same-height"
-                      )
-                    }
-                    title="Make selected visuals the same height"
-                  >
-                    Same H
-                  </button>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "bottom"
+                        )
+                      }
+                      title="Align bottom"
+                      aria-label="Align bottom"
+                    >
+                      ↧
+                    </button>
+                  </div>
+
+                  <div className="dashboard-align-group">
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "same-width"
+                        )
+                      }
+                      title="Same width"
+                      aria-label="Same width"
+                    >
+                      W
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "same-height"
+                        )
+                      }
+                      title="Same height"
+                      aria-label="Same height"
+                    >
+                      H
+                    </button>
+                  </div>
+
+                  <div className="dashboard-align-group">
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 3
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "distribute-horizontal"
+                        )
+                      }
+                      title="Distribute horizontally"
+                      aria-label="Distribute horizontally"
+                    >
+                      ↔
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 3
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "distribute-vertical"
+                        )
+                      }
+                      title="Distribute vertically"
+                      aria-label="Distribute vertically"
+                    >
+                      ↕
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -7663,6 +8698,234 @@ function PersonalDashboardBuilder({
             </span>
           </div>
 
+              <div
+                className={
+                  "dashboard-slicer-toolbar dashboard-report-slicers mode-" +
+                  dashboardMode
+                }
+              >
+                <div className="dashboard-slicer-heading">
+                  <div>
+                    <span className="workspace-overview-label">
+                      FILTERS / SLICERS
+                    </span>
+
+                    <strong>
+                      Filter the whole dashboard
+                    </strong>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="dashboard-reset-button"
+                    disabled={
+                      !dashboardFilters.some(
+                        (filter) =>
+                          (
+                          filter.value !== null ||
+                          (filter.values?.length ?? 0) > 0
+                        )
+                      ) &&
+                      crossFilters.length === 0
+                    }
+                    onClick={
+                      clearDashboardFilters
+                    }
+                  >
+                    Clear filters
+                  </button>
+                </div>
+
+                {dashboardMode === "edit" && (
+                  <div className="dashboard-slicer-builder">
+                    <div className="dashboard-slicer-picker">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() =>
+                          setSlicerPickerOpen(
+                            (previous) =>
+                              !previous
+                          )
+                        }
+                        aria-expanded={
+                          slicerPickerOpen
+                        }
+                      >
+                        + Add slicer
+                      </button>
+
+                      {slicerPickerOpen && (
+                        <div className="dashboard-slicer-picker-menu">
+                          {dimensionOptions
+                            .filter(
+                              (option) =>
+                                !dashboardFilters.some(
+                                  (filter) =>
+                                    filter.table ===
+                                      option.table &&
+                                    filter.column ===
+                                      option.column
+                                )
+                            )
+                            .map(
+                              (option) => (
+                                <button
+                                  key={
+                                    option.value
+                                  }
+                                  type="button"
+                                  onClick={() => {
+                                    setSlicerPickerOpen(
+                                      false
+                                    );
+                                    void addDashboardFilterByKey(
+                                      option.value
+                                    );
+                                  }}
+                                >
+                                  <span>
+                                    {option.column}
+                                  </span>
+
+                                  <small>
+                                    {option.table}
+                                  </small>
+                                </button>
+                              )
+                            )}
+
+                          {dimensionOptions.filter(
+                            (option) =>
+                              !dashboardFilters.some(
+                                (filter) =>
+                                  filter.table ===
+                                    option.table &&
+                                  filter.column ===
+                                    option.column
+                              )
+                          ).length === 0 && (
+                            <p>
+                              All available dimensions are already added.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {dashboardFilters.length > 0 && (
+                  <div className="dashboard-slicer-list">
+                    {dashboardFilters.map(
+                      (filter) => (
+                        <div
+                          key={
+                            filter.filter_id
+                          }
+                          className={
+                            "dashboard-slicer-card" +
+                            (
+                              (
+                          filter.value !== null ||
+                          (filter.values?.length ?? 0) > 0
+                        )
+                                ? " active"
+                                : ""
+                            )
+                          }
+                        >
+                          <span>
+                            {filter.label}
+                          </span>
+
+                          <DashboardMultiSelect
+                            values={
+                              filterValues[
+                                filter.filter_id
+                              ] ?? []
+                            }
+                            selected={
+                              (
+                                filter.values &&
+                                filter.values.length > 0
+                              )
+                                ? filter.values
+                                : (
+                                    filter.value !== null
+                                      ? [
+                                          filter.value,
+                                        ]
+                                      : []
+                                  )
+                            }
+                            onChange={(values) =>
+                              setDashboardFilterValues(
+                                filter.filter_id,
+                                values,
+                              )
+                            }
+                          />
+
+                          <button
+                            type="button"
+                            className="dashboard-slicer-remove"
+                            title="Remove slicer"
+                            onClick={() =>
+                              removeDashboardFilter(
+                                filter.filter_id
+                              )
+                            }
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {crossFilters.length > 0 && (
+                  <div className="dashboard-cross-filter-list">
+                    <span className="dashboard-cross-filter-label">
+                      Visual selections
+                    </span>
+
+                    {crossFilters.map(
+                      (filter) => (
+                        <button
+                          key={
+                            filter.filter_id
+                          }
+                          type="button"
+                          className="dashboard-cross-filter-chip"
+                          title="Remove visual filter"
+                          onClick={() =>
+                            removeCrossFilter(
+                              filter.source_visual_id
+                            )
+                          }
+                        >
+                          <span>
+                            {filter.label}
+                          </span>
+
+                          <strong>
+                            {filter.value}
+                          </strong>
+
+                          <i>
+                            ×
+                          </i>
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+
+
+
           {visuals.length === 0 && (
             <div className="dashboard-canvas-empty">
               <strong>
@@ -7702,6 +8965,30 @@ function PersonalDashboardBuilder({
                 "px",
             }}
           >
+            {dashboardMode === "edit" &&
+              snapGuides.x !== null && (
+                <div
+                  className="dashboard-snap-guide vertical"
+                  style={{
+                    left:
+                      snapGuides.x +
+                      "px",
+                  }}
+                />
+              )}
+
+            {dashboardMode === "edit" &&
+              snapGuides.y !== null && (
+                <div
+                  className="dashboard-snap-guide horizontal"
+                  style={{
+                    top:
+                      snapGuides.y +
+                      "px",
+                  }}
+                />
+              )}
+
             {visuals.map(
               (visual) => {
                 const analysis =
@@ -8154,6 +9441,10 @@ function PersonalDashboardBuilder({
                           verticalAlignment={
                             visual.kpi_vertical_alignment ??
                             "center"
+                          }
+                          stat={
+                            visual.kpi_stat ??
+                            "metric"
                           }
                         />
                       )}

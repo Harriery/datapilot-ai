@@ -4705,6 +4705,183 @@ def save_personal_dashboard(
     return workspace
 
 
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/insights/confirm"
+    ),
+    response_model=Workspace,
+)
+def confirm_personal_insights(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Insights yalnızca personal "
+                "workspace için kullanılabilir."
+            ),
+        )
+
+    if not any(
+        deliverable.code == "insight_summary"
+        for deliverable in workspace.project_deliverables
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu personal project type "
+                "insight summary deliverable içermiyor."
+            ),
+        )
+
+    if not workspace.analysis_results:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Insights onaylanmadan önce en az bir "
+                "saved analysis gerekli."
+            ),
+        )
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="insight_summary",
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Prepare documentation"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Prepare documentation"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/documentation/complete"
+    ),
+    response_model=Workspace,
+)
+def complete_personal_documentation(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Documentation yalnızca personal "
+                "workspace için kullanılabilir."
+            ),
+        )
+
+    documentation = next(
+        (
+            deliverable
+            for deliverable in workspace.project_deliverables
+            if deliverable.code == "documentation"
+        ),
+        None,
+    )
+
+    if documentation is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu personal project type "
+                "documentation deliverable içermiyor."
+            ),
+        )
+
+    unfinished_required = [
+        deliverable.code
+        for deliverable in workspace.project_deliverables
+        if (
+            deliverable.required
+            and deliverable.code != "documentation"
+            and deliverable.status != "completed"
+        )
+    ]
+
+    if unfinished_required:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Documentation tamamlanmadan önce zorunlu "
+                "deliverable'lar tamamlanmalı: "
+                + ", ".join(unfinished_required)
+            ),
+        )
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="documentation",
+    )
+
+    if all(
+        (
+            not deliverable.required
+            or deliverable.status == "completed"
+        )
+        for deliverable in workspace.project_deliverables
+    ):
+        workspace.status = "completed"
+        workspace.checkpoint.current_focus = (
+            "Workspace completed"
+        )
+        workspace.checkpoint.next_actions = []
+    else:
+        workspace.checkpoint.current_focus = (
+            "Review remaining deliverables"
+        )
+        workspace.checkpoint.next_actions = [
+            "Review remaining deliverables"
+        ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
+
+
 @router.delete(
     (
         "/workspaces/{learner_id}/{workspace_id}"
