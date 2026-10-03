@@ -1436,7 +1436,10 @@ function DashboardLineVisual({
             : row.mean;
 
         const numeric =
-          Number(raw);
+          raw === null ||
+          raw === undefined
+            ? null
+            : Number(raw);
 
         return {
           row,
@@ -1451,6 +1454,7 @@ function DashboardLineVisual({
                   )
                 ) * 100,
           value:
+            numeric !== null &&
             Number.isFinite(
               numeric
             )
