@@ -5922,232 +5922,6 @@ function PersonalDashboardBuilder({
 
       <div
         className={
-          "dashboard-slicer-toolbar mode-" +
-          dashboardMode
-        }
-      >
-        <div className="dashboard-slicer-heading">
-          <div>
-            <span className="workspace-overview-label">
-              FILTERS / SLICERS
-            </span>
-
-            <strong>
-              Filter the whole dashboard
-            </strong>
-          </div>
-
-          <button
-            type="button"
-            className="dashboard-reset-button"
-            disabled={
-              !dashboardFilters.some(
-                (filter) =>
-                  (
-                  filter.value !== null ||
-                  (filter.values?.length ?? 0) > 0
-                )
-              ) &&
-              crossFilters.length === 0
-            }
-            onClick={
-              clearDashboardFilters
-            }
-          >
-            Clear filters
-          </button>
-        </div>
-
-        {dashboardMode === "edit" && (
-          <div className="dashboard-slicer-builder">
-            <div className="dashboard-slicer-picker">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() =>
-                  setSlicerPickerOpen(
-                    (previous) =>
-                      !previous
-                  )
-                }
-                aria-expanded={
-                  slicerPickerOpen
-                }
-              >
-                + Add slicer
-              </button>
-
-              {slicerPickerOpen && (
-                <div className="dashboard-slicer-picker-menu">
-                  {dimensionOptions
-                    .filter(
-                      (option) =>
-                        !dashboardFilters.some(
-                          (filter) =>
-                            filter.table ===
-                              option.table &&
-                            filter.column ===
-                              option.column
-                        )
-                    )
-                    .map(
-                      (option) => (
-                        <button
-                          key={
-                            option.value
-                          }
-                          type="button"
-                          onClick={() => {
-                            setSlicerPickerOpen(
-                              false
-                            );
-                            void addDashboardFilterByKey(
-                              option.value
-                            );
-                          }}
-                        >
-                          <span>
-                            {option.column}
-                          </span>
-
-                          <small>
-                            {option.table}
-                          </small>
-                        </button>
-                      )
-                    )}
-
-                  {dimensionOptions.filter(
-                    (option) =>
-                      !dashboardFilters.some(
-                        (filter) =>
-                          filter.table ===
-                            option.table &&
-                          filter.column ===
-                            option.column
-                      )
-                  ).length === 0 && (
-                    <p>
-                      All available dimensions are already added.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {dashboardFilters.length > 0 && (
-          <div className="dashboard-slicer-list">
-            {dashboardFilters.map(
-              (filter) => (
-                <div
-                  key={
-                    filter.filter_id
-                  }
-                  className={
-                    "dashboard-slicer-card" +
-                    (
-                      (
-                  filter.value !== null ||
-                  (filter.values?.length ?? 0) > 0
-                )
-                        ? " active"
-                        : ""
-                    )
-                  }
-                >
-                  <span>
-                    {filter.label}
-                  </span>
-
-                  <DashboardMultiSelect
-                    values={
-                      filterValues[
-                        filter.filter_id
-                      ] ?? []
-                    }
-                    selected={
-                      (
-                        filter.values &&
-                        filter.values.length > 0
-                      )
-                        ? filter.values
-                        : (
-                            filter.value !== null
-                              ? [
-                                  filter.value,
-                                ]
-                              : []
-                          )
-                    }
-                    onChange={(values) =>
-                      setDashboardFilterValues(
-                        filter.filter_id,
-                        values,
-                      )
-                    }
-                  />
-
-                  <button
-                    type="button"
-                    className="dashboard-slicer-remove"
-                    title="Remove slicer"
-                    onClick={() =>
-                      removeDashboardFilter(
-                        filter.filter_id
-                      )
-                    }
-                  >
-                    ×
-                  </button>
-                </div>
-              )
-            )}
-          </div>
-        )}
-
-        {crossFilters.length > 0 && (
-          <div className="dashboard-cross-filter-list">
-            <span className="dashboard-cross-filter-label">
-              Visual selections
-            </span>
-
-            {crossFilters.map(
-              (filter) => (
-                <button
-                  key={
-                    filter.filter_id
-                  }
-                  type="button"
-                  className="dashboard-cross-filter-chip"
-                  title="Remove visual filter"
-                  onClick={() =>
-                    removeCrossFilter(
-                      filter.source_visual_id
-                    )
-                  }
-                >
-                  <span>
-                    {filter.label}
-                  </span>
-
-                  <strong>
-                    {filter.value}
-                  </strong>
-
-                  <i>
-                    ×
-                  </i>
-                </button>
-              )
-            )}
-          </div>
-        )}
-      </div>
-
-      <div
-        className={
           "dashboard-builder-layout" +
           (
             dashboardMode ===
@@ -8252,6 +8026,234 @@ function PersonalDashboardBuilder({
               ].label}
             </span>
           </div>
+
+              <div
+                className={
+                  "dashboard-slicer-toolbar dashboard-report-slicers mode-" +
+                  dashboardMode
+                }
+              >
+                <div className="dashboard-slicer-heading">
+                  <div>
+                    <span className="workspace-overview-label">
+                      FILTERS / SLICERS
+                    </span>
+
+                    <strong>
+                      Filter the whole dashboard
+                    </strong>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="dashboard-reset-button"
+                    disabled={
+                      !dashboardFilters.some(
+                        (filter) =>
+                          (
+                          filter.value !== null ||
+                          (filter.values?.length ?? 0) > 0
+                        )
+                      ) &&
+                      crossFilters.length === 0
+                    }
+                    onClick={
+                      clearDashboardFilters
+                    }
+                  >
+                    Clear filters
+                  </button>
+                </div>
+
+                {dashboardMode === "edit" && (
+                  <div className="dashboard-slicer-builder">
+                    <div className="dashboard-slicer-picker">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() =>
+                          setSlicerPickerOpen(
+                            (previous) =>
+                              !previous
+                          )
+                        }
+                        aria-expanded={
+                          slicerPickerOpen
+                        }
+                      >
+                        + Add slicer
+                      </button>
+
+                      {slicerPickerOpen && (
+                        <div className="dashboard-slicer-picker-menu">
+                          {dimensionOptions
+                            .filter(
+                              (option) =>
+                                !dashboardFilters.some(
+                                  (filter) =>
+                                    filter.table ===
+                                      option.table &&
+                                    filter.column ===
+                                      option.column
+                                )
+                            )
+                            .map(
+                              (option) => (
+                                <button
+                                  key={
+                                    option.value
+                                  }
+                                  type="button"
+                                  onClick={() => {
+                                    setSlicerPickerOpen(
+                                      false
+                                    );
+                                    void addDashboardFilterByKey(
+                                      option.value
+                                    );
+                                  }}
+                                >
+                                  <span>
+                                    {option.column}
+                                  </span>
+
+                                  <small>
+                                    {option.table}
+                                  </small>
+                                </button>
+                              )
+                            )}
+
+                          {dimensionOptions.filter(
+                            (option) =>
+                              !dashboardFilters.some(
+                                (filter) =>
+                                  filter.table ===
+                                    option.table &&
+                                  filter.column ===
+                                    option.column
+                              )
+                          ).length === 0 && (
+                            <p>
+                              All available dimensions are already added.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {dashboardFilters.length > 0 && (
+                  <div className="dashboard-slicer-list">
+                    {dashboardFilters.map(
+                      (filter) => (
+                        <div
+                          key={
+                            filter.filter_id
+                          }
+                          className={
+                            "dashboard-slicer-card" +
+                            (
+                              (
+                          filter.value !== null ||
+                          (filter.values?.length ?? 0) > 0
+                        )
+                                ? " active"
+                                : ""
+                            )
+                          }
+                        >
+                          <span>
+                            {filter.label}
+                          </span>
+
+                          <DashboardMultiSelect
+                            values={
+                              filterValues[
+                                filter.filter_id
+                              ] ?? []
+                            }
+                            selected={
+                              (
+                                filter.values &&
+                                filter.values.length > 0
+                              )
+                                ? filter.values
+                                : (
+                                    filter.value !== null
+                                      ? [
+                                          filter.value,
+                                        ]
+                                      : []
+                                  )
+                            }
+                            onChange={(values) =>
+                              setDashboardFilterValues(
+                                filter.filter_id,
+                                values,
+                              )
+                            }
+                          />
+
+                          <button
+                            type="button"
+                            className="dashboard-slicer-remove"
+                            title="Remove slicer"
+                            onClick={() =>
+                              removeDashboardFilter(
+                                filter.filter_id
+                              )
+                            }
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {crossFilters.length > 0 && (
+                  <div className="dashboard-cross-filter-list">
+                    <span className="dashboard-cross-filter-label">
+                      Visual selections
+                    </span>
+
+                    {crossFilters.map(
+                      (filter) => (
+                        <button
+                          key={
+                            filter.filter_id
+                          }
+                          type="button"
+                          className="dashboard-cross-filter-chip"
+                          title="Remove visual filter"
+                          onClick={() =>
+                            removeCrossFilter(
+                              filter.source_visual_id
+                            )
+                          }
+                        >
+                          <span>
+                            {filter.label}
+                          </span>
+
+                          <strong>
+                            {filter.value}
+                          </strong>
+
+                          <i>
+                            ×
+                          </i>
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+
+
 
           {visuals.length === 0 && (
             <div className="dashboard-canvas-empty">
