@@ -1056,6 +1056,8 @@ function DashboardBarVisual({
   tooltipTemplate,
   selectedValue,
   onSelect,
+  containerWidth,
+  containerHeight,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -1070,6 +1072,8 @@ function DashboardBarVisual({
   onSelect?: (
     value: unknown
   ) => void;
+  containerWidth: number;
+  containerHeight: number;
 }) {
   const semantic =
     Boolean(
@@ -1092,15 +1096,43 @@ function DashboardBarVisual({
       1
     );
 
+  const compact =
+    containerWidth < 360 ||
+    containerHeight < 220;
+
+  const veryCompact =
+    containerWidth < 290 ||
+    containerHeight < 185;
+
   return (
     <div
-      className="dashboard-bar-chart"
+      className={
+        "dashboard-bar-chart" +
+        (compact ? " compact" : "") +
+        (veryCompact ? " very-compact" : "")
+      }
       style={{
         "--dashboard-accent":
           accentColor,
+        "--dashboard-bar-row-gap":
+          Math.max(
+            3,
+            Math.min(
+              7,
+              Math.floor(
+                containerHeight /
+                Math.max(
+                  rows.length + 3,
+                  1
+                ) /
+                3
+              )
+            )
+          ) + "px",
       } as CSSProperties}
     >
-      {(xAxisTitle || yAxisTitle) && (
+      {!veryCompact &&
+        (xAxisTitle || yAxisTitle) && (
         <div className="dashboard-axis-summary">
           {xAxisTitle && (
             <span data-format-target="axis">
@@ -1469,6 +1501,8 @@ function DashboardColumnVisual({
   tooltipTemplate,
   selectedValue,
   onSelect,
+  containerWidth,
+  containerHeight,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -1482,6 +1516,8 @@ function DashboardColumnVisual({
   onSelect?: (
     value: unknown
   ) => void;
+  containerWidth: number;
+  containerHeight: number;
 }) {
   const semantic =
     Boolean(
@@ -1507,6 +1543,14 @@ function DashboardColumnVisual({
       1
     );
 
+  const compact =
+    containerWidth < 360 ||
+    containerHeight < 230;
+
+  const veryCompact =
+    containerWidth < 290 ||
+    containerHeight < 190;
+
   return (
     <div
       className={
@@ -1520,6 +1564,11 @@ function DashboardColumnVisual({
       style={{
         "--dashboard-accent":
           accentColor,
+        "--dashboard-column-height":
+          Math.max(
+            72,
+            containerHeight - 82
+          ) + "px",
       } as CSSProperties}
     >
       {rows.map(
@@ -1545,6 +1594,8 @@ function DashboardColumnVisual({
               }
               className={
                 "dashboard-column-item dashboard-tooltip-host" +
+                (compact ? " compact" : "") +
+                (veryCompact ? " very-compact" : "") +
                 (
                   selectedValue ===
                   String(
@@ -6590,6 +6641,12 @@ function PersonalDashboardBuilder({
                               ? selectCategory
                               : undefined
                           }
+                          containerWidth={
+                            visual.canvas_width ?? 480
+                          }
+                          containerHeight={
+                            visual.canvas_height ?? 300
+                          }
                         />
                       )}
 
@@ -6659,6 +6716,12 @@ function PersonalDashboardBuilder({
                             "interact"
                               ? selectCategory
                               : undefined
+                          }
+                          containerWidth={
+                            visual.canvas_width ?? 480
+                          }
+                          containerHeight={
+                            visual.canvas_height ?? 300
                           }
                         />
                       )}

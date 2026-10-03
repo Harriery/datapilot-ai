@@ -18102,3 +18102,145 @@
     display: none;
   }
 }
+
+
+/* ==================================================
+   RESPONSIVE CHART CONTENT
+   ================================================== */
+
+.dashboard-bar-chart {
+  height: 100%;
+  align-content: start;
+
+  gap:
+    var(
+      --dashboard-bar-row-gap,
+      7px
+    );
+}
+
+.dashboard-bar-chart.compact {
+  gap:
+    var(
+      --dashboard-bar-row-gap,
+      5px
+    );
+}
+
+.dashboard-bar-chart.compact
+  .dashboard-bar-row {
+  grid-template-columns:
+    minmax(58px, 0.8fr)
+    minmax(78px, 1.7fr)
+    minmax(54px, auto);
+
+  gap: 5px;
+}
+
+.dashboard-bar-chart.very-compact
+  .dashboard-bar-row {
+  grid-template-columns:
+    minmax(48px, 0.85fr)
+    minmax(66px, 1.45fr)
+    minmax(44px, auto);
+
+  gap: 4px;
+}
+
+.dashboard-bar-chart.compact
+  .dashboard-bar-row > span,
+.dashboard-bar-chart.compact
+  .dashboard-bar-row > strong {
+  font-size:
+    clamp(
+      6px,
+      1.8cqi,
+      8px
+    );
+}
+
+.dashboard-bar-chart.very-compact
+  .dashboard-bar-track {
+  height: 6px;
+}
+
+.dashboard-bar-chart.very-compact
+  .dashboard-bar-row > strong {
+  min-width: 0;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-column-chart {
+  height:
+    var(
+      --dashboard-column-height,
+      180px
+    );
+
+  min-height: 0;
+
+  align-items: end;
+}
+
+.dashboard-column-item.compact {
+  min-width: 0;
+}
+
+.dashboard-column-item.compact
+  .dashboard-column-track {
+  min-height: 0;
+  height: 100%;
+}
+
+.dashboard-column-item.compact
+  > strong,
+.dashboard-column-item.compact
+  > span {
+  font-size:
+    clamp(
+      6px,
+      1.8cqi,
+      8px
+    );
+}
+
+.dashboard-column-item.very-compact
+  > strong {
+  margin-bottom: 2px;
+}
+
+.dashboard-column-item.very-compact
+  > span {
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-visual-content:has(.dashboard-bar-chart),
+.dashboard-visual-content:has(.dashboard-column-chart) {
+  display: flex;
+  flex-direction: column;
+
+  min-height: 0;
+
+  padding:
+    clamp(
+      7px,
+      1.3cqi,
+      12px
+    );
+}
+
+.dashboard-visual-content:has(.dashboard-bar-chart)
+  .dashboard-bar-chart,
+.dashboard-visual-content:has(.dashboard-column-chart)
+  .dashboard-column-chart {
+  flex: 1 1 auto;
+
+  min-height: 0;
+}
