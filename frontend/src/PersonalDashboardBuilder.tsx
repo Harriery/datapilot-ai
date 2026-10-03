@@ -604,6 +604,7 @@ function DashboardSelect<T extends string>({
   value,
   options,
   onChange,
+  placeholder,
 }: {
   value: T;
   options: {
@@ -613,6 +614,7 @@ function DashboardSelect<T extends string>({
   onChange: (
     value: T
   ) => void;
+  placeholder?: string;
 }) {
   const [
     open,
@@ -655,7 +657,11 @@ function DashboardSelect<T extends string>({
       >
         <span>
           {selected?.label ??
-            value}
+            (
+              value ||
+              placeholder ||
+              ""
+            )}
         </span>
 
         <span aria-hidden="true">
@@ -3443,75 +3449,6 @@ function PersonalDashboardBuilder({
           );
         }
       )
-    );
-  }
-
-  async function addDashboardFilter() {
-    const option =
-      dimensionOptions.find(
-        (item) =>
-          item.value ===
-          pendingFilterKey
-      );
-
-    if (!option) {
-      return;
-    }
-
-    const existing =
-      dashboardFilters.find(
-        (item) =>
-          item.table ===
-            option.table &&
-          item.column ===
-            option.column
-      );
-
-    if (existing) {
-      await ensureFilterValues(
-        existing
-      );
-
-      return;
-    }
-
-    const filter:
-      DashboardFilterData = {
-        filter_id:
-          (
-            globalThis.crypto
-              ?.randomUUID?.()
-          ) ??
-          (
-            "filter-" +
-            Date.now()
-          ),
-        table:
-          option.table,
-        column:
-          option.column,
-        label:
-          option.column,
-        value:
-          null,
-        values: [],
-      };
-
-    const nextFilters = [
-      ...dashboardFilters,
-      filter,
-    ];
-
-    setDashboardFilters(
-      nextFilters
-    );
-
-    setPendingFilterKey(
-      ""
-    );
-
-    await ensureFilterValues(
-      filter
     );
   }
 
