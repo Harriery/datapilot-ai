@@ -19111,3 +19111,63 @@
   grid-column: 1;
   width: 100%;
 }
+
+
+/* ==================================================
+   DASHBOARD AUTHORING TOOLBAR REFINEMENTS
+   ================================================== */
+
+.dashboard-analysis-reopen-button {
+  min-height: 28px;
+
+  margin-right: 8px;
+  padding: 5px 9px;
+
+  border: 1px solid #d5e1ed;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #526980;
+
+  cursor: pointer;
+
+  font: inherit;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.dashboard-analysis-reopen-button:hover {
+  border-color: #a8c8e9;
+  background: #eef6ff;
+  color: #2f80ed;
+}
+
+.dashboard-suggested-filters-button {
+  min-height: 30px;
+
+  padding: 6px 10px;
+
+  border: 1px dashed #a9c7e8;
+  border-radius: 8px;
+
+  background: #f6faff;
+  color: #2b72c4;
+
+  cursor: pointer;
+
+  font: inherit;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.dashboard-suggested-filters-button:hover {
+  border-style: solid;
+  background: #eaf4ff;
+}
+
+.dashboard-builder-layout.analysis-library-collapsed
+  .dashboard-canvas-heading
+  > div:first-child {
+  display: flex;
+  align-items: center;
+}
