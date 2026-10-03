@@ -5485,9 +5485,6 @@ function PersonalDashboardBuilder({
                           }
                           type="button"
                           onClick={() => {
-                            setPendingFilterKey(
-                              option.value
-                            );
                             setSlicerPickerOpen(
                               false
                             );
