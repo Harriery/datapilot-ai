@@ -2794,6 +2794,17 @@ function PersonalDashboardBuilder({
   ] = useState<string[]>([]);
 
   const [
+    snapGuides,
+    setSnapGuides,
+  ] = useState<{
+    x: number | null;
+    y: number | null;
+  }>({
+    x: null,
+    y: null,
+  });
+
+  const [
     propertiesPanelOpen,
     setPropertiesPanelOpen,
   ] = useState(false);
@@ -4203,9 +4214,13 @@ function PersonalDashboardBuilder({
   function alignSelectedVisuals(
     action:
       | "left"
+      | "right"
       | "top"
+      | "bottom"
       | "same-width"
       | "same-height"
+      | "distribute-horizontal"
+      | "distribute-vertical"
   ) {
     if (
       selectedVisualIds.length <
@@ -4254,6 +4269,222 @@ function PersonalDashboardBuilder({
           anchor.canvas_height ??
           anchorDefaults.height;
 
+        if (
+          action ===
+          "distribute-horizontal" &&
+          selected.length >= 3
+        ) {
+          const ordered =
+            [...selected].sort(
+              (left, right) =>
+                (left.canvas_x ?? 0) -
+                (right.canvas_x ?? 0)
+            );
+
+          const leftEdge =
+            ordered[0].canvas_x ?? 0;
+
+          const last =
+            ordered[
+              ordered.length - 1
+            ];
+
+          const lastDefaults =
+            defaultVisualCanvasSize(
+              last
+            );
+
+          const rightEdge =
+            (last.canvas_x ?? 0) +
+            (
+              last.canvas_width ??
+              lastDefaults.width
+            );
+
+          const totalWidth =
+            ordered.reduce(
+              (sum, visual) => {
+                const defaults =
+                  defaultVisualCanvasSize(
+                    visual
+                  );
+
+                return (
+                  sum +
+                  (
+                    visual.canvas_width ??
+                    defaults.width
+                  )
+                );
+              },
+              0
+            );
+
+          const gap =
+            Math.max(
+              0,
+              (
+                rightEdge -
+                leftEdge -
+                totalWidth
+              ) /
+              (ordered.length - 1)
+            );
+
+          const positions =
+            new Map<
+              string,
+              number
+            >();
+
+          let cursor =
+            leftEdge;
+
+          ordered.forEach(
+            (visual) => {
+              positions.set(
+                visual.visual_id,
+                cursor
+              );
+
+              const defaults =
+                defaultVisualCanvasSize(
+                  visual
+                );
+
+              cursor +=
+                (
+                  visual.canvas_width ??
+                  defaults.width
+                ) +
+                gap;
+            }
+          );
+
+          return previous.map(
+            (visual) =>
+              positions.has(
+                visual.visual_id
+              )
+                ? {
+                    ...visual,
+                    canvas_x:
+                      positions.get(
+                        visual.visual_id
+                      )!,
+                  }
+                : visual
+          );
+        }
+
+        if (
+          action ===
+          "distribute-vertical" &&
+          selected.length >= 3
+        ) {
+          const ordered =
+            [...selected].sort(
+              (left, right) =>
+                (left.canvas_y ?? 0) -
+                (right.canvas_y ?? 0)
+            );
+
+          const topEdge =
+            ordered[0].canvas_y ?? 0;
+
+          const last =
+            ordered[
+              ordered.length - 1
+            ];
+
+          const lastDefaults =
+            defaultVisualCanvasSize(
+              last
+            );
+
+          const bottomEdge =
+            (last.canvas_y ?? 0) +
+            (
+              last.canvas_height ??
+              lastDefaults.height
+            );
+
+          const totalHeight =
+            ordered.reduce(
+              (sum, visual) => {
+                const defaults =
+                  defaultVisualCanvasSize(
+                    visual
+                  );
+
+                return (
+                  sum +
+                  (
+                    visual.canvas_height ??
+                    defaults.height
+                  )
+                );
+              },
+              0
+            );
+
+          const gap =
+            Math.max(
+              0,
+              (
+                bottomEdge -
+                topEdge -
+                totalHeight
+              ) /
+              (ordered.length - 1)
+            );
+
+          const positions =
+            new Map<
+              string,
+              number
+            >();
+
+          let cursor =
+            topEdge;
+
+          ordered.forEach(
+            (visual) => {
+              positions.set(
+                visual.visual_id,
+                cursor
+              );
+
+              const defaults =
+                defaultVisualCanvasSize(
+                  visual
+                );
+
+              cursor +=
+                (
+                  visual.canvas_height ??
+                  defaults.height
+                ) +
+                gap;
+            }
+          );
+
+          return previous.map(
+            (visual) =>
+              positions.has(
+                visual.visual_id
+              )
+                ? {
+                    ...visual,
+                    canvas_y:
+                      positions.get(
+                        visual.visual_id
+                      )!,
+                  }
+                : visual
+          );
+        }
+
         return previous.map(
           (visual) => {
             if (
@@ -4272,11 +4503,49 @@ function PersonalDashboardBuilder({
               };
             }
 
+            if (action === "right") {
+              const defaults =
+                defaultVisualCanvasSize(
+                  visual
+                );
+
+              const width =
+                visual.canvas_width ??
+                defaults.width;
+
+              return {
+                ...visual,
+                canvas_x:
+                  anchorX +
+                  anchorWidth -
+                  width,
+              };
+            }
+
             if (action === "top") {
               return {
                 ...visual,
                 canvas_y:
                   anchorY,
+              };
+            }
+
+            if (action === "bottom") {
+              const defaults =
+                defaultVisualCanvasSize(
+                  visual
+                );
+
+              const height =
+                visual.canvas_height ??
+                defaults.height;
+
+              return {
+                ...visual,
+                canvas_y:
+                  anchorY +
+                  anchorHeight -
+                  height,
               };
             }
 
@@ -4973,6 +5242,8 @@ function PersonalDashboardBuilder({
       visual.canvas_y ?? 0;
     const width =
       visual.canvas_width ?? 480;
+    const height =
+      visual.canvas_height ?? 300;
 
     const move = (
       moveEvent: PointerEvent
@@ -4983,7 +5254,7 @@ function PersonalDashboardBuilder({
           canvasWidth - width
         );
 
-      const nextX =
+      let nextX =
         Math.min(
           maxX,
           Math.max(
@@ -4997,7 +5268,7 @@ function PersonalDashboardBuilder({
           )
         );
 
-      const nextY =
+      let nextY =
         Math.max(
           0,
           snapCanvasValue(
@@ -5007,6 +5278,194 @@ function PersonalDashboardBuilder({
             showCanvasGrid
           )
         );
+
+      const tolerance = 6;
+
+      let guideX:
+        number | null = null;
+      let guideY:
+        number | null = null;
+
+      const otherVisuals =
+        visuals.filter(
+          (item) =>
+            item.visual_id !==
+            visual.visual_id
+        );
+
+      const xCandidates:
+        Array<{
+          snap: number;
+          guide: number;
+        }> = [];
+
+      const yCandidates:
+        Array<{
+          snap: number;
+          guide: number;
+        }> = [];
+
+      otherVisuals.forEach(
+        (item) => {
+          const defaults =
+            defaultVisualCanvasSize(
+              item
+            );
+
+          const itemX =
+            item.canvas_x ?? 0;
+          const itemY =
+            item.canvas_y ?? 0;
+          const itemWidth =
+            item.canvas_width ??
+            defaults.width;
+          const itemHeight =
+            item.canvas_height ??
+            defaults.height;
+
+          const itemCenterX =
+            itemX +
+            itemWidth / 2;
+          const itemCenterY =
+            itemY +
+            itemHeight / 2;
+
+          const movingCenterX =
+            width / 2;
+          const movingCenterY =
+            height / 2;
+
+          [
+            {
+              snap: itemX,
+              guide: itemX,
+            },
+            {
+              snap:
+                itemCenterX -
+                movingCenterX,
+              guide:
+                itemCenterX,
+            },
+            {
+              snap:
+                itemX +
+                itemWidth -
+                width,
+              guide:
+                itemX +
+                itemWidth,
+            },
+          ].forEach(
+            (candidate) =>
+              xCandidates.push(
+                candidate
+              )
+          );
+
+          [
+            {
+              snap: itemY,
+              guide: itemY,
+            },
+            {
+              snap:
+                itemCenterY -
+                movingCenterY,
+              guide:
+                itemCenterY,
+            },
+            {
+              snap:
+                itemY +
+                itemHeight -
+                height,
+              guide:
+                itemY +
+                itemHeight,
+            },
+          ].forEach(
+            (candidate) =>
+              yCandidates.push(
+                candidate
+              )
+          );
+        }
+      );
+
+      const xMatch =
+        xCandidates
+          .map(
+            (candidate) => ({
+              ...candidate,
+              distance:
+                Math.abs(
+                  candidate.snap -
+                  nextX
+                ),
+            })
+          )
+          .filter(
+            (candidate) =>
+              candidate.distance <=
+              tolerance
+          )
+          .sort(
+            (left, right) =>
+              left.distance -
+              right.distance
+          )[0];
+
+      if (xMatch) {
+        nextX =
+          Math.min(
+            maxX,
+            Math.max(
+              0,
+              xMatch.snap
+            )
+          );
+        guideX =
+          xMatch.guide;
+      }
+
+      const yMatch =
+        yCandidates
+          .map(
+            (candidate) => ({
+              ...candidate,
+              distance:
+                Math.abs(
+                  candidate.snap -
+                  nextY
+                ),
+            })
+          )
+          .filter(
+            (candidate) =>
+              candidate.distance <=
+              tolerance
+          )
+          .sort(
+            (left, right) =>
+              left.distance -
+              right.distance
+          )[0];
+
+      if (yMatch) {
+        nextY =
+          Math.max(
+            0,
+            yMatch.snap
+          );
+        guideY =
+          yMatch.guide;
+      }
+
+      setSnapGuides({
+        x: guideX,
+        y: guideY,
+      });
 
       updateVisual(
         visual.visual_id,
@@ -5018,6 +5477,11 @@ function PersonalDashboardBuilder({
     };
 
     const stop = () => {
+      setSnapGuides({
+        x: null,
+        y: null,
+      });
+
       globalThis.removeEventListener(
         "pointermove",
         move
@@ -7534,12 +7998,42 @@ function PersonalDashboardBuilder({
                     }
                     onClick={() =>
                       alignSelectedVisuals(
+                        "right"
+                      )
+                    }
+                    title="Align selected visuals to the same right edge"
+                  >
+                    Right
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      selectedVisualIds.length < 2
+                    }
+                    onClick={() =>
+                      alignSelectedVisuals(
                         "top"
                       )
                     }
                     title="Align selected visuals to the same top edge"
                   >
                     Top
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      selectedVisualIds.length < 2
+                    }
+                    onClick={() =>
+                      alignSelectedVisuals(
+                        "bottom"
+                      )
+                    }
+                    title="Align selected visuals to the same bottom edge"
+                  >
+                    Bottom
                   </button>
 
                   <button
@@ -7570,6 +8064,36 @@ function PersonalDashboardBuilder({
                     title="Make selected visuals the same height"
                   >
                     Same H
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      selectedVisualIds.length < 3
+                    }
+                    onClick={() =>
+                      alignSelectedVisuals(
+                        "distribute-horizontal"
+                      )
+                    }
+                    title="Distribute selected visuals evenly from left to right"
+                  >
+                    Dist H
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      selectedVisualIds.length < 3
+                    }
+                    onClick={() =>
+                      alignSelectedVisuals(
+                        "distribute-vertical"
+                      )
+                    }
+                    title="Distribute selected visuals evenly from top to bottom"
+                  >
+                    Dist V
                   </button>
                 </div>
               )}
@@ -7702,6 +8226,30 @@ function PersonalDashboardBuilder({
                 "px",
             }}
           >
+            {dashboardMode === "edit" &&
+              snapGuides.x !== null && (
+                <div
+                  className="dashboard-snap-guide vertical"
+                  style={{
+                    left:
+                      snapGuides.x +
+                      "px",
+                  }}
+                />
+              )}
+
+            {dashboardMode === "edit" &&
+              snapGuides.y !== null && (
+                <div
+                  className="dashboard-snap-guide horizontal"
+                  style={{
+                    top:
+                      snapGuides.y +
+                      "px",
+                  }}
+                />
+              )}
+
             {visuals.map(
               (visual) => {
                 const analysis =
