@@ -148,6 +148,7 @@ type Props = {
   savedSubtitle: string | null;
   savedTheme: DashboardTheme;
   savedFilters: DashboardFilterData[];
+  draftKey: string;
   loading: boolean;
   error: string | null;
 
@@ -169,8 +170,53 @@ type Props = {
     subtitle: string | null,
     theme: DashboardTheme,
     filters: DashboardFilterData[],
-  ) => void;
+  ) => Promise<void>;
 };
+
+type DashboardDraftData = {
+  visuals: DashboardVisualData[];
+  title: string;
+  subtitle: string;
+  theme: DashboardTheme;
+  filters: DashboardFilterData[];
+  updated_at: string;
+};
+
+function loadDashboardDraft(
+  draftKey: string,
+): DashboardDraftData | null {
+  try {
+    const raw =
+      window.localStorage.getItem(
+        draftKey,
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed =
+      JSON.parse(
+        raw,
+      ) as DashboardDraftData;
+
+    if (
+      !Array.isArray(
+        parsed.visuals,
+      ) ||
+      !Array.isArray(
+        parsed.filters,
+      ) ||
+      typeof parsed.title !== "string"
+    ) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 function formatNumber(
   value: number | null | undefined
@@ -2675,12 +2721,29 @@ function PersonalDashboardBuilder({
   savedSubtitle,
   savedTheme,
   savedFilters,
+  draftKey,
   loading,
   error,
   onPreview,
   onLoadFilterValues,
   onSave,
 }: Props) {
+  const initialDraftRef =
+    useRef<
+      DashboardDraftData | null
+    >(
+      loadDashboardDraft(
+        draftKey,
+      )
+    );
+
+  const [
+    draftRecovered,
+    setDraftRecovered,
+  ] = useState(
+    initialDraftRef.current !== null
+  );
+
   const [
     visuals,
     setVisuals,
@@ -2688,7 +2751,8 @@ function PersonalDashboardBuilder({
     DashboardVisualData[]
   >(
     normalizeVisualLayouts(
-      savedVisuals
+      initialDraftRef.current?.visuals ??
+        savedVisuals
     )
   );
 
@@ -2697,14 +2761,17 @@ function PersonalDashboardBuilder({
     dashboardTitle,
     setDashboardTitle,
   ] = useState(
-    savedTitle
+    initialDraftRef.current?.title ??
+      savedTitle
   );
 
   const [
     dashboardSubtitle,
     setDashboardSubtitle,
   ] = useState(
-    savedSubtitle ?? ""
+    initialDraftRef.current?.subtitle ??
+      savedSubtitle ??
+      ""
   );
 
   const [
@@ -2713,7 +2780,8 @@ function PersonalDashboardBuilder({
   ] = useState<
     DashboardTheme
   >(
-    savedTheme
+    initialDraftRef.current?.theme ??
+      savedTheme
   );
 
 
@@ -2723,7 +2791,8 @@ function PersonalDashboardBuilder({
   ] = useState<
     DashboardFilterData[]
   >(
-    savedFilters
+    initialDraftRef.current?.filters ??
+      savedFilters
   );
 
 
@@ -2875,8 +2944,22 @@ function PersonalDashboardBuilder({
       savedFilters
     );
 
+  const skippedInitialSavedSyncRef =
+    useRef(
+      initialDraftRef.current !== null
+    );
+
   useEffect(
     () => {
+      if (
+        skippedInitialSavedSyncRef.current
+      ) {
+        skippedInitialSavedSyncRef.current =
+          false;
+
+        return;
+      }
+
       setVisuals(
         normalizeVisualLayouts(
           savedVisuals
@@ -2898,6 +2981,10 @@ function PersonalDashboardBuilder({
       setDashboardFilters(
         savedFilters
       );
+
+      setDraftRecovered(
+        false
+      );
     },
     [
       savedVisualsSignature,
@@ -2905,6 +2992,45 @@ function PersonalDashboardBuilder({
       savedSubtitle,
       savedTheme,
       savedFiltersSignature,
+    ]
+  );
+
+  useEffect(
+    () => {
+      const draft:
+        DashboardDraftData = {
+          visuals,
+          title:
+            dashboardTitle,
+          subtitle:
+            dashboardSubtitle,
+          theme:
+            dashboardTheme,
+          filters:
+            dashboardFilters,
+          updated_at:
+            new Date().toISOString(),
+        };
+
+      try {
+        window.localStorage.setItem(
+          draftKey,
+          JSON.stringify(
+            draft,
+          ),
+        );
+      } catch {
+        // Keep dashboard editing usable when
+        // local storage is unavailable.
+      }
+    },
+    [
+      draftKey,
+      visuals,
+      dashboardTitle,
+      dashboardSubtitle,
+      dashboardTheme,
+      dashboardFilters,
     ]
   );
 
@@ -6284,6 +6410,15 @@ function PersonalDashboardBuilder({
         dashboardMode
       }
     >
+      {draftRecovered && (
+        <div className="dashboard-draft-recovered">
+          <strong>Unsaved dashboard draft restored.</strong>
+          <span>
+            Your latest local canvas was recovered. Save the dashboard to persist it to the workspace.
+          </span>
+        </div>
+      )}
+
       <div className="dashboard-builder-header">
         <div>
           <span className="workspace-overview-label">
@@ -6329,13 +6464,25 @@ function PersonalDashboardBuilder({
               visuals.length === 0
             }
             onClick={() =>
-              onSave(
+              void onSave(
                 visuals,
                 dashboardTitle.trim() || "Dashboard",
                 dashboardSubtitle.trim() || null,
                 dashboardTheme,
                 dashboardFilters,
-              )
+              ).then(() => {
+                try {
+                  window.localStorage.removeItem(
+                    draftKey,
+                  );
+                } catch {
+                  // Saving to the server already succeeded.
+                }
+
+                setDraftRecovered(
+                  false
+                );
+              })
             }
           >
             {loading
