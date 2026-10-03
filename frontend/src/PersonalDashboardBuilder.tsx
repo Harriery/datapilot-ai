@@ -2725,13 +2725,6 @@ function PersonalDashboardBuilder({
   >({});
 
   const [
-    pendingFilterKey,
-    setPendingFilterKey,
-  ] = useState(
-    ""
-  );
-
-  const [
     slicerPickerOpen,
     setSlicerPickerOpen,
   ] = useState(false);
