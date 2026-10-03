@@ -67,6 +67,7 @@ import PersonalDashboardBuilder, {
   type DashboardTheme,
   type DashboardVisualData,
 } from "./PersonalDashboardBuilder";
+import PersonalInsights from "./PersonalInsights";
 
 import WorkspaceStageNavigation from "./WorkspaceStageNavigation";
 
@@ -6609,6 +6610,21 @@ async function restoreWorkspaceVersion(
                             }
                             onSave={
                               savePersonalDashboard
+                            }
+                          />
+                        )}
+
+                      {dashboardWorkspace.usage_context === "personal" &&
+                        activeWorkspaceStage === "insights" && (
+                          <PersonalInsights
+                            analyses={
+                              dashboardWorkspace.analysis_results ?? []
+                            }
+                            dataModelStudio={
+                              dashboardWorkspace.data_model_studio ?? null
+                            }
+                            kpiDefinitions={
+                              dashboardWorkspace.kpi_definitions ?? []
                             }
                           />
                         )}
