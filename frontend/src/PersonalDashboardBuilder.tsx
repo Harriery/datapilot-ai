@@ -186,25 +186,40 @@ function formatNumber(
   ).format(value);
 }
 
-function isTimeDimension(
-  dimension: string | null
+function isSemanticTimeDimension(
+  dataModelStudio:
+    DataModelStudioData | null | undefined,
+  tableName: string | null | undefined,
+  columnName: string | null | undefined,
 ): boolean {
-  if (!dimension) {
+  if (
+    !dataModelStudio ||
+    !columnName
+  ) {
     return false;
   }
 
-  return [
-    "date",
-    "year",
-    "quarter",
-    "month",
-    "monthname",
-    "week",
-    "day",
-  ].includes(
-    dimension
-      .replace(/[^a-z]/gi, "")
-      .toLowerCase()
+  const tables =
+    tableName
+      ? dataModelStudio.tables.filter(
+          (table) =>
+            table.name === tableName
+        )
+      : dataModelStudio.tables;
+
+  const matches =
+    tables.flatMap(
+      (table) =>
+        table.columns.filter(
+          (column) =>
+            column.name ===
+            columnName
+        )
+    );
+
+  return (
+    matches.length === 1 &&
+    matches[0].role === "time"
   );
 }
 
@@ -213,6 +228,7 @@ function defaultVisualTitle(
   visualType: DashboardVisualType,
   sortMode: DashboardSortMode,
   topN: number,
+  isTimeDimension: boolean = false,
 ): string {
   const base =
     analysis.measure;
@@ -226,9 +242,7 @@ function defaultVisualTitle(
       visualType === "line" ||
       visualType === "area"
     ) &&
-    isTimeDimension(
-      analysis.dimension
-    )
+    isTimeDimension
   ) {
     return (
       base +
@@ -294,7 +308,8 @@ function defaultVisualSubtitle(
 }
 
 function recommendedVisual(
-  analysis: AnalysisResultData
+  analysis: AnalysisResultData,
+  isTimeDimension: boolean = false,
 ): DashboardVisualType {
   if (
     !analysis.dimension ||
@@ -303,11 +318,7 @@ function recommendedVisual(
     return "kpi";
   }
 
-  if (
-    isTimeDimension(
-      analysis.dimension
-    )
-  ) {
+  if (isTimeDimension) {
     return "line";
   }
 
@@ -2537,8 +2548,12 @@ function PersonalDashboardBuilder({
     null;
 
   const editingIsTime =
-    isTimeDimension(
-      editingDimension
+    isSemanticTimeDimension(
+      dataModelStudio,
+      editingVisual?.dimension_table ??
+        editingAnalysis?.dimension_table ??
+        null,
+      editingDimension,
     );
 
   const editingHasAxes =
@@ -3173,9 +3188,18 @@ function PersonalDashboardBuilder({
       return null;
     }
 
+    const analysisIsTime =
+      isSemanticTimeDimension(
+        dataModelStudio,
+        analysis.dimension_table ??
+          null,
+        analysis.dimension,
+      );
+
     const visualType =
       recommendedVisual(
-        analysis
+        analysis,
+        analysisIsTime,
       );
 
     return {
@@ -3209,14 +3233,13 @@ function PersonalDashboardBuilder({
         defaultVisualTitle(
           analysis,
           visualType,
-          isTimeDimension(
-            analysis.dimension
-          )
+          analysisIsTime
             ? "alphabetical"
             : "top_value",
           visualType === "line"
             ? 20
             : 10,
+          analysisIsTime,
         ),
       subtitle:
         defaultVisualSubtitle(
@@ -3228,9 +3251,7 @@ function PersonalDashboardBuilder({
           ? "compact"
           : "medium",
       sort_mode:
-        isTimeDimension(
-          analysis.dimension
-        )
+        analysisIsTime
           ? "alphabetical"
           : "top_value",
       top_n:
@@ -5208,6 +5229,7 @@ function PersonalDashboardBuilder({
                                 editingVisual.visual_type,
                                 editingVisual.sort_mode,
                                 editingVisual.top_n,
+                                editingIsTime,
                               )
                             : editingVisual.title,
                       }
@@ -5514,8 +5536,10 @@ function PersonalDashboardBuilder({
 
                       const nextSort =
                         (
-                          isTimeDimension(
-                            dimension
+                          isSemanticTimeDimension(
+                            dataModelStudio,
+                            dimensionTable,
+                            dimension,
                           ) &&
                           [
                             "line",
@@ -5577,6 +5601,11 @@ function PersonalDashboardBuilder({
                                 editingVisual.visual_type,
                                 nextSort,
                                 editingVisual.top_n,
+                                isSemanticTimeDimension(
+                                  dataModelStudio,
+                                  dimensionTable,
+                                  dimension,
+                                ),
                               ),
                           }
                         );
@@ -5659,8 +5688,10 @@ function PersonalDashboardBuilder({
 
                       const nextSort =
                         (
-                          isTimeDimension(
-                            dimension
+                          isSemanticTimeDimension(
+                            dataModelStudio,
+                            dimensionTable,
+                            dimension,
                           ) &&
                           [
                             "line",
@@ -5719,11 +5750,16 @@ function PersonalDashboardBuilder({
                             {
                               title:
                                 defaultVisualTitle(
-                                  result,
-                                  editingVisual.visual_type,
-                                  nextSort,
-                                  editingVisual.top_n,
+                                result,
+                                editingVisual.visual_type,
+                                nextSort,
+                                editingVisual.top_n,
+                                isSemanticTimeDimension(
+                                  dataModelStudio,
+                                  dimensionTable,
+                                  dimension,
                                 ),
+                              ),
                             }
                           );
                         }
@@ -5917,6 +5953,7 @@ function PersonalDashboardBuilder({
                                   visualType,
                                   nextSort,
                                   editingVisual.top_n,
+                                  editingIsTime,
                                 )
                               : editingVisual.title,
                         }
@@ -6009,6 +6046,7 @@ function PersonalDashboardBuilder({
                                       editingVisual.visual_type,
                                       sortMode,
                                       editingVisual.top_n,
+                                      editingIsTime,
                                     )
                                   : editingVisual.title,
                             }
@@ -6056,6 +6094,7 @@ function PersonalDashboardBuilder({
                                       editingVisual.visual_type,
                                       editingVisual.sort_mode,
                                       topN,
+                                      editingIsTime,
                                     )
                                   : editingVisual.title,
                             }
