@@ -2687,6 +2687,8 @@ function PersonalDashboardBuilder({
                       table.name,
                     column:
                       column.name,
+                    role:
+                      column.role,
                     label:
                       column.name +
                       " · " +
@@ -2697,6 +2699,125 @@ function PersonalDashboardBuilder({
       },
       [dataModelStudio]
     );
+
+  const reusableKpiDefinitions =
+    useMemo(
+      () =>
+        kpiDefinitions.filter(
+          (item) =>
+            !item.dimension &&
+            !item.dimension_table
+        ),
+      [kpiDefinitions]
+    );
+
+  const pendingDimensionOption =
+    dimensionOptions.find(
+      (option) =>
+        option.value ===
+        pendingVisualDimensionKey
+    ) ?? null;
+
+  const pendingKpiDefinition =
+    reusableKpiDefinitions.find(
+      (item) =>
+        item.code ===
+        pendingVisualKpiCode
+    ) ?? null;
+
+  const pendingDimensionIsTime =
+    pendingDimensionOption?.role ===
+    "time";
+
+  const pendingKpiIsAdditive =
+    Boolean(
+      pendingKpiDefinition &&
+      [
+        "sum",
+        "count",
+      ].includes(
+        pendingKpiDefinition.aggregation ??
+        ""
+      )
+    );
+
+  const directVisualTypeOptions =
+    !pendingDimensionOption
+      ? [
+          {
+            value: "auto",
+            label:
+              "Auto · KPI card",
+          },
+          {
+            value: "kpi",
+            label:
+              "KPI card",
+          },
+        ]
+      : [
+          {
+            value: "auto",
+            label:
+              pendingDimensionIsTime
+                ? "Auto · Line chart"
+                : "Auto · Horizontal bar",
+          },
+          ...(pendingDimensionIsTime
+            ? [
+                {
+                  value: "line",
+                  label:
+                    "Line chart",
+                },
+                {
+                  value: "area",
+                  label:
+                    "Area chart",
+                },
+                {
+                  value: "column",
+                  label:
+                    "Column chart",
+                },
+                {
+                  value: "table",
+                  label:
+                    "Table",
+                },
+              ]
+            : [
+                {
+                  value: "bar",
+                  label:
+                    "Horizontal bar",
+                },
+                {
+                  value: "column",
+                  label:
+                    "Column chart",
+                },
+                ...(pendingKpiIsAdditive
+                  ? [
+                      {
+                        value: "pie",
+                        label:
+                          "Pie chart",
+                      },
+                      {
+                        value: "donut",
+                        label:
+                          "Donut chart",
+                      },
+                    ]
+                  : []),
+                {
+                  value: "table",
+                  label:
+                    "Table",
+                },
+              ]),
+        ];
 
 
   useEffect(
@@ -3429,11 +3550,27 @@ function PersonalDashboardBuilder({
             pendingVisualKpiCode,
         };
 
+      const allowedTypes =
+        new Set(
+          directVisualTypeOptions.map(
+            (option) =>
+              option.value
+          )
+        );
+
+      const normalizedSelection =
+        allowedTypes.has(
+          pendingVisualType
+        )
+          ? pendingVisualType
+          : "auto";
+
       const visualType =
-        pendingVisualType ===
+        normalizedSelection ===
         "auto"
           ? undefined
-          : pendingVisualType;
+          : normalizedSelection as
+              DashboardVisualType;
 
       const visual =
         createVisual(
@@ -4928,7 +5065,7 @@ function PersonalDashboardBuilder({
                   pendingVisualKpiCode
                 }
                 options={
-                  kpiDefinitions.map(
+                  reusableKpiDefinitions.map(
                     (item) => ({
                       value:
                         item.code,
@@ -4968,9 +5105,14 @@ function PersonalDashboardBuilder({
                     })
                   ),
                 ]}
-                onChange={
-                  setPendingVisualDimensionKey
-                }
+                onChange={(value) => {
+                  setPendingVisualDimensionKey(
+                    value
+                  );
+                  setPendingVisualType(
+                    "auto"
+                  );
+                }}
                 placeholder="Optional"
               />
             </label>
@@ -4984,47 +5126,9 @@ function PersonalDashboardBuilder({
                 value={
                   pendingVisualType
                 }
-                options={[
-                  {
-                    value: "auto",
-                    label:
-                      "Auto · recommended",
-                  },
-                  {
-                    value: "kpi",
-                    label: "KPI card",
-                  },
-                  {
-                    value: "bar",
-                    label:
-                      "Horizontal bar",
-                  },
-                  {
-                    value: "column",
-                    label:
-                      "Column chart",
-                  },
-                  {
-                    value: "line",
-                    label: "Line chart",
-                  },
-                  {
-                    value: "area",
-                    label: "Area chart",
-                  },
-                  {
-                    value: "pie",
-                    label: "Pie chart",
-                  },
-                  {
-                    value: "donut",
-                    label: "Donut chart",
-                  },
-                  {
-                    value: "table",
-                    label: "Table",
-                  },
-                ]}
+                options={
+                  directVisualTypeOptions
+                }
                 onChange={(value) =>
                   setPendingVisualType(
                     value as
@@ -5057,9 +5161,33 @@ function PersonalDashboardBuilder({
               </small>
             )}
 
-            <p className="dashboard-create-visual-hint">
-              Auto uses semantic roles: no dimension creates a KPI; time dimensions prefer a line chart; other dimensions prefer a bar chart.
-            </p>
+            <div className="dashboard-create-visual-auto-hint">
+              <strong>
+                Auto:
+              </strong>
+
+              <span>
+                {!pendingDimensionOption
+                  ? "KPI card"
+                  : pendingDimensionIsTime
+                    ? "Line chart because the selected dimension has the semantic role “time”."
+                    : "Horizontal bar because the selected field is a categorical dimension."}
+              </span>
+            </div>
+
+            {!pendingDimensionOption &&
+              pendingVisualKpiCode && (
+              <small className="dashboard-create-visual-hint">
+                Select a dimension only when you want to break this measure down into categories or time.
+              </small>
+            )}
+
+            {pendingDimensionOption &&
+              !pendingKpiIsAdditive && (
+              <small className="dashboard-create-visual-hint">
+                Pie and donut are hidden because this measure is not marked as additive (sum/count).
+              </small>
+            )}
           </div>
 
           <div className="dashboard-saved-analysis-divider">
@@ -5073,7 +5201,13 @@ function PersonalDashboardBuilder({
               (analysis, index) => {
                 const recommendation =
                   recommendedVisual(
-                    analysis
+                    analysis,
+                    isSemanticTimeDimension(
+                      dataModelStudio,
+                      analysis.dimension_table ??
+                        null,
+                      analysis.dimension,
+                    )
                   );
 
                 const isAdded =
