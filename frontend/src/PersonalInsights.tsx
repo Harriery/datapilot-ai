@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -15,6 +15,7 @@ type Props = {
   analyses: AnalysisResultData[];
   dataModelStudio?: DataModelStudioData | null;
   kpiDefinitions?: PersonalKpiData[];
+  onConfirm?: () => Promise<void>;
 };
 
 type Insight = {
@@ -325,7 +326,11 @@ export default function PersonalInsights({
   analyses,
   dataModelStudio,
   kpiDefinitions = [],
+  onConfirm,
 }: Props) {
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
   const insights = useMemo(
     () =>
       buildInsights(
@@ -352,10 +357,44 @@ export default function PersonalInsights({
           </p>
         </div>
 
-        <span className="personal-insights-badge">
-          {insights.length} findings
-        </span>
+        <div className="personal-insights-header-actions">
+          <span className="personal-insights-badge">
+            {insights.length} findings
+          </span>
+
+          {onConfirm && insights.length > 0 && (
+            <button
+              type="button"
+              className="personal-insights-confirm"
+              disabled={confirming}
+              onClick={async () => {
+                setConfirming(true);
+                setConfirmError(null);
+
+                try {
+                  await onConfirm();
+                } catch (error) {
+                  setConfirmError(
+                    error instanceof Error
+                      ? error.message
+                      : "Insights could not be confirmed.",
+                  );
+                } finally {
+                  setConfirming(false);
+                }
+              }}
+            >
+              {confirming ? "Confirming..." : "Confirm insights"}
+            </button>
+          )}
+        </div>
       </header>
+
+      {confirmError && (
+        <div className="personal-insights-error" role="alert">
+          {confirmError}
+        </div>
+      )}
 
       {analyses.length === 0 || insights.length === 0 ? (
         <div className="personal-insights-empty">
