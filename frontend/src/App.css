@@ -20592,3 +20592,267 @@
 .personal-insights-show-all:hover {
   background: #edf5ff;
 }
+
+
+/* ==================================================
+   PERSONAL INSIGHTS - ANALYST BRIEFING LAYOUT
+   ================================================== */
+
+.personal-insights {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.personal-insights-header {
+  width: 100%;
+}
+
+.personal-insights-summary-grid {
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 14px;
+}
+
+.personal-insight-summary-card {
+  min-height: 190px;
+
+  padding: 18px 20px;
+}
+
+.personal-insight-summary-top,
+.personal-insight-row-heading,
+.personal-insight-summary-main {
+  display: flex;
+  align-items: center;
+}
+
+.personal-insight-summary-top {
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 12px;
+}
+
+.personal-insight-summary-top
+  .personal-insight-icon {
+  margin-bottom: 0;
+}
+
+.personal-insight-kind {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 4px 7px;
+
+  border-radius: 999px;
+
+  background: #f2f6fb;
+
+  color: #65798f;
+
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.personal-insight-summary-main {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.personal-insight-summary-main > div {
+  min-width: 0;
+}
+
+.personal-insight-summary-card strong {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.personal-insight-dimension {
+  display: block;
+
+  margin-top: 4px;
+
+  color: #8392a5;
+
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.personal-insight-metric,
+.personal-insight-row-metric {
+  flex: 0 0 auto;
+
+  color: #2f80ed;
+
+  font-variant-numeric:
+    tabular-nums;
+  font-weight: 800;
+}
+
+.personal-insight-metric {
+  font-size: 20px;
+}
+
+.personal-insight-summary-card p {
+  margin-top: 12px;
+
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.personal-insight-summary-card small {
+  margin-top: 14px;
+}
+
+.personal-insights-detail
+  > .personal-insights-section-title {
+  align-items: center;
+
+  margin-top: 8px;
+  margin-bottom: 14px;
+}
+
+.personal-insights-detail
+  > .personal-insights-section-title
+  > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.personal-insights-detail
+  > .personal-insights-section-title
+  > div
+  > span {
+  color: #243b56;
+
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.personal-insights-detail
+  > .personal-insights-section-title
+  > div
+  > small {
+  color: #8291a3;
+
+  font-size: 11px;
+}
+
+.personal-insights-group {
+  margin-top: 20px;
+}
+
+.personal-insights-group-title {
+  margin-bottom: 10px;
+}
+
+.personal-insights-list {
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 12px;
+}
+
+.personal-insight-row {
+  grid-template-columns:
+    auto
+    minmax(0, 1fr)
+    auto;
+
+  min-height: 150px;
+
+  padding: 16px 18px;
+}
+
+.personal-insight-row-heading {
+  gap: 8px;
+
+  margin-bottom: 7px;
+}
+
+.personal-insight-row-heading
+  .personal-insight-dimension {
+  margin-top: 0;
+}
+
+.personal-insight-copy strong {
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.personal-insight-copy p {
+  margin-top: 6px;
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.personal-insight-source {
+  display: block;
+
+  margin-top: 10px;
+
+  color: #8a99aa;
+
+  font-size: 10px;
+}
+
+.personal-insight-row-metric {
+  align-self: center;
+
+  max-width: 170px;
+
+  font-size: 16px;
+
+  text-align: right;
+}
+
+.personal-insights-show-all-inline {
+  margin: 0;
+}
+
+@media (max-width: 980px) {
+  .personal-insights-summary-grid,
+  .personal-insights-list {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-insight-row {
+    grid-template-columns:
+      auto
+      minmax(0, 1fr);
+  }
+
+  .personal-insight-row-metric {
+    grid-column: 2;
+
+    justify-self: start;
+
+    margin-top: 4px;
+
+    text-align: left;
+  }
+}
+
+@media (max-width: 760px) {
+  .personal-insight-summary-main {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .personal-insight-metric {
+    font-size: 18px;
+  }
+}
