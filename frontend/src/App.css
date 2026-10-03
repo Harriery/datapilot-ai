@@ -19654,3 +19654,118 @@
   > strong {
   margin-top: 2px;
 }
+
+
+/* ==================================================
+   LINE CHART VALUE AXIS + POINT LABELS
+   ================================================== */
+
+.dashboard-line-plot {
+  display: grid;
+  grid-template-columns:
+    54px
+    minmax(0, 1fr);
+
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.dashboard-line-y-axis {
+  position: relative;
+
+  min-width: 0;
+  height: 100%;
+
+  color: #7f90a3;
+
+  font-size: 7px;
+  font-variant-numeric:
+    tabular-nums;
+}
+
+.dashboard-line-y-axis > span {
+  position: absolute;
+  right: 7px;
+
+  transform:
+    translateY(-50%);
+
+  max-width: 48px;
+
+  overflow: hidden;
+
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-line-plot-body {
+  position: relative;
+
+  min-width: 0;
+  min-height: 0;
+
+  height: 100%;
+}
+
+.dashboard-line-plot-body > svg {
+  position: absolute;
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+}
+
+.dashboard-line-point-values {
+  position: absolute;
+  inset: 0;
+
+  pointer-events: none;
+}
+
+.dashboard-line-point-values > span {
+  position: absolute;
+
+  transform:
+    translate(-50%, calc(-100% - 7px));
+
+  padding: 2px 4px;
+
+  border-radius: 4px;
+
+  background:
+    rgba(255, 255, 255, 0.88);
+
+  color: #4d6077;
+
+  font-size: 6.5px;
+  font-weight: 700;
+  font-variant-numeric:
+    tabular-nums;
+
+  white-space: nowrap;
+}
+
+.dashboard-line-chart.with-gridlines
+  .dashboard-line-plot-body {
+  background-image:
+    linear-gradient(
+      to bottom,
+      transparent 11.8%,
+      #e9eef4 12%,
+      transparent 12.2%,
+      transparent 30.8%,
+      #e9eef4 31%,
+      transparent 31.2%,
+      transparent 49.8%,
+      #e9eef4 50%,
+      transparent 50.2%,
+      transparent 68.8%,
+      #e9eef4 69%,
+      transparent 69.2%,
+      transparent 87.8%,
+      #e9eef4 88%,
+      transparent 88.2%
+    );
+}
