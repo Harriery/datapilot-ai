@@ -19357,3 +19357,142 @@
   flex: 1 1 auto;
   min-height: 0;
 }
+
+
+/* ==================================================
+   DASHBOARD SLICER PICKER + AUTHORING LAYOUT FIX
+   ================================================== */
+
+.dashboard-slicer-picker {
+  position: relative;
+  display: inline-flex;
+}
+
+.dashboard-slicer-picker-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+
+  z-index: 180;
+
+  width: min(320px, 72vw);
+  max-height: 320px;
+
+  overflow-y: auto;
+
+  padding: 6px;
+
+  border: 1px solid #d4dfeb;
+  border-radius: 9px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 14px 30px
+    rgba(26, 47, 72, 0.14);
+}
+
+.dashboard-slicer-picker-menu > button {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  align-items: center;
+  gap: 10px;
+
+  width: 100%;
+
+  padding: 7px 8px;
+
+  border: 0;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #314b68;
+
+  cursor: pointer;
+
+  text-align: left;
+}
+
+.dashboard-slicer-picker-menu > button:hover {
+  background: #f1f6fc;
+}
+
+.dashboard-slicer-picker-menu > button span {
+  overflow: hidden;
+
+  font-size: 8px;
+  font-weight: 750;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-slicer-picker-menu > button small {
+  color: #8a9aae;
+
+  font-size: 7px;
+}
+
+.dashboard-slicer-picker-menu > p {
+  margin: 4px;
+
+  color: #7c8da1;
+
+  font-size: 8px;
+}
+
+@media (min-width: 1001px) {
+  .dashboard-builder-layout,
+  .dashboard-builder-layout.properties-open {
+    align-items: start;
+  }
+
+  .dashboard-analysis-library {
+    order: initial;
+    grid-area: library;
+  }
+
+  .dashboard-canvas {
+    order: initial;
+    grid-area: canvas;
+  }
+}
+
+@media (max-width: 1000px) and (min-width: 761px) {
+  .dashboard-builder-layout,
+  .dashboard-builder-layout.properties-open {
+    grid-template-areas:
+      "library canvas";
+    grid-template-columns:
+      minmax(190px, 220px)
+      minmax(620px, 1fr);
+
+    align-items: start;
+  }
+
+  .dashboard-analysis-library {
+    order: initial;
+    grid-area: library;
+  }
+
+  .dashboard-canvas {
+    order: initial;
+    grid-area: canvas;
+  }
+
+  .dashboard-properties-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-builder-layout,
+  .dashboard-builder-layout.properties-open {
+    grid-template-areas:
+      "canvas"
+      "library";
+    grid-template-columns: 1fr;
+  }
+}
