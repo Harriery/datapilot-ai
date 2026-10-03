@@ -3939,7 +3939,11 @@
 
   border-radius: 999px;
 
-  font-size: 9px;
+  font-size:
+    var(
+      --dashboard-title-size,
+      10px
+    );
   font-weight: 750;
 
   text-transform: uppercase;
@@ -18924,7 +18928,11 @@
 
   color: #8a99aa;
 
-  font-size: 7px;
+  font-size:
+    var(
+      --dashboard-axis-size,
+      8px
+    );
 }
 
 .dashboard-visual-card.mode-interact
@@ -20068,10 +20076,9 @@
   overflow: hidden;
 
   font-size:
-    clamp(
-      24px,
-      3vw,
-      34px
+    var(
+      --dashboard-value-size,
+      8px
     );
   font-variant-numeric:
     tabular-nums;
@@ -20087,7 +20094,11 @@
 
   color: #718398;
 
-  font-size: 8px;
+  font-size:
+    var(
+      --dashboard-category-size,
+      8px
+    );
   font-weight: 650;
   letter-spacing: 0.01em;
 }
