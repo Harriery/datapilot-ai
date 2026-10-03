@@ -1046,7 +1046,7 @@ function DashboardKpiVisual({
   );
 }
 
-function DashboardBarVisual({function DashboardBarVisual({
+function DashboardBarVisual({
   analysis,
   rows,
   accentColor,
