@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -2447,6 +2448,11 @@ function PersonalDashboardBuilder({
     setShowCanvasGrid,
   ] = useState(true);
 
+  const canvasSurfaceRef =
+    useRef<HTMLDivElement | null>(
+      null
+    );
+
   const savedVisualsSignature =
     JSON.stringify(
       savedVisuals
@@ -2925,6 +2931,163 @@ function PersonalDashboardBuilder({
             ],
           );
         }
+      )
+    );
+  }
+
+  async function addSuggestedDashboardFilters() {
+    const normalized =
+      dimensionOptions.map(
+        (option) => ({
+          ...option,
+          search:
+            (
+              option.column +
+              " " +
+              option.table
+            ).toLowerCase(),
+        })
+      );
+
+    const candidates = [
+      normalized.find(
+        (option) =>
+          option.column
+            .toLowerCase() ===
+          "year"
+      ),
+      normalized.find(
+        (option) =>
+          [
+            "typelabel",
+            "type",
+            "propertytype",
+            "property_type",
+          ].includes(
+            option.column
+              .toLowerCase()
+          )
+      ),
+      normalized.find(
+        (option) =>
+          option.column
+            .toLowerCase() ===
+          "regionname"
+      ) ??
+        normalized.find(
+          (option) =>
+            option.column
+              .toLowerCase()
+              .includes(
+                "region"
+              )
+        ),
+      normalized.find(
+        (option) =>
+          option.column
+            .toLowerCase() ===
+          "suburb"
+      ),
+    ].filter(
+      (
+        option,
+      ): option is
+        typeof normalized[number] =>
+          Boolean(option)
+    );
+
+    const unique =
+      candidates.filter(
+        (option, index) =>
+          candidates.findIndex(
+            (candidate) =>
+              candidate?.table ===
+                option.table &&
+              candidate?.column ===
+                option.column
+          ) === index
+      );
+
+    const additions:
+      DashboardFilterData[] = [];
+
+    for (
+      const option
+      of unique
+    ) {
+      if (
+        dashboardFilters.some(
+          (filter) =>
+            filter.table ===
+              option.table &&
+            filter.column ===
+              option.column
+        )
+      ) {
+        continue;
+      }
+
+      const columnLower =
+        option.column.toLowerCase();
+
+      additions.push({
+        filter_id:
+          (
+            globalThis.crypto
+              ?.randomUUID?.()
+          ) ??
+          (
+            "filter-" +
+            Date.now() +
+            "-" +
+            additions.length
+          ),
+        table:
+          option.table,
+        column:
+          option.column,
+        label:
+          columnLower === "year"
+            ? "Year"
+            : [
+                "typelabel",
+                "type",
+                "propertytype",
+                "property_type",
+              ].includes(
+                columnLower
+              )
+              ? "Property type"
+              : columnLower.includes(
+                    "region"
+                  )
+                ? "Region"
+                : columnLower ===
+                    "suburb"
+                  ? "Suburb"
+                  : option.column,
+        value: null,
+        values: [],
+      });
+    }
+
+    if (additions.length === 0) {
+      return;
+    }
+
+    setDashboardFilters(
+      (previous) => [
+        ...previous,
+        ...additions,
+      ]
+    );
+
+    await Promise.all(
+      additions.map(
+        (filter) =>
+          ensureFilterValues(
+            filter
+          )
       )
     );
   }
@@ -3413,8 +3576,17 @@ function PersonalDashboardBuilder({
   function arrangeProfessionalDashboard() {
     const padding = 16;
     const gap = 16;
-    const canvasWidth =
+
+    const measuredWidth =
+      canvasSurfaceRef.current
+        ?.clientWidth ??
       DASHBOARD_CANVAS_MIN_WIDTH;
+
+    const canvasWidth =
+      Math.max(
+        DASHBOARD_CANVAS_MIN_WIDTH,
+        measuredWidth
+      );
 
     setVisuals(
       (previous) => {
@@ -3451,11 +3623,9 @@ function PersonalDashboardBuilder({
             Math.floor(
               (
                 canvasWidth -
-                (padding * 2) -
-                (
-                  gap *
+                padding * 2 -
+                gap *
                   (perRow - 1)
-                )
               ) /
               perRow
             );
@@ -3501,8 +3671,7 @@ function PersonalDashboardBuilder({
             }
           );
 
-          nextY =
-            padding +
+          nextY +=
             Math.ceil(
               kpis.length /
               perRow
@@ -3514,53 +3683,46 @@ function PersonalDashboardBuilder({
         }
 
         if (charts.length > 0) {
-          const primary =
-            charts[0];
-
-          if (
-            charts.length === 1
-          ) {
+          if (charts.length === 1) {
             arranged.set(
-              primary.visual_id,
+              charts[0].visual_id,
               {
-                ...primary,
-                canvas_x:
-                  padding,
-                canvas_y:
-                  nextY,
+                ...charts[0],
+                canvas_x: padding,
+                canvas_y: nextY,
                 canvas_width:
                   canvasWidth -
                   padding * 2,
-                canvas_height:
-                  320,
+                canvas_height: 320,
               }
             );
 
-            nextY +=
-              320 +
-              gap;
+            nextY += 336;
           } else {
-            const primaryWidth =
-              640;
-
-            const secondaryWidth =
+            const available =
               canvasWidth -
               padding * 2 -
-              gap -
+              gap;
+
+            const primaryWidth =
+              Math.floor(
+                available *
+                0.62
+              );
+
+            const secondaryWidth =
+              available -
               primaryWidth;
 
             arranged.set(
-              primary.visual_id,
+              charts[0].visual_id,
               {
-                ...primary,
-                canvas_x:
-                  padding,
-                canvas_y:
-                  nextY,
+                ...charts[0],
+                canvas_x: padding,
+                canvas_y: nextY,
                 canvas_width:
                   primaryWidth,
-                canvas_height:
-                  320,
+                canvas_height: 320,
               }
             );
 
@@ -3572,70 +3734,73 @@ function PersonalDashboardBuilder({
                   padding +
                   primaryWidth +
                   gap,
-                canvas_y:
-                  nextY,
+                canvas_y: nextY,
                 canvas_width:
                   secondaryWidth,
-                canvas_height:
-                  320,
+                canvas_height: 320,
               }
             );
 
-            nextY +=
-              320 +
-              gap;
+            nextY += 336;
           }
         }
 
         const remaining =
           charts.slice(2);
 
-        const columnWidth =
-          Math.floor(
-            (
-              canvasWidth -
-              padding * 2 -
-              gap
-            ) /
-            2
-          );
+        if (remaining.length > 0) {
+          const columns =
+            canvasWidth >= 1250
+              ? 3
+              : 2;
 
-        remaining.forEach(
-          (visual, index) => {
-            const column =
-              index % 2;
-
-            const row =
-              Math.floor(
-                index / 2
-              );
-
-            arranged.set(
-              visual.visual_id,
-              {
-                ...visual,
-                canvas_x:
-                  padding +
-                  column *
-                    (
-                      columnWidth +
-                      gap
-                    ),
-                canvas_y:
-                  nextY +
-                  row *
-                    (
-                      280 +
-                      gap
-                    ),
-                canvas_width:
-                  columnWidth,
-                canvas_height:
-                  280,
-              }
+          const cardWidth =
+            Math.floor(
+              (
+                canvasWidth -
+                padding * 2 -
+                gap *
+                  (columns - 1)
+              ) /
+              columns
             );
-          }
-        );
+
+          remaining.forEach(
+            (visual, index) => {
+              const column =
+                index %
+                columns;
+
+              const row =
+                Math.floor(
+                  index /
+                  columns
+                );
+
+              arranged.set(
+                visual.visual_id,
+                {
+                  ...visual,
+                  canvas_x:
+                    padding +
+                    column *
+                      (
+                        cardWidth +
+                        gap
+                      ),
+                  canvas_y:
+                    nextY +
+                    row *
+                      276,
+                  canvas_width:
+                    cardWidth,
+                  canvas_height:
+                    260,
+                }
+              );
+            }
+          );
+        }
 
         return previous.map(
           (visual) =>
@@ -4570,6 +4735,16 @@ function PersonalDashboardBuilder({
           >
             + Add slicer
           </button>
+
+          <button
+            type="button"
+            className="dashboard-suggested-filters-button"
+            onClick={
+              addSuggestedDashboardFilters
+            }
+          >
+            + Suggested filters
+          </button>
         </div>
         )}
 
@@ -4702,24 +4877,6 @@ function PersonalDashboardBuilder({
           )
         }
       >
-        {dashboardMode === "edit" &&
-          !analysisLibraryOpen && (
-          <button
-            type="button"
-            className="dashboard-analysis-library-toggle collapsed"
-            onClick={() =>
-              setAnalysisLibraryOpen(
-                true
-              )
-            }
-            title="Open saved analyses"
-            aria-label="Open saved analyses"
-          >
-            <span>›</span>
-            <strong>Analyses</strong>
-          </button>
-        )}
-
         <aside
           className={
             "dashboard-analysis-library" +
@@ -6314,6 +6471,22 @@ function PersonalDashboardBuilder({
         >
           <div className="dashboard-canvas-heading">
             <div>
+              {dashboardMode === "edit" &&
+                !analysisLibraryOpen && (
+                <button
+                  type="button"
+                  className="dashboard-analysis-reopen-button"
+                  onClick={() =>
+                    setAnalysisLibraryOpen(
+                      true
+                    )
+                  }
+                  title="Open saved analyses"
+                >
+                  › Analyses
+                </button>
+              )}
+
               <span className="workspace-overview-label">
                 CANVAS
               </span>
@@ -6491,6 +6664,9 @@ function PersonalDashboardBuilder({
           )}
 
           <div
+            ref={
+              canvasSurfaceRef
+            }
             className={
               "dashboard-visual-grid" +
               (
