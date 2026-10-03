@@ -4086,7 +4086,12 @@ function PersonalDashboardBuilder({
     currentFormatStyle();
 
   return (
-    <section className="personal-dashboard-builder">
+    <section
+      className={
+        "personal-dashboard-builder mode-" +
+        dashboardMode
+      }
+    >
       <div className="dashboard-builder-header">
         <div>
           <span className="workspace-overview-label">
@@ -4241,7 +4246,12 @@ function PersonalDashboardBuilder({
 
       </div>
 
-      <div className="dashboard-slicer-toolbar">
+      <div
+        className={
+          "dashboard-slicer-toolbar mode-" +
+          dashboardMode
+        }
+      >
         <div className="dashboard-slicer-heading">
           <div>
             <span className="workspace-overview-label">
@@ -4274,6 +4284,7 @@ function PersonalDashboardBuilder({
           </button>
         </div>
 
+        {dashboardMode === "edit" && (
         <div className="dashboard-slicer-builder">
           <DashboardSelect
             value={
@@ -4323,6 +4334,7 @@ function PersonalDashboardBuilder({
             + Add slicer
           </button>
         </div>
+        )}
 
         {dashboardFilters.length > 0 && (
           <div className="dashboard-slicer-list">
@@ -6101,38 +6113,42 @@ function PersonalDashboardBuilder({
                 </button>
               )}
 
-              <label className="dashboard-grid-toggle">
-                <input
-                  type="checkbox"
-                  checked={
-                    showCanvasGrid
-                  }
-                  onChange={(event) =>
-                    setShowCanvasGrid(
-                      event.target.checked
-                    )
-                  }
-                />
+              {dashboardMode === "edit" && (
+                <label className="dashboard-grid-toggle">
+                  <input
+                    type="checkbox"
+                    checked={
+                      showCanvasGrid
+                    }
+                    onChange={(event) =>
+                      setShowCanvasGrid(
+                        event.target.checked
+                      )
+                    }
+                  />
 
-                <span>
-                  Grid
-                </span>
-              </label>
+                  <span>
+                    Grid
+                  </span>
+                </label>
+              )}
             </div>
 
-            <button
-              type="button"
-              className="dashboard-reset-button"
-              disabled={
-                visuals.length === 0
-              }
-              onClick={() => {
-                setVisuals([]);
-                setCrossFilters([]);
-              }}
-            >
-              Reset canvas
-            </button>
+            {dashboardMode === "edit" && (
+              <button
+                type="button"
+                className="dashboard-reset-button"
+                disabled={
+                  visuals.length === 0
+                }
+                onClick={() => {
+                  setVisuals([]);
+                  setCrossFilters([]);
+                }}
+              >
+                Reset canvas
+              </button>
+            )}
           </div>
 
           <div className="dashboard-report-heading">
@@ -6173,7 +6189,9 @@ function PersonalDashboardBuilder({
             className={
               "dashboard-visual-grid" +
               (
-                showCanvasGrid
+                showCanvasGrid &&
+                dashboardMode ===
+                  "edit"
                   ? " show-grid"
                   : ""
               ) +
@@ -6268,7 +6286,9 @@ function PersonalDashboardBuilder({
                       visual.visual_id
                     }
                     className={
-                      "dashboard-visual-card size-" +
+                      "dashboard-visual-card mode-" +
+                      dashboardMode +
+                      " size-" +
                       visual.size +
                       (
                         visual.animate === false
@@ -6427,18 +6447,20 @@ function PersonalDashboardBuilder({
                     }
                   >
                     <header className="dashboard-visual-header">
-                      <span
-                        className="dashboard-visual-drag"
-                        title="Drag visual"
-                        onPointerDown={(event) =>
-                          beginVisualMove(
-                            event,
-                            visual
-                          )
-                        }
-                      >
-                        ⋮⋮
-                      </span>
+                      {dashboardMode === "edit" && (
+                        <span
+                          className="dashboard-visual-drag"
+                          title="Drag visual"
+                          onPointerDown={(event) =>
+                            beginVisualMove(
+                              event,
+                              visual
+                            )
+                          }
+                        >
+                          ⋮⋮
+                        </span>
+                      )}
 
                       <div className="dashboard-visual-title-block">
                         <strong data-format-target="title">
@@ -6463,94 +6485,99 @@ function PersonalDashboardBuilder({
                             Filtered
                           </span>
                         )}
-                        <button
-                          type="button"
-                          className={
-                            editingVisualId ===
-                            visual.visual_id
-                              ? "active"
-                              : ""
-                          }
-                          onClick={() => {
-                            setDashboardMode(
-                              "edit"
-                            );
-
-                            setFormatTarget(
-                              "visual"
-                            );
-
-                            setEditingVisualId(
+                        {dashboardMode === "edit" && (
+                          <>
+                          <button
+                            type="button"
+                            className={
+                              editingVisualId ===
                               visual.visual_id
-                            );
-                            setPropertiesPanelOpen(
-                              true
-                            );
-                          }}
-                          title="Edit visual"
-                        >
-                          ⚙
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={
-                            (visual.canvas_width ?? 480) <=
-                              visualMinWidth(
-                                visual
-                              ) &&
-                            (visual.canvas_height ?? 300) <=
-                              visualMinHeight(
+                                ? "active"
+                                : ""
+                            }
+                            onClick={() => {
+                              setDashboardMode(
+                                "edit"
+                              );
+  
+                              setFormatTarget(
+                                "visual"
+                              );
+  
+                              setEditingVisualId(
+                                visual.visual_id
+                              );
+                              setPropertiesPanelOpen(
+                                true
+                              );
+                            }}
+                            title="Edit visual"
+                          >
+                            ⚙
+                          </button>
+  
+                          <button
+                            type="button"
+                            disabled={
+                              (visual.canvas_width ?? 480) <=
+                                visualMinWidth(
+                                  visual
+                                ) &&
+                              (visual.canvas_height ?? 300) <=
+                                visualMinHeight(
+                                  visual
+                                )
+                            }
+                            onClick={() =>
+                              resizeVisual(
+                                visual,
+                                "smaller",
+                              )
+                            }
+                            title="Make smaller"
+                          >
+                            −
+                          </button>
+  
+                          <button
+                            type="button"
+                            onClick={() =>
+                              resizeVisual(
+                                visual,
+                                "larger",
+                              )
+                            }
+                            title="Make larger"
+                          >
+                            +
+                          </button>
+  
+                          <button
+                            type="button"
+                            onClick={() =>
+                              duplicateVisual(
                                 visual
                               )
-                          }
-                          onClick={() =>
-                            resizeVisual(
-                              visual,
-                              "smaller",
-                            )
-                          }
-                          title="Make smaller"
-                        >
-                          −
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            resizeVisual(
-                              visual,
-                              "larger",
-                            )
-                          }
-                          title="Make larger"
-                        >
-                          +
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            duplicateVisual(
-                              visual
-                            )
-                          }
-                          title="Duplicate visual"
-                        >
-                          ⧉
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            removeVisual(
-                              visual.visual_id
-                            )
-                          }
-                          title="Remove visual"
-                        >
-                          ×
-                        </button>
+                            }
+                            title="Duplicate visual"
+                          >
+                            ⧉
+                          </button>
+  
+                          <button
+                            type="button"
+                            onClick={() =>
+                              removeVisual(
+                                visual.visual_id
+                              )
+                            }
+                            title="Remove visual"
+                          >
+                            ×
+                          </button>
+  
+                          </>
+                        )}
                       </div>
                     </header>
 
