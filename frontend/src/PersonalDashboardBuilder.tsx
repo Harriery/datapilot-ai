@@ -84,6 +84,16 @@ export type DashboardVisualData = {
   canvas_width?: number | null;
   canvas_height?: number | null;
 
+  title_alignment?: "left" | "center" | "right";
+
+  kpi_label?: string | null;
+  kpi_label_font_size?: number;
+  kpi_label_bold?: boolean;
+  kpi_label_color?: string | null;
+  kpi_show_secondary?: boolean;
+  kpi_value_alignment?: "left" | "center" | "right";
+  kpi_vertical_alignment?: "top" | "center" | "bottom";
+
   title_font_size?: number;
   title_bold?: boolean;
   title_color?: string | null;
@@ -366,12 +376,30 @@ const DASHBOARD_CANVAS_MIN_HEIGHT = 620;
 const DASHBOARD_VISUAL_GAP = 16;
 const DASHBOARD_VISUAL_MIN_WIDTH = 240;
 const DASHBOARD_VISUAL_MIN_HEIGHT = 180;
+const DASHBOARD_KPI_MIN_WIDTH = 160;
+const DASHBOARD_KPI_MIN_HEIGHT = 112;
+
+function visualMinWidth(
+  visual: DashboardVisualData
+) {
+  return visual.visual_type === "kpi"
+    ? DASHBOARD_KPI_MIN_WIDTH
+    : DASHBOARD_VISUAL_MIN_WIDTH;
+}
+
+function visualMinHeight(
+  visual: DashboardVisualData
+) {
+  return visual.visual_type === "kpi"
+    ? DASHBOARD_KPI_MIN_HEIGHT
+    : DASHBOARD_VISUAL_MIN_HEIGHT;
+}
 
 function defaultVisualCanvasSize(
   visual: DashboardVisualData
 ) {
   if (visual.visual_type === "kpi") {
-    return { width: 320, height: 220 };
+    return { width: 240, height: 160 };
   }
 
   return {
@@ -415,6 +443,11 @@ function normalizeVisualLayouts(
         ...visual,
         canvas_width: width,
         canvas_height: height,
+        value_label_font_size:
+          visual.visual_type === "kpi" &&
+          (visual.value_label_font_size ?? 8) <= 8
+            ? 30
+            : visual.value_label_font_size,
       };
     }
 
@@ -458,6 +491,15 @@ function normalizeVisualLayouts(
       canvas_y: cursorY,
       canvas_width: width,
       canvas_height: height,
+      value_label_font_size:
+        visual.visual_type === "kpi"
+          ? (
+              visual.value_label_font_size &&
+              visual.value_label_font_size > 8
+                ? visual.value_label_font_size
+                : 30
+            )
+          : visual.value_label_font_size,
     };
 
     cursorX =
@@ -927,16 +969,56 @@ function buildDashboardTooltip(
 function DashboardKpiVisual({
   analysis,
   accentColor,
+  label,
+  showSecondary,
+  labelFontSize,
+  labelBold,
+  labelColor,
+  valueAlignment,
+  verticalAlignment,
 }: {
   analysis: AnalysisResultData;
   accentColor: string;
+  label: string | null;
+  showSecondary: boolean;
+  labelFontSize: number;
+  labelBold: boolean;
+  labelColor: string;
+  valueAlignment: "left" | "center" | "right";
+  verticalAlignment: "top" | "center" | "bottom";
 }) {
+  const secondary =
+    analysis.dimension
+      ? (
+          String(
+            analysis.grouped_results.length
+          ) +
+          " groups"
+        )
+      : (
+          formatNumber(
+            analysis.overall.count
+          ) +
+          " records"
+        );
+
   return (
     <div
-      className="dashboard-kpi-visual"
+      className={
+        "dashboard-kpi-visual align-" +
+        valueAlignment +
+        " valign-" +
+        verticalAlignment
+      }
       style={{
         "--dashboard-accent":
           accentColor,
+        "--dashboard-kpi-label-size":
+          labelFontSize + "px",
+        "--dashboard-kpi-label-weight":
+          labelBold ? 700 : 500,
+        "--dashboard-kpi-label-color":
+          labelColor,
       } as CSSProperties}
     >
       <strong data-format-target="value">
@@ -947,26 +1029,24 @@ function DashboardKpiVisual({
         )}
       </strong>
 
-      <span>
-        {analysis.dimension
-          ? (
-              String(
-                analysis.grouped_results.length
-              ) +
-              " groups"
-            )
-          : (
-              formatNumber(
-                analysis.overall.count
-              ) +
-              " records"
-            )}
-      </span>
+      {label && (
+        <span
+          className="dashboard-kpi-label"
+        >
+          {label}
+        </span>
+      )}
+
+      {showSecondary && (
+        <small className="dashboard-kpi-secondary">
+          {secondary}
+        </small>
+      )}
     </div>
   );
 }
 
-function DashboardBarVisual({
+function DashboardBarVisual({function DashboardBarVisual({
   analysis,
   rows,
   accentColor,
@@ -3115,6 +3195,14 @@ function PersonalDashboardBuilder({
       show_legend: true,
       show_gridlines: true,
       animate: true,
+      title_alignment: "left",
+      kpi_label: null,
+      kpi_label_font_size: 10,
+      kpi_label_bold: false,
+      kpi_label_color: null,
+      kpi_show_secondary: false,
+      kpi_value_alignment: "center",
+      kpi_vertical_alignment: "center",
       tooltip_template:
         "{category}\n{measure}: {value}\nRecords: {count}",
       grid_column: null,
@@ -3127,7 +3215,10 @@ function PersonalDashboardBuilder({
       category_label_font_size: 8,
       category_label_bold: false,
       category_label_color: null,
-      value_label_font_size: 8,
+      value_label_font_size:
+        visualType === "kpi"
+          ? 30
+          : 8,
       value_label_bold: true,
       value_label_color: null,
       axis_label_font_size: 8,
@@ -3280,7 +3371,9 @@ function PersonalDashboardBuilder({
         canvas_width:
           snapCanvasValue(
             Math.max(
-              DASHBOARD_VISUAL_MIN_WIDTH,
+              visualMinWidth(
+                visual
+              ),
               (visual.canvas_width ?? 480) +
                 step
             ),
@@ -3289,7 +3382,9 @@ function PersonalDashboardBuilder({
         canvas_height:
           snapCanvasValue(
             Math.max(
-              DASHBOARD_VISUAL_MIN_HEIGHT,
+              visualMinHeight(
+                visual
+              ),
               (visual.canvas_height ?? 300) +
                 step
             ),
@@ -3455,7 +3550,9 @@ function PersonalDashboardBuilder({
               : clamp(
                   patch.fontSize,
                   6,
-                  22,
+                  editingVisual.visual_type === "kpi"
+                    ? 64
+                    : 22,
                 ),
           value_label_bold:
             patch.bold ??
@@ -3778,9 +3875,18 @@ function PersonalDashboardBuilder({
     const move = (
       moveEvent: PointerEvent
     ) => {
+      const minimumWidth =
+        visualMinWidth(
+          visual
+        );
+      const minimumHeight =
+        visualMinHeight(
+          visual
+        );
+
       const maxWidth =
         Math.max(
-          DASHBOARD_VISUAL_MIN_WIDTH,
+          minimumWidth,
           canvasWidth - x
         );
 
@@ -3788,7 +3894,7 @@ function PersonalDashboardBuilder({
         Math.min(
           maxWidth,
           Math.max(
-            DASHBOARD_VISUAL_MIN_WIDTH,
+            minimumWidth,
             snapCanvasValue(
               startWidth +
                 moveEvent.clientX -
@@ -3800,7 +3906,7 @@ function PersonalDashboardBuilder({
 
       const nextHeight =
         Math.max(
-          DASHBOARD_VISUAL_MIN_HEIGHT,
+          minimumHeight,
           snapCanvasValue(
             startHeight +
               moveEvent.clientY -
@@ -4607,8 +4713,20 @@ function PersonalDashboardBuilder({
                   {[
                     ["X", "canvas_x", 0],
                     ["Y", "canvas_y", 0],
-                    ["W", "canvas_width", DASHBOARD_VISUAL_MIN_WIDTH],
-                    ["H", "canvas_height", DASHBOARD_VISUAL_MIN_HEIGHT],
+                    [
+                      "W",
+                      "canvas_width",
+                      visualMinWidth(
+                        editingVisual
+                      ),
+                    ],
+                    [
+                      "H",
+                      "canvas_height",
+                      visualMinHeight(
+                        editingVisual
+                      ),
+                    ],
                   ].map(
                     ([label, key, minimum]) => (
                       <label
@@ -4682,6 +4800,46 @@ function PersonalDashboardBuilder({
                 />
               </label>
 
+              <div className="dashboard-property-section dashboard-inline-property-section">
+                <strong>
+                  Title alignment
+                </strong>
+
+                <div className="dashboard-segmented-control">
+                  {[
+                    ["left", "Left"],
+                    ["center", "Center"],
+                    ["right", "Right"],
+                  ].map(
+                    ([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={
+                          (editingVisual.title_alignment ?? "left") === value
+                            ? "active"
+                            : ""
+                        }
+                        onClick={() =>
+                          updateVisual(
+                            editingVisual.visual_id,
+                            {
+                              title_alignment:
+                                value as
+                                  | "left"
+                                  | "center"
+                                  | "right",
+                            }
+                          )
+                        }
+                      >
+                        {label}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+
               <label className="dashboard-property-check">
                 <input
                   type="checkbox"
@@ -4743,6 +4901,227 @@ function PersonalDashboardBuilder({
                   }
                 />
               </label>
+
+              {editingVisual.visual_type === "kpi" && (
+                <div className="dashboard-property-section dashboard-kpi-property-section">
+                  <strong>
+                    KPI card
+                  </strong>
+
+                  <label className="dashboard-property-field">
+                    <span>
+                      Label
+                    </span>
+
+                    <input
+                      type="text"
+                      value={
+                        editingVisual.kpi_label ??
+                        ""
+                      }
+                      placeholder="Optional label"
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            kpi_label:
+                              event.target.value ||
+                              null,
+                          }
+                        )
+                      }
+                    />
+                  </label>
+
+                  <div className="dashboard-layout-fields">
+                    <label className="dashboard-property-field">
+                      <span>
+                        Label size
+                      </span>
+
+                      <input
+                        type="number"
+                        min="6"
+                        max="32"
+                        value={
+                          editingVisual.kpi_label_font_size ??
+                          10
+                        }
+                        onChange={(event) =>
+                          updateVisual(
+                            editingVisual.visual_id,
+                            {
+                              kpi_label_font_size:
+                                Math.max(
+                                  6,
+                                  Math.min(
+                                    32,
+                                    Number(
+                                      event.target.value
+                                    ) || 10
+                                  )
+                                ),
+                            }
+                          )
+                        }
+                      />
+                    </label>
+
+                    <label className="dashboard-format-color">
+                      <span>
+                        Label color
+                      </span>
+
+                      <input
+                        type="color"
+                        value={
+                          editingVisual.kpi_label_color ??
+                          editingVisual.text_color
+                        }
+                        onChange={(event) =>
+                          updateVisual(
+                            editingVisual.visual_id,
+                            {
+                              kpi_label_color:
+                                event.target.value,
+                            }
+                          )
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <label className="dashboard-property-check">
+                    <input
+                      type="checkbox"
+                      checked={
+                        editingVisual.kpi_label_bold ??
+                        false
+                      }
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            kpi_label_bold:
+                              event.target.checked,
+                          }
+                        )
+                      }
+                    />
+
+                    <span>
+                      Bold label
+                    </span>
+                  </label>
+
+                  <label className="dashboard-property-check">
+                    <input
+                      type="checkbox"
+                      checked={
+                        editingVisual.kpi_show_secondary ??
+                        false
+                      }
+                      onChange={(event) =>
+                        updateVisual(
+                          editingVisual.visual_id,
+                          {
+                            kpi_show_secondary:
+                              event.target.checked,
+                          }
+                        )
+                      }
+                    />
+
+                    <span>
+                      Show records / groups
+                    </span>
+                  </label>
+
+                  <div className="dashboard-property-field">
+                    <span>
+                      Horizontal alignment
+                    </span>
+
+                    <div className="dashboard-segmented-control">
+                      {[
+                        ["left", "Left"],
+                        ["center", "Center"],
+                        ["right", "Right"],
+                      ].map(
+                        ([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={
+                              (editingVisual.kpi_value_alignment ?? "center") === value
+                                ? "active"
+                                : ""
+                            }
+                            onClick={() =>
+                              updateVisual(
+                                editingVisual.visual_id,
+                                {
+                                  kpi_value_alignment:
+                                    value as
+                                      | "left"
+                                      | "center"
+                                      | "right",
+                                }
+                              )
+                            }
+                          >
+                            {label}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="dashboard-property-field">
+                    <span>
+                      Vertical alignment
+                    </span>
+
+                    <div className="dashboard-segmented-control">
+                      {[
+                        ["top", "Top"],
+                        ["center", "Center"],
+                        ["bottom", "Bottom"],
+                      ].map(
+                        ([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={
+                              (editingVisual.kpi_vertical_alignment ?? "center") === value
+                                ? "active"
+                                : ""
+                            }
+                            onClick={() =>
+                              updateVisual(
+                                editingVisual.visual_id,
+                                {
+                                  kpi_vertical_alignment:
+                                    value as
+                                      | "top"
+                                      | "center"
+                                      | "bottom",
+                                }
+                              )
+                            }
+                          >
+                            {label}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <small className="dashboard-property-hint">
+                    Use the Value format target above to change the KPI number size, weight and color.
+                  </small>
+                </div>
+              )}
 
               <div className="dashboard-property-section">
                 <strong>
@@ -5880,6 +6259,9 @@ function PersonalDashboardBuilder({
                       "--dashboard-title-color":
                         visual.title_color ??
                         visual.text_color,
+                      "--dashboard-title-align":
+                        visual.title_alignment ??
+                        "left",
                       "--dashboard-subtitle-size":
                         (visual.subtitle_font_size ?? 7) + "px",
                       "--dashboard-subtitle-weight":
@@ -6063,9 +6445,13 @@ function PersonalDashboardBuilder({
                           type="button"
                           disabled={
                             (visual.canvas_width ?? 480) <=
-                              DASHBOARD_VISUAL_MIN_WIDTH &&
+                              visualMinWidth(
+                                visual
+                              ) &&
                             (visual.canvas_height ?? 300) <=
-                              DASHBOARD_VISUAL_MIN_HEIGHT
+                              visualMinHeight(
+                                visual
+                              )
                           }
                           onClick={() =>
                             resizeVisual(
@@ -6141,6 +6527,34 @@ function PersonalDashboardBuilder({
                           }
                           accentColor={
                             visual.accent_color
+                          }
+                          label={
+                            visual.kpi_label ??
+                            null
+                          }
+                          showSecondary={
+                            visual.kpi_show_secondary ??
+                            false
+                          }
+                          labelFontSize={
+                            visual.kpi_label_font_size ??
+                            10
+                          }
+                          labelBold={
+                            visual.kpi_label_bold ??
+                            false
+                          }
+                          labelColor={
+                            visual.kpi_label_color ??
+                            visual.text_color
+                          }
+                          valueAlignment={
+                            visual.kpi_value_alignment ??
+                            "center"
+                          }
+                          verticalAlignment={
+                            visual.kpi_vertical_alignment ??
+                            "center"
                           }
                         />
                       )}

@@ -5459,6 +5459,14 @@ def test_save_personal_dashboard_persists_visuals_and_advances(
                     "canvas_y": 40,
                     "canvas_width": 520,
                     "canvas_height": 304,
+                    "title_alignment": "center",
+                    "kpi_label": "Average price",
+                    "kpi_label_font_size": 12,
+                    "kpi_label_bold": True,
+                    "kpi_label_color": "#123456",
+                    "kpi_show_secondary": False,
+                    "kpi_value_alignment": "right",
+                    "kpi_vertical_alignment": "center",
                 },
             ],
         },
@@ -5485,6 +5493,14 @@ def test_save_personal_dashboard_persists_visuals_and_advances(
     assert saved_visual["canvas_y"] == 40
     assert saved_visual["canvas_width"] == 520
     assert saved_visual["canvas_height"] == 304
+    assert saved_visual["title_alignment"] == "center"
+    assert saved_visual["kpi_label"] == "Average price"
+    assert saved_visual["kpi_label_font_size"] == 12
+    assert saved_visual["kpi_label_bold"] is True
+    assert saved_visual["kpi_label_color"] == "#123456"
+    assert saved_visual["kpi_show_secondary"] is False
+    assert saved_visual["kpi_value_alignment"] == "right"
+    assert saved_visual["kpi_vertical_alignment"] == "center"
 
     assert (
         body["dashboard_config"]["title"]

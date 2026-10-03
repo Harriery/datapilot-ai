@@ -852,8 +852,30 @@ class PersonalProjectDashboardVisual(BaseModel):
     # previously saved grid-based dashboards backward compatible.
     canvas_x: int | None = Field(default=None, ge=0, le=10000)
     canvas_y: int | None = Field(default=None, ge=0, le=10000)
-    canvas_width: int | None = Field(default=None, ge=160, le=4000)
-    canvas_height: int | None = Field(default=None, ge=120, le=4000)
+    canvas_width: int | None = Field(default=None, ge=120, le=4000)
+    canvas_height: int | None = Field(default=None, ge=96, le=4000)
+
+    title_alignment: Literal[
+        "left",
+        "center",
+        "right",
+    ] = "left"
+
+    kpi_label: str | None = None
+    kpi_label_font_size: int = Field(default=10, ge=6, le=32)
+    kpi_label_bold: bool = False
+    kpi_label_color: str | None = None
+    kpi_show_secondary: bool = False
+    kpi_value_alignment: Literal[
+        "left",
+        "center",
+        "right",
+    ] = "center"
+    kpi_vertical_alignment: Literal[
+        "top",
+        "center",
+        "bottom",
+    ] = "center"
 
     title_font_size: int = Field(
         default=10,
@@ -882,7 +904,7 @@ class PersonalProjectDashboardVisual(BaseModel):
     value_label_font_size: int = Field(
         default=8,
         ge=6,
-        le=22,
+        le=64,
     )
     value_label_bold: bool = True
     value_label_color: str | None = None
