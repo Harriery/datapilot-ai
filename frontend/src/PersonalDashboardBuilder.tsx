@@ -1373,22 +1373,59 @@ function DashboardLineVisual({
     );
   };
 
-  const orderedRows = [
-    ...rows,
-  ].sort(
-    (left, right) =>
-      String(
-        left.value ?? ""
-      ).localeCompare(
-        String(
-          right.value ?? ""
-        ),
-        undefined,
-        {
-          numeric: true,
-        }
-      )
-  );
+  const orderedRows =
+    dateOperation === "month"
+      ? Array.from(
+          {
+            length: 12,
+          },
+          (_, index) => {
+            const month =
+              index + 1;
+
+            const existing =
+              rows.find(
+                (row) =>
+                  Number(
+                    row.value
+                  ) === month
+              );
+
+            if (existing) {
+              return existing;
+            }
+
+            const emptyRow:
+              AnalysisResultData[
+                "grouped_results"
+              ][number] = {
+                value: month,
+                count: 0,
+                metric_value: null,
+                mean: null,
+                min: null,
+                max: null,
+              };
+
+            return emptyRow;
+          }
+        )
+      : [
+          ...rows,
+        ].sort(
+          (left, right) =>
+            String(
+              left.value ?? ""
+            ).localeCompare(
+              String(
+                right.value ?? ""
+              ),
+              undefined,
+              {
+                numeric: true,
+              }
+            )
+        );
 
   const points =
     orderedRows.map(
@@ -1505,19 +1542,36 @@ function DashboardLineVisual({
         point.value !== null
     );
 
+  let penDown = false;
+
   const path =
-    validPoints
+    plottedPoints
       .map(
-        (point, index) =>
-          (
-            index === 0
-              ? "M "
-              : "L "
-          ) +
-          point.x +
-          " " +
-          point.y
+        (point) => {
+          if (
+            point.y === null ||
+            point.value === null
+          ) {
+            penDown = false;
+            return "";
+          }
+
+          const command =
+            penDown
+              ? "L "
+              : "M ";
+
+          penDown = true;
+
+          return (
+            command +
+            point.x +
+            " " +
+            point.y
+          );
+        }
       )
+      .filter(Boolean)
       .join(" ");
 
   const labelStep =
