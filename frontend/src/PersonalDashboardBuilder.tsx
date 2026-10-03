@@ -3797,9 +3797,6 @@ function PersonalDashboardBuilder({
     setEditingVisualId(
       visual.visual_id
     );
-    setPropertiesPanelOpen(
-      true
-    );
     setFormatTarget("visual");
 
     const canvas =
@@ -3899,9 +3896,6 @@ function PersonalDashboardBuilder({
 
     setEditingVisualId(
       visual.visual_id
-    );
-    setPropertiesPanelOpen(
-      true
     );
     setFormatTarget("visual");
 
@@ -6389,9 +6383,6 @@ function PersonalDashboardBuilder({
 
                       setEditingVisualId(
                         visual.visual_id
-                      );
-                      setPropertiesPanelOpen(
-                        true
                       );
 
                       const target =
