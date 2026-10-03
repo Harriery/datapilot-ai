@@ -227,6 +227,52 @@ function isSemanticTimeDimension(
   );
 }
 
+function getSemanticDateOperation(
+  dataModelStudio:
+    DataModelStudioData | null | undefined,
+  tableName: string | null | undefined,
+  columnName: string | null | undefined,
+): string | null {
+  if (
+    !dataModelStudio ||
+    !columnName
+  ) {
+    return null;
+  }
+
+  const tables =
+    tableName
+      ? dataModelStudio.tables.filter(
+          (table) =>
+            table.name === tableName
+        )
+      : dataModelStudio.tables;
+
+  const matches =
+    tables.flatMap(
+      (table) =>
+        table.columns.filter(
+          (column) =>
+            column.name ===
+            columnName
+        )
+    );
+
+  if (
+    matches.length !== 1 ||
+    matches[0].derivation?.type !==
+      "date_part"
+  ) {
+    return null;
+  }
+
+  return (
+    matches[0].derivation
+      ?.operation ??
+    null
+  );
+}
+
 function defaultVisualTitle(
   analysis: AnalysisResultData,
   visualType: DashboardVisualType,
@@ -1269,6 +1315,7 @@ function DashboardLineVisual({
   tooltipTemplate,
   selectedValue,
   onSelect,
+  dateOperation,
 }: {
   analysis: AnalysisResultData;
   rows: AnalysisResultData[
@@ -1284,11 +1331,47 @@ function DashboardLineVisual({
   onSelect?: (
     value: unknown
   ) => void;
+  dateOperation?: string | null;
 }) {
   const semantic =
     Boolean(
       analysis.kpi_code
     );
+
+  const formatTimeLabel = (
+    value: unknown
+  ) => {
+    if (
+      dateOperation ===
+      "month"
+    ) {
+      const month =
+        Number(value);
+
+      if (
+        Number.isInteger(month) &&
+        month >= 1 &&
+        month <= 12
+      ) {
+        return new Intl.DateTimeFormat(
+          undefined,
+          {
+            month: "short",
+          }
+        ).format(
+          new Date(
+            2000,
+            month - 1,
+            1
+          )
+        );
+      }
+    }
+
+    return String(
+      value ?? ""
+    );
+  };
 
   const orderedRows = [
     ...rows,
@@ -1337,8 +1420,8 @@ function DashboardLineVisual({
               ? numeric
               : null,
           label:
-            String(
-              row.value ?? ""
+            formatTimeLabel(
+              row.value
             ),
         };
       }
@@ -1436,16 +1519,17 @@ function DashboardLineVisual({
       .join(" ");
 
   const labelStep =
-    plottedPoints.length <= 6
+    plottedPoints.length <= 12
       ? 1
       : Math.ceil(
           plottedPoints.length /
-          5
+          8
         );
 
   const axisLabels =
     plottedPoints.filter(
       (_, index) =>
+        plottedPoints.length <= 12 ||
         index === 0 ||
         index ===
           plottedPoints.length - 1 ||
@@ -7705,6 +7789,13 @@ function PersonalDashboardBuilder({
                             "interact"
                               ? selectCategory
                               : undefined
+                          }
+                          dateOperation={
+                            getSemanticDateOperation(
+                              dataModelStudio,
+                              visualDimensionTable,
+                              visualDimension,
+                            )
                           }
                         />
                       )}
