@@ -20549,3 +20549,46 @@
     width: 100%;
   }
 }
+
+
+.personal-insights-group {
+  margin-top: 16px;
+}
+
+.personal-insights-group:first-child {
+  margin-top: 0;
+}
+
+.personal-insights-group-title {
+  margin: 0 0 8px;
+
+  color: #405873;
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.personal-insights-show-all {
+  display: block;
+
+  margin: 16px auto 0;
+  padding: 9px 14px;
+
+  border: 1px solid #cfe0f6;
+  border-radius: 9px;
+
+  background: #f7fbff;
+
+  color: #2f80ed;
+
+  font-size: 11px;
+  font-weight: 750;
+
+  cursor: pointer;
+}
+
+.personal-insights-show-all:hover {
+  background: #edf5ff;
+}
