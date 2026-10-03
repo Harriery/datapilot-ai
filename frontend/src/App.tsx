@@ -68,6 +68,7 @@ import PersonalDashboardBuilder, {
   type DashboardVisualData,
 } from "./PersonalDashboardBuilder";
 import PersonalInsights from "./PersonalInsights";
+import PersonalDocs from "./PersonalDocs";
 
 import WorkspaceStageNavigation from "./WorkspaceStageNavigation";
 
@@ -3438,6 +3439,47 @@ async function confirmPersonalInsights() {
   );
 }
 
+async function completePersonalDocumentation() {
+  if (!workspaceId) {
+    return;
+  }
+
+  const response = await fetch(
+    `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/documentation/complete`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+
+    throw new Error(
+      errorData.detail ||
+        "Documentation could not be completed."
+    );
+  }
+
+  const updatedWorkspace:
+    DashboardWorkspace =
+      await response.json();
+
+  setDashboardWorkspace(
+    updatedWorkspace
+  );
+
+  setDashboardWorkspaces(
+    (previous) =>
+      previous.map(
+        (workspace) =>
+          workspace.workspace_id ===
+          updatedWorkspace.workspace_id
+            ? updatedWorkspace
+            : workspace
+      )
+  );
+}
+
 async function deletePersonalAnalysis(
   analysisId: string,
 ) {
@@ -6673,6 +6715,45 @@ async function restoreWorkspaceVersion(
                             }
                             onConfirm={
                               confirmPersonalInsights
+                            }
+                          />
+                        )}
+
+                      {dashboardWorkspace.usage_context === "personal" &&
+                        activeWorkspaceStage === "docs" && (
+                          <PersonalDocs
+                            projectTitle={
+                              dashboardWorkspace.title
+                            }
+                            datasetFilename={
+                              dashboardWorkspace.dataset_filename ?? null
+                            }
+                            taskBrief={
+                              dashboardWorkspace.task_brief
+                            }
+                            desiredOutcome={
+                              dashboardWorkspace.desired_outcome
+                            }
+                            validationResult={
+                              dashboardWorkspace.validation_result ?? null
+                            }
+                            workbenchOperations={
+                              dashboardWorkspace.workbench_operations ?? []
+                            }
+                            dataModelStudio={
+                              dashboardWorkspace.data_model_studio ?? null
+                            }
+                            kpiDefinitions={
+                              dashboardWorkspace.kpi_definitions ?? []
+                            }
+                            analyses={
+                              dashboardWorkspace.analysis_results ?? []
+                            }
+                            dashboardConfig={
+                              dashboardWorkspace.dashboard_config ?? null
+                            }
+                            onComplete={
+                              completePersonalDocumentation
                             }
                           />
                         )}
