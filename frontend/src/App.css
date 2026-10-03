@@ -20856,3 +20856,80 @@
     font-size: 18px;
   }
 }
+
+
+/* ==================================================
+   PERSONAL INSIGHTS - FULL WIDTH WORKSPACE STAGE
+   ================================================== */
+
+.workspace-overview-grid
+  > .personal-insights {
+  grid-column: 1 / -1;
+
+  width: 100%;
+  max-width: 1240px;
+
+  margin:
+    0 auto;
+
+  padding:
+    22px
+    24px
+    34px;
+}
+
+.personal-insights-header,
+.personal-insights-summary,
+.personal-insights-detail {
+  width: 100%;
+}
+
+.personal-insights-summary-grid,
+.personal-insights-list {
+  width: 100%;
+}
+
+.personal-insight-summary-card,
+.personal-insight-row {
+  min-width: 0;
+}
+
+@media (min-width: 1180px) {
+  .workspace-overview-grid
+    > .personal-insights {
+    padding-left: 34px;
+    padding-right: 34px;
+  }
+
+  .personal-insights-header {
+    padding:
+      22px
+      24px;
+  }
+
+  .personal-insights-summary-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .personal-insights-list {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+@media (max-width: 900px) {
+  .workspace-overview-grid
+    > .personal-insights {
+    padding:
+      16px
+      12px
+      28px;
+  }
+}
