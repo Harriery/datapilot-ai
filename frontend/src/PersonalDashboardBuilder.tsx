@@ -2434,6 +2434,11 @@ function PersonalDashboardBuilder({
   );
 
   const [
+    slicerPickerOpen,
+    setSlicerPickerOpen,
+  ] = useState(false);
+
+  const [
     pendingVisualKpiCode,
     setPendingVisualKpiCode,
   ] = useState(
@@ -3206,6 +3211,70 @@ function PersonalDashboardBuilder({
 
     setPendingFilterKey(
       ""
+    );
+
+    await ensureFilterValues(
+      filter
+    );
+  }
+
+  async function addDashboardFilterByKey(
+    filterKey: string
+  ) {
+    const option =
+      dimensionOptions.find(
+        (item) =>
+          item.value ===
+          filterKey
+      );
+
+    if (!option) {
+      return;
+    }
+
+    const existing =
+      dashboardFilters.find(
+        (item) =>
+          item.table ===
+            option.table &&
+          item.column ===
+            option.column
+      );
+
+    if (existing) {
+      await ensureFilterValues(
+        existing
+      );
+      return;
+    }
+
+    const filter:
+      DashboardFilterData = {
+        filter_id:
+          (
+            globalThis.crypto
+              ?.randomUUID?.()
+          ) ??
+          (
+            "filter-" +
+            Date.now()
+          ),
+        table:
+          option.table,
+        column:
+          option.column,
+        label:
+          option.column,
+        value:
+          null,
+        values: [],
+      };
+
+    setDashboardFilters(
+      (previous) => [
+        ...previous,
+        filter,
+      ]
     );
 
     await ensureFilterValues(
@@ -4873,56 +4942,85 @@ function PersonalDashboardBuilder({
         </div>
 
         {dashboardMode === "edit" && (
-        <div className="dashboard-slicer-builder">
-          <DashboardSelect
-            value={
-              pendingFilterKey
-            }
-            options={[
-              {
-                value: "",
-                label:
-                  "Choose dimension",
-              },
-              ...dimensionOptions
-                .filter(
-                  (option) =>
-                    !dashboardFilters.some(
-                      (filter) =>
-                        filter.table ===
-                          option.table &&
-                        filter.column ===
-                          option.column
+          <div className="dashboard-slicer-builder">
+            <div className="dashboard-slicer-picker">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() =>
+                  setSlicerPickerOpen(
+                    (previous) =>
+                      !previous
+                  )
+                }
+                aria-expanded={
+                  slicerPickerOpen
+                }
+              >
+                + Add slicer
+              </button>
+
+              {slicerPickerOpen && (
+                <div className="dashboard-slicer-picker-menu">
+                  {dimensionOptions
+                    .filter(
+                      (option) =>
+                        !dashboardFilters.some(
+                          (filter) =>
+                            filter.table ===
+                              option.table &&
+                            filter.column ===
+                              option.column
+                        )
                     )
-                )
-                .map(
-                  (option) => ({
-                    value:
-                      option.value,
-                    label:
-                      option.label,
-                  })
-                ),
-            ]}
-            onChange={
-              setPendingFilterKey
-            }
-          />
+                    .map(
+                      (option) => (
+                        <button
+                          key={
+                            option.value
+                          }
+                          type="button"
+                          onClick={() => {
+                            setPendingFilterKey(
+                              option.value
+                            );
+                            setSlicerPickerOpen(
+                              false
+                            );
+                            void addDashboardFilterByKey(
+                              option.value
+                            );
+                          }}
+                        >
+                          <span>
+                            {option.column}
+                          </span>
 
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={
-              !pendingFilterKey
-            }
-            onClick={
-              addDashboardFilter
-            }
-          >
-            + Add slicer
-          </button>
+                          <small>
+                            {option.table}
+                          </small>
+                        </button>
+                      )
+                    )}
 
-        </div>
+                  {dimensionOptions.filter(
+                    (option) =>
+                      !dashboardFilters.some(
+                        (filter) =>
+                          filter.table ===
+                            option.table &&
+                          filter.column ===
+                            option.column
+                      )
+                  ).length === 0 && (
+                    <p>
+                      All available dimensions are already added.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {dashboardFilters.length > 0 && (
