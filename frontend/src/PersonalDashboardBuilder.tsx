@@ -6282,6 +6282,8 @@ function PersonalDashboardBuilder({
                     className={
                       "dashboard-visual-card mode-" +
                       dashboardMode +
+                      " visual-" +
+                      visual.visual_type +
                       " size-" +
                       visual.size +
                       (
