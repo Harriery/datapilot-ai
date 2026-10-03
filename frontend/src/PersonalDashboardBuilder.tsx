@@ -2416,6 +2416,11 @@ function PersonalDashboardBuilder({
     setPropertiesPanelOpen,
   ] = useState(false);
 
+  const [
+    analysisLibraryOpen,
+    setAnalysisLibraryOpen,
+  ] = useState(true);
+
 
   const [
     dashboardMode,
@@ -4687,18 +4692,70 @@ function PersonalDashboardBuilder({
             propertiesPanelOpen
               ? " properties-open"
               : ""
+          ) +
+          (
+            dashboardMode ===
+              "edit" &&
+            !analysisLibraryOpen
+              ? " analysis-library-collapsed"
+              : ""
           )
         }
       >
-        <aside className="dashboard-analysis-library">
-          <div className="dashboard-panel-heading">
-            <span className="workspace-overview-label">
-              SAVED ANALYSES
-            </span>
+        {dashboardMode === "edit" &&
+          !analysisLibraryOpen && (
+          <button
+            type="button"
+            className="dashboard-analysis-library-toggle collapsed"
+            onClick={() =>
+              setAnalysisLibraryOpen(
+                true
+              )
+            }
+            title="Open saved analyses"
+            aria-label="Open saved analyses"
+          >
+            <span>›</span>
+            <strong>Analyses</strong>
+          </button>
+        )}
 
-            <strong>
-              Add visual
-            </strong>
+        <aside
+          className={
+            "dashboard-analysis-library" +
+            (
+              analysisLibraryOpen
+                ? ""
+                : " collapsed"
+            )
+          }
+        >
+          <div className="dashboard-panel-heading">
+            <div>
+              <span className="workspace-overview-label">
+                SAVED ANALYSES
+              </span>
+
+              <strong>
+                Add visual
+              </strong>
+            </div>
+
+            {dashboardMode === "edit" && (
+              <button
+                type="button"
+                className="dashboard-analysis-library-toggle"
+                onClick={() =>
+                  setAnalysisLibraryOpen(
+                    false
+                  )
+                }
+                title="Hide saved analyses"
+                aria-label="Hide saved analyses"
+              >
+                ‹
+              </button>
+            )}
           </div>
 
           <div className="dashboard-analysis-list">
