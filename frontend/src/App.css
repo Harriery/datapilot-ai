@@ -19283,3 +19283,31 @@
   font-weight: 800;
   letter-spacing: 0.06em;
 }
+
+
+.dashboard-create-visual-auto-hint {
+  display: flex;
+  align-items: flex-start;
+
+  gap: 5px;
+
+  padding: 7px 8px;
+
+  border: 1px solid #dce7f2;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #6b7e93;
+
+  font-size: 7px;
+  line-height: 1.4;
+}
+
+.dashboard-create-visual-auto-hint strong {
+  flex: 0 0 auto;
+
+  color: #2f6fae;
+
+  font-weight: 800;
+}
