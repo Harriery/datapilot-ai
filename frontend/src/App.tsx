@@ -3393,6 +3393,51 @@ async function savePersonalDashboard(
   }
 }
 
+async function confirmPersonalInsights() {
+  if (!workspaceId) {
+    return;
+  }
+
+  const response = await fetch(
+    `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/insights/confirm`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+
+    throw new Error(
+      errorData.detail ||
+        "Insights could not be confirmed."
+    );
+  }
+
+  const updatedWorkspace:
+    DashboardWorkspace =
+      await response.json();
+
+  setDashboardWorkspace(
+    updatedWorkspace
+  );
+
+  setDashboardWorkspaces(
+    (previous) =>
+      previous.map(
+        (workspace) =>
+          workspace.workspace_id ===
+          updatedWorkspace.workspace_id
+            ? updatedWorkspace
+            : workspace
+      )
+  );
+
+  setActiveWorkspaceStage(
+    "docs"
+  );
+}
+
 async function deletePersonalAnalysis(
   analysisId: string,
 ) {
@@ -6625,6 +6670,9 @@ async function restoreWorkspaceVersion(
                             }
                             kpiDefinitions={
                               dashboardWorkspace.kpi_definitions ?? []
+                            }
+                            onConfirm={
+                              confirmPersonalInsights
                             }
                           />
                         )}
