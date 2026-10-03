@@ -20933,3 +20933,573 @@
       28px;
   }
 }
+
+
+/* ==================================================
+   PERSONAL DOCS - FINAL PROJECT HANDOFF
+   ================================================== */
+
+.workspace-overview-grid
+  > .personal-docs {
+  grid-column: 1 / -1;
+
+  width: 100%;
+  max-width: 1240px;
+
+  margin: 0 auto;
+
+  padding:
+    22px
+    34px
+    40px;
+}
+
+.personal-docs {
+  color: #263b54;
+}
+
+.personal-docs-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+
+  padding: 22px 24px;
+  margin-bottom: 18px;
+
+  border: 1px solid #dfe7f0;
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f7fbff 100%
+    );
+
+  box-shadow:
+    0 6px 20px
+    rgba(29, 53, 82, 0.05);
+}
+
+.personal-docs-eyebrow {
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: #6b7f96;
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.personal-docs-header h2 {
+  margin: 0 0 6px;
+
+  color: #1f334d;
+
+  font-size: 24px;
+}
+
+.personal-docs-header p {
+  max-width: 720px;
+
+  margin: 0;
+
+  color: #66798f;
+
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.personal-docs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.personal-docs-primary,
+.personal-docs-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  min-height: 36px;
+
+  padding: 8px 11px;
+
+  border-radius: 9px;
+
+  font-size: 11px;
+  font-weight: 750;
+
+  cursor: pointer;
+}
+
+.personal-docs-primary {
+  border: 1px solid #2f80ed;
+
+  background: #2f80ed;
+
+  color: #ffffff;
+}
+
+.personal-docs-primary:hover:not(:disabled) {
+  background: #236fd5;
+}
+
+.personal-docs-primary:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.personal-docs-secondary {
+  border: 1px solid #d4e0ee;
+
+  background: #ffffff;
+
+  color: #476078;
+}
+
+.personal-docs-secondary:hover {
+  background: #f7fbff;
+}
+
+.personal-docs-error {
+  margin: -6px 0 14px;
+
+  padding: 10px 12px;
+
+  border: 1px solid #f1b8b8;
+  border-radius: 10px;
+
+  background: #fff6f6;
+
+  color: #a43d3d;
+
+  font-size: 12px;
+}
+
+.personal-docs-summary {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.1fr)
+    minmax(0, 1fr);
+  gap: 14px;
+
+  margin-bottom: 14px;
+}
+
+.personal-docs-project-copy,
+.personal-docs-stats {
+  border: 1px solid #dfe7f0;
+  border-radius: 14px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 14px
+    rgba(29, 53, 82, 0.04);
+}
+
+.personal-docs-project-copy {
+  padding: 18px 20px;
+}
+
+.personal-docs-project-copy > span {
+  color: #8090a3;
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.personal-docs-project-copy h3 {
+  margin: 6px 0 7px;
+
+  color: #223851;
+
+  font-size: 18px;
+}
+
+.personal-docs-project-copy p {
+  margin: 0;
+
+  color: #61758b;
+
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.personal-docs-project-copy small {
+  display: block;
+
+  margin-top: 10px;
+
+  color: #8494a7;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.personal-docs-stats {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  overflow: hidden;
+}
+
+.personal-docs-stat {
+  min-width: 0;
+
+  padding: 16px;
+
+  border-right: 1px solid #edf1f6;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.personal-docs-stat:nth-child(3n) {
+  border-right: 0;
+}
+
+.personal-docs-stat:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.personal-docs-stat span {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color: #8595a8;
+
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.personal-docs-stat strong {
+  display: block;
+
+  overflow: hidden;
+
+  color: #263c55;
+
+  font-size: 13px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personal-docs-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 14px;
+
+  margin-bottom: 14px;
+}
+
+.personal-docs-card {
+  min-width: 0;
+
+  padding: 18px 20px;
+
+  border: 1px solid #dfe7f0;
+  border-radius: 14px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 14px
+    rgba(29, 53, 82, 0.04);
+}
+
+.personal-docs-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  margin-bottom: 14px;
+
+  color: #2f80ed;
+}
+
+.personal-docs-card-title > div {
+  min-width: 0;
+}
+
+.personal-docs-card-title strong {
+  display: block;
+
+  color: #263b54;
+
+  font-size: 14px;
+}
+
+.personal-docs-card-title small {
+  display: block;
+
+  margin-top: 2px;
+
+  color: #8a99ab;
+
+  font-size: 10px;
+}
+
+.personal-docs-list {
+  display: grid;
+  gap: 8px;
+}
+
+.personal-docs-list-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+
+  padding: 10px 11px;
+
+  border-radius: 9px;
+
+  background: #f8fbfe;
+}
+
+.personal-docs-list-row strong {
+  flex: 0 0 42%;
+
+  color: #314860;
+
+  font-size: 11px;
+}
+
+.personal-docs-list-row span,
+.personal-docs-list-row code {
+  min-width: 0;
+
+  color: #6b7f95;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.personal-docs-list-row code {
+  overflow-wrap: anywhere;
+
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+
+  text-align: right;
+}
+
+.personal-docs-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.personal-docs-chip-list > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 7px 9px;
+
+  border: 1px solid #dfe8f3;
+  border-radius: 9px;
+
+  background: #f8fbff;
+
+  color: #37506a;
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.personal-docs-chip-list > span > small {
+  color: #8897a8;
+
+  font-size: 8px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.personal-docs-relationship-count {
+  margin-top: 12px;
+
+  color: #7a8da2;
+
+  font-size: 10px;
+}
+
+.personal-docs-stats.compact {
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  margin-bottom: 12px;
+
+  box-shadow: none;
+}
+
+.personal-docs-stats.compact
+  .personal-docs-stat {
+  padding: 10px 11px;
+}
+
+.personal-docs-analysis-card,
+.personal-docs-notes {
+  margin-bottom: 14px;
+}
+
+.personal-docs-analysis-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+}
+
+.personal-docs-analysis-item {
+  min-width: 0;
+
+  padding: 10px 11px;
+
+  border: 1px solid #e3ebf4;
+  border-radius: 9px;
+
+  background: #fbfdff;
+}
+
+.personal-docs-analysis-item strong {
+  display: block;
+
+  overflow: hidden;
+
+  color: #334a63;
+
+  font-size: 11px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personal-docs-analysis-item span {
+  display: block;
+
+  margin-top: 4px;
+
+  color: #8292a4;
+
+  font-size: 9px;
+}
+
+.personal-docs-notes ul {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px 18px;
+
+  margin: 0;
+  padding-left: 18px;
+}
+
+.personal-docs-notes li {
+  color: #61758b;
+
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.personal-docs-muted {
+  margin: 0;
+
+  color: #8796a8;
+
+  font-size: 11px;
+}
+
+@media (max-width: 980px) {
+  .personal-docs-header,
+  .personal-docs-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-docs-header {
+    flex-direction: column;
+  }
+
+  .personal-docs-actions {
+    justify-content: flex-start;
+  }
+
+  .personal-docs-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-docs-analysis-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+@media (max-width: 700px) {
+  .workspace-overview-grid
+    > .personal-docs {
+    padding:
+      14px
+      10px
+      28px;
+  }
+
+  .personal-docs-stats,
+  .personal-docs-stats.compact,
+  .personal-docs-analysis-grid,
+  .personal-docs-notes ul {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-docs-stat {
+    border-right: 0;
+  }
+
+  .personal-docs-list-row {
+    flex-direction: column;
+  }
+
+  .personal-docs-list-row strong {
+    flex-basis: auto;
+  }
+
+  .personal-docs-list-row code {
+    text-align: left;
+  }
+}
