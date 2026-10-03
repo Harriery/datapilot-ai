@@ -20488,3 +20488,64 @@
     text-align: left;
   }
 }
+
+
+.personal-insights-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 9px;
+}
+
+.personal-insights-confirm {
+  min-width: 132px;
+
+  padding: 8px 12px;
+
+  border: 1px solid #2f80ed;
+  border-radius: 9px;
+
+  background: #2f80ed;
+
+  color: #ffffff;
+
+  font-size: 11px;
+  font-weight: 750;
+
+  cursor: pointer;
+}
+
+.personal-insights-confirm:hover:not(:disabled) {
+  background: #236fd5;
+}
+
+.personal-insights-confirm:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.personal-insights-error {
+  margin: -6px 0 14px;
+
+  padding: 10px 12px;
+
+  border: 1px solid #f1b8b8;
+  border-radius: 10px;
+
+  background: #fff6f6;
+
+  color: #a43d3d;
+
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .personal-insights-header-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .personal-insights-confirm {
+    width: 100%;
+  }
+}
