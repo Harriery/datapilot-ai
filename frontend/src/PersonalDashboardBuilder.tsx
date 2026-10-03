@@ -94,6 +94,11 @@ export type DashboardVisualData = {
   kpi_show_secondary?: boolean;
   kpi_value_alignment?: "left" | "center" | "right";
   kpi_vertical_alignment?: "top" | "center" | "bottom";
+  kpi_stat?:
+    | "metric"
+    | "count"
+    | "min"
+    | "max";
 
   title_font_size?: number;
   title_bold?: boolean;
@@ -1048,6 +1053,7 @@ function DashboardKpiVisual({
   labelColor,
   valueAlignment,
   verticalAlignment,
+  stat,
 }: {
   analysis: AnalysisResultData;
   accentColor: string;
@@ -1058,7 +1064,23 @@ function DashboardKpiVisual({
   labelColor: string;
   valueAlignment: "left" | "center" | "right";
   verticalAlignment: "top" | "center" | "bottom";
+  stat:
+    | "metric"
+    | "count"
+    | "min"
+    | "max";
 }) {
+  const value =
+    stat === "count"
+      ? analysis.overall.count
+      : stat === "min"
+        ? analysis.overall.min
+        : stat === "max"
+          ? analysis.overall.max
+          : getMetricValue(
+              analysis
+            );
+
   const secondary =
     analysis.dimension
       ? (
@@ -1095,9 +1117,7 @@ function DashboardKpiVisual({
     >
       <strong data-format-target="value">
         {formatNumber(
-          getMetricValue(
-            analysis
-          )
+          value
         )}
       </strong>
 
@@ -3794,6 +3814,7 @@ function PersonalDashboardBuilder({
       kpi_show_secondary: false,
       kpi_value_alignment: "center",
       kpi_vertical_alignment: "center",
+      kpi_stat: "metric",
       tooltip_template:
         "{category}\n{measure}: {value}\nRecords: {count}",
       grid_column: null,
@@ -3971,33 +3992,530 @@ function PersonalDashboardBuilder({
     }
   }
 
-  function addSuggestedDashboard() {
-    const next =
-      analyses
-        .filter(
+  async function addSuggestedDashboard() {
+    setCreatingVisual(true);
+    setCreateVisualError("");
+
+    try {
+      const suggested:
+        DashboardVisualData[] = [];
+
+      const suggestedResults:
+        Record<
+          string,
+          AnalysisResultData
+        > = {};
+
+      const baseKpi =
+        reusableKpiDefinitions[0] ??
+        null;
+
+      if (baseKpi) {
+        const preview =
+          await onPreview(
+            baseKpi.code,
+            null,
+            null,
+            dashboardFilters,
+          );
+
+        const baseAnalysis:
+          AnalysisResultData = {
+          ...preview,
+          analysis_id: null,
+          kpi_code:
+            baseKpi.code,
+          dimension_table: null,
+          dimension: null,
+          measure:
+            preview.measure ||
+            baseKpi.title ||
+            baseKpi.code,
+        };
+
+        const kpiSpecs:
+          Array<{
+            stat:
+              | "metric"
+              | "count"
+              | "min"
+              | "max";
+            title: string;
+          }> = [
+          {
+            stat: "metric",
+            title:
+              baseKpi.title,
+          },
+          {
+            stat: "count",
+            title:
+              "Records",
+          },
+          {
+            stat: "min",
+            title:
+              "Minimum " +
+              baseAnalysis.measure,
+          },
+          {
+            stat: "max",
+            title:
+              "Maximum " +
+              baseAnalysis.measure,
+          },
+        ];
+
+        kpiSpecs.forEach(
+          (spec) => {
+            const visual =
+              createVisual(
+                baseAnalysis,
+                "kpi",
+              );
+
+            if (!visual) {
+              return;
+            }
+
+            const configured = {
+              ...visual,
+              title:
+                spec.title,
+              subtitle: null,
+              auto_title: false,
+              kpi_stat:
+                spec.stat,
+              kpi_show_secondary:
+                spec.stat ===
+                "metric",
+              kpi_value_alignment:
+                "left" as const,
+            };
+
+            suggested.push(
+              configured
+            );
+
+            suggestedResults[
+              configured.visual_id
+            ] =
+              baseAnalysis;
+          }
+        );
+      }
+
+      const dimensionAnalyses =
+        analyses.filter(
           (analysis) =>
-            analysis.analysis_id
-        )
-        .slice(0, 8)
-        .map(
-          (analysis) =>
-            createVisual(
-              analysis
-            )
-        )
-        .filter(
-          (
-            visual,
-          ): visual is
-            DashboardVisualData =>
-              visual !== null
+            Boolean(
+              analysis.dimension
+            ) &&
+            analysis.grouped_results
+              .length > 0
         );
 
-    setVisuals(
-      normalizeVisualLayouts(
-        next
-      )
-    );
+      const timeAnalyses =
+        dimensionAnalyses.filter(
+          (analysis) =>
+            isSemanticTimeDimension(
+              dataModelStudio,
+              analysis.dimension_table ??
+                null,
+              analysis.dimension,
+            )
+        );
+
+      const categoricalAnalyses =
+        dimensionAnalyses.filter(
+          (analysis) =>
+            !isSemanticTimeDimension(
+              dataModelStudio,
+              analysis.dimension_table ??
+                null,
+              analysis.dimension,
+            )
+        );
+
+      const usedAnalysisIds =
+        new Set<string>();
+
+      const addFromAnalysis = (
+        analysis:
+          AnalysisResultData | undefined,
+        visualType:
+          DashboardVisualType
+      ) => {
+        if (!analysis) {
+          return;
+        }
+
+        const visual =
+          createVisual(
+            analysis,
+            visualType,
+          );
+
+        if (!visual) {
+          return;
+        }
+
+        suggested.push(
+          visual
+        );
+
+        if (
+          analysis.analysis_id
+        ) {
+          usedAnalysisIds.add(
+            analysis.analysis_id
+          );
+        }
+      };
+
+      addFromAnalysis(
+        timeAnalyses[0],
+        "line",
+      );
+
+      addFromAnalysis(
+        categoricalAnalyses[0],
+        "bar",
+      );
+
+      addFromAnalysis(
+        categoricalAnalyses[1] ??
+          categoricalAnalyses[0],
+        "column",
+      );
+
+      const additiveCategorical =
+        categoricalAnalyses.find(
+          (analysis) => {
+            const definition =
+              kpiDefinitions.find(
+                (item) =>
+                  item.code ===
+                  analysis.kpi_code
+              );
+
+            return [
+              "sum",
+              "count",
+            ].includes(
+              definition?.aggregation ??
+              ""
+            );
+          }
+        );
+
+      addFromAnalysis(
+        additiveCategorical,
+        "donut",
+      );
+
+      const tableAnalysis =
+        dimensionAnalyses.find(
+          (analysis) =>
+            !analysis.analysis_id ||
+            !usedAnalysisIds.has(
+              analysis.analysis_id
+            )
+        ) ??
+        dimensionAnalyses[0];
+
+      addFromAnalysis(
+        tableAnalysis,
+        "table",
+      );
+
+      if (suggested.length === 0) {
+        setCreateVisualError(
+          "Create at least one KPI or saved analysis before building a suggested dashboard."
+        );
+        return;
+      }
+
+      const canvasWidth =
+        Math.max(
+          DASHBOARD_CANVAS_MIN_WIDTH,
+          canvasSurfaceRef.current
+            ?.clientWidth ??
+            DASHBOARD_CANVAS_MIN_WIDTH
+        );
+
+      const padding = 16;
+      const gap = 16;
+      const availableWidth =
+        canvasWidth -
+        padding * 2;
+
+      const kpis =
+        suggested.filter(
+          (visual) =>
+            visual.visual_type ===
+            "kpi"
+        );
+
+      const line =
+        suggested.find(
+          (visual) =>
+            visual.visual_type ===
+            "line" ||
+            visual.visual_type ===
+            "area"
+        ) ??
+        null;
+
+      const donut =
+        suggested.find(
+          (visual) =>
+            visual.visual_type ===
+            "donut" ||
+            visual.visual_type ===
+            "pie"
+        ) ??
+        null;
+
+      const comparisons =
+        suggested.filter(
+          (visual) =>
+            visual.visual_type ===
+              "bar" ||
+            visual.visual_type ===
+              "column"
+        );
+
+      const table =
+        suggested.find(
+          (visual) =>
+            visual.visual_type ===
+            "table"
+        ) ??
+        null;
+
+      const arranged =
+        new Map<
+          string,
+          DashboardVisualData
+        >();
+
+      let y = padding;
+
+      if (kpis.length > 0) {
+        const columns =
+          Math.min(
+            4,
+            kpis.length
+          );
+
+        const width =
+          Math.floor(
+            (
+              availableWidth -
+              gap *
+                (columns - 1)
+            ) /
+            columns
+          );
+
+        kpis.forEach(
+          (visual, index) => {
+            arranged.set(
+              visual.visual_id,
+              {
+                ...visual,
+                canvas_x:
+                  padding +
+                  index *
+                    (
+                      width +
+                      gap
+                    ),
+                canvas_y: y,
+                canvas_width:
+                  width,
+                canvas_height:
+                  136,
+              }
+            );
+          }
+        );
+
+        y += 152;
+      }
+
+      if (line && donut) {
+        const rowWidth =
+          availableWidth -
+          gap;
+
+        const lineWidth =
+          Math.floor(
+            rowWidth *
+            0.66
+          );
+
+        arranged.set(
+          line.visual_id,
+          {
+            ...line,
+            canvas_x: padding,
+            canvas_y: y,
+            canvas_width:
+              lineWidth,
+            canvas_height: 320,
+          }
+        );
+
+        arranged.set(
+          donut.visual_id,
+          {
+            ...donut,
+            canvas_x:
+              padding +
+              lineWidth +
+              gap,
+            canvas_y: y,
+            canvas_width:
+              rowWidth -
+              lineWidth,
+            canvas_height: 320,
+          }
+        );
+
+        y += 336;
+      } else if (line) {
+        arranged.set(
+          line.visual_id,
+          {
+            ...line,
+            canvas_x: padding,
+            canvas_y: y,
+            canvas_width:
+              availableWidth,
+            canvas_height: 320,
+          }
+        );
+
+        y += 336;
+      } else if (donut) {
+        arranged.set(
+          donut.visual_id,
+          {
+            ...donut,
+            canvas_x: padding,
+            canvas_y: y,
+            canvas_width:
+              Math.min(
+                420,
+                availableWidth
+              ),
+            canvas_height: 300,
+          }
+        );
+
+        y += 316;
+      }
+
+      if (
+        comparisons.length > 0
+      ) {
+        const columns =
+          Math.min(
+            2,
+            comparisons.length
+          );
+
+        const width =
+          Math.floor(
+            (
+              availableWidth -
+              gap *
+                (columns - 1)
+            ) /
+            columns
+          );
+
+        comparisons.forEach(
+          (visual, index) => {
+            arranged.set(
+              visual.visual_id,
+              {
+                ...visual,
+                canvas_x:
+                  padding +
+                  index *
+                    (
+                      width +
+                      gap
+                    ),
+                canvas_y: y,
+                canvas_width:
+                  width,
+                canvas_height:
+                  280,
+              }
+            );
+          }
+        );
+
+        y += 296;
+      }
+
+      if (table) {
+        arranged.set(
+          table.visual_id,
+          {
+            ...table,
+            canvas_x: padding,
+            canvas_y: y,
+            canvas_width:
+              availableWidth,
+            canvas_height: 300,
+          }
+        );
+      }
+
+      const nextVisuals =
+        suggested.map(
+          (visual) =>
+            arranged.get(
+              visual.visual_id
+            ) ??
+            placeVisualInFreeSlot(
+              [],
+              visual
+            )
+        );
+
+      setPreviewResults(
+        (previous) => ({
+          ...previous,
+          ...suggestedResults,
+        })
+      );
+
+      setVisuals(
+        nextVisuals
+      );
+
+      setSelectedVisualIds(
+        []
+      );
+
+      setEditingVisualId(
+        null
+      );
+    } catch (error) {
+      setCreateVisualError(
+        error instanceof Error
+          ? error.message
+          : "Could not build the suggested dashboard."
+      );
+    } finally {
+      setCreatingVisual(false);
+    }
   }
 
   function updateVisual(
@@ -5788,13 +6306,19 @@ function PersonalDashboardBuilder({
             type="button"
             className="secondary-button"
             disabled={
-              analyses.length === 0
+              (
+                analyses.length === 0 &&
+                reusableKpiDefinitions.length === 0
+              ) ||
+              creatingVisual
             }
-            onClick={
-              addSuggestedDashboard
+            onClick={() =>
+              void addSuggestedDashboard()
             }
           >
-            Build suggested dashboard
+            {creatingVisual
+              ? "Building dashboard..."
+              : "Build suggested dashboard"}
           </button>
 
           <button
@@ -8770,6 +9294,10 @@ function PersonalDashboardBuilder({
                           verticalAlignment={
                             visual.kpi_vertical_alignment ??
                             "center"
+                          }
+                          stat={
+                            visual.kpi_stat ??
+                            "metric"
                           }
                         />
                       )}
