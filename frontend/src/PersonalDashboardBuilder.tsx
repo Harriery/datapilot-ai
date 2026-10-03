@@ -323,7 +323,11 @@ function recommendedVisual(
   }
 
   if (isTimeDimension) {
-    return "line";
+    return (
+      analysis.grouped_results.length <= 3
+        ? "column"
+        : "line"
+    );
   }
 
   return "bar";
@@ -1313,17 +1317,32 @@ function DashboardLineVisual({
         ) ?? 0
     );
 
-  const min =
+  const rawMin =
     Math.min(
-      ...values,
-      0
+      ...values
     );
 
-  const max =
+  const rawMax =
     Math.max(
-      ...values,
-      1
+      ...values
     );
+
+  const rawRange =
+    rawMax - rawMin;
+
+  const padding =
+    rawRange > 0
+      ? rawRange * 0.12
+      : Math.max(
+          Math.abs(rawMax) * 0.05,
+          1
+        );
+
+  const min =
+    rawMin - padding;
+
+  const max =
+    rawMax + padding;
 
   const range =
     max - min || 1;
@@ -1722,17 +1741,32 @@ function DashboardAreaVisual({
         ) ?? 0
     );
 
-  const min =
+  const rawMin =
     Math.min(
-      ...values,
-      0
+      ...values
     );
 
-  const max =
+  const rawMax =
     Math.max(
-      ...values,
-      1
+      ...values
     );
+
+  const rawRange =
+    rawMax - rawMin;
+
+  const padding =
+    rawRange > 0
+      ? rawRange * 0.12
+      : Math.max(
+          Math.abs(rawMax) * 0.05,
+          1
+        );
+
+  const min =
+    rawMin - padding;
+
+  const max =
+    rawMax + padding;
 
   const range =
     max - min || 1;
@@ -2768,7 +2802,7 @@ function PersonalDashboardBuilder({
             value: "auto",
             label:
               pendingDimensionIsTime
-                ? "Auto · Line chart"
+                ? "Auto · Time chart"
                 : "Auto · Horizontal bar",
           },
           ...(pendingDimensionIsTime
@@ -5178,7 +5212,7 @@ function PersonalDashboardBuilder({
                 {!pendingDimensionOption
                   ? "KPI card"
                   : pendingDimensionIsTime
-                    ? "Line chart because the selected dimension has the semantic role “time”."
+                    ? "Time chart. Auto uses columns for a few time periods and a line for a longer series."
                     : "Horizontal bar because the selected field is a categorical dimension."}
               </span>
             </div>
