@@ -18980,3 +18980,36 @@
     font-size: 18px;
   }
 }
+
+
+/* ==================================================
+   PROFESSIONAL AUTO-LAYOUT CONTROL
+   ================================================== */
+
+.dashboard-auto-layout-button {
+  min-height: 28px;
+
+  padding: 5px 10px;
+
+  border: 1px solid #b9d2ef;
+  border-radius: 7px;
+
+  background: #eef6ff;
+  color: #246fca;
+
+  cursor: pointer;
+
+  font: inherit;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.dashboard-auto-layout-button:hover:not(:disabled) {
+  border-color: #8bb7e9;
+  background: #e2f0ff;
+}
+
+.dashboard-auto-layout-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
