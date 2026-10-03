@@ -7975,126 +7975,143 @@ function PersonalDashboardBuilder({
               )}
 
               {dashboardMode === "edit" && (
-                <div className="dashboard-align-toolbar">
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "left"
-                      )
-                    }
-                    title="Align selected visuals to the same left edge"
-                  >
-                    Left
-                  </button>
+                <div
+                  className="dashboard-align-toolbar"
+                  aria-label="Visual alignment tools"
+                >
+                  <div className="dashboard-align-group">
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "left"
+                        )
+                      }
+                      title="Align left"
+                      aria-label="Align left"
+                    >
+                      ↤
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "right"
-                      )
-                    }
-                    title="Align selected visuals to the same right edge"
-                  >
-                    Right
-                  </button>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "right"
+                        )
+                      }
+                      title="Align right"
+                      aria-label="Align right"
+                    >
+                      ↦
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "top"
-                      )
-                    }
-                    title="Align selected visuals to the same top edge"
-                  >
-                    Top
-                  </button>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "top"
+                        )
+                      }
+                      title="Align top"
+                      aria-label="Align top"
+                    >
+                      ↥
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "bottom"
-                      )
-                    }
-                    title="Align selected visuals to the same bottom edge"
-                  >
-                    Bottom
-                  </button>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "bottom"
+                        )
+                      }
+                      title="Align bottom"
+                      aria-label="Align bottom"
+                    >
+                      ↧
+                    </button>
+                  </div>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "same-width"
-                      )
-                    }
-                    title="Make selected visuals the same width"
-                  >
-                    Same W
-                  </button>
+                  <div className="dashboard-align-group">
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "same-width"
+                        )
+                      }
+                      title="Same width"
+                      aria-label="Same width"
+                    >
+                      W
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 2
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "same-height"
-                      )
-                    }
-                    title="Make selected visuals the same height"
-                  >
-                    Same H
-                  </button>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 2
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "same-height"
+                        )
+                      }
+                      title="Same height"
+                      aria-label="Same height"
+                    >
+                      H
+                    </button>
+                  </div>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 3
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "distribute-horizontal"
-                      )
-                    }
-                    title="Distribute selected visuals evenly from left to right"
-                  >
-                    Dist H
-                  </button>
+                  <div className="dashboard-align-group">
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 3
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "distribute-horizontal"
+                        )
+                      }
+                      title="Distribute horizontally"
+                      aria-label="Distribute horizontally"
+                    >
+                      ↔
+                    </button>
 
-                  <button
-                    type="button"
-                    disabled={
-                      selectedVisualIds.length < 3
-                    }
-                    onClick={() =>
-                      alignSelectedVisuals(
-                        "distribute-vertical"
-                      )
-                    }
-                    title="Distribute selected visuals evenly from top to bottom"
-                  >
-                    Dist V
-                  </button>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedVisualIds.length < 3
+                      }
+                      onClick={() =>
+                        alignSelectedVisuals(
+                          "distribute-vertical"
+                        )
+                      }
+                      title="Distribute vertically"
+                      aria-label="Distribute vertically"
+                    >
+                      ↕
+                    </button>
+                  </div>
                 </div>
               )}
 
