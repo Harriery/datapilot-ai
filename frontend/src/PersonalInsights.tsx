@@ -585,7 +585,7 @@ function buildInsights(
         `${semanticAnalysisKey(analysis)}-top`,
       kind: "top",
       title:
-        `Highest ${measureLabel} by ${dimensionLabel}`,
+        `Highest ${measureLabel}`,
       summary:
         `${topLabel} has the highest ${measureLabel} ` +
         `at ${formatValue(top.metric)}.`,
@@ -614,7 +614,7 @@ function buildInsights(
           `${semanticAnalysisKey(analysis)}-bottom`,
         kind: "bottom",
         title:
-          `Lowest ${measureLabel} by ${dimensionLabel}`,
+          `Lowest ${measureLabel}`,
         summary:
           `${bottomLabel} has the lowest ${measureLabel} ` +
           `at ${formatValue(bottom.metric)}.`,
@@ -659,7 +659,7 @@ function buildInsights(
           kind:
             "distribution",
           title:
-            `Largest share by ${dimensionLabel}`,
+            `Largest ${dimensionLabel} share`,
           summary:
             `${topLabel} represents ` +
             `${share.toFixed(1)}% of the grouped ${measureLabel}.`,
@@ -748,7 +748,7 @@ function buildInsights(
             `${semanticAnalysisKey(analysis)}-trend`,
           kind: "trend",
           title:
-            `${measureLabel} trend over ${dimensionLabel}`,
+            `${measureLabel} trend`,
           summary:
             `From ${firstLabel} to ${lastLabel}, ` +
             `${measureLabel} ${delta >= 0 ? "increased" : "decreased"} ` +
@@ -874,7 +874,68 @@ function selectExecutiveSummary(
 
   return selected.slice(
     0,
-    5,
+    4,
+  );
+}
+
+function kindLabel(
+  kind: InsightKind,
+) {
+  if (kind === "trend") {
+    return "Trend";
+  }
+
+  if (kind === "distribution") {
+    return "Distribution";
+  }
+
+  if (kind === "top") {
+    return "Top performer";
+  }
+
+  return "Lower-end";
+}
+
+function insightValueLabel(
+  insight: Insight,
+) {
+  if (
+    insight.value == null ||
+    !Number.isFinite(
+      insight.value,
+    )
+  ) {
+    return null;
+  }
+
+  if (
+    insight.kind ===
+    "distribution"
+  ) {
+    return `${insight.value.toFixed(1)}%`;
+  }
+
+  if (
+    insight.kind ===
+    "trend"
+  ) {
+    const prefix =
+      insight.value >= 0
+        ? "+"
+        : "−";
+
+    return (
+      prefix +
+      formatValue(
+        Math.abs(
+          insight.value,
+        ),
+      )
+    );
+  }
+
+  return formatValue(
+    insight.value,
   );
 }
 
@@ -1137,46 +1198,95 @@ export default function PersonalInsights({
 
             <div className="personal-insights-summary-grid">
               {summary.map(
-                (insight) => (
-                  <article
-                    key={
-                      insight.id
-                    }
-                    className="personal-insight-summary-card"
-                  >
-                    <div className="personal-insight-icon">
-                      {iconForInsight(
-                        insight.kind,
-                      )}
-                    </div>
+                (insight) => {
+                  const valueLabel =
+                    insightValueLabel(
+                      insight,
+                    );
 
-                    <strong>
-                      {insight.title}
-                    </strong>
+                  return (
+                    <article
+                      key={
+                        insight.id
+                      }
+                      className="personal-insight-summary-card"
+                    >
+                      <div className="personal-insight-summary-top">
+                        <div className="personal-insight-icon">
+                          {iconForInsight(
+                            insight.kind,
+                          )}
+                        </div>
 
-                    <p>
-                      {insight.summary}
-                    </p>
+                        <span className="personal-insight-kind">
+                          {kindLabel(
+                            insight.kind,
+                          )}
+                        </span>
+                      </div>
 
-                    <small>
-                      Source:{" "}
-                      {insight.evidence}
-                    </small>
-                  </article>
-                ),
+                      <div className="personal-insight-summary-main">
+                        <div>
+                          <strong>
+                            {insight.title}
+                          </strong>
+
+                          <span className="personal-insight-dimension">
+                            By {insight.dimension}
+                          </span>
+                        </div>
+
+                        {valueLabel && (
+                          <span className="personal-insight-metric">
+                            {valueLabel}
+                          </span>
+                        )}
+                      </div>
+
+                      <p>
+                        {insight.summary}
+                      </p>
+
+                      <small>
+                        Source:{" "}
+                        {insight.evidence}
+                      </small>
+                    </article>
+                  );
+                },
               )}
             </div>
           </section>
 
           <section className="personal-insights-detail">
             <div className="personal-insights-section-title">
-              <span>
-                Findings
-              </span>
+              <div>
+                <span>
+                  Key findings
+                </span>
 
-              <small>
-                Quality-filtered top/bottom, distribution and time-trend rules
-              </small>
+                <small>
+                  Quality-filtered evidence grouped by analytical pattern
+                </small>
+              </div>
+
+              {insights.length >
+                DEFAULT_VISIBLE_FINDINGS && (
+                <button
+                  type="button"
+                  className="personal-insights-show-all personal-insights-show-all-inline"
+                  onClick={() =>
+                    setShowAll(
+                      (current) =>
+                        !current,
+                    )
+                  }
+                >
+                  {showAll
+                    ? "Show fewer"
+                    : `Show all (${insights.length})`}
+                </button>
+              )}
             </div>
 
             {groupedVisible.map(
@@ -1212,6 +1322,18 @@ export default function PersonalInsights({
                           </div>
 
                           <div className="personal-insight-copy">
+                            <div className="personal-insight-row-heading">
+                              <span className="personal-insight-kind">
+                                {kindLabel(
+                                  insight.kind,
+                                )}
+                              </span>
+
+                              <span className="personal-insight-dimension">
+                                By {insight.dimension}
+                              </span>
+                            </div>
+
                             <strong>
                               {insight.title}
                             </strong>
@@ -1219,11 +1341,21 @@ export default function PersonalInsights({
                             <p>
                               {insight.summary}
                             </p>
+
+                            <small className="personal-insight-source">
+                              Source: {insight.evidence}
+                            </small>
                           </div>
 
-                          <span className="personal-insight-evidence">
-                            {insight.evidence}
-                          </span>
+                          {insightValueLabel(
+                            insight,
+                          ) && (
+                            <span className="personal-insight-row-metric">
+                              {insightValueLabel(
+                                insight,
+                              )}
+                            </span>
+                          )}
                         </article>
                       ),
                     )}
@@ -1232,23 +1364,7 @@ export default function PersonalInsights({
               ),
             )}
 
-            {insights.length >
-              DEFAULT_VISIBLE_FINDINGS && (
-              <button
-                type="button"
-                className="personal-insights-show-all"
-                onClick={() =>
-                  setShowAll(
-                    (current) =>
-                      !current,
-                  )
-                }
-              >
-                {showAll
-                  ? "Show fewer findings"
-                  : `Show all ${insights.length} findings`}
-              </button>
-            )}
+
           </section>
         </>
       )}
