@@ -19561,3 +19561,42 @@
 
   font-size: 7px;
 }
+
+
+/* Fix legacy flex-axis rules leaking into the detailed time axis. */
+.dashboard-line-axis.dashboard-line-axis-detailed {
+  display: grid;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    minmax(0, 1fr);
+  grid-template-rows:
+    auto
+    auto;
+
+  justify-content: stretch;
+  align-items: stretch;
+  justify-items: stretch;
+
+  box-sizing: border-box;
+}
+
+.dashboard-line-axis.dashboard-line-axis-detailed
+  .dashboard-line-ticks {
+  position: relative;
+
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+  height: 14px;
+}
+
+.dashboard-line-axis.dashboard-line-axis-detailed
+  > strong {
+  width: 100%;
+
+  text-align: center;
+}
