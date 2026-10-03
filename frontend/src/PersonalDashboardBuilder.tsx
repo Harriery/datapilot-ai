@@ -2396,6 +2396,37 @@ function PersonalDashboardBuilder({
   );
 
   const [
+    pendingVisualKpiCode,
+    setPendingVisualKpiCode,
+  ] = useState(
+    ""
+  );
+
+  const [
+    pendingVisualDimensionKey,
+    setPendingVisualDimensionKey,
+  ] = useState(
+    ""
+  );
+
+  const [
+    pendingVisualType,
+    setPendingVisualType,
+  ] = useState<
+    "auto" | DashboardVisualType
+  >("auto");
+
+  const [
+    creatingVisual,
+    setCreatingVisual,
+  ] = useState(false);
+
+  const [
+    createVisualError,
+    setCreateVisualError,
+  ] = useState("");
+
+  const [
     previewResults,
     setPreviewResults,
   ] = useState<
@@ -3182,9 +3213,14 @@ function PersonalDashboardBuilder({
 
   function createVisual(
     analysis:
-      AnalysisResultData
+      AnalysisResultData,
+    visualTypeOverride?:
+      DashboardVisualType,
   ): DashboardVisualData | null {
-    if (!analysis.analysis_id) {
+    if (
+      !analysis.analysis_id &&
+      !analysis.kpi_code
+    ) {
       return null;
     }
 
@@ -3197,6 +3233,7 @@ function PersonalDashboardBuilder({
       );
 
     const visualType =
+      visualTypeOverride ??
       recommendedVisual(
         analysis,
         analysisIsTime,
@@ -3217,7 +3254,8 @@ function PersonalDashboardBuilder({
             .slice(2)
         ),
       analysis_id:
-        analysis.analysis_id,
+        analysis.analysis_id ??
+        null,
       kpi_code:
         analysis.kpi_code ??
         null,
@@ -3335,6 +3373,111 @@ function PersonalDashboardBuilder({
           ]
         )
     );
+  }
+
+  async function addDirectVisual() {
+    if (!pendingVisualKpiCode) {
+      return;
+    }
+
+    const dimensionOption =
+      dimensionOptions.find(
+        (option) =>
+          option.value ===
+          pendingVisualDimensionKey
+      );
+
+    const dimensionTable =
+      dimensionOption?.table ??
+      null;
+
+    const dimension =
+      dimensionOption?.column ??
+      null;
+
+    setCreatingVisual(true);
+    setCreateVisualError("");
+
+    try {
+      const preview =
+        await onPreview(
+          pendingVisualKpiCode,
+          dimensionTable,
+          dimension,
+          dashboardFilters,
+        );
+
+      const kpiDefinition =
+        kpiDefinitions.find(
+          (item) =>
+            item.code ===
+            pendingVisualKpiCode
+        );
+
+      const analysis:
+        AnalysisResultData = {
+          ...preview,
+          analysis_id: null,
+          kpi_code:
+            pendingVisualKpiCode,
+          dimension_table:
+            dimensionTable,
+          dimension,
+          measure:
+            preview.measure ||
+            kpiDefinition?.title ||
+            pendingVisualKpiCode,
+        };
+
+      const visualType =
+        pendingVisualType ===
+        "auto"
+          ? undefined
+          : pendingVisualType;
+
+      const visual =
+        createVisual(
+          analysis,
+          visualType,
+        );
+
+      if (!visual) {
+        setCreateVisualError(
+          "Could not create this visual."
+        );
+        return;
+      }
+
+      setVisuals(
+        (previous) =>
+          normalizeVisualLayouts(
+            [
+              ...previous,
+              visual,
+            ]
+          )
+      );
+
+      setPreviewResults(
+        (previous) => ({
+          ...previous,
+          [visual.visual_id]:
+            analysis,
+        })
+      );
+
+      setEditingVisualId(
+        visual.visual_id
+      );
+    } catch (error) {
+      setCreateVisualError(
+        error instanceof Error
+          ? error.message
+          : "Could not create this visual."
+      );
+    } finally {
+      setCreatingVisual(false);
+    }
   }
 
   function addSuggestedDashboard() {
@@ -4745,7 +4888,7 @@ function PersonalDashboardBuilder({
           <div className="dashboard-panel-heading">
             <div>
               <span className="workspace-overview-label">
-                SAVED ANALYSES
+                DASHBOARD CONTENT
               </span>
 
               <strong>
@@ -4768,6 +4911,161 @@ function PersonalDashboardBuilder({
                 ‹
               </button>
             )}
+          </div>
+
+          <div className="dashboard-create-visual-panel">
+            <span className="dashboard-create-visual-eyebrow">
+              CREATE VISUAL
+            </span>
+
+            <label className="dashboard-create-visual-field">
+              <span>
+                Measure / KPI
+              </span>
+
+              <DashboardSelect
+                value={
+                  pendingVisualKpiCode
+                }
+                options={
+                  kpiDefinitions.map(
+                    (item) => ({
+                      value:
+                        item.code,
+                      label:
+                        item.title,
+                    })
+                  )
+                }
+                onChange={
+                  setPendingVisualKpiCode
+                }
+                placeholder="Select measure"
+              />
+            </label>
+
+            <label className="dashboard-create-visual-field">
+              <span>
+                Dimension
+              </span>
+
+              <DashboardSelect
+                value={
+                  pendingVisualDimensionKey
+                }
+                options={[
+                  {
+                    value: "",
+                    label:
+                      "None · KPI card",
+                  },
+                  ...dimensionOptions.map(
+                    (option) => ({
+                      value:
+                        option.value,
+                      label:
+                        option.label,
+                    })
+                  ),
+                ]}
+                onChange={
+                  setPendingVisualDimensionKey
+                }
+                placeholder="Optional"
+              />
+            </label>
+
+            <label className="dashboard-create-visual-field">
+              <span>
+                Visual type
+              </span>
+
+              <DashboardSelect
+                value={
+                  pendingVisualType
+                }
+                options={[
+                  {
+                    value: "auto",
+                    label:
+                      "Auto · recommended",
+                  },
+                  {
+                    value: "kpi",
+                    label: "KPI card",
+                  },
+                  {
+                    value: "bar",
+                    label:
+                      "Horizontal bar",
+                  },
+                  {
+                    value: "column",
+                    label:
+                      "Column chart",
+                  },
+                  {
+                    value: "line",
+                    label: "Line chart",
+                  },
+                  {
+                    value: "area",
+                    label: "Area chart",
+                  },
+                  {
+                    value: "pie",
+                    label: "Pie chart",
+                  },
+                  {
+                    value: "donut",
+                    label: "Donut chart",
+                  },
+                  {
+                    value: "table",
+                    label: "Table",
+                  },
+                ]}
+                onChange={(value) =>
+                  setPendingVisualType(
+                    value as
+                      | "auto"
+                      | DashboardVisualType
+                  )
+                }
+              />
+            </label>
+
+            <button
+              type="button"
+              className="dashboard-create-visual-button"
+              disabled={
+                !pendingVisualKpiCode ||
+                creatingVisual
+              }
+              onClick={() =>
+                void addDirectVisual()
+              }
+            >
+              {creatingVisual
+                ? "Adding..."
+                : "+ Add to dashboard"}
+            </button>
+
+            {createVisualError && (
+              <small className="dashboard-create-visual-error">
+                {createVisualError}
+              </small>
+            )}
+
+            <p className="dashboard-create-visual-hint">
+              Auto uses semantic roles: no dimension creates a KPI; time dimensions prefer a line chart; other dimensions prefer a bar chart.
+            </p>
+          </div>
+
+          <div className="dashboard-saved-analysis-divider">
+            <span>
+              SAVED ANALYSES
+            </span>
           </div>
 
           <div className="dashboard-analysis-list">
@@ -4883,7 +5181,7 @@ function PersonalDashboardBuilder({
 
           {analyses.length === 0 && (
             <p className="dashboard-empty-copy">
-              Run and save analyses before building a dashboard.
+              No saved analyses yet. You can still create visuals directly above.
             </p>
           )}
         </aside>
