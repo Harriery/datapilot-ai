@@ -3364,6 +3364,27 @@ async function savePersonalDashboard(
       DashboardWorkspace =
         await response.json();
 
+    const savedConfig =
+      updatedWorkspace.dashboard_config;
+
+    if (
+      !savedConfig ||
+      savedConfig.visuals.length !==
+        visuals.length ||
+      savedConfig.filters.length !==
+        filters.length
+    ) {
+      throw new Error(
+        (
+          "Dashboard save verification failed. " +
+          `Sent ${visuals.length} visuals / ${filters.length} filters, ` +
+          `but workspace returned ${savedConfig?.visuals.length ?? 0} visuals / ` +
+          `${savedConfig?.filters.length ?? 0} filters. ` +
+          "Your local dashboard draft has been kept."
+        )
+      );
+    }
+
     setDashboardWorkspace(
       updatedWorkspace
     );
@@ -6682,6 +6703,9 @@ async function restoreWorkspaceVersion(
                             }
                             savedFilters={
                               dashboardWorkspace.dashboard_config?.filters ?? []
+                            }
+                            draftKey={
+                              `datapilot-dashboard-draft:${dashboardWorkspace.workspace_id}`
                             }
                             loading={
                               personalDashboardLoading
