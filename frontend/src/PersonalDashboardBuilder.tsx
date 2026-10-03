@@ -1307,24 +1307,66 @@ function DashboardLineVisual({
       )
   );
 
-  const values =
+  const points =
     orderedRows.map(
-      (row) =>
-        (
+      (row, index) => {
+        const raw =
           semantic
             ? row.metric_value
-            : row.mean
-        ) ?? 0
+            : row.mean;
+
+        const numeric =
+          Number(raw);
+
+        return {
+          row,
+          x:
+            orderedRows.length <= 1
+              ? 50
+              : (
+                  index /
+                  (
+                    orderedRows.length -
+                    1
+                  )
+                ) * 100,
+          value:
+            Number.isFinite(
+              numeric
+            )
+              ? numeric
+              : null,
+          label:
+            String(
+              row.value ?? ""
+            ),
+        };
+      }
     );
+
+  const validValues =
+    points
+      .map(
+        (point) =>
+          point.value
+      )
+      .filter(
+        (
+          value,
+        ): value is number =>
+          value !== null
+      );
 
   const rawMin =
     Math.min(
-      ...values
+      ...validValues,
+      0
     );
 
   const rawMax =
     Math.max(
-      ...values
+      ...validValues,
+      1
     );
 
   const rawRange =
@@ -1347,54 +1389,68 @@ function DashboardLineVisual({
   const range =
     max - min || 1;
 
-  const points =
-    orderedRows.map(
-      (row, index) => {
-        const x =
-          orderedRows.length <= 1
-            ? 50
+  const plottedPoints =
+    points.map(
+      (point) => ({
+        ...point,
+        y:
+          point.value === null
+            ? null
             : (
-                index /
+                88 -
                 (
-                  orderedRows.length -
-                  1
-                )
-              ) * 100;
+                  (
+                    point.value - min
+                  ) /
+                  range
+                ) * 76
+              ),
+      })
+    );
 
-        const value =
-          values[index];
-
-        const y =
-          88 -
-          (
-            (
-              value - min
-            ) /
-            range
-          ) * 76;
-
-        return {
-          row,
-          x,
-          y,
-          value,
-          label:
-            String(
-              row.value ?? ""
-            ),
-        };
-      }
+  const validPoints =
+    plottedPoints.filter(
+      (
+        point,
+      ): point is typeof point & {
+        y: number;
+        value: number;
+      } =>
+        point.y !== null &&
+        point.value !== null
     );
 
   const path =
-    points
+    validPoints
       .map(
-        (point) =>
+        (point, index) =>
+          (
+            index === 0
+              ? "M "
+              : "L "
+          ) +
           point.x +
-          "," +
+          " " +
           point.y
       )
       .join(" ");
+
+  const labelStep =
+    plottedPoints.length <= 6
+      ? 1
+      : Math.ceil(
+          plottedPoints.length /
+          5
+        );
+
+  const axisLabels =
+    plottedPoints.filter(
+      (_, index) =>
+        index === 0 ||
+        index ===
+          plottedPoints.length - 1 ||
+        index % labelStep === 0
+    );
 
   return (
     <div
@@ -1419,16 +1475,20 @@ function DashboardLineVisual({
           " trend"
         }
       >
-        <polyline
-          points={path}
+        <path
+          d={path}
           fill="none"
           vectorEffect="non-scaling-stroke"
         />
 
-        {points.map(
+        {validPoints.map(
           (point, index) => (
             <circle
-              key={index}
+              key={
+                point.label +
+                "-" +
+                index
+              }
               cx={point.x}
               cy={point.y}
               r={
@@ -1467,27 +1527,34 @@ function DashboardLineVisual({
       </svg>
 
       <div
-        className="dashboard-line-axis"
+        className="dashboard-line-axis dashboard-line-axis-detailed"
         data-format-target="axis"
       >
-        <span>
-          {points[0]?.label ??
-            ""}
-        </span>
+        <div className="dashboard-line-ticks">
+          {axisLabels.map(
+            (point, index) => (
+              <span
+                key={
+                  point.label +
+                  "-" +
+                  index
+                }
+                style={{
+                  left:
+                    point.x + "%",
+                }}
+              >
+                {point.label}
+              </span>
+            )
+          )}
+        </div>
 
         {xAxisTitle && (
           <strong>
             {xAxisTitle}
           </strong>
         )}
-
-        <span>
-          {
-            points[
-              points.length - 1
-            ]?.label ?? ""
-          }
-        </span>
       </div>
 
       {yAxisTitle && (
@@ -1499,7 +1566,8 @@ function DashboardLineVisual({
         </div>
       )}
 
-      {showValues && points.length > 0 && (
+      {showValues &&
+        validPoints.length > 0 && (
         <div
           className="dashboard-line-value-summary"
           data-format-target="value"
@@ -1507,7 +1575,7 @@ function DashboardLineVisual({
           <span>
             First: {
               formatNumber(
-                points[0].value
+                validPoints[0].value
               )
             }
           </span>
@@ -1515,8 +1583,8 @@ function DashboardLineVisual({
           <span>
             Last: {
               formatNumber(
-                points[
-                  points.length - 1
+                validPoints[
+                  validPoints.length - 1
                 ].value
               )
             }
@@ -1526,6 +1594,7 @@ function DashboardLineVisual({
     </div>
   );
 }
+
 
 function DashboardColumnVisual({
   analysis,
