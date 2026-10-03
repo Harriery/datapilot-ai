@@ -20214,3 +20214,277 @@
   .dashboard-report-slicers:not(:has(.dashboard-slicer-card)):not(:has(.dashboard-cross-filter-chip)) {
   display: none;
 }
+
+
+/* ==================================================
+   PERSONAL INSIGHTS
+   ================================================== */
+
+.personal-insights {
+  width: 100%;
+  padding: 18px 20px 28px;
+}
+
+.personal-insights-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+
+  margin-bottom: 18px;
+  padding: 18px 20px;
+
+  border: 1px solid #dfe7f0;
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f6faff 100%
+    );
+
+  box-shadow:
+    0 6px 20px
+    rgba(29, 53, 82, 0.05);
+}
+
+.personal-insights-eyebrow {
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: #6b7f96;
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.personal-insights-header h2 {
+  margin: 0 0 6px;
+
+  color: #1f334d;
+
+  font-size: 24px;
+}
+
+.personal-insights-header p {
+  max-width: 760px;
+
+  margin: 0;
+
+  color: #66798f;
+
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.personal-insights-badge {
+  flex: 0 0 auto;
+
+  padding: 7px 10px;
+
+  border: 1px solid #cfe0f6;
+  border-radius: 999px;
+
+  background: #edf5ff;
+
+  color: #2f80ed;
+
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.personal-insights-section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+
+  margin-bottom: 10px;
+}
+
+.personal-insights-section-title > span {
+  color: #243b56;
+
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.personal-insights-section-title > small {
+  color: #8291a3;
+
+  font-size: 11px;
+}
+
+.personal-insights-summary {
+  margin-bottom: 18px;
+}
+
+.personal-insights-summary-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  gap: 12px;
+}
+
+.personal-insight-summary-card,
+.personal-insight-row,
+.personal-insights-empty {
+  border: 1px solid #dfe7f0;
+  border-radius: 14px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 14px
+    rgba(29, 53, 82, 0.045);
+}
+
+.personal-insight-summary-card {
+  min-height: 170px;
+
+  padding: 16px;
+}
+
+.personal-insight-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 34px;
+  height: 34px;
+
+  margin-bottom: 12px;
+
+  border-radius: 10px;
+
+  background: #edf5ff;
+
+  color: #2f80ed;
+}
+
+.personal-insight-summary-card strong,
+.personal-insight-copy strong {
+  display: block;
+
+  color: #233952;
+
+  font-size: 13px;
+}
+
+.personal-insight-summary-card p,
+.personal-insight-copy p {
+  margin: 7px 0 0;
+
+  color: #5f7288;
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.personal-insight-summary-card small {
+  display: block;
+
+  margin-top: 12px;
+
+  color: #8a99aa;
+
+  font-size: 10px;
+}
+
+.personal-insights-list {
+  display: grid;
+  gap: 9px;
+}
+
+.personal-insight-row {
+  display: grid;
+  grid-template-columns:
+    auto
+    minmax(0, 1fr)
+    minmax(170px, 250px);
+  align-items: center;
+  gap: 14px;
+
+  padding: 13px 15px;
+}
+
+.personal-insight-row
+  .personal-insight-icon {
+  margin-bottom: 0;
+}
+
+.personal-insight-evidence {
+  overflow: hidden;
+
+  color: #718398;
+
+  font-size: 11px;
+
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personal-insights-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+
+  padding: 18px;
+
+  color: #61758c;
+}
+
+.personal-insights-empty strong {
+  color: #233952;
+}
+
+.personal-insights-empty p {
+  margin: 4px 0 0;
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1200px) {
+  .personal-insights-summary-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+@media (max-width: 760px) {
+  .personal-insights {
+    padding: 12px;
+  }
+
+  .personal-insights-header {
+    flex-direction: column;
+  }
+
+  .personal-insights-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-insight-row {
+    grid-template-columns:
+      auto
+      minmax(0, 1fr);
+  }
+
+  .personal-insight-evidence {
+    grid-column: 2;
+
+    text-align: left;
+  }
+}
