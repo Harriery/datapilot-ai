@@ -4596,6 +4596,10 @@ function PersonalDashboardBuilder({
         measuredWidth
       );
 
+    const availableWidth =
+      canvasWidth -
+      padding * 2;
+
     setVisuals(
       (previous) => {
         const kpis =
@@ -4621,140 +4625,186 @@ function PersonalDashboardBuilder({
         let nextY = padding;
 
         if (kpis.length > 0) {
-          const perRow =
-            Math.min(
-              4,
-              kpis.length
-            );
+          const cardHeight = 136;
 
-          const cardWidth =
-            Math.floor(
-              (
-                canvasWidth -
-                padding * 2 -
-                gap *
-                  (perRow - 1)
-              ) /
-              perRow
-            );
-
-          const cardHeight = 144;
-
-          kpis.forEach(
-            (visual, index) => {
-              const row =
-                Math.floor(
-                  index /
-                  perRow
-                );
-
-              const column =
-                index %
-                perRow;
-
-              arranged.set(
-                visual.visual_id,
-                {
-                  ...visual,
-                  canvas_x:
-                    padding +
-                    column *
-                      (
-                        cardWidth +
-                        gap
-                      ),
-                  canvas_y:
-                    padding +
-                    row *
-                      (
-                        cardHeight +
-                        gap
-                      ),
-                  canvas_width:
-                    cardWidth,
-                  canvas_height:
-                    cardHeight,
-                }
+          if (kpis.length === 1) {
+            const cardWidth =
+              Math.min(
+                340,
+                Math.max(
+                  260,
+                  Math.floor(
+                    availableWidth *
+                    0.28
+                  )
+                )
               );
-            }
-          );
 
-          nextY +=
-            Math.ceil(
-              kpis.length /
-              perRow
-            ) *
-              (
-                cardHeight +
-                gap
-              );
-        }
-
-        if (charts.length > 0) {
-          if (charts.length === 1) {
             arranged.set(
-              charts[0].visual_id,
+              kpis[0].visual_id,
               {
-                ...charts[0],
+                ...kpis[0],
                 canvas_x: padding,
                 canvas_y: nextY,
                 canvas_width:
-                  canvasWidth -
-                  padding * 2,
-                canvas_height: 320,
+                  cardWidth,
+                canvas_height:
+                  cardHeight,
               }
             );
 
-            nextY += 336;
-          } else {
-            const available =
-              canvasWidth -
-              padding * 2 -
+            nextY +=
+              cardHeight +
               gap;
-
-            const primaryWidth =
-              Math.floor(
-                available *
-                0.62
+          } else {
+            const perRow =
+              Math.min(
+                4,
+                kpis.length
               );
 
-            const secondaryWidth =
-              available -
-              primaryWidth;
+            const cardWidth =
+              Math.floor(
+                (
+                  availableWidth -
+                  gap *
+                    (perRow - 1)
+                ) /
+                perRow
+              );
 
-            arranged.set(
-              charts[0].visual_id,
-              {
-                ...charts[0],
-                canvas_x: padding,
-                canvas_y: nextY,
-                canvas_width:
-                  primaryWidth,
-                canvas_height: 320,
+            kpis.forEach(
+              (visual, index) => {
+                const row =
+                  Math.floor(
+                    index /
+                    perRow
+                  );
+
+                const column =
+                  index %
+                  perRow;
+
+                arranged.set(
+                  visual.visual_id,
+                  {
+                    ...visual,
+                    canvas_x:
+                      padding +
+                      column *
+                        (
+                          cardWidth +
+                          gap
+                        ),
+                    canvas_y:
+                      nextY +
+                      row *
+                        (
+                          cardHeight +
+                          gap
+                        ),
+                    canvas_width:
+                      cardWidth,
+                    canvas_height:
+                      cardHeight,
+                  }
+                );
               }
             );
 
-            arranged.set(
-              charts[1].visual_id,
-              {
-                ...charts[1],
-                canvas_x:
-                  padding +
-                  primaryWidth +
-                  gap,
-                canvas_y: nextY,
-                canvas_width:
-                  secondaryWidth,
-                canvas_height: 320,
-              }
-            );
-
-            nextY += 336;
+            nextY +=
+              Math.ceil(
+                kpis.length /
+                perRow
+              ) *
+                (
+                  cardHeight +
+                  gap
+                );
           }
         }
 
+        if (charts.length === 1) {
+          arranged.set(
+            charts[0].visual_id,
+            {
+              ...charts[0],
+              canvas_x: padding,
+              canvas_y: nextY,
+              canvas_width:
+                availableWidth,
+              canvas_height: 320,
+            }
+          );
+
+          nextY += 336;
+        }
+
+        if (charts.length >= 2) {
+          const rowWidth =
+            availableWidth -
+            gap;
+
+          const primaryWidth =
+            Math.floor(
+              rowWidth *
+              0.62
+            );
+
+          const secondaryWidth =
+            rowWidth -
+            primaryWidth;
+
+          arranged.set(
+            charts[0].visual_id,
+            {
+              ...charts[0],
+              canvas_x: padding,
+              canvas_y: nextY,
+              canvas_width:
+                primaryWidth,
+              canvas_height: 320,
+            }
+          );
+
+          arranged.set(
+            charts[1].visual_id,
+            {
+              ...charts[1],
+              canvas_x:
+                padding +
+                primaryWidth +
+                gap,
+              canvas_y: nextY,
+              canvas_width:
+                secondaryWidth,
+              canvas_height: 320,
+            }
+          );
+
+          nextY += 336;
+        }
+
+        if (charts.length === 3) {
+          arranged.set(
+            charts[2].visual_id,
+            {
+              ...charts[2],
+              canvas_x: padding,
+              canvas_y: nextY,
+              canvas_width:
+                availableWidth,
+              canvas_height: 280,
+            }
+          );
+
+          nextY += 296;
+        }
+
         const remaining =
-          charts.slice(2);
+          charts.length === 3
+            ? []
+            : charts.slice(2);
 
         if (remaining.length > 0) {
           const columns =
@@ -4765,8 +4815,7 @@ function PersonalDashboardBuilder({
           const cardWidth =
             Math.floor(
               (
-                canvasWidth -
-                padding * 2 -
+                availableWidth -
                 gap *
                   (columns - 1)
               ) /
