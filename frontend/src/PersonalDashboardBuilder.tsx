@@ -1441,16 +1441,18 @@ function DashboardLineVisual({
       );
 
   const rawMin =
-    Math.min(
-      ...validValues,
-      0
-    );
+    validValues.length > 0
+      ? Math.min(
+          ...validValues
+        )
+      : 0;
 
   const rawMax =
-    Math.max(
-      ...validValues,
-      1
-    );
+    validValues.length > 0
+      ? Math.max(
+          ...validValues
+        )
+      : 1;
 
   const rawRange =
     rawMax - rawMin;
@@ -1536,6 +1538,30 @@ function DashboardLineVisual({
         index % labelStep === 0
     );
 
+  const yTicks =
+    Array.from(
+      {
+        length: 5,
+      },
+      (_, index) => {
+        const ratio =
+          index / 4;
+
+        return {
+          value:
+            max -
+            range * ratio,
+          top:
+            12 +
+            76 * ratio,
+        };
+      }
+    );
+
+  const showPointValues =
+    showValues &&
+    validPoints.length <= 12;
+
   return (
     <div
       className={
@@ -1551,14 +1577,37 @@ function DashboardLineVisual({
           accentColor,
       } as CSSProperties}
     >
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        aria-label={
-          analysis.measure +
-          " trend"
-        }
-      >
+      <div className="dashboard-line-plot">
+        <div
+          className="dashboard-line-y-axis"
+          data-format-target="axis"
+        >
+          {yTicks.map(
+            (tick, index) => (
+              <span
+                key={index}
+                style={{
+                  top:
+                    tick.top + "%",
+                }}
+              >
+                {formatNumber(
+                  tick.value
+                )}
+              </span>
+            )
+          )}
+        </div>
+
+        <div className="dashboard-line-plot-body">
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-label={
+              analysis.measure +
+              " trend"
+            }
+          >
         <path
           d={path}
           fill="none"
@@ -1608,7 +1657,38 @@ function DashboardLineVisual({
             </circle>
           )
         )}
-      </svg>
+          </svg>
+
+          {showPointValues && (
+            <div
+              className="dashboard-line-point-values"
+              data-format-target="value"
+            >
+              {validPoints.map(
+                (point, index) => (
+                  <span
+                    key={
+                      point.label +
+                      "-value-" +
+                      index
+                    }
+                    style={{
+                      left:
+                        point.x + "%",
+                      top:
+                        point.y + "%",
+                    }}
+                  >
+                    {formatNumber(
+                      point.value
+                    )}
+                  </span>
+                )
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       <div
         className="dashboard-line-axis dashboard-line-axis-detailed"
@@ -1651,7 +1731,8 @@ function DashboardLineVisual({
       )}
 
       {showValues &&
-        validPoints.length > 0 && (
+        validPoints.length > 0 &&
+        !showPointValues && (
         <div
           className="dashboard-line-value-summary"
           data-format-target="value"
