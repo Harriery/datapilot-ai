@@ -3405,6 +3405,244 @@ function PersonalDashboardBuilder({
     }
   }
 
+  function arrangeProfessionalDashboard() {
+    const padding = 16;
+    const gap = 16;
+    const canvasWidth =
+      DASHBOARD_CANVAS_MIN_WIDTH;
+
+    setVisuals(
+      (previous) => {
+        const kpis =
+          previous.filter(
+            (visual) =>
+              visual.visual_type ===
+              "kpi"
+          );
+
+        const charts =
+          previous.filter(
+            (visual) =>
+              visual.visual_type !==
+              "kpi"
+          );
+
+        const arranged =
+          new Map<
+            string,
+            DashboardVisualData
+          >();
+
+        let nextY = padding;
+
+        if (kpis.length > 0) {
+          const perRow =
+            Math.min(
+              4,
+              kpis.length
+            );
+
+          const cardWidth =
+            Math.floor(
+              (
+                canvasWidth -
+                (padding * 2) -
+                (
+                  gap *
+                  (perRow - 1)
+                )
+              ) /
+              perRow
+            );
+
+          const cardHeight = 144;
+
+          kpis.forEach(
+            (visual, index) => {
+              const row =
+                Math.floor(
+                  index /
+                  perRow
+                );
+
+              const column =
+                index %
+                perRow;
+
+              arranged.set(
+                visual.visual_id,
+                {
+                  ...visual,
+                  canvas_x:
+                    padding +
+                    column *
+                      (
+                        cardWidth +
+                        gap
+                      ),
+                  canvas_y:
+                    padding +
+                    row *
+                      (
+                        cardHeight +
+                        gap
+                      ),
+                  canvas_width:
+                    cardWidth,
+                  canvas_height:
+                    cardHeight,
+                }
+              );
+            }
+          );
+
+          nextY =
+            padding +
+            Math.ceil(
+              kpis.length /
+              perRow
+            ) *
+              (
+                cardHeight +
+                gap
+              );
+        }
+
+        if (charts.length > 0) {
+          const primary =
+            charts[0];
+
+          if (
+            charts.length === 1
+          ) {
+            arranged.set(
+              primary.visual_id,
+              {
+                ...primary,
+                canvas_x:
+                  padding,
+                canvas_y:
+                  nextY,
+                canvas_width:
+                  canvasWidth -
+                  padding * 2,
+                canvas_height:
+                  320,
+              }
+            );
+
+            nextY +=
+              320 +
+              gap;
+          } else {
+            const primaryWidth =
+              640;
+
+            const secondaryWidth =
+              canvasWidth -
+              padding * 2 -
+              gap -
+              primaryWidth;
+
+            arranged.set(
+              primary.visual_id,
+              {
+                ...primary,
+                canvas_x:
+                  padding,
+                canvas_y:
+                  nextY,
+                canvas_width:
+                  primaryWidth,
+                canvas_height:
+                  320,
+              }
+            );
+
+            arranged.set(
+              charts[1].visual_id,
+              {
+                ...charts[1],
+                canvas_x:
+                  padding +
+                  primaryWidth +
+                  gap,
+                canvas_y:
+                  nextY,
+                canvas_width:
+                  secondaryWidth,
+                canvas_height:
+                  320,
+              }
+            );
+
+            nextY +=
+              320 +
+              gap;
+          }
+        }
+
+        const remaining =
+          charts.slice(2);
+
+        const columnWidth =
+          Math.floor(
+            (
+              canvasWidth -
+              padding * 2 -
+              gap
+            ) /
+            2
+          );
+
+        remaining.forEach(
+          (visual, index) => {
+            const column =
+              index % 2;
+
+            const row =
+              Math.floor(
+                index / 2
+              );
+
+            arranged.set(
+              visual.visual_id,
+              {
+                ...visual,
+                canvas_x:
+                  padding +
+                  column *
+                    (
+                      columnWidth +
+                      gap
+                    ),
+                canvas_y:
+                  nextY +
+                  row *
+                    (
+                      280 +
+                      gap
+                    ),
+                canvas_width:
+                  columnWidth,
+                canvas_height:
+                  280,
+              }
+            );
+          }
+        );
+
+        return previous.map(
+          (visual) =>
+            arranged.get(
+              visual.visual_id
+            ) ??
+            visual
+        );
+      }
+    );
+  }
+
   function resizeVisual(
     visual:
       DashboardVisualData,
@@ -6076,6 +6314,22 @@ function PersonalDashboardBuilder({
                   Edit
                 </button>
               </div>
+
+              {dashboardMode === "edit" && (
+                <button
+                  type="button"
+                  className="dashboard-auto-layout-button"
+                  disabled={
+                    visuals.length === 0
+                  }
+                  onClick={
+                    arrangeProfessionalDashboard
+                  }
+                  title="Arrange visuals into a professional dashboard layout"
+                >
+                  Auto arrange
+                </button>
+              )}
 
               {dashboardMode === "edit" && (
                 <button
