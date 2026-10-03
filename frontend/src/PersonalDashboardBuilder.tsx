@@ -219,7 +219,11 @@ function isSemanticTimeDimension(
 
   return (
     matches.length === 1 &&
-    matches[0].role === "time"
+    (
+      matches[0].role === "time" ||
+      matches[0].derivation?.type ===
+        "date_part"
+    )
   );
 }
 
@@ -2688,7 +2692,11 @@ function PersonalDashboardBuilder({
                     column:
                       column.name,
                     role:
-                      column.role,
+                      column.role === "time" ||
+                      column.derivation?.type ===
+                        "date_part"
+                        ? "time"
+                        : column.role,
                     label:
                       column.name +
                       " · " +
