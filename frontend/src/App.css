@@ -19823,3 +19823,36 @@
     rgba(47, 128, 237, 0.85);
   outline-offset: 1px;
 }
+
+
+/* ==================================================
+   DASHBOARD SNAP GUIDES
+   ================================================== */
+
+.dashboard-snap-guide {
+  position: absolute;
+
+  z-index: 160;
+
+  pointer-events: none;
+
+  background: #2f80ed;
+
+  box-shadow:
+    0 0 0 1px
+    rgba(255, 255, 255, 0.75);
+}
+
+.dashboard-snap-guide.vertical {
+  top: 0;
+  bottom: 0;
+
+  width: 1px;
+}
+
+.dashboard-snap-guide.horizontal {
+  left: 0;
+  right: 0;
+
+  height: 1px;
+}
