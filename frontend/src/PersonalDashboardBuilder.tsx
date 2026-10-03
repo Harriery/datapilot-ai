@@ -2790,6 +2790,11 @@ function PersonalDashboardBuilder({
   >(null);
 
   const [
+    selectedVisualIds,
+    setSelectedVisualIds,
+  ] = useState<string[]>([]);
+
+  const [
     propertiesPanelOpen,
     setPropertiesPanelOpen,
   ] = useState(false);
@@ -3889,13 +3894,13 @@ function PersonalDashboardBuilder({
     }
 
     setVisuals(
-      (previous) =>
-        normalizeVisualLayouts(
-          [
-            ...previous,
-            visual,
-          ]
-        )
+      (previous) => [
+        ...previous,
+        placeVisualInFreeSlot(
+          previous,
+          visual
+        ),
+      ]
     );
   }
 
@@ -3989,13 +3994,13 @@ function PersonalDashboardBuilder({
       }
 
       setVisuals(
-        (previous) =>
-          normalizeVisualLayouts(
-            [
-              ...previous,
-              visual,
-            ]
-          )
+        (previous) => [
+          ...previous,
+          placeVisualInFreeSlot(
+            previous,
+            visual
+          ),
+        ]
       );
 
       setPreviewResults(
@@ -4008,6 +4013,11 @@ function PersonalDashboardBuilder({
 
       setEditingVisualId(
         visual.visual_id
+      );
+      setSelectedVisualIds(
+        [
+          visual.visual_id,
+        ]
       );
     } catch (error) {
       setCreateVisualError(
@@ -4083,6 +4093,14 @@ function PersonalDashboardBuilder({
         )
     );
 
+    setSelectedVisualIds(
+      (previous) =>
+        previous.filter(
+          (id) =>
+            id !== visualId
+        )
+    );
+
     if (
       editingVisualId ===
       visualId
@@ -4118,6 +4136,250 @@ function PersonalDashboardBuilder({
         nextCrossFilters,
       );
     }
+  }
+
+  function placeVisualInFreeSlot(
+    previous:
+      DashboardVisualData[],
+    visual:
+      DashboardVisualData
+  ): DashboardVisualData {
+    const defaults =
+      defaultVisualCanvasSize(
+        visual
+      );
+
+    const width =
+      visual.canvas_width ??
+      defaults.width;
+
+    const height =
+      visual.canvas_height ??
+      defaults.height;
+
+    const canvasWidth =
+      Math.max(
+        DASHBOARD_CANVAS_MIN_WIDTH,
+        canvasSurfaceRef.current
+          ?.clientWidth ??
+          DASHBOARD_CANVAS_MIN_WIDTH
+      );
+
+    const gap =
+      DASHBOARD_VISUAL_GAP;
+
+    const overlaps = (
+      x: number,
+      y: number
+    ) =>
+      previous.some(
+        (item) => {
+          const itemDefaults =
+            defaultVisualCanvasSize(
+              item
+            );
+
+          const itemX =
+            item.canvas_x ?? 0;
+          const itemY =
+            item.canvas_y ?? 0;
+          const itemW =
+            item.canvas_width ??
+            itemDefaults.width;
+          const itemH =
+            item.canvas_height ??
+            itemDefaults.height;
+
+          return !(
+            x + width + gap <=
+              itemX ||
+            x >=
+              itemX +
+                itemW +
+                gap ||
+            y + height + gap <=
+              itemY ||
+            y >=
+              itemY +
+                itemH +
+                gap
+          );
+        }
+      );
+
+    const step =
+      Math.max(
+        DASHBOARD_GRID_SIZE,
+        16
+      );
+
+    for (
+      let y = 0;
+      y < 5000;
+      y += step
+    ) {
+      for (
+        let x = 0;
+        x + width <=
+          canvasWidth;
+        x += step
+      ) {
+        if (!overlaps(x, y)) {
+          return {
+            ...visual,
+            canvas_x: x,
+            canvas_y: y,
+            canvas_width:
+              width,
+            canvas_height:
+              height,
+          };
+        }
+      }
+    }
+
+    const bottom =
+      previous.reduce(
+        (max, item) => {
+          const defaults =
+            defaultVisualCanvasSize(
+              item
+            );
+
+          return Math.max(
+            max,
+            (item.canvas_y ?? 0) +
+              (
+                item.canvas_height ??
+                defaults.height
+              )
+          );
+        },
+        0
+      );
+
+    return {
+      ...visual,
+      canvas_x: 0,
+      canvas_y:
+        bottom + gap,
+      canvas_width:
+        width,
+      canvas_height:
+        height,
+    };
+  }
+
+  function alignSelectedVisuals(
+    action:
+      | "left"
+      | "top"
+      | "same-width"
+      | "same-height"
+  ) {
+    if (
+      selectedVisualIds.length <
+      2
+    ) {
+      return;
+    }
+
+    setVisuals(
+      (previous) => {
+        const selected =
+          previous.filter(
+            (visual) =>
+              selectedVisualIds.includes(
+                visual.visual_id
+              )
+          );
+
+        if (
+          selected.length < 2
+        ) {
+          return previous;
+        }
+
+        const anchor =
+          selected.find(
+            (visual) =>
+              visual.visual_id ===
+              editingVisualId
+          ) ??
+          selected[0];
+
+        const anchorDefaults =
+          defaultVisualCanvasSize(
+            anchor
+          );
+
+        const anchorX =
+          anchor.canvas_x ?? 0;
+        const anchorY =
+          anchor.canvas_y ?? 0;
+        const anchorWidth =
+          anchor.canvas_width ??
+          anchorDefaults.width;
+        const anchorHeight =
+          anchor.canvas_height ??
+          anchorDefaults.height;
+
+        return previous.map(
+          (visual) => {
+            if (
+              !selectedVisualIds.includes(
+                visual.visual_id
+              )
+            ) {
+              return visual;
+            }
+
+            if (action === "left") {
+              return {
+                ...visual,
+                canvas_x:
+                  anchorX,
+              };
+            }
+
+            if (action === "top") {
+              return {
+                ...visual,
+                canvas_y:
+                  anchorY,
+              };
+            }
+
+            if (
+              action ===
+              "same-width"
+            ) {
+              return {
+                ...visual,
+                canvas_width:
+                  Math.max(
+                    visualMinWidth(
+                      visual
+                    ),
+                    anchorWidth
+                  ),
+              };
+            }
+
+            return {
+              ...visual,
+              canvas_height:
+                Math.max(
+                  visualMinHeight(
+                    visual
+                  ),
+                  anchorHeight
+                ),
+            };
+          }
+        );
+      }
+    );
   }
 
   function arrangeProfessionalDashboard() {
@@ -4752,6 +5014,16 @@ function PersonalDashboardBuilder({
     setEditingVisualId(
       visual.visual_id
     );
+    setSelectedVisualIds(
+      (previous) =>
+        previous.includes(
+          visual.visual_id
+        )
+          ? previous
+          : [
+              visual.visual_id,
+            ]
+    );
     setFormatTarget("visual");
 
     const canvas =
@@ -4851,6 +5123,16 @@ function PersonalDashboardBuilder({
 
     setEditingVisualId(
       visual.visual_id
+    );
+    setSelectedVisualIds(
+      (previous) =>
+        previous.includes(
+          visual.visual_id
+        )
+          ? previous
+          : [
+              visual.visual_id,
+            ]
     );
     setFormatTarget("visual");
 
@@ -7256,6 +7538,9 @@ function PersonalDashboardBuilder({
                     setEditingVisualId(
                       null
                     );
+                    setSelectedVisualIds(
+                      []
+                    );
                     setPropertiesPanelOpen(
                       false
                     );
@@ -7296,6 +7581,70 @@ function PersonalDashboardBuilder({
                 >
                   Auto arrange
                 </button>
+              )}
+
+              {dashboardMode === "edit" && (
+                <div className="dashboard-align-toolbar">
+                  <button
+                    type="button"
+                    disabled={
+                      selectedVisualIds.length < 2
+                    }
+                    onClick={() =>
+                      alignSelectedVisuals(
+                        "left"
+                      )
+                    }
+                    title="Align selected visuals to the same left edge"
+                  >
+                    Left
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      selectedVisualIds.length < 2
+                    }
+                    onClick={() =>
+                      alignSelectedVisuals(
+                        "top"
+                      )
+                    }
+                    title="Align selected visuals to the same top edge"
+                  >
+                    Top
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      selectedVisualIds.length < 2
+                    }
+                    onClick={() =>
+                      alignSelectedVisuals(
+                        "same-width"
+                      )
+                    }
+                    title="Make selected visuals the same width"
+                  >
+                    Same W
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      selectedVisualIds.length < 2
+                    }
+                    onClick={() =>
+                      alignSelectedVisuals(
+                        "same-height"
+                      )
+                    }
+                    title="Make selected visuals the same height"
+                  >
+                    Same H
+                  </button>
+                </div>
               )}
 
               {dashboardMode === "edit" && (
@@ -7518,8 +7867,9 @@ function PersonalDashboardBuilder({
                       (
                         dashboardMode ===
                         "edit" &&
-                        editingVisualId ===
-                        visual.visual_id
+                        selectedVisualIds.includes(
+                          visual.visual_id
+                        )
                           ? " selected"
                           : ""
                       )
@@ -7607,8 +7957,35 @@ function PersonalDashboardBuilder({
                         return;
                       }
 
+                      const additive =
+                        event.ctrlKey ||
+                        event.metaKey;
+
                       setEditingVisualId(
                         visual.visual_id
+                      );
+
+                      setSelectedVisualIds(
+                        (previous) => {
+                          if (!additive) {
+                            return [
+                              visual.visual_id,
+                            ];
+                          }
+
+                          return previous.includes(
+                            visual.visual_id
+                          )
+                            ? previous.filter(
+                                (id) =>
+                                  id !==
+                                  visual.visual_id
+                              )
+                            : [
+                                ...previous,
+                                visual.visual_id,
+                              ];
+                        }
                       );
 
                       const target =
