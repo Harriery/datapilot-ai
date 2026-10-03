@@ -745,6 +745,19 @@ class PersonalProjectAnalysisResult(BaseModel):
     measure: str
     dimension: str | None = None
 
+    # Semantic-model aware metadata. Optional fields keep
+    # older saved analysis records backward compatible.
+    kpi_code: str | None = None
+    dimension_table: str | None = None
+    aggregation: Literal[
+        "count",
+        "sum",
+        "mean",
+        "min",
+        "max",
+        "custom",
+    ] | None = None
+
     overall: dict = Field(
         default_factory=dict
     )
@@ -757,11 +770,241 @@ class PersonalProjectAnalysisResult(BaseModel):
         "local",
     ] = "local"
 class PersonalProjectAnalysisRequest(BaseModel):
-    measure: str
+    # Legacy raw-column analysis input.
+    measure: str | None = None
+
+    # Semantic analysis input. When kpi_code is provided,
+    # the backend resolves the saved KPI definition from
+    # workspace state instead of trusting frontend metadata.
+    kpi_code: str | None = None
+
+    dimension_table: str | None = None
     dimension: str | None = None
 
 class PersonalProjectAnalysisDeleteRequest(BaseModel):
     analysis_id: str
+
+
+class PersonalProjectDashboardVisual(BaseModel):
+    visual_id: str
+    analysis_id: str | None = None
+
+    kpi_code: str | None = None
+    dimension_table: str | None = None
+    dimension: str | None = None
+
+    visual_type: Literal[
+        "kpi",
+        "bar",
+        "column",
+        "line",
+        "area",
+        "pie",
+        "donut",
+        "table",
+    ]
+
+    title: str
+    subtitle: str | None = None
+    auto_title: bool = True
+
+    size: Literal[
+        "compact",
+        "small",
+        "medium",
+        "large",
+    ] = "large"
+
+    sort_mode: Literal[
+        "top_value",
+        "bottom_value",
+        "alphabetical",
+        "chronological",
+        "highest_count",
+        "lowest_count",
+    ] = "top_value"
+
+    top_n: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+    )
+
+    accent_color: str = "#2f80ed"
+    background_color: str = "#ffffff"
+    text_color: str = "#213854"
+
+    x_axis_title: str | None = None
+    y_axis_title: str | None = None
+    show_values: bool = True
+    show_legend: bool = True
+    show_gridlines: bool = True
+    animate: bool = True
+    tooltip_template: str | None = None
+
+    grid_column: int | None = Field(
+        default=None,
+        ge=1,
+        le=12,
+    )
+
+    # Fine-grained dashboard canvas layout. Optional fields keep
+    # previously saved grid-based dashboards backward compatible.
+    canvas_x: int | None = Field(default=None, ge=0, le=10000)
+    canvas_y: int | None = Field(default=None, ge=0, le=10000)
+    canvas_width: int | None = Field(default=None, ge=120, le=4000)
+    canvas_height: int | None = Field(default=None, ge=96, le=4000)
+
+    title_alignment: Literal[
+        "left",
+        "center",
+        "right",
+    ] = "left"
+
+    kpi_label: str | None = None
+    kpi_label_font_size: int = Field(default=10, ge=6, le=32)
+    kpi_label_bold: bool = False
+    kpi_label_color: str | None = None
+    kpi_show_secondary: bool = False
+    kpi_value_alignment: Literal[
+        "left",
+        "center",
+        "right",
+    ] = "center"
+    kpi_vertical_alignment: Literal[
+        "top",
+        "center",
+        "bottom",
+    ] = "center"
+
+    title_font_size: int = Field(
+        default=10,
+        ge=7,
+        le=28,
+    )
+    title_bold: bool = True
+    title_color: str | None = None
+
+    subtitle_font_size: int = Field(
+        default=7,
+        ge=6,
+        le=20,
+    )
+    subtitle_bold: bool = False
+    subtitle_color: str | None = None
+
+    category_label_font_size: int = Field(
+        default=8,
+        ge=6,
+        le=22,
+    )
+    category_label_bold: bool = False
+    category_label_color: str | None = None
+
+    value_label_font_size: int = Field(
+        default=8,
+        ge=6,
+        le=64,
+    )
+    value_label_bold: bool = True
+    value_label_color: str | None = None
+
+    axis_label_font_size: int = Field(
+        default=8,
+        ge=6,
+        le=20,
+    )
+    axis_label_bold: bool = False
+    axis_label_color: str | None = None
+
+    legend_label_font_size: int = Field(
+        default=8,
+        ge=6,
+        le=20,
+    )
+    legend_label_bold: bool = False
+    legend_label_color: str | None = None
+
+
+class PersonalProjectDashboardFilter(BaseModel):
+    filter_id: str
+
+    table: str
+    column: str
+    label: str
+
+    value: (
+        str | int | float | bool | None
+    ) = None
+
+    values: list[
+        str | int | float | bool
+    ] = Field(default_factory=list)
+
+
+class PersonalProjectDashboardPreviewRequest(BaseModel):
+    kpi_code: str
+    dimension_table: str | None = None
+    dimension: str | None = None
+
+    filters: list[
+        PersonalProjectDashboardFilter
+    ] = Field(default_factory=list)
+
+
+class PersonalProjectDashboardFilterValuesRequest(BaseModel):
+    table: str
+    column: str
+
+
+class PersonalProjectDashboardFilterValuesResponse(BaseModel):
+    values: list[
+        str | int | float | bool | None
+    ] = Field(default_factory=list)
+
+
+class PersonalProjectDashboardConfig(BaseModel):
+    title: str = "Dashboard"
+    subtitle: str | None = None
+
+    theme: Literal[
+        "ocean",
+        "teal",
+        "violet",
+        "sunset",
+        "slate",
+    ] = "ocean"
+
+    visuals: list[
+        PersonalProjectDashboardVisual
+    ] = Field(default_factory=list)
+
+    filters: list[
+        PersonalProjectDashboardFilter
+    ] = Field(default_factory=list)
+
+
+class PersonalProjectDashboardSaveRequest(BaseModel):
+    title: str = "Dashboard"
+    subtitle: str | None = None
+
+    theme: Literal[
+        "ocean",
+        "teal",
+        "violet",
+        "sunset",
+        "slate",
+    ] = "ocean"
+
+    visuals: list[
+        PersonalProjectDashboardVisual
+    ] = Field(
+        min_length=1
+    )
+
+    filters: list[
+        PersonalProjectDashboardFilter
+    ] = Field(default_factory=list)
 
 
 class PersonalProjectKPIDefinition(BaseModel):
@@ -789,6 +1032,8 @@ class PersonalProjectKPIDefinition(BaseModel):
 
     formula_mode: Literal[
         "safe_aggregation",
+        "row_count",
+        "custom",
     ] | None = None
 
     formula: str | None = None
@@ -896,10 +1141,55 @@ class PersonalProjectDataModelPlan(BaseModel):
         "local",
     ] = "local"
 
+class PersonalProjectDataModelMappingRule(BaseModel):
+    source_value: str
+    display_value: str
+
+
+class PersonalProjectDataModelBucketRule(BaseModel):
+    min_value: str
+    max_value: str
+    label: str
+
+
+class PersonalProjectDataModelDerivation(BaseModel):
+    type: Literal[
+        "date_part",
+        "numeric",
+        "text",
+        "multi_column",
+        "mapping",
+        "bucketing",
+    ]
+
+    operation: str = Field(min_length=1)
+
+    source_columns: list[str] = Field(
+        min_length=1
+    )
+
+    parameters: dict[
+        str,
+        str | int | float | bool | None,
+    ] = Field(default_factory=dict)
+
+    mapping_rules: list[
+        PersonalProjectDataModelMappingRule
+    ] = Field(default_factory=list)
+
+    bucket_rules: list[
+        PersonalProjectDataModelBucketRule
+    ] = Field(default_factory=list)
+
+
 class PersonalProjectDataModelColumn(BaseModel):
     name: str
 
     source_column: str | None = None
+
+    derivation: (
+        PersonalProjectDataModelDerivation | None
+    ) = None
 
     role: Literal[
         "key",
@@ -1433,6 +1723,10 @@ class Workspace(BaseModel):
     analysis_results: list[
         PersonalProjectAnalysisResult
     ] = Field(default_factory=list)
+
+    dashboard_config: PersonalProjectDashboardConfig = Field(
+        default_factory=PersonalProjectDashboardConfig
+    )
 
     kpi_candidates: list[
         PersonalProjectKPIDefinition

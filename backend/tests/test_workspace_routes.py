@@ -4981,3 +4981,866 @@ def test_notebook_mentor_uses_workspace_data_quality_context(
     assert "dropna" in guidance_text
     assert "building_area" in guidance_text
     assert "47" in guidance_text
+
+
+def test_confirm_personal_bi_model_advances_to_analysis(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Semantic Model Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.data_model_studio = (
+        PersonalProjectDataModelStudio(
+            tables=[
+                PersonalProjectDataModelTable(
+                    name="fact_events",
+                    table_type="fact",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="category_id",
+                            source_column="category",
+                            role="foreign_key",
+                        ),
+                        PersonalProjectDataModelColumn(
+                            name="amount",
+                            source_column="amount",
+                            role="measure",
+                        ),
+                    ],
+                ),
+                PersonalProjectDataModelTable(
+                    name="dim_category",
+                    table_type="dimension",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="category",
+                            source_column="category",
+                            role="key",
+                        ),
+                    ],
+                ),
+            ],
+            relationships=[
+                PersonalProjectDataModelRelationship(
+                    from_table="fact_events",
+                    from_column="category_id",
+                    to_table="dim_category",
+                    to_column="category",
+                    cardinality="many_to_one",
+                    active=True,
+                ),
+            ],
+            source="user",
+        )
+    )
+
+    workspace.kpi_definitions = [
+        PersonalProjectKPIDefinition(
+            code="total_amount",
+            title="Total amount",
+            fact_table="fact_events",
+            measure="amount",
+            aggregation="sum",
+            formula_mode="safe_aggregation",
+            formula="SUM(fact_events.amount)",
+            description="Total amount.",
+            source="user",
+        )
+    ]
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+            "data_model",
+            "kpi_definitions",
+        }:
+            deliverable.status = "completed"
+
+        if (
+            deliverable.code
+            == "bi_ready_dataset"
+        ):
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/bi-model/confirm"
+        )
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    deliverables = {
+        item["code"]: item
+        for item in body[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables[
+            "bi_ready_dataset"
+        ]["status"]
+        == "completed"
+    )
+
+    assert (
+        deliverables[
+            "analysis"
+        ]["status"]
+        == "in_progress"
+    )
+
+    assert (
+        body["checkpoint"][
+            "current_focus"
+        ]
+        == "Analyze semantic model"
+    )
+
+
+def test_run_personal_semantic_analysis_uses_saved_kpi_and_model(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Semantic Analysis Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    workspace.validation_result = (
+        WorkspaceValidationResponse(
+            passed=True,
+            source_row_count=3,
+            working_row_count=3,
+            checks=[],
+        )
+    )
+
+    workspace.data_model_studio = (
+        PersonalProjectDataModelStudio(
+            tables=[
+                PersonalProjectDataModelTable(
+                    name="fact_sales",
+                    table_type="fact",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="Price",
+                            source_column="Price",
+                            role="measure",
+                        ),
+                        PersonalProjectDataModelColumn(
+                            name="Type",
+                            source_column="Type",
+                            role="foreign_key",
+                        ),
+                    ],
+                ),
+                PersonalProjectDataModelTable(
+                    name="dim_type",
+                    table_type="dimension",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="Type",
+                            source_column="Type",
+                            role="key",
+                        ),
+                        PersonalProjectDataModelColumn(
+                            name="TypeLabel",
+                            source_column="Type",
+                            role="attribute",
+                            derivation={
+                                "type": "mapping",
+                                "operation": "map_values",
+                                "source_columns": ["Type"],
+                                "parameters": {},
+                                "mapping_rules": [
+                                    {
+                                        "source_value": "h",
+                                        "display_value": "House",
+                                    },
+                                    {
+                                        "source_value": "u",
+                                        "display_value": "Unit",
+                                    },
+                                ],
+                            },
+                        ),
+                    ],
+                ),
+            ],
+            relationships=[
+                PersonalProjectDataModelRelationship(
+                    from_table="fact_sales",
+                    from_column="Type",
+                    to_table="dim_type",
+                    to_column="Type",
+                    cardinality="many_to_one",
+                    active=True,
+                ),
+            ],
+            source="user",
+        )
+    )
+
+    workspace.kpi_definitions = [
+        PersonalProjectKPIDefinition(
+            code="average_price",
+            title="Average Price",
+            fact_table="fact_sales",
+            measure="Price",
+            aggregation="mean",
+            formula_mode="safe_aggregation",
+            formula="MEAN(fact_sales.Price)",
+            description="Average price.",
+            source="user",
+        )
+    ]
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+            "data_model",
+            "kpi_definitions",
+            "bi_ready_dataset",
+        }:
+            deliverable.status = "completed"
+
+        if deliverable.code == "analysis":
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_working_dataframe",
+        lambda workspace_id: pd.DataFrame(
+            {
+                "Price": [
+                    400000,
+                    600000,
+                    300000,
+                ],
+                "Type": [
+                    "h",
+                    "h",
+                    "u",
+                ],
+            }
+        ),
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/analysis/run"
+        ),
+        json={
+            "kpi_code": "average_price",
+            "dimension_table": "dim_type",
+            "dimension": "TypeLabel",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["measure"] == "Average Price"
+    assert body["kpi_code"] == "average_price"
+    assert (
+        body["overall"]["metric_value"]
+        == 433333.3333333333
+    )
+
+    grouped = {
+        item["value"]:
+            item["metric_value"]
+        for item in body["grouped_results"]
+    }
+
+    assert grouped == {
+        "House": 500000.0,
+        "Unit": 300000.0,
+    }
+
+    workspace_after = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}"
+        )
+    ).json()
+
+    deliverables = {
+        item["code"]: item["status"]
+        for item in workspace_after[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables["analysis"]
+        == "completed"
+    )
+
+    assert (
+        deliverables["dashboard"]
+        == "in_progress"
+    )
+
+
+def test_save_personal_dashboard_persists_visuals_and_advances(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Dashboard Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    assert workspace is not None
+
+    analysis = PersonalProjectAnalysisResult(
+        analysis_id="analysis-001",
+        measure="Average Price",
+        dimension="Suburb",
+        kpi_code="average_price",
+        dimension_table="dim_suburb",
+        aggregation="mean",
+        overall={
+            "count": 3,
+            "metric_value": 500000.0,
+            "mean": 500000.0,
+            "min": None,
+            "max": None,
+        },
+        grouped_results=[
+            {
+                "value": "A",
+                "count": 2,
+                "metric_value": 600000.0,
+                "mean": None,
+                "min": None,
+                "max": None,
+            },
+            {
+                "value": "B",
+                "count": 1,
+                "metric_value": 300000.0,
+                "mean": None,
+                "min": None,
+                "max": None,
+            },
+        ],
+        source="local",
+    )
+
+    workspace.analysis_result = analysis
+    workspace.analysis_results = [
+        analysis
+    ]
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code in {
+            "data_profile",
+            "clean_dataset",
+            "data_model",
+            "kpi_definitions",
+            "bi_ready_dataset",
+            "analysis",
+        }:
+            deliverable.status = "completed"
+
+        if deliverable.code == "dashboard":
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/dashboard/save"
+        ),
+        json={
+            "title": "Melbourne Housing Overview",
+            "subtitle": "Semantic BI dashboard",
+            "theme": "teal",
+            "visuals": [
+                {
+                    "visual_id": "visual-001",
+                    "analysis_id": "analysis-001",
+                    "visual_type": "bar",
+                    "title": "Average Price by Suburb",
+                    "size": "large",
+                    "sort_mode": "top_value",
+                    "top_n": 10,
+                    "canvas_x": 24,
+                    "canvas_y": 40,
+                    "canvas_width": 520,
+                    "canvas_height": 304,
+                    "title_alignment": "center",
+                    "kpi_label": "Average price",
+                    "kpi_label_font_size": 12,
+                    "kpi_label_bold": True,
+                    "kpi_label_color": "#123456",
+                    "kpi_show_secondary": False,
+                    "kpi_value_alignment": "right",
+                    "kpi_vertical_alignment": "center",
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert (
+        body["dashboard_config"][
+            "visuals"
+        ][0]["analysis_id"]
+        == "analysis-001"
+    )
+
+    saved_visual = (
+        body["dashboard_config"][
+            "visuals"
+        ][0]
+    )
+
+    assert saved_visual["canvas_x"] == 24
+    assert saved_visual["canvas_y"] == 40
+    assert saved_visual["canvas_width"] == 520
+    assert saved_visual["canvas_height"] == 304
+    assert saved_visual["title_alignment"] == "center"
+    assert saved_visual["kpi_label"] == "Average price"
+    assert saved_visual["kpi_label_font_size"] == 12
+    assert saved_visual["kpi_label_bold"] is True
+    assert saved_visual["kpi_label_color"] == "#123456"
+    assert saved_visual["kpi_show_secondary"] is False
+    assert saved_visual["kpi_value_alignment"] == "right"
+    assert saved_visual["kpi_vertical_alignment"] == "center"
+
+    assert (
+        body["dashboard_config"]["title"]
+        == "Melbourne Housing Overview"
+    )
+
+    assert (
+        body["dashboard_config"]["subtitle"]
+        == "Semantic BI dashboard"
+    )
+
+    assert (
+        body["dashboard_config"]["theme"]
+        == "teal"
+    )
+
+    assert (
+        body["dashboard_config"]["visuals"][0][
+            "accent_color"
+        ]
+        == "#2f80ed"
+    )
+
+    deliverables = {
+        item["code"]:
+            item["status"]
+        for item in body[
+            "project_deliverables"
+        ]
+    }
+
+    assert (
+        deliverables["dashboard"]
+        == "completed"
+    )
+
+    assert (
+        deliverables["insight_summary"]
+        == "in_progress"
+    )
+
+    assert (
+        body["checkpoint"][
+            "current_focus"
+        ]
+        == "Review insights"
+    )
+
+
+def test_save_personal_dashboard_rejects_unknown_analysis(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Dashboard Invalid Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/dashboard/save"
+        ),
+        json={
+            "visuals": [
+                {
+                    "visual_id": "visual-001",
+                    "analysis_id": "missing-analysis",
+                    "visual_type": "bar",
+                    "title": "Invalid",
+                    "size": "large",
+                    "sort_mode": "top_value",
+                    "top_n": 10,
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        "unknown analysis"
+        in response.json()[
+            "detail"
+        ]
+    )
+
+
+def test_dashboard_preview_uses_semantic_kpi_binding(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Dashboard Preview Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    workspace.data_model_studio = (
+        PersonalProjectDataModelStudio(
+            tables=[
+                PersonalProjectDataModelTable(
+                    name="fact_sales",
+                    table_type="fact",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="Price",
+                            source_column="Price",
+                            role="measure",
+                        ),
+                        PersonalProjectDataModelColumn(
+                            name="Type",
+                            source_column="Type",
+                            role="foreign_key",
+                        ),
+                    ],
+                ),
+                PersonalProjectDataModelTable(
+                    name="dim_type",
+                    table_type="dimension",
+                    columns=[
+                        PersonalProjectDataModelColumn(
+                            name="Type",
+                            source_column="Type",
+                            role="key",
+                        ),
+                    ],
+                ),
+            ],
+            relationships=[
+                PersonalProjectDataModelRelationship(
+                    from_table="fact_sales",
+                    from_column="Type",
+                    to_table="dim_type",
+                    to_column="Type",
+                    cardinality="many_to_one",
+                    active=True,
+                ),
+            ],
+            source="user",
+        )
+    )
+
+    workspace.kpi_definitions = [
+        PersonalProjectKPIDefinition(
+            code="average_price",
+            title="Average Price",
+            fact_table="fact_sales",
+            measure="Price",
+            aggregation="mean",
+            formula_mode="safe_aggregation",
+            formula="MEAN(fact_sales.Price)",
+            description="Average price.",
+            source="user",
+        )
+    ]
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_working_dataframe",
+        lambda workspace_id: pd.DataFrame(
+            {
+                "Price": [
+                    400000,
+                    600000,
+                    300000,
+                ],
+                "Type": [
+                    "h",
+                    "h",
+                    "u",
+                ],
+            }
+        ),
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/dashboard/preview"
+        ),
+        json={
+            "kpi_code": "average_price",
+            "dimension_table": "dim_type",
+            "dimension": "Type",
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["kpi_code"] == "average_price"
+    assert body["dimension"] == "Type"
+    assert (
+        body["overall"]["metric_value"]
+        == 433333.3333333333
+    )
+
+    grouped = {
+        item["value"]:
+            item["metric_value"]
+        for item in body["grouped_results"]
+    }
+
+    assert grouped == {
+        "h": 500000.0,
+        "u": 300000.0,
+    }
+
+
+def test_dashboard_save_accepts_semantic_visual_without_analysis_id(
+    tmp_path,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Dynamic Dashboard Test",
+            "usage_context": "personal",
+            "project_type": "bi_dashboard",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id="learner-001",
+    )
+
+    workspace.kpi_definitions = [
+        PersonalProjectKPIDefinition(
+            code="average_price",
+            title="Average Price",
+            fact_table="fact_sales",
+            measure="Price",
+            aggregation="mean",
+            formula_mode="safe_aggregation",
+            formula="MEAN(fact_sales.Price)",
+            description="Average price.",
+            source="user",
+        )
+    ]
+
+    for deliverable in (
+        workspace.project_deliverables
+    ):
+        if deliverable.code == "dashboard":
+            deliverable.status = "in_progress"
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    response = client.post(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/dashboard/save"
+        ),
+        json={
+            "title": "Dynamic Dashboard",
+            "theme": "ocean",
+            "visuals": [
+                {
+                    "visual_id": "visual-semantic",
+                    "analysis_id": None,
+                    "kpi_code": "average_price",
+                    "dimension_table": "dim_type",
+                    "dimension": "Type",
+                    "visual_type": "donut",
+                    "title": "Price by type",
+                    "subtitle": "Dynamic semantic binding",
+                    "size": "medium",
+                    "sort_mode": "top_value",
+                    "top_n": 10,
+                    "accent_color": "#2f80ed",
+                    "background_color": "#ffffff",
+                    "text_color": "#213854",
+                    "x_axis_title": "Type",
+                    "y_axis_title": "Average Price",
+                    "show_values": True,
+                    "show_legend": True,
+                    "show_gridlines": True,
+                    "animate": True,
+                    "tooltip_template": (
+                        "{category}: {value}"
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+
+    visual = (
+        response.json()[
+            "dashboard_config"
+        ]["visuals"][0]
+    )
+
+    assert visual["analysis_id"] is None
+    assert visual["kpi_code"] == "average_price"
+    assert visual["visual_type"] == "donut"
+    assert (
+        visual["tooltip_template"]
+        == "{category}: {value}"
+    )

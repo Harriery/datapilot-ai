@@ -27,10 +27,43 @@ import DataModelTableEditor
 import DataModelRelationshipEditor
   from "./DataModelRelationshipEditor";
   
+export type DataModelDerivation = {
+  type:
+    | "date_part"
+    | "numeric"
+    | "text"
+    | "multi_column"
+    | "mapping"
+    | "bucketing";
+
+  operation: string;
+
+  source_columns: string[];
+
+  parameters: Record<
+    string,
+    string | number | boolean | null
+  >;
+
+  mapping_rules?: Array<{
+    source_value: string;
+    display_value: string;
+  }>;
+
+  bucket_rules?: Array<{
+    min_value: string;
+    max_value: string;
+    label: string;
+  }>;
+};
+
+
 type DataModelColumn = {
   name: string;
 
   source_column: string | null;
+
+  derivation?: DataModelDerivation | null;
 
   role:
     | "key"
@@ -106,6 +139,10 @@ type Props = {
   ) => Promise<void>;
 
   saving: boolean;
+
+  sourceColumns?: string[];
+
+  timeCandidates?: string[];
 };
 
 
@@ -653,6 +690,8 @@ function DataModelCanvas({
   studio,
   onSaveStudio,
   saving,
+  sourceColumns = [],
+  timeCandidates = [],
 }: Props) {
 
   const initialNodes =
@@ -1361,6 +1400,8 @@ function DataModelCanvas({
           editingTableName
         }
         saving={saving}
+        sourceColumns={sourceColumns}
+        timeCandidates={timeCandidates}
         onCancel={() => {
           setTableEditorOpen(
             false

@@ -57,6 +57,10 @@ from backend.app.models import (
     WorkspaceNotebookMentorResponse,
     PersonalProjectKPIBuilderRequest,
     PersonalProjectDataModelStudio,
+    PersonalProjectDashboardSaveRequest,
+    PersonalProjectDashboardPreviewRequest,
+    PersonalProjectDashboardFilterValuesRequest,
+    PersonalProjectDashboardFilterValuesResponse,
 )
 
 import pandas as pd
@@ -118,12 +122,18 @@ from backend.app.personal_project_service import (
 from backend.app.personal_analysis_service import (
     build_personal_analysis_plan,
     build_personal_analysis_result,
+    build_semantic_analysis_result,
+    materialize_semantic_column,
 )
 
 from backend.app.personal_kpi_service import (
     build_personal_kpi_candidates_from_plan,
     build_personal_kpi_candidates_from_studio,
     validate_personal_kpi_definitions,
+)
+
+from backend.app.personal_bi_model_service import (
+    validate_personal_bi_model_ready,
 )
 
 from backend.app.personal_data_model_service import (
@@ -998,6 +1008,7 @@ def transform_workspace_workbench_data(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1190,6 +1201,7 @@ def apply_workspace_pipeline_to_full_dataset(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1410,6 +1422,7 @@ def create_workspace_development_sample(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -1920,6 +1933,7 @@ def profile_workspace_data(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
 
@@ -2923,6 +2937,7 @@ def activate_workspace_processed_dataset(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -3325,6 +3340,7 @@ def restore_workspace_version(
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
+    workspace.dashboard_config.visuals = []
 
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
@@ -3609,6 +3625,7 @@ def transform_workspace_data(
             workspace.analysis_plan = None
             workspace.analysis_result = None
             workspace.analysis_results = []
+            workspace.dashboard_config.visuals = []
             workspace.kpi_candidates = []
             workspace.kpi_definitions = []
 
@@ -4228,12 +4245,6 @@ def run_personal_project_analysis(
             ),
         )
 
-    if workspace.analysis_plan is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Analysis plan bulunamadı.",
-        )
-
     has_analysis_deliverable = any(
         deliverable.code == "analysis"
         for deliverable
@@ -4249,31 +4260,6 @@ def run_personal_project_analysis(
             ),
         )
 
-    if (
-        request.measure
-        not in
-        workspace.analysis_plan.measure_candidates
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Geçersiz analysis measure."
-            ),
-        )
-
-    if (
-        request.dimension is not None
-        and request.dimension
-        not in
-        workspace.analysis_plan.dimension_candidates
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Geçersiz analysis dimension."
-            ),
-        )
-
     try:
         working_df = (
             load_workspace_working_dataframe(
@@ -4281,13 +4267,89 @@ def run_personal_project_analysis(
             )
         )
 
-        result = (
-            build_personal_analysis_result(
-                df=working_df,
-                measure=request.measure,
-                dimension=request.dimension,
+        if request.kpi_code:
+            if workspace.data_model_studio is None:
+                raise ValueError(
+                    "Semantic model is required for KPI analysis."
+                )
+
+            definition = next(
+                (
+                    item
+                    for item in workspace.kpi_definitions
+                    if item.code == request.kpi_code
+                ),
+                None,
             )
-        )
+
+            if definition is None:
+                raise ValueError(
+                    "Saved KPI definition not found."
+                )
+
+            dimension_table = (
+                request.dimension_table
+                or definition.dimension_table
+            )
+
+            dimension = (
+                request.dimension
+                or definition.dimension
+            )
+
+            if (
+                (dimension_table is None)
+                != (dimension is None)
+            ):
+                raise ValueError(
+                    "Semantic dimension requires both "
+                    "table and column."
+                )
+
+            result = (
+                build_semantic_analysis_result(
+                    df=working_df,
+                    studio=workspace.data_model_studio,
+                    definition=definition,
+                    dimension_table=dimension_table,
+                    dimension=dimension,
+                )
+            )
+
+        else:
+            if workspace.analysis_plan is None:
+                raise ValueError(
+                    "Analysis plan bulunamadı."
+                )
+
+            if (
+                request.measure is None
+                or request.measure
+                not in
+                workspace.analysis_plan.measure_candidates
+            ):
+                raise ValueError(
+                    "Geçersiz analysis measure."
+                )
+
+            if (
+                request.dimension is not None
+                and request.dimension
+                not in
+                workspace.analysis_plan.dimension_candidates
+            ):
+                raise ValueError(
+                    "Geçersiz analysis dimension."
+                )
+
+            result = (
+                build_personal_analysis_result(
+                    df=working_df,
+                    measure=request.measure,
+                    dimension=request.dimension,
+                )
+            )
+
         result = result.model_copy(
             update={
                 "analysis_id": str(
@@ -4308,15 +4370,11 @@ def run_personal_project_analysis(
             detail=str(exc),
         )
 
-    # Son çalıştırılan analysis mevcut kodlarla
-    # uyumluluk için burada kalır.
     workspace.analysis_result = result
-    
-    # Bütün analysis sonuçlarını ayrıca saklıyoruz.
+
     workspace.analysis_results.append(
         result
     )
-    
 
     complete_and_advance_personal_project_deliverable(
         workspace=workspace,
@@ -4324,11 +4382,11 @@ def run_personal_project_analysis(
     )
 
     workspace.checkpoint.current_focus = (
-        "Build analytical data model"
+        "Build dashboard"
     )
 
     workspace.checkpoint.next_actions = [
-        "Build data model"
+        "Build dashboard"
     ]
 
     workspace.checkpoint.last_error = None
@@ -4338,6 +4396,313 @@ def run_personal_project_analysis(
     )
 
     return result
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/dashboard/preview"
+    ),
+    response_model=PersonalProjectAnalysisResult,
+)
+def preview_personal_dashboard_visual(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectDashboardPreviewRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.data_model_studio is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Semantic model bulunamadı.",
+        )
+
+    definition = next(
+        (
+            item
+            for item in workspace.kpi_definitions
+            if item.code == request.kpi_code
+        ),
+        None,
+    )
+
+    if definition is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Saved KPI definition not found.",
+        )
+
+    if (
+        (request.dimension_table is None)
+        != (request.dimension is None)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Semantic dimension requires both "
+                "table and column."
+            ),
+        )
+
+    try:
+        working_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+        return build_semantic_analysis_result(
+            df=working_df,
+            studio=workspace.data_model_studio,
+            definition=definition,
+            dimension_table=request.dimension_table,
+            dimension=request.dimension,
+            filters=[
+                (
+                    item.table,
+                    item.column,
+                    (
+                        list(item.values)
+                        if len(item.values) > 0
+                        else item.value
+                    ),
+                )
+                for item in request.filters
+                if (
+                    len(item.values) > 0
+                    or item.value is not None
+                )
+            ],
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/dashboard/filter-values"
+    ),
+    response_model=PersonalProjectDashboardFilterValuesResponse,
+)
+def get_personal_dashboard_filter_values(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectDashboardFilterValuesRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.data_model_studio is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Semantic model bulunamadı.",
+        )
+
+    try:
+        working_df = (
+            load_workspace_working_dataframe(
+                workspace_id
+            )
+        )
+
+        series = (
+            materialize_semantic_column(
+                df=working_df,
+                studio=workspace.data_model_studio,
+                table_name=request.table,
+                column_name=request.column,
+            )
+        )
+
+        values = []
+
+        for value in series.drop_duplicates().tolist():
+            if pd.isna(value):
+                continue
+
+            if hasattr(value, "item"):
+                value = value.item()
+
+            values.append(value)
+
+        values = sorted(
+            values,
+            key=lambda value:
+                str(value)
+        )
+
+        return (
+            PersonalProjectDashboardFilterValuesResponse(
+                values=values[:500]
+            )
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/dashboard/save"
+    ),
+    response_model=Workspace,
+)
+def save_personal_dashboard(
+    learner_id: str,
+    workspace_id: str,
+    request: PersonalProjectDashboardSaveRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Dashboard yalnızca personal "
+                "workspace için kullanılabilir."
+            ),
+        )
+
+    if not any(
+        deliverable.code == "dashboard"
+        for deliverable
+        in workspace.project_deliverables
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu personal project type "
+                "dashboard deliverable içermiyor."
+            ),
+        )
+
+    known_analysis_ids = {
+        result.analysis_id
+        for result in workspace.analysis_results
+        if result.analysis_id is not None
+    }
+
+    known_kpi_codes = {
+        item.code
+        for item in workspace.kpi_definitions
+    }
+
+    for visual in request.visuals:
+        if (
+            visual.analysis_id is not None
+            and visual.analysis_id not in known_analysis_ids
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Dashboard visual references "
+                    "an unknown analysis."
+                ),
+            )
+
+        if (
+            visual.kpi_code is not None
+            and visual.kpi_code not in known_kpi_codes
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Dashboard visual references "
+                    "an unknown KPI."
+                ),
+            )
+
+        if (
+            visual.analysis_id is None
+            and visual.kpi_code is None
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Dashboard visual requires either "
+                    "an analysis or semantic KPI binding."
+                ),
+            )
+
+    workspace.dashboard_config = (
+        workspace.dashboard_config.model_copy(
+            update={
+                "title": request.title,
+                "subtitle": request.subtitle,
+                "theme": request.theme,
+                "visuals": request.visuals,
+                "filters": request.filters,
+            }
+        )
+    )
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="dashboard",
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Review insights"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Review insights"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
 
 
 @router.delete(
@@ -4405,6 +4770,12 @@ def delete_personal_project_analysis(
             if workspace.analysis_results
             else None
         )
+
+    workspace.dashboard_config.visuals = [
+        visual
+        for visual in workspace.dashboard_config.visuals
+        if visual.analysis_id != request.analysis_id
+    ]
 
 
     database.save_workspace(
@@ -4514,6 +4885,80 @@ def save_personal_project_kpis(
     )
 
     return definitions
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/bi-model/confirm"
+    ),
+    response_model=Workspace,
+)
+def confirm_personal_bi_model(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.usage_context != "personal":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "BI semantic model yalnızca personal "
+                "workspace için kullanılabilir."
+            ),
+        )
+
+    if workspace.data_model_studio is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "BI semantic model onaylanmadan önce "
+                "logical data model gerekli."
+            ),
+        )
+
+    try:
+        validate_personal_bi_model_ready(
+            studio=workspace.data_model_studio,
+            definitions=workspace.kpi_definitions,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    complete_and_advance_personal_project_deliverable(
+        workspace=workspace,
+        code="bi_ready_dataset",
+    )
+
+    workspace.checkpoint.current_focus = (
+        "Analyze semantic model"
+    )
+
+    workspace.checkpoint.next_actions = [
+        "Run analysis"
+    ]
+
+    workspace.checkpoint.last_error = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return workspace
 
 
 @router.post(
@@ -5155,9 +5600,34 @@ def get_workspace(
             detail="Workspace bulunamadı.",
         )
 
-    if reconcile_personal_project_deliverables(
-        workspace
+    workspace_changed = (
+        reconcile_personal_project_deliverables(
+            workspace
+        )
+    )
+
+    if (
+        workspace.usage_context == "personal"
+        and workspace.data_model_studio
+        is not None
     ):
+        fresh_kpi_candidates = (
+            build_personal_kpi_candidates_from_studio(
+                workspace.data_model_studio
+            )
+        )
+
+        if (
+            workspace.kpi_candidates
+            != fresh_kpi_candidates
+        ):
+            workspace.kpi_candidates = (
+                fresh_kpi_candidates
+            )
+
+            workspace_changed = True
+
+    if workspace_changed:
         database.save_workspace(
             workspace=workspace
         )

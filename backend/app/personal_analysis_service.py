@@ -7,6 +7,9 @@ from backend.app.models import (
     PersonalProjectAnalysisResult,
     PersonalProjectColumnIntelligence,
     PersonalProjectModelDiscovery,
+    PersonalProjectDataModelStudio,
+    PersonalProjectDataModelColumn,
+    PersonalProjectKPIDefinition,
 )
 
 TIME_COLUMN_NAMES = {
@@ -352,5 +355,705 @@ def build_personal_analysis_result(
         grouped_results=(
             grouped_results
         ),
+        source="local",
+    )
+
+def _get_model_column(
+    studio: PersonalProjectDataModelStudio,
+    table_name: str,
+    column_name: str,
+) -> PersonalProjectDataModelColumn:
+    table = next(
+        (
+            table
+            for table in studio.tables
+            if table.name == table_name
+        ),
+        None,
+    )
+
+    if table is None:
+        raise ValueError(
+            f"Semantic table not found: {table_name}"
+        )
+
+    column = next(
+        (
+            column
+            for column in table.columns
+            if column.name == column_name
+        ),
+        None,
+    )
+
+    if column is None:
+        raise ValueError(
+            "Semantic column not found: "
+            f"{table_name}.{column_name}"
+        )
+
+    return column
+
+
+def _source_series(
+    df: pd.DataFrame,
+    source_column: str,
+) -> pd.Series:
+    if source_column not in df.columns:
+        raise ValueError(
+            "Source column required by semantic model "
+            f"was not found: {source_column}"
+        )
+
+    return df[source_column]
+
+
+def materialize_semantic_column(
+    df: pd.DataFrame,
+    studio: PersonalProjectDataModelStudio,
+    table_name: str,
+    column_name: str,
+) -> pd.Series:
+    column = _get_model_column(
+        studio=studio,
+        table_name=table_name,
+        column_name=column_name,
+    )
+
+    derivation = column.derivation
+
+    if derivation is None:
+        source_name = (
+            column.source_column
+            or column.name
+        )
+
+        return _source_series(
+            df,
+            source_name,
+        ).copy()
+
+    source_series = [
+        _source_series(df, source)
+        for source in derivation.source_columns
+    ]
+
+    if derivation.type == "date_part":
+        source = pd.to_datetime(
+            source_series[0],
+            errors="coerce",
+            dayfirst=True,
+        )
+
+        if derivation.operation == "year":
+            return source.dt.year
+
+        if derivation.operation == "quarter":
+            return source.dt.quarter
+
+        if derivation.operation == "month":
+            return source.dt.month
+
+        if derivation.operation == "month_name":
+            return source.dt.month_name()
+
+        if derivation.operation == "day_of_week":
+            return source.dt.day_name()
+
+    if derivation.type == "mapping":
+        mapping = {
+            rule.source_value:
+                rule.display_value
+            for rule in derivation.mapping_rules
+        }
+
+        if not mapping:
+            legacy = str(
+                derivation.parameters.get(
+                    "mapping",
+                    "",
+                )
+            )
+
+            for line in legacy.splitlines():
+                if "=>" not in line:
+                    continue
+
+                source_value, display_value = (
+                    line.split("=>", 1)
+                )
+
+                mapping[
+                    source_value.strip()
+                ] = display_value.strip()
+
+        return source_series[0].map(
+            lambda value: (
+                mapping.get(
+                    str(value),
+                    value,
+                )
+                if not pd.isna(value)
+                else value
+            )
+        )
+
+    if derivation.type == "text":
+        source = (
+            source_series[0]
+            .astype("string")
+        )
+
+        if derivation.operation == "trim":
+            return source.str.strip()
+
+        if derivation.operation == "uppercase":
+            return source.str.upper()
+
+        if derivation.operation == "lowercase":
+            return source.str.lower()
+
+        if derivation.operation == "replace":
+            old = str(
+                derivation.parameters.get(
+                    "old",
+                    "",
+                )
+            )
+
+            new = str(
+                derivation.parameters.get(
+                    "new",
+                    "",
+                )
+            )
+
+            return source.str.replace(
+                old,
+                new,
+                regex=False,
+            )
+
+        if derivation.operation == "substring":
+            start = int(
+                derivation.parameters.get(
+                    "start",
+                    0,
+                )
+            )
+
+            length = derivation.parameters.get(
+                "length"
+            )
+
+            if length is None:
+                return source.str.slice(
+                    start
+                )
+
+            return source.str.slice(
+                start,
+                start + int(length),
+            )
+
+    if derivation.type == "multi_column":
+        separator = str(
+            derivation.parameters.get(
+                "separator",
+                " ",
+            )
+        )
+
+        result = (
+            source_series[0]
+            .astype("string")
+            .fillna("")
+        )
+
+        for source in source_series[1:]:
+            result = (
+                result
+                + separator
+                + source.astype("string").fillna("")
+            )
+
+        return result.str.strip()
+
+    if derivation.type == "numeric":
+        numeric_sources = [
+            pd.to_numeric(
+                source,
+                errors="coerce",
+            )
+            for source in source_series
+        ]
+
+        if derivation.operation == "round":
+            decimals = int(
+                derivation.parameters.get(
+                    "decimals",
+                    0,
+                )
+            )
+
+            return numeric_sources[0].round(
+                decimals
+            )
+
+        left = numeric_sources[0]
+        right = numeric_sources[1]
+
+        if derivation.operation == "add":
+            return left + right
+
+        if derivation.operation == "subtract":
+            return left - right
+
+        if derivation.operation == "multiply":
+            return left * right
+
+        if derivation.operation == "divide":
+            return left.div(
+                right.replace(0, pd.NA)
+            )
+
+    if derivation.type == "bucketing":
+        source = pd.to_numeric(
+            source_series[0],
+            errors="coerce",
+        )
+
+        def bucket_value(value):
+            if pd.isna(value):
+                return None
+
+            for rule in derivation.bucket_rules:
+                minimum = float(
+                    rule.min_value
+                )
+                maximum = float(
+                    rule.max_value
+                )
+
+                if (
+                    value >= minimum
+                    and value <= maximum
+                ):
+                    return rule.label
+
+            return None
+
+        return source.map(
+            bucket_value
+        )
+
+    raise ValueError(
+        "Unsupported semantic derivation: "
+        f"{derivation.type}/"
+        f"{derivation.operation}"
+    )
+
+
+def _aggregate_series(
+    series: pd.Series,
+    aggregation: str,
+) -> float | int | None:
+    clean = pd.to_numeric(
+        series,
+        errors="coerce",
+    ).dropna()
+
+    if aggregation == "count":
+        return int(
+            clean.count()
+        )
+
+    if clean.empty:
+        return None
+
+    if aggregation == "sum":
+        return float(
+            clean.sum()
+        )
+
+    if aggregation == "mean":
+        return float(
+            clean.mean()
+        )
+
+    if aggregation == "min":
+        return float(
+            clean.min()
+        )
+
+    if aggregation == "max":
+        return float(
+            clean.max()
+        )
+
+    raise ValueError(
+        f"Unsupported KPI aggregation: {aggregation}"
+    )
+
+
+def _evaluate_custom_formula(
+    formula: str,
+    df: pd.DataFrame,
+    studio: PersonalProjectDataModelStudio,
+) -> float | int | None:
+    expression = formula.strip()
+
+    def split_args(value: str) -> tuple[str, str]:
+        depth = 0
+
+        for index, char in enumerate(value):
+            if char == "(":
+                depth += 1
+
+            elif char == ")":
+                depth -= 1
+
+            elif (
+                char == ","
+                and depth == 0
+            ):
+                return (
+                    value[:index].strip(),
+                    value[index + 1:].strip(),
+                )
+
+        raise ValueError(
+            "SAFE_DIVIDE requires two arguments."
+        )
+
+    def evaluate(value: str):
+        value = value.strip()
+
+        open_index = value.find("(")
+
+        if (
+            open_index <= 0
+            or not value.endswith(")")
+        ):
+            raise ValueError(
+                "Invalid custom KPI expression."
+            )
+
+        function_name = (
+            value[:open_index]
+            .strip()
+            .upper()
+        )
+
+        inner = value[
+            open_index + 1:-1
+        ].strip()
+
+        if function_name == "SAFE_DIVIDE":
+            left_expr, right_expr = (
+                split_args(inner)
+            )
+
+            numerator = evaluate(
+                left_expr
+            )
+
+            denominator = evaluate(
+                right_expr
+            )
+
+            if (
+                denominator is None
+                or denominator == 0
+            ):
+                return None
+
+            if numerator is None:
+                return None
+
+            return float(
+                numerator / denominator
+            )
+
+        if function_name == "COUNT_ROWS":
+            table_name = inner
+
+            if not any(
+                table.name == table_name
+                for table in studio.tables
+            ):
+                raise ValueError(
+                    "Semantic table not found: "
+                    f"{table_name}"
+                )
+
+            return int(len(df))
+
+        if "." not in inner:
+            raise ValueError(
+                "Custom KPI aggregate requires "
+                "table.column reference."
+            )
+
+        table_name, column_name = (
+            part.strip()
+            for part
+            in inner.split(".", 1)
+        )
+
+        series = (
+            materialize_semantic_column(
+                df=df,
+                studio=studio,
+                table_name=table_name,
+                column_name=column_name,
+            )
+        )
+
+        aggregation_map = {
+            "SUM": "sum",
+            "MEAN": "mean",
+            "COUNT": "count",
+            "MIN": "min",
+            "MAX": "max",
+        }
+
+        aggregation = (
+            aggregation_map.get(
+                function_name
+            )
+        )
+
+        if aggregation is None:
+            raise ValueError(
+                "Unsupported custom KPI function: "
+                f"{function_name}"
+            )
+
+        return _aggregate_series(
+            series,
+            aggregation,
+        )
+
+    return evaluate(
+        expression
+    )
+
+
+def build_semantic_analysis_result(
+    df: pd.DataFrame,
+    studio: PersonalProjectDataModelStudio,
+    definition: PersonalProjectKPIDefinition,
+    dimension_table: str | None = None,
+    dimension: str | None = None,
+    filters: list[
+        tuple[
+            str,
+            str,
+            object,
+        ]
+        | tuple[
+            str,
+            str,
+            list[object],
+        ]
+    ] | None = None,
+) -> PersonalProjectAnalysisResult:
+    if definition.fact_table is None:
+        raise ValueError(
+            "Saved KPI has no fact table."
+        )
+
+    filtered_df = df
+
+    for (
+        filter_table,
+        filter_column,
+        filter_value,
+    ) in (filters or []):
+        filter_series = (
+            materialize_semantic_column(
+                df=filtered_df,
+                studio=studio,
+                table_name=filter_table,
+                column_name=filter_column,
+            )
+        )
+
+        if isinstance(
+            filter_value,
+            list,
+        ):
+            if len(filter_value) == 0:
+                continue
+
+            accepted = {
+                str(value)
+                for value in filter_value
+            }
+
+            mask = (
+                filter_series
+                .astype("string")
+                .fillna("")
+                .isin(accepted)
+            )
+
+        elif filter_value is None:
+            mask = filter_series.isna()
+
+        else:
+            mask = (
+                filter_series
+                .astype("string")
+                .fillna("")
+                == str(filter_value)
+            )
+
+        filtered_df = filtered_df.loc[
+            mask
+        ]
+
+    def evaluate_metric(
+        scoped_df: pd.DataFrame,
+    ):
+        if (
+            definition.formula_mode
+            == "custom"
+        ):
+            if not definition.formula:
+                raise ValueError(
+                    "Custom KPI formula is missing."
+                )
+
+            return _evaluate_custom_formula(
+                formula=definition.formula,
+                df=scoped_df,
+                studio=studio,
+            )
+
+        if definition.formula_mode == "row_count":
+            return int(
+                len(scoped_df)
+            )
+
+        if (
+            definition.measure is None
+            or definition.aggregation is None
+        ):
+            raise ValueError(
+                "Saved KPI is missing measure metadata."
+            )
+
+        measure_series = (
+            materialize_semantic_column(
+                df=scoped_df,
+                studio=studio,
+                table_name=definition.fact_table,
+                column_name=definition.measure,
+            )
+        )
+
+        return _aggregate_series(
+            measure_series,
+            definition.aggregation,
+        )
+
+    metric_value = evaluate_metric(
+        filtered_df
+    )
+
+    grouped_results: list[dict] = []
+
+    if (
+        dimension_table is not None
+        and dimension is not None
+    ):
+        dimension_series = (
+            materialize_semantic_column(
+                df=filtered_df,
+                studio=studio,
+                table_name=dimension_table,
+                column_name=dimension,
+            )
+        )
+
+        grouping_df = pd.DataFrame(
+            {
+                "__dimension": dimension_series,
+            },
+            index=filtered_df.index,
+        )
+
+        for (
+            dimension_value,
+            index_values,
+        ) in grouping_df.groupby(
+            "__dimension",
+            dropna=False,
+        ).groups.items():
+            scoped_df = filtered_df.loc[
+                index_values
+            ]
+
+            safe_dimension_value = (
+                None
+                if pd.isna(
+                    dimension_value
+                )
+                else dimension_value
+            )
+
+            grouped_results.append(
+                {
+                    "value":
+                        safe_dimension_value,
+                    "count":
+                        int(len(scoped_df)),
+                    "metric_value":
+                        evaluate_metric(
+                            scoped_df
+                        ),
+                    "mean": None,
+                    "min": None,
+                    "max": None,
+                }
+            )
+
+    return PersonalProjectAnalysisResult(
+        measure=definition.title,
+        dimension=dimension,
+        kpi_code=definition.code,
+        dimension_table=dimension_table,
+        aggregation=(
+            "custom"
+            if definition.formula_mode
+            == "custom"
+            else definition.aggregation
+        ),
+        overall={
+            "count": int(len(filtered_df)),
+            "metric_value":
+                metric_value,
+            "mean": (
+                metric_value
+                if definition.aggregation
+                == "mean"
+                else None
+            ),
+            "min": (
+                metric_value
+                if definition.aggregation
+                == "min"
+                else None
+            ),
+            "max": (
+                metric_value
+                if definition.aggregation
+                == "max"
+                else None
+            ),
+        },
+        grouped_results=grouped_results,
         source="local",
     )

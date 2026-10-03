@@ -182,13 +182,23 @@ def test_build_personal_kpi_candidates_from_studio():
         item.code
         for item in result
     ] == [
+        "row_count_fact_sales",
         "sum_fact_sales_amount",
         "mean_fact_sales_amount",
-        "count_fact_sales_amount",
-        "min_fact_sales_amount",
-        "max_fact_sales_amount",
-        "mean_fact_sales_amount_by_dim_region",
+        (
+            "sum_fact_sales_amount_"
+            "by_dim_region_region"
+        ),
     ]
+
+    row_count = result[0]
+
+    assert row_count.measure is None
+    assert row_count.formula_mode == "row_count"
+    assert (
+        row_count.formula
+        == "COUNT_ROWS(fact_sales)"
+    )
 
     grouped = result[-1]
 
@@ -199,7 +209,7 @@ def test_build_personal_kpi_candidates_from_studio():
 
     assert (
         grouped.formula
-        == "MEAN(fact_sales.amount) BY dim_region.region"
+        == "SUM(fact_sales.amount) BY dim_region.region"
     )
 
 
@@ -257,3 +267,318 @@ def test_validate_personal_kpi_definitions_rejects_non_measure_column():
                 ),
             ],
         )
+
+
+
+def test_validate_personal_kpi_definitions_supports_row_count():
+    definitions = (
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="record_count",
+                    title="Record Count",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation="count",
+                    dimension_table=None,
+                    dimension=None,
+                    filter_value=None,
+                    formula_mode="row_count",
+                    formula=None,
+                    description="Rows in the fact table.",
+                    source="user",
+                ),
+            ],
+        )
+    )
+
+    assert len(definitions) == 1
+    assert definitions[0].measure is None
+
+    assert (
+        definitions[0].formula
+        == "COUNT_ROWS(fact_sales)"
+    )
+
+
+def test_kpi_suggestions_prefer_natural_key_over_secondary_attribute():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="fact_orders",
+                table_type="fact",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="region_id",
+                        source_column="region",
+                        role="foreign_key",
+                    ),
+                    PersonalProjectDataModelColumn(
+                        name="price",
+                        source_column="price",
+                        role="measure",
+                    ),
+                ],
+            ),
+            PersonalProjectDataModelTable(
+                name="dim_region",
+                table_type="dimension",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="region",
+                        source_column="region",
+                        role="key",
+                    ),
+                    PersonalProjectDataModelColumn(
+                        name="region_code",
+                        source_column="region_code",
+                        role="attribute",
+                    ),
+                ],
+            ),
+        ],
+        relationships=[
+            PersonalProjectDataModelRelationship(
+                from_table="fact_orders",
+                from_column="region_id",
+                to_table="dim_region",
+                to_column="region",
+                cardinality="many_to_one",
+                active=True,
+            ),
+        ],
+        source="user",
+    )
+
+    result = build_personal_kpi_candidates_from_studio(
+        studio
+    )
+
+    grouped = [
+        item
+        for item in result
+        if item.dimension_table == "dim_region"
+    ]
+
+    assert len(grouped) == 1
+    assert grouped[0].aggregation == "mean"
+    assert grouped[0].dimension == "region"
+    assert (
+        grouped[0].title
+        == "Average price by region"
+    )
+
+
+def test_secondary_measures_only_get_primary_aggregation_suggestion():
+    studio = PersonalProjectDataModelStudio(
+        tables=[
+            PersonalProjectDataModelTable(
+                name="fact_metrics",
+                table_type="fact",
+                columns=[
+                    PersonalProjectDataModelColumn(
+                        name="price",
+                        source_column="price",
+                        role="measure",
+                    ),
+                    PersonalProjectDataModelColumn(
+                        name="distance",
+                        source_column="distance",
+                        role="measure",
+                    ),
+                ],
+            ),
+        ],
+        relationships=[],
+        source="user",
+    )
+
+    result = build_personal_kpi_candidates_from_studio(
+        studio
+    )
+
+    distance_items = [
+        item
+        for item in result
+        if item.measure == "distance"
+    ]
+
+    assert [
+        item.aggregation
+        for item in distance_items
+    ] == ["mean"]
+
+
+def test_validate_personal_kpi_definitions_supports_custom_formula():
+    definitions = validate_personal_kpi_definitions(
+        studio=_build_test_model_studio(),
+        definitions=[
+            PersonalProjectKPIDefinition(
+                code="custom_margin",
+                title="Custom margin",
+                fact_table="fact_sales",
+                measure=None,
+                aggregation=None,
+                dimension_table=None,
+                dimension=None,
+                filter_value=None,
+                formula_mode="custom",
+                formula=(
+                    "SAFE_DIVIDE("
+                    "SUM(fact_sales.amount), "
+                    "COUNT_ROWS(fact_sales))"
+                ),
+                description="Custom semantic KPI.",
+                source="user",
+            ),
+        ],
+    )
+
+    assert len(definitions) == 1
+    assert definitions[0].formula_mode == "custom"
+    assert definitions[0].measure is None
+    assert definitions[0].aggregation is None
+    assert (
+        definitions[0].formula
+        == (
+            "SAFE_DIVIDE("
+            "SUM(fact_sales.amount), "
+            "COUNT_ROWS(fact_sales))"
+        )
+    )
+
+
+def test_validate_personal_kpi_definitions_rejects_empty_custom_formula():
+    with pytest.raises(
+        ValueError,
+        match="Custom KPI formula is required",
+    ):
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="empty_custom",
+                    title="Empty custom",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation=None,
+                    formula_mode="custom",
+                    formula="   ",
+                    description="Invalid custom KPI.",
+                    source="user",
+                ),
+            ],
+        )
+
+
+def test_custom_kpi_formula_rejects_unknown_function():
+    with pytest.raises(
+        ValueError,
+        match="Unsupported custom KPI function",
+    ):
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="bad_function",
+                    title="Bad function",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation=None,
+                    formula_mode="custom",
+                    formula=(
+                        "MEDIAN("
+                        "fact_sales.amount)"
+                    ),
+                    description="Invalid custom KPI.",
+                    source="user",
+                ),
+            ],
+        )
+
+
+def test_custom_kpi_formula_rejects_unknown_column():
+    with pytest.raises(
+        ValueError,
+        match="unknown column",
+    ):
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="bad_column",
+                    title="Bad column",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation=None,
+                    formula_mode="custom",
+                    formula=(
+                        "SUM("
+                        "fact_sales.missing_amount)"
+                    ),
+                    description="Invalid custom KPI.",
+                    source="user",
+                ),
+            ],
+        )
+
+
+def test_custom_kpi_formula_rejects_unknown_table():
+    with pytest.raises(
+        ValueError,
+        match="unknown table",
+    ):
+        validate_personal_kpi_definitions(
+            studio=_build_test_model_studio(),
+            definitions=[
+                PersonalProjectKPIDefinition(
+                    code="bad_table",
+                    title="Bad table",
+                    fact_table="fact_sales",
+                    measure=None,
+                    aggregation=None,
+                    formula_mode="custom",
+                    formula=(
+                        "COUNT_ROWS("
+                        "fact_missing)"
+                    ),
+                    description="Invalid custom KPI.",
+                    source="user",
+                ),
+            ],
+        )
+
+
+def test_custom_kpi_formula_supports_nested_safe_divide():
+    definitions = validate_personal_kpi_definitions(
+        studio=_build_test_model_studio(),
+        definitions=[
+            PersonalProjectKPIDefinition(
+                code="average_amount",
+                title="Average amount",
+                fact_table="fact_sales",
+                measure=None,
+                aggregation=None,
+                formula_mode="custom",
+                formula=(
+                    "SAFE_DIVIDE("
+                    "SUM(fact_sales.amount),"
+                    "COUNT(fact_sales.amount)"
+                    ")"
+                ),
+                description="Custom semantic KPI.",
+                source="user",
+            ),
+        ],
+    )
+
+    assert (
+        definitions[0].formula
+        == (
+            "SAFE_DIVIDE("
+            "SUM(fact_sales.amount),"
+            "COUNT(fact_sales.amount)"
+            ")"
+        )
+    )

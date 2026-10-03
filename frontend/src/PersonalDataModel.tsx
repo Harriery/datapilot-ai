@@ -34,6 +34,10 @@ type PersonalDataModelProps = {
   onExport: () => void;
 
   studioSaving: boolean;
+
+  sourceColumns?: string[];
+
+  timeCandidates?: string[];
 };
 
 function PersonalDataModel({
@@ -45,6 +49,8 @@ function PersonalDataModel({
   onSaveStudio,
   onExport,
   studioSaving,
+  sourceColumns = [],
+  timeCandidates = [],
 }: PersonalDataModelProps) {
   const tableCount =
     dataModelStudio?.tables.length ?? 0;
@@ -179,6 +185,8 @@ function PersonalDataModel({
                 studio={dataModelStudio}
                 onSaveStudio={onSaveStudio}
                 saving={studioSaving}
+                sourceColumns={sourceColumns}
+                timeCandidates={timeCandidates}
               />
             </div>
           ) : (

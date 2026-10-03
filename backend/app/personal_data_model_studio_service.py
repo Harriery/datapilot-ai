@@ -270,6 +270,230 @@ def validate_personal_data_model_studio(
                     )
                 )
 
+            if column.derivation is not None:
+                derivation = column.derivation
+
+                if (
+                    derivation.type == "date_part"
+                    and derivation.operation
+                    not in {
+                        "year",
+                        "quarter",
+                        "month",
+                        "month_name",
+                        "day_of_week",
+                    }
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported date-part derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    derivation.type == "multi_column"
+                    and derivation.operation
+                    != "concatenate"
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported multi-column derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    derivation.type == "multi_column"
+                    and len(
+                        [
+                            source
+                            for source
+                            in derivation.source_columns
+                            if source.strip()
+                        ]
+                    ) < 2
+                ):
+                    raise ValueError(
+                        (
+                            "Multi-column derivation requires "
+                            "at least two source columns."
+                        )
+                    )
+
+                if (
+                    derivation.type == "text"
+                    and derivation.operation
+                    not in {
+                        "trim",
+                        "uppercase",
+                        "lowercase",
+                        "replace",
+                        "substring",
+                    }
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported text derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    derivation.type == "numeric"
+                    and derivation.operation
+                    not in {
+                        "round",
+                        "add",
+                        "subtract",
+                        "multiply",
+                        "divide",
+                    }
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported numeric derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    derivation.type == "numeric"
+                    and derivation.operation
+                    in {
+                        "add",
+                        "subtract",
+                        "multiply",
+                        "divide",
+                    }
+                    and len(
+                        [
+                            source
+                            for source
+                            in derivation.source_columns
+                            if source.strip()
+                        ]
+                    ) < 2
+                ):
+                    raise ValueError(
+                        (
+                            "Numeric arithmetic derivation requires "
+                            "two source columns."
+                        )
+                    )
+
+                if (
+                    derivation.type == "mapping"
+                    and derivation.operation
+                    != "map_values"
+                ):
+                    raise ValueError(
+                        (
+                            "Unsupported mapping derivation: "
+                            f"{derivation.operation}"
+                        )
+                    )
+
+                if (
+                    derivation.type == "mapping"
+                ):
+                    structured_rules_valid = (
+                        bool(
+                            derivation.mapping_rules
+                        )
+                        and all(
+                            (
+                                rule.source_value.strip()
+                                and rule.display_value.strip()
+                            )
+                            for rule
+                            in derivation.mapping_rules
+                        )
+                    )
+
+                    legacy_mapping = str(
+                        derivation.parameters.get(
+                            "mapping",
+                            ""
+                        )
+                    ).strip()
+
+                    legacy_rules_valid = False
+
+                    if legacy_mapping:
+                        legacy_rules_valid = all(
+                            (
+                                "=>" in line
+                                and line.split(
+                                    "=>",
+                                    1,
+                                )[0].strip()
+                                and line.split(
+                                    "=>",
+                                    1,
+                                )[1].strip()
+                            )
+                            for line
+                            in legacy_mapping.splitlines()
+                            if line.strip()
+                        )
+
+                    if (
+                        not structured_rules_valid
+                        and not legacy_rules_valid
+                    ):
+                        raise ValueError(
+                            (
+                                "Mapping derivation requires "
+                                "complete mapping rules."
+                            )
+                        )
+
+                if (
+                    derivation.type == "bucketing"
+                ):
+                    if (
+                        derivation.operation
+                        != "bucket_ranges"
+                    ):
+                        raise ValueError(
+                            (
+                                "Unsupported bucketing derivation: "
+                                f"{derivation.operation}"
+                            )
+                        )
+
+                    if (
+                        not derivation.bucket_rules
+                        or any(
+                            (
+                                not rule.min_value.strip()
+                                or not rule.max_value.strip()
+                                or not rule.label.strip()
+                            )
+                            for rule
+                            in derivation.bucket_rules
+                        )
+                    ):
+                        raise ValueError(
+                            (
+                                "Bucketing derivation requires "
+                                "complete range rules."
+                            )
+                        )
+
+                if (
+                    column.source_column is not None
+                    and column.source_column
+                    not in derivation.source_columns
+                ):
+                    raise ValueError(
+                        (
+                            "Derived column source_column must "
+                            "match one of derivation source_columns."
+                        )
+                    )
+
     relationship_keys: set[
         tuple[
             tuple[str, str],

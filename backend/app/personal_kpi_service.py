@@ -1,7 +1,10 @@
+import re
+
 from backend.app.models import (
     PersonalProjectAnalysisPlan,
     PersonalProjectAnalysisResult,
     PersonalProjectDataModelStudio,
+    PersonalProjectDataModelTable,
     PersonalProjectKPIDefinition,
 )
 
@@ -167,64 +170,386 @@ def build_personal_kpi_candidates(
 
 
 
+def _measure_aggregation_profile(
+    measure_name: str,
+) -> tuple[str, ...]:
+    """
+    Pick a small, conservative aggregation set from
+    reusable semantic name patterns.
+
+    Numeric does not automatically mean every aggregation
+    is useful. The goal is to avoid noisy KPI suggestions.
+    """
+
+    normalized = _normalize_code_part(
+        measure_name
+    )
+
+    tokens = set(
+        normalized.split("_")
+    )
+
+    average_first_tokens = {
+        "price",
+        "rate",
+        "ratio",
+        "percentage",
+        "percent",
+        "score",
+        "distance",
+        "area",
+        "size",
+        "age",
+        "duration",
+        "temperature",
+        "weight",
+        "height",
+    }
+
+    additive_tokens = {
+        "amount",
+        "revenue",
+        "income",
+        "expense",
+        "cost",
+        "profit",
+        "sales",
+        "turnover",
+        "balance",
+        "quantity",
+        "qty",
+        "units",
+        "volume",
+    }
+
+    if tokens & additive_tokens:
+        return (
+            "sum",
+            "mean",
+        )
+
+    if tokens & average_first_tokens:
+        return (
+            "mean",
+            "min",
+            "max",
+        )
+
+    return (
+        "mean",
+        "min",
+        "max",
+    )
+
+
+def _aggregation_label(
+    aggregation: str,
+) -> str:
+    return {
+        "sum": "Total",
+        "mean": "Average",
+        "count": "Count",
+        "min": "Minimum",
+        "max": "Maximum",
+    }[aggregation]
+
+
+def _measure_priority(
+    measure_name: str,
+) -> tuple[int, str]:
+    normalized = _normalize_code_part(
+        measure_name
+    )
+
+    tokens = set(
+        normalized.split("_")
+    )
+
+    primary_tokens = {
+        "price",
+        "revenue",
+        "sales",
+        "amount",
+        "profit",
+        "income",
+        "cost",
+        "expense",
+        "turnover",
+    }
+
+    return (
+        0
+        if tokens & primary_tokens
+        else 1,
+        normalized,
+    )
+
+
+def _preferred_dimension_column(
+    table: PersonalProjectDataModelTable,
+) -> str | None:
+    """
+    Prefer a readable semantic attribute instead of a
+    technical key when the model contains one.
+    """
+
+    for column in table.columns:
+        if (
+            column.derivation is not None
+            and column.derivation.type
+            == "mapping"
+        ):
+            return column.name
+
+    for column in table.columns:
+        if (
+            column.derivation is not None
+            and column.derivation.type
+            == "date_part"
+            and column.derivation.operation
+            in {
+                "year",
+                "quarter",
+                "month",
+                "month_name",
+            }
+        ):
+            return column.name
+
+    # For ordinary dimensions, the natural key is usually
+    # the clearest grouping label (for example a suburb,
+    # category or region name). Prefer it over secondary
+    # attributes such as postcode or descriptive metadata.
+    for column in table.columns:
+        if (
+            column.role == "key"
+            and (
+                column.derivation is None
+                or column.derivation.type
+                != "multi_column"
+            )
+        ):
+            return column.name
+
+    for column in table.columns:
+        if column.role in {
+            "attribute",
+            "dimension",
+            "time",
+        }:
+            return column.name
+
+    for column in table.columns:
+        if column.role == "key":
+            return column.name
+
+    return None
+
+
+def _dimension_priority(
+    table: PersonalProjectDataModelTable,
+) -> tuple[int, str]:
+    """
+    Rank dimensions using model semantics only.
+
+    Mapping labels and date dimensions are especially useful
+    for dashboard breakdowns. Composite-key detail dimensions
+    are intentionally ranked later.
+    """
+
+    has_mapping = any(
+        column.derivation is not None
+        and column.derivation.type
+        == "mapping"
+        for column in table.columns
+    )
+
+    has_date_part = any(
+        column.derivation is not None
+        and column.derivation.type
+        == "date_part"
+        for column in table.columns
+    )
+
+    has_composite_key = any(
+        column.role == "key"
+        and column.derivation
+        is not None
+        and column.derivation.type
+        == "multi_column"
+        for column in table.columns
+    )
+
+    if has_mapping:
+        rank = 0
+    elif has_date_part:
+        rank = 1
+    elif has_composite_key:
+        rank = 4
+    elif len(table.columns) > 1:
+        rank = 2
+    else:
+        rank = 3
+
+    return (
+        rank,
+        _normalize_code_part(
+            table.name
+        ),
+    )
+
+
 def build_personal_kpi_candidates_from_studio(
     studio: PersonalProjectDataModelStudio,
 ) -> list[PersonalProjectKPIDefinition]:
-    fact_tables = [
-        table
+    """
+    Build KPI suggestions from the CURRENT logical model.
+
+    The algorithm is dataset-agnostic:
+    - fact tables and measures come from model roles;
+    - aggregations use conservative semantic patterns;
+    - active relationships provide breakdown dimensions;
+    - readable derived labels are preferred;
+    - only the primary business measure gets grouped
+      suggestions to avoid suggestion explosion.
+    """
+
+    tables_by_name = {
+        table.name: table
         for table in studio.tables
-        if table.table_type == "fact"
-    ]
+    }
 
     candidates: list[
         PersonalProjectKPIDefinition
     ] = []
 
-    for fact_table in fact_tables:
-        measure_columns = [
-            column
-            for column in fact_table.columns
-            if column.role == "measure"
-        ]
+    for fact_table in studio.tables:
+        if fact_table.table_type != "fact":
+            continue
 
-        dimension_relationships = [
+        fact_code = _normalize_code_part(
+            fact_table.name
+        )
+
+        candidates.append(
+            PersonalProjectKPIDefinition(
+                code=(
+                    f"row_count_{fact_code}"
+                ),
+                title="Record Count",
+                fact_table=fact_table.name,
+                measure=None,
+                aggregation="count",
+                dimension_table=None,
+                dimension=None,
+                filter_value=None,
+                formula_mode="row_count",
+                formula=(
+                    f"COUNT_ROWS("
+                    f"{fact_table.name})"
+                ),
+                description=(
+                    "Number of rows at the "
+                    f"{fact_table.name} grain."
+                ),
+                source="local",
+            )
+        )
+
+        measure_columns = sorted(
+            [
+                column
+                for column in fact_table.columns
+                if column.role == "measure"
+            ],
+            key=lambda column:
+                _measure_priority(
+                    column.name
+                ),
+        )
+
+        relationships = [
             relationship
-            for relationship in studio.relationships
+            for relationship
+            in studio.relationships
             if (
                 relationship.active
                 and relationship.from_table
                 == fact_table.name
+                and relationship.to_table
+                in tables_by_name
             )
         ]
 
-        first_dimension = (
-            dimension_relationships[0]
-            if dimension_relationships
-            else None
+        dimension_options: list[
+            tuple[
+                PersonalProjectDataModelTable,
+                str,
+            ]
+        ] = []
+
+        for relationship in relationships:
+            dimension_table = (
+                tables_by_name[
+                    relationship.to_table
+                ]
+            )
+
+            preferred_column = (
+                _preferred_dimension_column(
+                    dimension_table
+                )
+            )
+
+            if preferred_column is None:
+                continue
+
+            dimension_options.append(
+                (
+                    dimension_table,
+                    preferred_column,
+                )
+            )
+
+        dimension_options.sort(
+            key=lambda item:
+                _dimension_priority(
+                    item[0]
+                )
         )
 
-        for column in measure_columns:
+        # Four breakdowns keeps suggestions useful but compact.
+        dimension_options = (
+            dimension_options[:4]
+        )
+
+        for index, column in enumerate(
+            measure_columns
+        ):
             measure_name = column.name
 
-            for aggregation in (
-                "sum",
-                "mean",
-                "count",
-                "min",
-                "max",
-            ):
-                aggregation_label = {
-                    "sum": "Total",
-                    "mean": "Average",
-                    "count": "Count",
-                    "min": "Minimum",
-                    "max": "Maximum",
-                }[
-                    aggregation
-                ]
+            aggregations = (
+                _measure_aggregation_profile(
+                    measure_name
+                )
+            )
+
+            suggested_aggregations = (
+                aggregations
+                if index == 0
+                else aggregations[:1]
+            )
+
+            for aggregation in suggested_aggregations:
+                label = (
+                    _aggregation_label(
+                        aggregation
+                    )
+                )
 
                 code = (
-                    f"{aggregation}_{_normalize_code_part(fact_table.name)}_"
+                    f"{aggregation}_"
+                    f"{fact_code}_"
                     f"{_normalize_code_part(measure_name)}"
                 )
 
@@ -232,7 +557,7 @@ def build_personal_kpi_candidates_from_studio(
                     PersonalProjectKPIDefinition(
                         code=code,
                         title=(
-                            f"{aggregation_label} "
+                            f"{label} "
                             f"{measure_name}"
                         ),
                         fact_table=(
@@ -248,10 +573,11 @@ def build_personal_kpi_candidates_from_studio(
                         ),
                         formula=(
                             f"{aggregation.upper()}"
-                            f"({fact_table.name}.{measure_name})"
+                            f"({fact_table.name}."
+                            f"{measure_name})"
                         ),
                         description=(
-                            f"{aggregation_label} of "
+                            f"{label} "
                             f"{measure_name} from "
                             f"{fact_table.name}."
                         ),
@@ -259,49 +585,347 @@ def build_personal_kpi_candidates_from_studio(
                     )
                 )
 
-            if first_dimension is not None:
+            # Only the highest-priority business measure gets
+            # grouped suggestions. This avoids 30-50 near-
+            # duplicate cards on wide datasets.
+            if index != 0:
+                continue
+
+            primary_aggregation = (
+                aggregations[0]
+            )
+
+            primary_label = (
+                _aggregation_label(
+                    primary_aggregation
+                )
+            )
+
+            for (
+                dimension_table,
+                dimension_column,
+            ) in dimension_options:
                 code = (
-                    f"mean_{_normalize_code_part(fact_table.name)}_"
+                    f"{primary_aggregation}_"
+                    f"{fact_code}_"
                     f"{_normalize_code_part(measure_name)}"
-                    f"_by_{_normalize_code_part(first_dimension.to_table)}"
+                    "_by_"
+                    f"{_normalize_code_part(dimension_table.name)}"
+                    "_"
+                    f"{_normalize_code_part(dimension_column)}"
                 )
 
                 candidates.append(
                     PersonalProjectKPIDefinition(
                         code=code,
                         title=(
-                            f"Average {measure_name} "
-                            f"by {first_dimension.to_table}"
+                            f"{primary_label} "
+                            f"{measure_name} by "
+                            f"{dimension_column}"
                         ),
                         fact_table=(
                             fact_table.name
                         ),
                         measure=measure_name,
-                        aggregation="mean",
+                        aggregation=(
+                            primary_aggregation
+                        ),
                         dimension_table=(
-                            first_dimension.to_table
+                            dimension_table.name
                         ),
                         dimension=(
-                            first_dimension.to_column
+                            dimension_column
                         ),
                         filter_value=None,
                         formula_mode=(
                             "safe_aggregation"
                         ),
                         formula=(
-                            f"MEAN({fact_table.name}.{measure_name}) "
-                            f"BY {first_dimension.to_table}."
-                            f"{first_dimension.to_column}"
+                            f"{primary_aggregation.upper()}"
+                            f"({fact_table.name}."
+                            f"{measure_name}) BY "
+                            f"{dimension_table.name}."
+                            f"{dimension_column}"
                         ),
                         description=(
-                            f"Average {measure_name} grouped by "
-                            f"{first_dimension.to_table}."
+                            f"{primary_label} "
+                            f"{measure_name} grouped "
+                            f"by {dimension_column}."
                         ),
                         source="local",
                     )
                 )
 
     return candidates
+
+
+
+_SUPPORTED_CUSTOM_KPI_FUNCTIONS = {
+    "SUM",
+    "MEAN",
+    "COUNT",
+    "COUNT_ROWS",
+    "MIN",
+    "MAX",
+    "SAFE_DIVIDE",
+}
+
+
+def _tokenize_custom_kpi_formula(
+    formula: str,
+) -> list[tuple[str, str]]:
+    token_pattern = re.compile(
+        r"\s*(?:"
+        r"(?P<identifier>[A-Za-z_][A-Za-z0-9_]*)"
+        r"|(?P<dot>\.)"
+        r"|(?P<lparen>\()"
+        r"|(?P<rparen>\))"
+        r"|(?P<comma>,)"
+        r")"
+    )
+
+    tokens: list[tuple[str, str]] = []
+    position = 0
+
+    while position < len(formula):
+        match = token_pattern.match(
+            formula,
+            position,
+        )
+
+        if match is None:
+            snippet = formula[
+                position:position + 20
+            ]
+
+            raise ValueError(
+                "Unsupported token in custom KPI "
+                f"formula near: {snippet!r}"
+            )
+
+        kind = match.lastgroup
+        value = match.group(kind)
+
+        tokens.append(
+            (
+                kind,
+                value,
+            )
+        )
+
+        position = match.end()
+
+    return tokens
+
+
+class _CustomKPIFormulaParser:
+    def __init__(
+        self,
+        formula: str,
+        studio: PersonalProjectDataModelStudio,
+    ):
+        self.tokens = (
+            _tokenize_custom_kpi_formula(
+                formula
+            )
+        )
+
+        self.position = 0
+
+        self.tables_by_name = {
+            table.name: table
+            for table in studio.tables
+        }
+
+    def _current(
+        self,
+    ) -> tuple[str, str] | None:
+        if self.position >= len(
+            self.tokens
+        ):
+            return None
+
+        return self.tokens[
+            self.position
+        ]
+
+    def _consume(
+        self,
+        kind: str,
+    ) -> str:
+        current = self._current()
+
+        if (
+            current is None
+            or current[0] != kind
+        ):
+            actual = (
+                "end of formula"
+                if current is None
+                else repr(current[1])
+            )
+
+            raise ValueError(
+                "Invalid custom KPI formula: "
+                f"expected {kind}, got {actual}."
+            )
+
+        self.position += 1
+
+        return current[1]
+
+    def _validate_table(
+        self,
+        table_name: str,
+    ) -> PersonalProjectDataModelTable:
+        table = self.tables_by_name.get(
+            table_name
+        )
+
+        if table is None:
+            raise ValueError(
+                "Custom KPI formula references "
+                f"unknown table: {table_name}"
+            )
+
+        return table
+
+    def _validate_column(
+        self,
+        table_name: str,
+        column_name: str,
+    ) -> None:
+        table = self._validate_table(
+            table_name
+        )
+
+        if not any(
+            column.name == column_name
+            for column in table.columns
+        ):
+            raise ValueError(
+                "Custom KPI formula references "
+                "unknown column: "
+                f"{table_name}.{column_name}"
+            )
+
+    def _parse_expression(
+        self,
+    ) -> None:
+        function_name = (
+            self._consume(
+                "identifier"
+            ).upper()
+        )
+
+        if (
+            function_name
+            not in _SUPPORTED_CUSTOM_KPI_FUNCTIONS
+        ):
+            supported = ", ".join(
+                sorted(
+                    _SUPPORTED_CUSTOM_KPI_FUNCTIONS
+                )
+            )
+
+            raise ValueError(
+                "Unsupported custom KPI function: "
+                f"{function_name}. "
+                f"Supported functions: {supported}."
+            )
+
+        self._consume(
+            "lparen"
+        )
+
+        if function_name == "SAFE_DIVIDE":
+            self._parse_expression()
+            self._consume(
+                "comma"
+            )
+            self._parse_expression()
+            self._consume(
+                "rparen"
+            )
+            return
+
+        if function_name == "COUNT_ROWS":
+            table_name = self._consume(
+                "identifier"
+            )
+
+            self._validate_table(
+                table_name
+            )
+
+            self._consume(
+                "rparen"
+            )
+            return
+
+        table_name = self._consume(
+            "identifier"
+        )
+
+        self._consume(
+            "dot"
+        )
+
+        column_name = self._consume(
+            "identifier"
+        )
+
+        self._validate_column(
+            table_name,
+            column_name,
+        )
+
+        self._consume(
+            "rparen"
+        )
+
+    def validate(
+        self,
+    ) -> None:
+        if not self.tokens:
+            raise ValueError(
+                "Custom KPI formula is required."
+            )
+
+        self._parse_expression()
+
+        if (
+            self.position
+            != len(self.tokens)
+        ):
+            current = self._current()
+
+            raise ValueError(
+                "Invalid custom KPI formula: "
+                "unexpected token "
+                f"{current[1]!r}."
+            )
+
+
+def validate_custom_kpi_formula(
+    formula: str,
+    studio: PersonalProjectDataModelStudio,
+) -> str:
+    clean_formula = formula.strip()
+
+    if not clean_formula:
+        raise ValueError(
+            "Custom KPI formula is required."
+        )
+
+    parser = _CustomKPIFormulaParser(
+        formula=clean_formula,
+        studio=studio,
+    )
+
+    parser.validate()
+
+    return clean_formula
 
 
 def validate_personal_kpi_definitions(
@@ -338,6 +962,8 @@ def validate_personal_kpi_definitions(
             not in {
                 None,
                 "safe_aggregation",
+                "row_count",
+                "custom",
             }
         ):
             raise ValueError(
@@ -364,6 +990,58 @@ def validate_personal_kpi_definitions(
                     f"{definition.fact_table}"
                 )
             )
+
+        if (
+            definition.formula_mode
+            == "row_count"
+        ):
+            validated.append(
+                definition.model_copy(
+                    update={
+                        "measure": None,
+                        "aggregation": "count",
+                        "dimension_table": None,
+                        "dimension": None,
+                        "filter_value": None,
+                        "formula": (
+                            f"COUNT_ROWS("
+                            f"{definition.fact_table})"
+                        ),
+                    }
+                )
+            )
+
+            continue
+
+        if (
+            definition.formula_mode
+            == "custom"
+        ):
+            custom_formula = (
+                validate_custom_kpi_formula(
+                    formula=(
+                        definition.formula
+                        or ""
+                    ),
+                    studio=studio,
+                )
+            )
+
+            validated.append(
+                definition.model_copy(
+                    update={
+                        "measure": None,
+                        "aggregation": None,
+                        "dimension_table": None,
+                        "dimension": None,
+                        "filter_value": None,
+                        "formula":
+                            custom_formula,
+                    }
+                )
+            )
+
+            continue
 
         if not definition.measure:
             raise ValueError(
