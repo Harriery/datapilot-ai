@@ -19600,3 +19600,57 @@
 
   text-align: center;
 }
+
+
+/* ==================================================
+   READABLE TIME LABELS
+   ================================================== */
+
+.dashboard-line-axis.dashboard-line-axis-detailed
+  .dashboard-line-ticks {
+  height: 36px;
+
+  overflow: visible;
+}
+
+.dashboard-line-axis.dashboard-line-axis-detailed
+  .dashboard-line-ticks > span {
+  top: 2px;
+
+  transform:
+    translateX(-50%)
+    rotate(-45deg);
+
+  transform-origin:
+    top center;
+
+  font-size: 7px;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+.dashboard-line-axis.dashboard-line-axis-detailed
+  .dashboard-line-ticks > span:first-child {
+  transform:
+    translateX(0)
+    rotate(-45deg);
+
+  transform-origin:
+    top left;
+}
+
+.dashboard-line-axis.dashboard-line-axis-detailed
+  .dashboard-line-ticks > span:last-child {
+  transform:
+    translateX(-100%)
+    rotate(-45deg);
+
+  transform-origin:
+    top right;
+}
+
+.dashboard-line-axis.dashboard-line-axis-detailed
+  > strong {
+  margin-top: 2px;
+}
