@@ -372,7 +372,7 @@ function buildMarkdown(
       of dashboardConfig.filters
     ) {
       lines.push(
-        `- Filter: ${filter.dimension}`,
+        `- Filter: ${filter.label || filter.column}`,
       );
     }
   } else {
