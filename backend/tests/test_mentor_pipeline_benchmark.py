@@ -119,3 +119,25 @@ def test_pipeline_mentor_repairs_premise_before_replacement():
         in normalized
     )
     assert "use X instead of Y" in normalized
+
+
+
+def test_pipeline_mentor_forbids_arbitrary_methods_and_multi_step_reasoning():
+    instructions = " ".join(
+        build_mentor_reply_instructions().split()
+    )
+
+    assert "Never invent an arbitrary technique" in instructions
+    assert "percentage bucket" in instructions
+    assert "do not combine" in instructions
+    assert "Give only the reasoning step" in instructions
+
+
+def test_pipeline_mentor_completed_phase_only_closes():
+    instructions = " ".join(
+        build_mentor_reply_instructions().split()
+    )
+
+    assert "If next_phase=completed" in instructions
+    assert "only close/acknowledge" in instructions
+    assert "Do not tell the learner to continue analysis" in instructions
