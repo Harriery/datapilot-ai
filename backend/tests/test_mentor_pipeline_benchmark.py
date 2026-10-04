@@ -98,3 +98,18 @@ def test_pipeline_plan_counts_three_requests_per_scenario():
     assert plan["scenario_count"] == 3
     assert plan["estimated_external_requests"] == 9
     assert plan["benchmark_type"] == "mentor_pipeline"
+
+
+
+def test_pipeline_classifier_treats_question_shaped_decision_as_evidence_rule():
+    instructions = build_classifier_instructions()
+
+    assert "Interrogative wording does not make a proposed decision non-evidence" in instructions
+    assert "Should I fill missing values with 0?" in instructions
+
+
+def test_pipeline_mentor_repairs_premise_before_replacement():
+    instructions = build_mentor_reply_instructions()
+
+    assert "Challenge the faulty premise before suggesting any implementation" in instructions
+    assert "use X instead of Y" in instructions
