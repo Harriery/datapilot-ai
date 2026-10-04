@@ -349,6 +349,66 @@ def apply_learning_phase_review(
     )
 
 
+def record_trusted_prepare_validation_evidence(
+    *,
+    learner_id: str,
+    workspace_id: str,
+    loop: WorkspaceLearningLoop,
+    finding: DataQualityFinding,
+    assistance_level: str,
+    success: bool,
+    validation_summary: dict,
+) -> LearningEvidenceDecision:
+    evidence = LearningEvidenceDecision(
+        is_evidence=True,
+        evidence_type="application",
+        success=success,
+        note=(
+            "Trusted Workbench validation confirmed the learner's "
+            "transformation."
+            if success
+            else
+            "Trusted Workbench validation did not confirm the learner's "
+            "transformation."
+        ),
+    )
+
+    context = LearningEvidenceContext(
+        workspace_id=workspace_id,
+        stage="prepare",
+        learning_phase="validate",
+        task_type=finding.issue_type,
+        target_type=loop.target_type,
+        target_name=loop.target_name,
+        user_authored=True,
+        deterministic_validation=True,
+        metadata={
+            "finding_index": loop.finding_index,
+            "loop_id": loop.loop_id,
+            "validated_phases": [
+                "implement",
+                "validate",
+            ],
+            **validation_summary,
+        },
+    )
+
+    database.record_learning_evidence(
+        learner_id=learner_id,
+        skill_name=loop.skill_name,
+        assistance_level=assistance_level,
+        success=success,
+        evidence_type="application",
+        note=evidence.note,
+        session_id=None,
+        context=context.model_dump(
+            exclude_none=True,
+        ),
+    )
+
+    return evidence
+
+
 def apply_trusted_prepare_validation(
     *,
     loop: WorkspaceLearningLoop,
