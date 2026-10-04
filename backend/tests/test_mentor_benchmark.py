@@ -61,8 +61,8 @@ def test_candidate_response_schema_contains_only_model_owned_fields():
 
     assert response.is_evidence is True
     assert response.success is True
-    assert "assistance_level" not in response.model_fields
-    assert "next_phase" not in response.model_fields
+    assert "assistance_level" not in CandidateResponse.model_fields
+    assert "next_phase" not in CandidateResponse.model_fields
 
 
 def test_benchmark_suite_is_repository_local():
