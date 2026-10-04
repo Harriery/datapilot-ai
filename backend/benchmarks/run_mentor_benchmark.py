@@ -66,6 +66,10 @@ class BenchmarkEvaluation(BaseModel):
         ge=0,
         le=5,
     )
+    language_match: int = Field(
+        ge=0,
+        le=5,
+    )
 
     notes: str
 
@@ -137,6 +141,22 @@ def select_scenarios(
     return scenarios
 
 
+def build_candidate_payload(
+    scenario: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Build the information visible to the candidate model.
+
+    The expected answer/rubric is intentionally excluded. Otherwise the
+    benchmark would leak its answer key to the model being evaluated.
+    """
+    return {
+        key: value
+        for key, value in scenario.items()
+        if key != "expected"
+    }
+
+
 def build_candidate_instructions() -> str:
     return """
     You are the candidate model being benchmarked as the DataPilot adaptive
@@ -153,10 +173,15 @@ def build_candidate_instructions() -> str:
       observe, reason, decide, implement, validate, explain, completed.
     - If a clear reusable misconception is visible, return a short snake_case
       misconception label; otherwise null.
-    - Reply in the learner's language.
+    - Reply in the same language as learner_message. Do not switch languages.
     - Give only ONE next small step.
     - Prefer ONE short sentence, usually phrased as one focused question.
     - Keep the mentor reply to <= 20 words whenever possible.
+    - If the learner is correct, do not ask them to repeat or merely agree with
+      the same conclusion; advance the reasoning by one phase.
+    - If you choose next_phase=completed, close briefly and do not invent a new task.
+    - Do not provide code unless the learner explicitly asks for code or the
+      assistance level is DEMONSTRATE.
     - Do not add a second instruction, explanation, checklist, or follow-up task
       after the first small step.
     - Use simple language appropriate for a beginner unless the learner clearly
@@ -192,12 +217,15 @@ def build_judge_instructions() -> str:
     - transfer_reasoning
     - concise_stepwise_guidance
     - learner_level_fit
+    - language_match
 
     concise_stepwise_guidance = 5 only when the reply gives exactly one small
     next step, preferably in one sentence and about 20 words or fewer, without
     an added explanation, checklist, second task, or unnecessary solution.
     learner_level_fit = 5 only when the wording and amount of help match the
     learner profile and current assistance need.
+    language_match = 5 only when the mentor reply uses the same language as
+    learner_message.
 
     Structured-field correctness is scored separately by deterministic code.
     Your job here is only to score response quality.
@@ -316,7 +344,10 @@ def run_candidate(
         instructions=build_candidate_instructions(),
         input_text=json.dumps(
             {
-                "scenario": scenario,
+                "scenario":
+                    build_candidate_payload(
+                        scenario
+                    ),
             },
             ensure_ascii=False,
             indent=2,
@@ -449,6 +480,7 @@ def run_suite(
         "transfer_reasoning",
         "concise_stepwise_guidance",
         "learner_level_fit",
+        "language_match",
     ]
 
     averages = {
