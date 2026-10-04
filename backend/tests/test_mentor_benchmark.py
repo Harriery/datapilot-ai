@@ -223,3 +223,21 @@ def test_benchmark_compact_threshold_is_twenty_words():
 
     assert "mentor_reply_word_count <= 20" in source
     assert "Give only ONE next small step." in source
+
+
+
+def test_benchmark_marks_wrong_attempts_as_evidence_rule():
+    from backend.benchmarks.run_mentor_benchmark import (
+        build_candidate_instructions,
+    )
+
+    instructions = build_candidate_instructions()
+
+    assert (
+        "is_evidence=true and success=false"
+        in instructions
+    )
+    assert (
+        "genuine incorrect attempt"
+        in instructions
+    )
