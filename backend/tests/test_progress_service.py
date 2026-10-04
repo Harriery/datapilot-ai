@@ -5,6 +5,8 @@ from backend.app.progress_service import (
      calculate_independence_trend,
      calculate_practice_priority,
      assistance_level_to_percent,
+     build_learning_phase_summary,
+     build_skill_independence_score,
 )
 
 
@@ -428,3 +430,153 @@ def test_progress_builds_dependency_history_and_readiness():
 
     assert readiness.score == 93
     assert readiness.level == "INDEPENDENT"
+
+
+def test_build_learning_phase_summary_reads_v2_context():
+    evidence = [
+        {
+            "assistance_level": "GUIDE",
+            "success": 1,
+            "context_json": (
+                '{"learning_phase":"observe",'
+                '"misconception":"auto_fill_missing"}'
+            ),
+        },
+        {
+            "assistance_level": "NUDGE",
+            "success": 0,
+            "context_json": (
+                '{"learning_phase":"reason",'
+                '"misconception":"auto_fill_missing"}'
+            ),
+        },
+        {
+            "assistance_level": "NUDGE",
+            "success": 1,
+            "context_json": (
+                '{"learning_phase":"reason"}'
+            ),
+        },
+    ]
+
+    (
+        latest_phase,
+        phase_counts,
+        phase_success_counts,
+        misconceptions,
+    ) = build_learning_phase_summary(
+        evidence
+    )
+
+    assert latest_phase == "reason"
+    assert phase_counts == {
+        "observe": 1,
+        "reason": 2,
+    }
+    assert phase_success_counts == {
+        "observe": 1,
+        "reason": 1,
+    }
+    assert misconceptions == [
+        "auto_fill_missing"
+    ]
+
+
+def test_build_learning_phase_summary_ignores_legacy_evidence():
+    (
+        latest_phase,
+        phase_counts,
+        phase_success_counts,
+        misconceptions,
+    ) = build_learning_phase_summary(
+        [
+            {
+                "assistance_level": "GUIDE",
+                "success": 1,
+            }
+        ]
+    )
+
+    assert latest_phase is None
+    assert phase_counts == {}
+    assert phase_success_counts == {}
+    assert misconceptions == []
+
+
+def test_build_skill_independence_score_uses_all_evidence():
+    score = build_skill_independence_score(
+        [
+            {
+                "assistance_level": "GUIDE"
+            },
+            {
+                "assistance_level": "NUDGE"
+            },
+            {
+                "assistance_level": "NONE"
+            },
+        ]
+    )
+
+    assert score == 75
+
+
+def test_progress_exposes_learning_phase_and_misconception_metrics():
+    fake_skill_states = [
+        {
+            "skill_name": "null_analysis",
+            "status": "practicing",
+            "attempts": 2,
+            "successful_attempts": 1,
+        }
+    ]
+
+    fake_evidence = [
+        {
+            "id": 1,
+            "assistance_level": "GUIDE",
+            "success": 1,
+            "created_at": "2026-10-04 10:00:00",
+            "context_json": (
+                '{"learning_phase":"observe",'
+                '"misconception":"auto_fill_missing"}'
+            ),
+        },
+        {
+            "id": 2,
+            "assistance_level": "NUDGE",
+            "success": 0,
+            "created_at": "2026-10-04 10:05:00",
+            "context_json": (
+                '{"learning_phase":"reason"}'
+            ),
+        },
+    ]
+
+    with patch(
+        "backend.app.progress_service."
+        "database.get_skill_states_by_learner",
+        return_value=fake_skill_states,
+    ), patch(
+        "backend.app.progress_service."
+        "database.get_learning_evidence_by_skill",
+        return_value=fake_evidence,
+    ):
+        result = get_learner_progress(
+            learner_id="learner-001"
+        )
+
+    skill = result.skills[0]
+
+    assert skill.independence_score == 62
+    assert skill.latest_learning_phase == "reason"
+    assert skill.learning_phase_counts == {
+        "observe": 1,
+        "reason": 1,
+    }
+    assert skill.learning_phase_success_counts == {
+        "observe": 1,
+    }
+    assert skill.misconceptions == [
+        "auto_fill_missing"
+    ]
