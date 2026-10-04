@@ -81,6 +81,54 @@ def load_suite(
     )
 
 
+def select_scenarios(
+    *,
+    suite: dict[str, Any],
+    scenario_ids: list[str] | None = None,
+    scenario_limit: int | None = None,
+) -> list[dict[str, Any]]:
+    scenarios = suite[
+        "scenarios"
+    ]
+
+    if scenario_ids:
+        requested = set(
+            scenario_ids
+        )
+
+        scenarios = [
+            scenario
+            for scenario in scenarios
+            if scenario["id"] in requested
+        ]
+
+        found = {
+            scenario["id"]
+            for scenario in scenarios
+        }
+
+        missing = [
+            scenario_id
+            for scenario_id in scenario_ids
+            if scenario_id not in found
+        ]
+
+        if missing:
+            raise ValueError(
+                "Unknown benchmark scenario id(s): "
+                + ", ".join(
+                    missing
+                )
+            )
+
+    if scenario_limit is not None:
+        scenarios = scenarios[
+            :scenario_limit
+        ]
+
+    return scenarios
+
+
 def build_candidate_instructions() -> str:
     return """
     You are the candidate model being benchmarked as the DataPilot adaptive
@@ -185,19 +233,17 @@ def build_benchmark_plan(
     judge_provider: str,
     judge_model: str,
     scenario_limit: int | None,
+    scenario_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     suite = load_suite(
         suite_path
     )
 
-    scenarios = suite[
-        "scenarios"
-    ]
-
-    if scenario_limit is not None:
-        scenarios = scenarios[
-            :scenario_limit
-        ]
+    scenarios = select_scenarios(
+        suite=suite,
+        scenario_ids=scenario_ids,
+        scenario_limit=scenario_limit,
+    )
 
     return {
         "suite_id":
@@ -295,19 +341,17 @@ def run_suite(
     judge_model: str,
     scenario_limit: int | None,
     output_path: Path,
+    scenario_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     suite = load_suite(
         suite_path
     )
 
-    scenarios = suite[
-        "scenarios"
-    ]
-
-    if scenario_limit is not None:
-        scenarios = scenarios[
-            :scenario_limit
-        ]
+    scenarios = select_scenarios(
+        suite=suite,
+        scenario_ids=scenario_ids,
+        scenario_limit=scenario_limit,
+    )
 
     rows: list[
         dict[str, Any]
@@ -497,6 +541,16 @@ def parse_args() -> argparse.Namespace:
         default=None,
     )
     parser.add_argument(
+        "--scenario-id",
+        action="append",
+        dest="scenario_ids",
+        default=None,
+        help=(
+            "Run only the named scenario. Repeat this flag to "
+            "select multiple scenarios without rerunning earlier cases."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         required=True,
@@ -532,6 +586,7 @@ def main() -> int:
             judge_provider=args.judge_provider,
             judge_model=args.judge_model,
             scenario_limit=args.limit,
+            scenario_ids=args.scenario_ids,
         )
 
         args.output.parent.mkdir(
@@ -567,6 +622,7 @@ def main() -> int:
             judge_provider=args.judge_provider,
             judge_model=args.judge_model,
             scenario_limit=args.limit,
+            scenario_ids=args.scenario_ids,
         )
 
         print(
@@ -619,6 +675,7 @@ def main() -> int:
             judge_model=args.judge_model,
             scenario_limit=args.limit,
             output_path=args.output,
+            scenario_ids=args.scenario_ids,
         )
     except (
         AIProviderConfigurationError,
