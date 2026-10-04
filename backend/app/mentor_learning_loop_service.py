@@ -265,7 +265,12 @@ def evaluate_prepare_phase_response(
     - Finding is context, not learner evidence.
     - Do not reward confident wording by itself.
     - Do not invent dataset facts that are not supplied.
-    - If the response is only a question/help request, set is_evidence=false.
+    - A pure question/help request with no proposed answer, action, explanation,
+      or hypothesis is not learning evidence; set is_evidence=false.
+    - A proposed decision or attempted answer remains learning evidence even
+      when phrased as a question. For example, asking whether to replace missing
+      values with a specific value is an attempted decision, not merely a help
+      request.
     - If it is a genuine attempt, set is_evidence=true and success true/false.
     - evidence_type should normally be "explanation" for observe/reason/decide/explain.
     - misconception should be a short reusable concept label only when a clear
