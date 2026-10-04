@@ -219,9 +219,12 @@ def build_judge_instructions() -> str:
     - learner_level_fit
     - language_match
 
-    concise_stepwise_guidance = 5 only when the reply gives exactly one small
-    next step, preferably in one sentence and about 20 words or fewer, without
-    an added explanation, checklist, second task, or unnecessary solution.
+    concise_stepwise_guidance scores only RESPONSE SHAPE: one small next step,
+    preferably one sentence and about 20 words or fewer, with no added
+    explanation, checklist, or second task. Do not lower this score because
+    the chosen step is technically or pedagogically wrong; score those problems
+    under technical_correctness, pedagogy, assistance_calibration, or
+    learning_loop_discipline instead.
     learner_level_fit = 5 only when the wording and amount of help match the
     learner profile and current assistance need.
     language_match = 5 only when the mentor reply uses the same language as
@@ -280,6 +283,28 @@ def calculate_expected_matches(
         "misconception_match":
             candidate_misconception
             == expected_misconception,
+    }
+
+
+MODEL_OWNED_MATCH_FIELDS = (
+    "evidence_expected_match",
+    "success_expected_match",
+    "misconception_match",
+)
+
+ORCHESTRATION_DIAGNOSTIC_FIELDS = (
+    "assistance_allowed_match",
+    "next_phase_match",
+)
+
+
+def select_match_group(
+    matches: dict[str, float],
+    fields: tuple[str, ...],
+) -> dict[str, float]:
+    return {
+        field: matches[field]
+        for field in fields
     }
 
 
@@ -546,6 +571,16 @@ def run_suite(
             averages,
         "field_match_percent":
             matches,
+        "model_owned_match_percent":
+            select_match_group(
+                matches,
+                MODEL_OWNED_MATCH_FIELDS,
+            ),
+        "orchestration_diagnostic_percent":
+            select_match_group(
+                matches,
+                ORCHESTRATION_DIAGNOSTIC_FIELDS,
+            ),
         "compact_reply_percent":
             round(
                 (
@@ -798,6 +833,18 @@ def main() -> int:
                 "field_match_percent":
                     result[
                         "field_match_percent"
+                    ],
+                "model_owned_match_percent":
+                    result[
+                        "model_owned_match_percent"
+                    ],
+                "orchestration_diagnostic_percent":
+                    result[
+                        "orchestration_diagnostic_percent"
+                    ],
+                "compact_reply_percent":
+                    result[
+                        "compact_reply_percent"
                     ],
                 "average_latency_ms":
                     result[
