@@ -141,3 +141,22 @@ def test_pipeline_mentor_completed_phase_only_closes():
     assert "If next_phase=completed" in instructions
     assert "only close/acknowledge" in instructions
     assert "Do not tell the learner to continue analysis" in instructions
+
+
+
+def test_pipeline_mentor_avoids_rechecking_known_context():
+    instructions = " ".join(
+        build_mentor_reply_instructions().split()
+    )
+
+    assert "Do not ask the learner to recompute" in instructions
+    assert "already present in workspace_context" in instructions
+
+
+def test_pipeline_mentor_has_one_cognitive_target():
+    instructions = " ".join(
+        build_mentor_reply_instructions().split()
+    )
+
+    assert "one cognitive target only" in instructions
+    assert "Do not combine two checks" in instructions
