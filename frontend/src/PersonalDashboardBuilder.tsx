@@ -6148,14 +6148,24 @@ function PersonalDashboardBuilder({
           )
         );
 
-      let nextY =
+      const maxY =
         Math.max(
           0,
-          snapCanvasValue(
-            startY +
-              moveEvent.clientY -
-              pointerY,
-            showCanvasGrid
+          DASHBOARD_CANVAS_MIN_HEIGHT -
+            height
+        );
+
+      let nextY =
+        Math.min(
+          maxY,
+          Math.max(
+            0,
+            snapCanvasValue(
+              startY +
+                moveEvent.clientY -
+                pointerY,
+              showCanvasGrid
+            )
           )
         );
 
@@ -6334,9 +6344,12 @@ function PersonalDashboardBuilder({
 
       if (yMatch) {
         nextY =
-          Math.max(
-            0,
-            yMatch.snap
+          Math.min(
+            maxY,
+            Math.max(
+              0,
+              yMatch.snap
+            )
           );
         guideY =
           yMatch.guide;
@@ -6427,6 +6440,8 @@ function PersonalDashboardBuilder({
       visual.canvas_height ?? 300;
     const x =
       visual.canvas_x ?? 0;
+    const y =
+      visual.canvas_y ?? 0;
 
     const move = (
       moveEvent: PointerEvent
@@ -6460,14 +6475,24 @@ function PersonalDashboardBuilder({
           )
         );
 
-      const nextHeight =
+      const maxHeight =
         Math.max(
           minimumHeight,
-          snapCanvasValue(
-            startHeight +
-              moveEvent.clientY -
-              pointerY,
-            showCanvasGrid
+          DASHBOARD_CANVAS_MIN_HEIGHT -
+            y
+        );
+
+      const nextHeight =
+        Math.min(
+          maxHeight,
+          Math.max(
+            minimumHeight,
+            snapCanvasValue(
+              startHeight +
+                moveEvent.clientY -
+                pointerY,
+              showCanvasGrid
+            )
           )
         );
 
