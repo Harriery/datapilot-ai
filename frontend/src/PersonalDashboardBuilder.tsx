@@ -3050,6 +3050,77 @@ function PersonalDashboardBuilder({
       null
     );
 
+  const pageViewportRef =
+    useRef<HTMLDivElement | null>(
+      null
+    );
+
+  const [
+    interactScale,
+    setInteractScale,
+  ] = useState(1);
+
+  useEffect(
+    () => {
+      const viewport =
+        pageViewportRef.current;
+
+      if (!viewport) {
+        return;
+      }
+
+      const updateScale = () => {
+        if (
+          dashboardMode !==
+          "interact"
+        ) {
+          setInteractScale(1);
+          return;
+        }
+
+        const availableWidth =
+          Math.max(
+            320,
+            viewport.clientWidth - 24
+          );
+
+        setInteractScale(
+          Math.min(
+            1,
+            availableWidth /
+              DASHBOARD_PAGE_WIDTH
+          )
+        );
+      };
+
+      updateScale();
+
+      const observer =
+        new ResizeObserver(
+          updateScale
+        );
+
+      observer.observe(
+        viewport
+      );
+
+      window.addEventListener(
+        "resize",
+        updateScale
+      );
+
+      return () => {
+        observer.disconnect();
+
+        window.removeEventListener(
+          "resize",
+          updateScale
+        );
+      };
+    },
+    [dashboardMode]
+  );
+
   const savedVisualsSignature =
     JSON.stringify(
       savedVisuals
@@ -6506,15 +6577,7 @@ function PersonalDashboardBuilder({
   }
 
   const canvasHeight =
-    Math.max(
-      DASHBOARD_CANVAS_MIN_HEIGHT,
-      ...visuals.map(
-        (visual) =>
-          (visual.canvas_y ?? 0) +
-          (visual.canvas_height ?? 300) +
-          32
-      )
-    );
+    DASHBOARD_CANVAS_MIN_HEIGHT;
 
   const activeFormatStyle =
     currentFormatStyle();
