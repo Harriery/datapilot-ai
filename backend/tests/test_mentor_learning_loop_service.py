@@ -199,7 +199,15 @@ def test_evaluate_prepare_phase_response_uses_phase_rubric():
     parsed.output_parsed.note = "Learner identified the missing-value issue."
     parsed.output_parsed.misconception = None
 
+    runtime = MagicMock()
+    runtime.client = MagicMock()
+    runtime.provider = "groq"
+    runtime.model = "openai/gpt-oss-20b"
+
     with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+        return_value=runtime,
+    ) as mock_runtime, patch(
         "backend.app.mentor_learning_loop_service.guarded_responses_parse",
         return_value=parsed,
     ) as mock_parse:
@@ -210,7 +218,14 @@ def test_evaluate_prepare_phase_response_uses_phase_rubric():
         )
 
     assert evaluation.success is True
+    mock_runtime.assert_called_once_with(
+        "classifier"
+    )
     mock_parse.assert_called_once()
+
+    kwargs = mock_parse.call_args.kwargs
+    assert kwargs["provider"] == "groq"
+    assert kwargs["model"] == "openai/gpt-oss-20b"
 
 
 def test_record_prepare_phase_evidence_keeps_learning_context():
