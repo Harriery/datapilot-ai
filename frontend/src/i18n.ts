@@ -113,6 +113,21 @@ export const translations = {
     practicePriority:
       "Practice priority",
 
+    learningEvidence:
+      "Learning evidence",
+    noPhaseEvidence:
+      "No phase evidence yet",
+    misconceptions:
+      "Repeated misconceptions",
+    learningPhases: {
+      observe: "Observe",
+      reason: "Reason",
+      decide: "Decide",
+      implement: "Implement",
+      validate: "Validate",
+      explain: "Explain",
+    },
+
     mentorModes: {
       DEMONSTRATE: "Demonstrate",
       TEACH: "Teach",
@@ -433,6 +448,21 @@ validationChecks: {
       "Zelfstandigheidstrend",
     practicePriority:
       "Oefenprioriteit",
+
+    learningEvidence:
+      "Leerbewijs",
+    noPhaseEvidence:
+      "Nog geen fasebewijs",
+    misconceptions:
+      "Terugkerende misvattingen",
+    learningPhases: {
+      observe: "Observeren",
+      reason: "Redeneren",
+      decide: "Beslissen",
+      implement: "Uitvoeren",
+      validate: "Valideren",
+      explain: "Uitleggen",
+    },
 
     mentorModes: {
       DEMONSTRATE: "Demonstreren",
@@ -765,6 +795,21 @@ validationChecks: {
         "Bağımsızlık eğilimi",
       practicePriority:
         "Pratik önceliği",
+
+      learningEvidence:
+        "Öğrenme kanıtı",
+      noPhaseEvidence:
+        "Henüz aşama kanıtı yok",
+      misconceptions:
+        "Tekrarlanan yanlış kavrayışlar",
+      learningPhases: {
+        observe: "Gözlemle",
+        reason: "Akıl yürüt",
+        decide: "Karar ver",
+        implement: "Uygula",
+        validate: "Doğrula",
+        explain: "Açıkla",
+      },
         
       mentorModes: {
         DEMONSTRATE: "Göster",
