@@ -4,10 +4,11 @@ import json
 import os
 import uuid
 
-from openai import OpenAI
-
 import backend.app.database as database
 
+from backend.app.ai_provider_service import (
+    get_ai_runtime,
+)
 from backend.app.ai_usage_guard import (
     guarded_responses_parse,
 )
@@ -18,13 +19,6 @@ from backend.app.models import (
     PrepareLearningPhaseEvaluation,
     Workspace,
     WorkspaceLearningLoop,
-)
-
-
-client = OpenAI(
-    api_key=os.getenv(
-        "OPENAI_API_KEY"
-    )
 )
 
 
@@ -281,13 +275,15 @@ def evaluate_prepare_phase_response(
     - note must be concise and specific.
     """
 
+    runtime = get_ai_runtime(
+        "classifier"
+    )
+
     response_obj = guarded_responses_parse(
-        client,
+        runtime.client,
+        provider=runtime.provider,
         purpose="mentor_learning_phase",
-        model=os.getenv(
-            "AI_MENTOR_MODEL",
-            "gpt-5-mini",
-        ),
+        model=runtime.model,
         input=json.dumps(
             {
                 **payload,
