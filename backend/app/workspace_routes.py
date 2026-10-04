@@ -96,7 +96,6 @@ from backend.app.workspace_data_service import (
 )
 
 from backend.app.mentor_service import (
-    get_mentor_decision_for_learner,
     review_data_engineering_task_transformation,
     get_skill_for_data_quality_issue,
     review_data_quality_attempt,
@@ -2285,10 +2284,21 @@ def respond_to_workspace_prepare_learning_loop(
 
     finding = findings[finding_index]
 
-    mentor_decision = get_mentor_decision_for_learner(
-        learner_id=learner_id,
-        skill_name=loop.skill_name,
-        current_message=request.response,
+    skill_state = database.get_skill_state(
+        learner_id,
+        loop.skill_name,
+    )
+
+    skill_status = (
+        skill_state["status"]
+        if skill_state is not None
+        else "new"
+    )
+
+    assistance_level = (
+        get_local_assistance_level(
+            skill_status
+        )
     )
 
     evaluation = evaluate_prepare_phase_response(
@@ -2303,7 +2313,7 @@ def respond_to_workspace_prepare_learning_loop(
         loop=loop,
         finding=finding,
         assistance_level=(
-            mentor_decision.assistance_level
+            assistance_level
         ),
         evaluation=evaluation,
     )
@@ -2334,7 +2344,7 @@ def respond_to_workspace_prepare_learning_loop(
         mentor_response=mentor_response,
         evidence=evidence,
         assistance_level=(
-            mentor_decision.assistance_level
+            assistance_level
         ),
     )
 
