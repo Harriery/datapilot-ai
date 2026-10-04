@@ -69,9 +69,13 @@ def build_classifier_instructions() -> str:
 
     Rules:
     - Decide whether learner_message is genuine learning evidence.
-    - A help request or clarification question alone is not learning evidence.
-    - A learner claim, proposed decision, explanation, or attempted answer is
-      learning evidence even when it is wrong.
+    - A pure help request or clarification question with no proposed answer,
+      action, explanation, or hypothesis is not learning evidence.
+    - A learner claim, proposed decision, explanation, hypothesis, or attempted
+      answer IS learning evidence even when it is wrong.
+    - Interrogative wording does not make a proposed decision non-evidence.
+      For example, "Should I fill missing values with 0?" is a proposed action,
+      so classify it as evidence and evaluate whether that proposal is sound.
     - For genuine evidence, set success true or false from the supplied context.
     - For non-evidence, set success=null.
     - If a clear reusable misconception is visible, return one short snake_case
@@ -98,8 +102,9 @@ def build_mentor_reply_instructions() -> str:
       acknowledge the learner and move to the next phase. Do not ask them to
       repeat or reconfirm what they already established.
     - If success=false, stay on the current concept and repair only the specific
-      misconception. Do not preserve a false premise by merely proposing a
-      different implementation.
+      misconception. Challenge the faulty premise before suggesting any
+      implementation. Do not answer "use X instead of Y" when the learner has
+      not yet established what the data means.
     - If is_evidence=false, give one small step that helps the learner continue
       the current phase.
     - If next_phase=completed, close the step briefly. Do not ask a new question
