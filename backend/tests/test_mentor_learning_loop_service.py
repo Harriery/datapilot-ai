@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import MagicMock, patch
 
 from backend.app.models import (
     DataQualityFinding,
@@ -10,6 +11,9 @@ from backend.app.mentor_learning_loop_service import (
     apply_learning_phase_review,
     apply_trusted_prepare_validation,
     complete_prepare_learning_loop,
+    evaluate_prepare_phase_response,
+    record_prepare_phase_evidence,
+    record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
 )
 
@@ -174,3 +178,121 @@ def test_prepare_learning_loop_uses_trusted_validation_for_implementation():
     assert loop.status == "completed"
     assert "explain" in loop.completed_phases
     assert "Learning loop complete" in message
+
+
+
+def test_evaluate_prepare_phase_response_uses_phase_rubric():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+    )
+
+    parsed = MagicMock()
+    parsed.output_parsed.is_evidence = True
+    parsed.output_parsed.success = True
+    parsed.output_parsed.evidence_type = "explanation"
+    parsed.output_parsed.note = "Learner identified the missing-value issue."
+    parsed.output_parsed.misconception = None
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.guarded_responses_parse",
+        return_value=parsed,
+    ) as mock_parse:
+        evaluation = evaluate_prepare_phase_response(
+            loop=loop,
+            finding=finding,
+            response="I see that age contains missing values.",
+        )
+
+    assert evaluation.success is True
+    mock_parse.assert_called_once()
+
+
+def test_record_prepare_phase_evidence_keeps_learning_context():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+    )
+
+    from backend.app.models import PrepareLearningPhaseEvaluation
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=True,
+        success=True,
+        evidence_type="explanation",
+        note="Relevant observation.",
+        misconception=None,
+    )
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.database.record_learning_evidence"
+    ) as mock_record:
+        evidence = record_prepare_phase_evidence(
+            learner_id="learner-001",
+            workspace_id="workspace-001",
+            loop=loop,
+            finding=finding,
+            assistance_level="NUDGE",
+            evaluation=evaluation,
+        )
+
+    assert evidence.success is True
+
+    kwargs = mock_record.call_args.kwargs
+    assert kwargs["skill_name"] == "null_analysis"
+    assert kwargs["context"]["stage"] == "prepare"
+    assert kwargs["context"]["learning_phase"] == "observe"
+    assert kwargs["context"]["target_name"] == "age"
+    assert kwargs["context"]["metadata"]["finding_index"] == 0
+
+
+def test_record_trusted_prepare_validation_evidence_marks_deterministic_context():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+    )
+
+    loop.current_phase = "implement"
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.database.record_learning_evidence"
+    ) as mock_record:
+        evidence = record_trusted_prepare_validation_evidence(
+            learner_id="learner-001",
+            workspace_id="workspace-001",
+            loop=loop,
+            finding=finding,
+            assistance_level="GUIDE",
+            success=True,
+            validation_summary={
+                "before_null_count": 2,
+                "after_null_count": 0,
+            },
+        )
+
+    assert evidence.success is True
+
+    kwargs = mock_record.call_args.kwargs
+    context = kwargs["context"]
+    assert context["learning_phase"] == "validate"
+    assert context["deterministic_validation"] is True
+    assert context["metadata"]["validated_phases"] == [
+        "implement",
+        "validate",
+    ]
+    assert context["metadata"]["after_null_count"] == 0
