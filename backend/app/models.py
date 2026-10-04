@@ -231,6 +231,21 @@ class LearningEvidenceContext(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
+class PrepareLearningPhaseEvaluation(BaseModel):
+    is_evidence: bool
+    success: bool | None = None
+
+    evidence_type: Literal[
+        "application",
+        "explanation",
+        "debugging",
+        "validation",
+    ] | None = None
+
+    note: str | None = None
+    misconception: str | None = None
+
+
 class DataQualityFinding(BaseModel):
     issue_type:Literal[
         "missing_values",
@@ -1732,6 +1747,10 @@ class WorkspaceLearningLoop(BaseModel):
         "active",
         "completed",
     ] = "active"
+
+    trusted_validation: dict = Field(
+        default_factory=dict
+    )
 
 
 class WorkspaceLearningLoopResponse(BaseModel):
