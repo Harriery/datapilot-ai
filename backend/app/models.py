@@ -2048,6 +2048,31 @@ class LearnerSkillProgress(BaseModel):
         "none",
     ] = "none"
 
+    independence_score: int = 0
+
+    latest_learning_phase: Literal[
+        "observe",
+        "reason",
+        "decide",
+        "implement",
+        "validate",
+        "explain",
+    ] | None = None
+
+    learning_phase_counts: dict[
+        str,
+        int,
+    ] = Field(default_factory=dict)
+
+    learning_phase_success_counts: dict[
+        str,
+        int,
+    ] = Field(default_factory=dict)
+
+    misconceptions: list[
+        str
+    ] = Field(default_factory=list)
+
 
 class MentorDependencyPoint(BaseModel):
     attempt_number: int
