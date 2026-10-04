@@ -2491,6 +2491,107 @@
   font-size: 11px;
 }
 
+.workspace-finding-mentor-button {
+  margin-top: 12px;
+  padding: 7px 10px;
+
+  border: 1px solid #cfe0f6;
+  border-radius: 8px;
+
+  background: #f5f9fe;
+  color: #2f75c4;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.workspace-finding-mentor-button:hover {
+  border-color: #9fc2ea;
+  background: #edf6ff;
+}
+
+.mentor-learning-loop-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  padding: 10px 12px;
+
+  border-bottom: 1px solid #e4ebf4;
+  background: #f8fbff;
+}
+
+.mentor-learning-loop-status > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mentor-learning-loop-status > div > span {
+  color: #8291a4;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.mentor-learning-loop-status > div > strong {
+  overflow: hidden;
+
+  color: #2c4562;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.mentor-learning-phase {
+  flex-shrink: 0;
+
+  padding: 4px 7px;
+
+  border-radius: 999px;
+
+  background: #eaf3ff;
+  color: #2f75c4;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  text-transform: capitalize;
+}
+
+.mentor-learning-phase.completed {
+  background: #edf8f2;
+  color: #397b59;
+}
+
+.workspace-mentor-message.learning.assistant span {
+  border-color: #cfdded;
+  background: #f6faff;
+}
+
+.mentor-learning-gate {
+  padding: 9px 10px;
+
+  border: 1px solid #e1e8ef;
+  border-radius: 9px;
+
+  background: #f5f7fa;
+  color: #66788d;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .workspace-profile-next {
   display: flex;
   align-items: center;
