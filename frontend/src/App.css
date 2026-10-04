@@ -3755,6 +3755,105 @@
   text-transform: uppercase;
 }
 
+.progress-learning-evidence {
+  margin-top: 12px;
+  padding-top: 12px;
+
+  border-top: 1px solid #e8edf3;
+}
+
+.progress-learning-evidence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 9px;
+}
+
+.progress-learning-evidence-header > span {
+  color: #7d8ca0;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.progress-learning-evidence-header > strong {
+  color: #40546d;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.progress-phase-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.progress-phase-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+
+  padding: 7px 8px;
+
+  border: 1px solid #e5eaf0;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #93a0b0;
+}
+
+.progress-phase-chip.has-evidence {
+  border-color: #d7e6f8;
+  background: #f5f9fe;
+  color: #476886;
+}
+
+.progress-phase-chip span {
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.progress-phase-chip strong {
+  font-size: 10px;
+}
+
+.progress-misconceptions {
+  margin-top: 10px;
+}
+
+.progress-misconceptions > span {
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: #8b6c5c;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.progress-misconceptions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.progress-misconceptions code {
+  padding: 4px 6px;
+
+  border-radius: 6px;
+
+  background: #fff6ef;
+  color: #9b623f;
+
+  font-size: 9px;
+}
+
 
 /* RESPONSIVE */
 
