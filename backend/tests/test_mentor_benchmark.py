@@ -6,6 +6,7 @@ from backend.benchmarks.mentor_benchmark_provider import (
 )
 from backend.benchmarks.run_mentor_benchmark import (
     CandidateResponse,
+    build_candidate_payload,
     build_benchmark_plan,
     calculate_expected_matches,
     load_suite,
@@ -241,3 +242,30 @@ def test_benchmark_marks_wrong_attempts_as_evidence_rule():
         "genuine incorrect attempt"
         in instructions
     )
+
+
+
+def test_candidate_payload_does_not_leak_expected_answer():
+    suite = load_suite()
+
+    scenario = suite["scenarios"][0]
+
+    payload = build_candidate_payload(
+        scenario
+    )
+
+    assert "expected" not in payload
+    assert payload["learner_message"] == scenario["learner_message"]
+    assert payload["workspace_context"] == scenario["workspace_context"]
+
+
+def test_candidate_instructions_require_same_language_and_no_repeat():
+    from backend.benchmarks.run_mentor_benchmark import (
+        build_candidate_instructions,
+    )
+
+    instructions = build_candidate_instructions()
+
+    assert "same language as learner_message" in instructions
+    assert "do not ask them to repeat" in instructions
+    assert "Do not provide code unless" in instructions
