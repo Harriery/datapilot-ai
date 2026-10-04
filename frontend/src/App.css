@@ -21839,3 +21839,166 @@
   .dashboard-filtered-badge {
   display: none;
 }
+
+
+/* ==================================================
+   DASHBOARD BUILDER V2 - VISUAL RECOVERY + PIE FIT
+   ================================================== */
+
+.dashboard-canvas-visual-list {
+  display: grid;
+  gap: 6px;
+
+  max-height: 230px;
+
+  overflow-y: auto;
+}
+
+.dashboard-canvas-visual-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  padding: 7px 8px;
+
+  border: 1px solid #e2eaf3;
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+.dashboard-canvas-visual-item.off-canvas {
+  border-color: #edc278;
+
+  background: #fff9ee;
+}
+
+.dashboard-canvas-visual-item > div:first-child {
+  min-width: 0;
+}
+
+.dashboard-canvas-visual-item strong {
+  display: block;
+
+  overflow: hidden;
+
+  color: #31475f;
+
+  font-size: 10px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-canvas-visual-item span {
+  display: block;
+
+  margin-top: 2px;
+
+  color: #8897a8;
+
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.dashboard-canvas-visual-actions {
+  display: flex;
+  gap: 4px;
+
+  flex: 0 0 auto;
+}
+
+.dashboard-canvas-visual-actions button {
+  min-height: 24px;
+
+  padding: 3px 7px;
+
+  border: 1px solid #d6e1ee;
+  border-radius: 6px;
+
+  background: #f8fbff;
+
+  color: #38618a;
+
+  font-size: 8px;
+  font-weight: 750;
+
+  cursor: pointer;
+}
+
+.dashboard-canvas-visual-actions button.danger {
+  width: 24px;
+
+  padding: 0;
+
+  color: #a34f4f;
+}
+
+.dashboard-kpi-center-button {
+  width: 100%;
+
+  padding: 7px 9px;
+
+  border: 1px solid #cfe0f6;
+  border-radius: 8px;
+
+  background: #f5faff;
+
+  color: #2f80ed;
+
+  font-size: 10px;
+  font-weight: 750;
+
+  cursor: pointer;
+}
+
+.dashboard-pie-layout {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(90px, 0.9fr);
+
+  gap: 10px;
+}
+
+.dashboard-pie-chart {
+  width: min(
+    100%,
+    180px
+  );
+
+  max-height: 100%;
+}
+
+.dashboard-visual-card.compact-visual
+  .dashboard-pie-layout {
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(78px, 0.8fr);
+
+  gap: 7px;
+}
+
+.dashboard-visual-card.very-compact-visual
+  .dashboard-pie-layout {
+  grid-template-columns: 1fr;
+
+  gap: 4px;
+}
+
+.dashboard-visual-card.very-compact-visual
+  .dashboard-pie-chart {
+  width: min(
+    100%,
+    128px
+  );
+}
+
+.dashboard-visual-card.very-compact-visual
+  .dashboard-pie-legend {
+  display: none;
+}
