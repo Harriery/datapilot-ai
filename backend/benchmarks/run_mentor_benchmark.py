@@ -58,6 +58,14 @@ class BenchmarkEvaluation(BaseModel):
         ge=0,
         le=5,
     )
+    concise_stepwise_guidance: int = Field(
+        ge=0,
+        le=5,
+    )
+    learner_level_fit: int = Field(
+        ge=0,
+        le=5,
+    )
 
     notes: str
 
@@ -145,7 +153,13 @@ def build_candidate_instructions() -> str:
       observe, reason, decide, implement, validate, explain, completed.
     - If a clear reusable misconception is visible, return a short snake_case
       misconception label; otherwise null.
-    - Write one concise mentor reply for the learner.
+    - Reply in the learner's language.
+    - Give only ONE next small step.
+    - Keep the mentor reply to at most 2 short sentences and normally <= 40 words.
+    - Use simple language appropriate for a beginner unless the learner clearly
+      demonstrates a higher level.
+    - Do not give a mini-lecture, long checklist, or full solution unless the
+      required assistance level is DEMONSTRATE.
     - Do not invent columns, values, business rules, or prior-project facts.
     - Do not skip ahead in the learning loop.
     - A help request is not failed learning evidence.
@@ -168,6 +182,13 @@ def build_judge_instructions() -> str:
     - non_hallucination
     - learning_loop_discipline
     - transfer_reasoning
+    - concise_stepwise_guidance
+    - learner_level_fit
+
+    concise_stepwise_guidance = 5 only when the reply gives one small next step
+    without a long explanation, checklist, or unnecessary solution.
+    learner_level_fit = 5 only when the wording and amount of help match the
+    learner profile and current assistance need.
 
     Structured-field correctness is scored separately by deterministic code.
     Your job here is only to score response quality.
@@ -380,6 +401,10 @@ def run_suite(
             )
         )
 
+        mentor_reply_word_count = len(
+            candidate.mentor_reply.split()
+        )
+
         rows.append(
             {
                 "scenario_id":
@@ -396,6 +421,10 @@ def run_suite(
                     evaluation.model_dump(),
                 "expected_matches":
                     expected_matches,
+                "mentor_reply_word_count":
+                    mentor_reply_word_count,
+                "compact_reply":
+                    mentor_reply_word_count <= 40,
                 "latency_ms":
                     elapsed_ms,
             }
@@ -409,6 +438,8 @@ def run_suite(
         "non_hallucination",
         "learning_loop_discipline",
         "transfer_reasoning",
+        "concise_stepwise_guidance",
+        "learner_level_fit",
     ]
 
     averages = {
@@ -474,6 +505,23 @@ def run_suite(
             averages,
         "field_match_percent":
             matches,
+        "compact_reply_percent":
+            round(
+                (
+                    sum(
+                        1
+                        for row in rows
+                        if row[
+                            "compact_reply"
+                        ]
+                    )
+                    / len(rows)
+                )
+                * 100,
+                1,
+            )
+            if rows
+            else 0.0,
         "average_latency_ms":
             round(
                 sum(
