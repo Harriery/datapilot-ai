@@ -1,5 +1,9 @@
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+from backend.benchmarks.mentor_benchmark_provider import (
+    generate_benchmark_structured,
+)
 from backend.benchmarks.run_mentor_benchmark import (
     CandidateResponse,
     build_benchmark_plan,
@@ -147,3 +151,63 @@ def test_build_benchmark_plan_makes_no_network_calls():
     assert plan["scenario_count"] == 3
     assert plan["network_calls"] is False
     assert len(plan["scenario_ids"]) == 3
+
+
+
+def test_benchmark_provider_routes_groq_to_openai_compatible_adapter():
+    with patch(
+        "backend.benchmarks.mentor_benchmark_provider."
+        "_generate_openai_compatible_structured",
+        return_value=MagicMock(),
+    ) as mock_generate:
+        generate_benchmark_structured(
+            provider="groq",
+            model="openai/gpt-oss-120b",
+            purpose="test",
+            instructions="instructions",
+            input_text="input",
+            text_format=CandidateResponse,
+        )
+
+    kwargs = mock_generate.call_args.kwargs
+    assert kwargs["provider"] == "groq"
+    assert kwargs["model"] == "openai/gpt-oss-120b"
+
+
+def test_benchmark_provider_routes_google_to_gemini_adapter():
+    with patch(
+        "backend.benchmarks.mentor_benchmark_provider."
+        "_generate_gemini_structured",
+        return_value=MagicMock(),
+    ) as mock_generate:
+        generate_benchmark_structured(
+            provider="google",
+            model="gemini-test-model",
+            purpose="test",
+            instructions="instructions",
+            input_text="input",
+            text_format=CandidateResponse,
+        )
+
+    kwargs = mock_generate.call_args.kwargs
+    assert kwargs["model"] == "gemini-test-model"
+
+
+def test_benchmark_provider_rejects_unknown_provider():
+    import pytest
+
+    from backend.app.ai_provider_service import (
+        AIProviderConfigurationError,
+    )
+
+    with pytest.raises(
+        AIProviderConfigurationError
+    ):
+        generate_benchmark_structured(
+            provider="unknown",
+            model="model",
+            purpose="test",
+            instructions="instructions",
+            input_text="input",
+            text_format=CandidateResponse,
+        )
