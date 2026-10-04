@@ -168,9 +168,11 @@ from backend.app.workspace_pipeline_service import (
 
 from backend.app.mentor_learning_loop_service import (
     apply_learning_phase_review,
+    apply_trusted_prepare_validation,
     complete_prepare_learning_loop,
     evaluate_prepare_phase_response,
     record_prepare_phase_evidence,
+    record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
 )
 
@@ -784,6 +786,8 @@ def transform_workspace_workbench_data(
             ),
         )
 
+    learning_validation_summary = None
+
     if operation.origin == "data_quality":
 
         if (
@@ -874,6 +878,17 @@ def transform_workspace_workbench_data(
                     "karşılamıyor."
                 ),
             )
+
+        if validation is not None:
+            learning_validation_summary = (
+                validation.model_dump()
+            )
+        else:
+            learning_validation_summary = {
+                "success": True,
+                "validation_type":
+                    "suspicious_value_replacement",
+            }
 
     # --------------------------------------------------
     # VERSION SNAPSHOT
@@ -1093,6 +1108,75 @@ def transform_workspace_workbench_data(
         ]
 
     workspace.checkpoint.last_error = None
+
+    if (
+        operation.origin == "data_quality"
+        and operation.finding_index is not None
+        and learning_validation_summary is not None
+        and workspace.dataset_analysis is not None
+    ):
+        active_loop = next(
+            (
+                loop
+                for loop in workspace.learning_loops
+                if (
+                    loop.stage == "prepare"
+                    and loop.finding_index
+                        == operation.finding_index
+                    and loop.status == "active"
+                    and loop.current_phase
+                        in {
+                            "implement",
+                            "validate",
+                        }
+                )
+            ),
+            None,
+        )
+
+        if active_loop is not None:
+            finding = (
+                workspace.dataset_analysis.findings[
+                    operation.finding_index
+                ]
+            )
+
+            skill_state = (
+                database.get_skill_state(
+                    learner_id,
+                    active_loop.skill_name,
+                )
+            )
+
+            skill_status = (
+                skill_state["status"]
+                if skill_state is not None
+                else "new"
+            )
+
+            assistance_level = (
+                get_local_assistance_level(
+                    skill_status
+                )
+            )
+
+            record_trusted_prepare_validation_evidence(
+                learner_id=learner_id,
+                workspace_id=workspace_id,
+                loop=active_loop,
+                finding=finding,
+                assistance_level=assistance_level,
+                success=True,
+                validation_summary=(
+                    learning_validation_summary
+                ),
+            )
+
+            apply_trusted_prepare_validation(
+                loop=active_loop,
+                finding=finding,
+                success=True,
+            )
 
     database.save_workspace(
         workspace=workspace
