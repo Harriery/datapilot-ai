@@ -50,84 +50,82 @@ def _phase_prompt(
     prompts = {
         "en": {
             "observe": (
-                f"Before changing anything, inspect {target}. "
-                "What do you notice about this issue from the available evidence?"
+                f"Inspect {target} first. "
+                "What do you notice from the available evidence?"
             ),
             "reason": (
-                "What could explain this issue, and what evidence would help you "
-                "distinguish between the possible causes?"
+                "What might explain this? "
+                "Which one piece of evidence would you check next?"
             ),
             "decide": (
-                "What action would you choose for this issue, and why is that "
-                "decision appropriate for this data rather than an automatic fix?"
+                "What action would you choose? "
+                "Give one short reason based on this data."
             ),
             "implement": (
-                "Implement the smallest safe change in the Workbench or notebook. "
-                "Write the code yourself, then run it."
+                "Make the smallest safe change in the Workbench or notebook. "
+                "Write and run the code yourself."
             ),
             "validate": (
-                "Validate the result against the original data. Confirm that the "
-                "intended issue changed without introducing unexpected data loss "
-                "or a schema problem."
+                "Compare the result with the original data. "
+                "Did the intended change happen safely?"
             ),
             "explain": (
-                "Explain in your own words what you changed, why you chose that "
-                "approach, and what evidence shows the result is acceptable."
+                "What did you change, and which evidence shows it worked? "
+                "Answer briefly in your own words."
             ),
             "completed": "This learning loop is complete.",
         },
         "nl": {
             "observe": (
-                f"Bekijk eerst {target} voordat je iets wijzigt. "
-                "Wat valt je op aan dit probleem op basis van het beschikbare bewijs?"
+                f"Bekijk eerst {target}. "
+                "Wat valt je op in het beschikbare bewijs?"
             ),
             "reason": (
-                "Wat kan dit probleem verklaren, en welk bewijs zou je helpen om "
-                "de mogelijke oorzaken van elkaar te onderscheiden?"
+                "Wat kan dit verklaren? "
+                "Welk bewijs zou je als volgende controleren?"
             ),
             "decide": (
-                "Welke actie zou je kiezen, en waarom past die keuze bij deze data "
-                "in plaats van automatisch waarden te vullen of te verwijderen?"
+                "Welke actie zou je kiezen? "
+                "Geef één korte reden op basis van deze data."
             ),
             "implement": (
                 "Voer de kleinste veilige wijziging uit in de Workbench of notebook. "
-                "Schrijf de code zelf en voer die daarna uit."
+                "Schrijf en voer de code zelf uit."
             ),
             "validate": (
-                "Valideer het resultaat tegenover de oorspronkelijke data. Controleer "
-                "of het bedoelde probleem is veranderd zonder onverwacht dataverlies "
-                "of een schemaprobleem te veroorzaken."
+                "Vergelijk het resultaat met de oorspronkelijke data. "
+                "Is de bedoelde wijziging veilig gelukt?"
             ),
             "explain": (
-                "Leg in je eigen woorden uit wat je hebt gewijzigd, waarom je die "
-                "aanpak koos en welk bewijs laat zien dat het resultaat acceptabel is."
+                "Wat heb je gewijzigd en welk bewijs toont dat het werkte? "
+                "Antwoord kort in je eigen woorden."
             ),
             "completed": "Deze leerloop is voltooid.",
         },
         "tr": {
             "observe": (
-                f"Herhangi bir değişiklik yapmadan önce {target} alanını incele. "
-                "Eldeki kanıtlara göre bu problem hakkında ne fark ediyorsun?"
+                f"Önce {target} alanına bak. "
+                "Eldeki kanıta göre ne fark ediyorsun?"
             ),
             "reason": (
-                "Bu probleme ne sebep olmuş olabilir? Olası nedenleri birbirinden "
-                "ayırt etmek için hangi kanıtlara bakman gerekir?"
+                "Bunun nedeni ne olabilir? "
+                "Bunu anlamak için önce hangi kanıta bakarsın?"
             ),
             "decide": (
-                "Bu problem için hangi işlemi seçerdin? Neden bu veri için uygun "
-                "olduğunu, otomatik olarak doldurmak veya silmek yerine açıkla."
+                "Hangi işlemi seçersin? "
+                "Bu veriye göre tek cümleyle nedenini söyle."
             ),
             "implement": (
-                "Workbench veya notebook içinde en küçük güvenli değişikliği uygula. "
-                "Kodu mümkün olduğunca kendin yaz ve sonra çalıştır."
+                "Workbench veya notebook'ta en küçük güvenli değişikliği uygula. "
+                "Kodu kendin yazıp çalıştır."
             ),
             "validate": (
-                "Sonucu kaynak veriyle karşılaştırarak doğrula. Amaçlanan problemin "
-                "düzeldiğini ve beklenmeyen veri kaybı ya da şema problemi oluşmadığını kontrol et."
+                "Sonucu kaynak veriyle karşılaştır. "
+                "İstediğin değişiklik güvenli şekilde gerçekleşti mi?"
             ),
             "explain": (
-                "Kendi cümlelerinle neyi değiştirdiğini, neden bu yaklaşımı seçtiğini "
-                "ve sonucun doğru olduğuna hangi kanıtın işaret ettiğini açıkla."
+                "Neyi değiştirdin ve bunun çalıştığını hangi kanıt gösteriyor? "
+                "Kısaca kendi cümlelerinle söyle."
             ),
             "completed": "Bu öğrenme döngüsü tamamlandı.",
         },
