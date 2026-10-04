@@ -63,7 +63,10 @@ def test_start_prepare_learning_loop_persists_observe_phase():
     assert loop.status == "active"
     assert loop.target_name == "age"
     assert workspace.learning_loops == [loop]
-    assert "Before changing anything" in prompt
+    assert prompt == (
+        "Inspect age first. "
+        "What do you notice from the available evidence?"
+    )
 
 
 def test_start_prepare_learning_loop_resumes_existing_loop():
@@ -166,7 +169,10 @@ def test_prepare_learning_loop_uses_trusted_validation_for_implementation():
     assert loop.current_phase == "explain"
     assert "implement" in loop.completed_phases
     assert "validate" in loop.completed_phases
-    assert "Explain in your own words" in prompt
+    assert prompt == (
+        "What did you change, and which evidence shows it worked? "
+        "Answer briefly in your own words."
+    )
 
     loop, message = complete_prepare_learning_loop(
         loop=loop,
@@ -311,3 +317,26 @@ def test_record_trusted_prepare_validation_evidence_marks_deterministic_context(
         "validate",
     ]
     assert context["metadata"]["after_null_count"] == 0
+
+
+
+def test_turkish_prepare_prompt_is_compact_and_stepwise():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, prompt = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+
+    assert loop.language == "tr"
+    assert prompt == (
+        "Önce age alanına bak. "
+        "Eldeki kanıta göre ne fark ediyorsun?"
+    )
+    assert len(
+        prompt.split()
+    ) <= 15
