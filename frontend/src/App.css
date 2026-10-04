@@ -22002,3 +22002,69 @@
   .dashboard-pie-legend {
   display: none;
 }
+
+
+/* ==================================================
+   DASHBOARD V2 - KPI ALIGNMENT OVERRIDES
+   ================================================== */
+
+.dashboard-visual-card.visual-kpi
+  .dashboard-kpi-visual.align-left
+  > strong,
+.dashboard-visual-card.visual-kpi
+  .dashboard-kpi-visual.align-left
+  > span,
+.dashboard-visual-card.visual-kpi
+  .dashboard-kpi-visual.align-left
+  > small {
+  text-align: left;
+}
+
+.dashboard-visual-card.visual-kpi
+  .dashboard-kpi-visual.align-center
+  > strong,
+.dashboard-visual-card.visual-kpi
+  .dashboard-kpi-visual.align-center
+  > span,
+.dashboard-visual-card.visual-kpi
+  .dashboard-kpi-visual.align-center
+  > small {
+  text-align: center;
+}
+
+.dashboard-visual-card.visual-kpi
+  .dashboard-kpi-visual.align-right
+  > strong,
+.dashboard-visual-card.visual-kpi
+  .dashboard-kpi-visual.align-right
+  > span,
+.dashboard-visual-card.visual-kpi
+  .dashboard-kpi-visual.align-right
+  > small {
+  text-align: right;
+}
+
+/* ==================================================
+   DOCS V2 - INDEPENDENT CARD FLOW
+   ================================================== */
+
+.personal-docs-grid {
+  display: block;
+  columns: 2;
+  column-gap: 14px;
+}
+
+.personal-docs-grid
+  > .personal-docs-card {
+  width: 100%;
+  margin: 0 0 14px;
+
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media (max-width: 980px) {
+  .personal-docs-grid {
+    columns: 1;
+  }
+}
