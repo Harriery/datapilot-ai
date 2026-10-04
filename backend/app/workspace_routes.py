@@ -110,6 +110,15 @@ from backend.app.data_security_service import (
     evaluate_external_ai_policy,
 )
 
+from backend.app.ai_provider_service import (
+    AIProviderConfigurationError,
+)
+from backend.app.ai_usage_guard import (
+    AIBillingPolicyError,
+    AIUsageLimitError,
+)
+
+
 from backend.app.local_data_quality_mentor_service import (
     build_local_mentor_response,
     get_local_assistance_level,
@@ -2301,11 +2310,21 @@ def respond_to_workspace_prepare_learning_loop(
         )
     )
 
-    evaluation = evaluate_prepare_phase_response(
-        loop=loop,
-        finding=finding,
-        response=request.response,
-    )
+    try:
+        evaluation = evaluate_prepare_phase_response(
+            loop=loop,
+            finding=finding,
+            response=request.response,
+        )
+    except (
+        AIProviderConfigurationError,
+        AIBillingPolicyError,
+        AIUsageLimitError,
+    ) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
 
     evidence = record_prepare_phase_evidence(
         learner_id=learner_id,
