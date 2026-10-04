@@ -8,7 +8,10 @@ from backend.benchmarks.run_mentor_benchmark import (
     CandidateResponse,
     build_candidate_payload,
     build_benchmark_plan,
+    build_orchestration_context,
     calculate_expected_matches,
+    determine_orchestrated_assistance,
+    determine_orchestrated_next_phase,
     load_suite,
     select_match_group,
     MODEL_OWNED_MATCH_FIELDS,
@@ -48,20 +51,18 @@ def test_mentor_benchmark_suite_has_expected_coverage():
     )
 
 
-def test_candidate_response_schema_requires_learning_loop_fields():
+def test_candidate_response_schema_contains_only_model_owned_fields():
     response = CandidateResponse(
         is_evidence=True,
         success=True,
-        assistance_level="NUDGE",
-        next_phase="reason",
         misconception=None,
         mentor_reply="Good observation. What pattern would you inspect next?",
     )
 
     assert response.is_evidence is True
     assert response.success is True
-    assert response.assistance_level == "NUDGE"
-    assert response.next_phase == "reason"
+    assert "assistance_level" not in response.model_fields
+    assert "next_phase" not in response.model_fields
 
 
 def test_benchmark_suite_is_repository_local():
@@ -86,8 +87,6 @@ def test_calculate_expected_matches_is_deterministic():
     candidate = CandidateResponse(
         is_evidence=True,
         success=True,
-        assistance_level="GUIDE",
-        next_phase="reason",
         misconception=None,
         mentor_reply=(
             "Doğru gözlem. Şimdi eksik değerlerin "
@@ -122,8 +121,6 @@ def test_calculate_expected_matches_catches_wrong_misconception():
     candidate = CandidateResponse(
         is_evidence=True,
         success=False,
-        assistance_level="GUIDE",
-        next_phase="decide",
         misconception="different_label",
         mentor_reply="Önce 0 değerinin anlamını doğrula.",
     )
@@ -260,6 +257,8 @@ def test_candidate_payload_does_not_leak_expected_answer():
     assert "expected" not in payload
     assert payload["learner_message"] == scenario["learner_message"]
     assert payload["workspace_context"] == scenario["workspace_context"]
+    assert "orchestration_context" in payload
+    assert "assistance_level" in payload["orchestration_context"]
 
 
 def test_candidate_instructions_require_same_language_and_no_repeat():
@@ -304,6 +303,54 @@ def test_benchmark_separates_model_owned_and_orchestration_matches():
     }
 
 
+def test_orchestrator_increases_help_for_explicit_beginner_request():
+    suite = load_suite()
+    scenario = next(
+        item
+        for item in suite["scenarios"]
+        if item["id"] == "mentor_help_request_beginner"
+    )
+
+    assert determine_orchestrated_assistance(scenario) == "GUIDE"
+
+
+def test_orchestrator_increases_help_for_repeated_misconception():
+    suite = load_suite()
+    scenario = next(
+        item
+        for item in suite["scenarios"]
+        if item["id"] == "practice_target_repeated_misconception"
+    )
+
+    assert determine_orchestrated_assistance(scenario) == "GUIDE"
+
+
+def test_orchestrator_advances_only_after_successful_evidence():
+    assert determine_orchestrated_next_phase(
+        current_phase="reason",
+        is_evidence=True,
+        success=True,
+    ) == "decide"
+
+    assert determine_orchestrated_next_phase(
+        current_phase="reason",
+        is_evidence=False,
+        success=None,
+    ) == "reason"
+
+    assert determine_orchestrated_next_phase(
+        current_phase="reason",
+        is_evidence=True,
+        success=False,
+    ) == "reason"
+
+    assert determine_orchestrated_next_phase(
+        current_phase="explain",
+        is_evidence=True,
+        success=True,
+    ) == "completed"
+
+
 def test_concise_judge_dimension_does_not_mix_correctness():
     from backend.benchmarks.run_mentor_benchmark import (
         build_judge_instructions,
@@ -313,3 +360,15 @@ def test_concise_judge_dimension_does_not_mix_correctness():
 
     assert "scores only RESPONSE SHAPE" in instructions
     assert "Do not lower this score" in instructions
+
+
+
+def test_candidate_instructions_leave_phase_and_assistance_to_orchestrator():
+    from backend.benchmarks.run_mentor_benchmark import (
+        build_candidate_instructions,
+    )
+
+    instructions = build_candidate_instructions()
+
+    assert "Do NOT choose assistance_level or next_phase" in instructions
+    assert "orchestrator owns those decisions" in instructions
