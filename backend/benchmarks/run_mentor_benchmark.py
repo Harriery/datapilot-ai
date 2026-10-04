@@ -77,8 +77,6 @@ class BenchmarkEvaluation(BaseModel):
 class CandidateResponse(BaseModel):
     is_evidence: bool
     success: bool | None = None
-    assistance_level: str
-    next_phase: str
     misconception: str | None = None
     mentor_reply: str
 
@@ -141,20 +139,159 @@ def select_scenarios(
     return scenarios
 
 
+ASSISTANCE_BY_SKILL_STATUS = {
+    "new": "GUIDE",
+    "learning": "GUIDE",
+    "practicing": "NUDGE",
+    "comfortable": "NONE",
+}
+
+EXPLICIT_HELP_MARKERS = (
+    "adım adım",
+    "adim adim",
+    "anlamadım",
+    "anlamadim",
+    "bilmiyorum",
+    "ne yapmam gerekiyor",
+    "nasıl yapacağım",
+    "nasil yapacagim",
+    "öğretir misin",
+    "ogretir misin",
+    "step by step",
+    "i don't understand",
+    "i dont understand",
+    "i don't know",
+    "i dont know",
+    "teach me",
+)
+
+LEARNING_PHASES = (
+    "observe",
+    "reason",
+    "decide",
+    "implement",
+    "validate",
+    "explain",
+)
+
+
+def determine_orchestrated_assistance(
+    scenario: dict[str, Any],
+) -> str:
+    learner_profile = scenario.get(
+        "learner_profile",
+        {},
+    )
+    message = str(
+        scenario.get(
+            "learner_message",
+            "",
+        )
+    ).casefold()
+
+    if any(
+        marker in message
+        for marker in EXPLICIT_HELP_MARKERS
+    ):
+        return "GUIDE"
+
+    misconceptions = learner_profile.get(
+        "misconceptions",
+        [],
+    )
+    if len(misconceptions) != len(
+        set(misconceptions)
+    ):
+        return "GUIDE"
+
+    return ASSISTANCE_BY_SKILL_STATUS.get(
+        learner_profile.get(
+            "skill_status"
+        ),
+        "GUIDE",
+    )
+
+
+def determine_orchestrated_next_phase(
+    *,
+    current_phase: str,
+    is_evidence: bool,
+    success: bool | None,
+) -> str:
+    if (
+        not is_evidence
+        or success is not True
+    ):
+        return current_phase
+
+    if current_phase == "completed":
+        return "completed"
+
+    if current_phase not in LEARNING_PHASES:
+        return current_phase
+
+    current_index = LEARNING_PHASES.index(
+        current_phase
+    )
+
+    if current_index == (
+        len(LEARNING_PHASES) - 1
+    ):
+        return "completed"
+
+    return LEARNING_PHASES[
+        current_index + 1
+    ]
+
+
+def build_orchestration_context(
+    *,
+    scenario: dict[str, Any],
+    candidate: CandidateResponse | None = None,
+) -> dict[str, Any]:
+    context = {
+        "current_phase":
+            scenario["phase"],
+        "assistance_level":
+            determine_orchestrated_assistance(
+                scenario
+            ),
+    }
+
+    if candidate is not None:
+        context["next_phase"] = (
+            determine_orchestrated_next_phase(
+                current_phase=scenario["phase"],
+                is_evidence=candidate.is_evidence,
+                success=candidate.success,
+            )
+        )
+
+    return context
+
+
 def build_candidate_payload(
     scenario: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Build the information visible to the candidate model.
 
-    The expected answer/rubric is intentionally excluded. Otherwise the
-    benchmark would leak its answer key to the model being evaluated.
+    The expected answer/rubric is intentionally excluded. Assistance level is
+    supplied by the deterministic orchestrator instead of being chosen by the
+    model.
     """
-    return {
+    payload = {
         key: value
         for key, value in scenario.items()
         if key != "expected"
     }
+    payload["orchestration_context"] = (
+        build_orchestration_context(
+            scenario=scenario
+        )
+    )
+
+    return payload
 
 
 def build_candidate_instructions() -> str:
@@ -167,10 +304,12 @@ def build_candidate_instructions() -> str:
     Rules:
     - Judge whether the learner message is learning evidence.
     - If it is evidence, judge whether it is successful.
-    - Choose the minimum assistance level needed from:
-      NONE, NUDGE, GUIDE, TEACH, DEMONSTRATE.
-    - Choose the next learning phase from:
-      observe, reason, decide, implement, validate, explain, completed.
+    - Do NOT choose assistance_level or next_phase. DataPilot's deterministic
+      orchestrator owns those decisions.
+    - Follow orchestration_context.assistance_level when calibrating the amount
+      of help in mentor_reply.
+    - Use the current phase only to keep the reply focused on the learner's
+      immediate learning task.
     - If a clear reusable misconception is visible, return a short snake_case
       misconception label; otherwise null.
     - Reply in the same language as learner_message. Do not switch languages.
@@ -259,6 +398,13 @@ def calculate_expected_matches(
         else None
     )
 
+    orchestration = (
+        build_orchestration_context(
+            scenario=scenario,
+            candidate=candidate,
+        )
+    )
+
     return {
         "evidence_expected_match":
             candidate.is_evidence
@@ -271,12 +417,16 @@ def calculate_expected_matches(
                 "success_expected"
             ],
         "assistance_allowed_match":
-            candidate.assistance_level
+            orchestration[
+                "assistance_level"
+            ]
             in expected[
                 "allowed_assistance"
             ],
         "next_phase_match":
-            candidate.next_phase
+            orchestration[
+                "next_phase"
+            ]
             == expected[
                 "next_phase"
             ],
@@ -410,6 +560,11 @@ def run_judge(
             {
                 "scenario": scenario,
                 "candidate": candidate.model_dump(),
+                "orchestration":
+                    build_orchestration_context(
+                        scenario=scenario,
+                        candidate=candidate,
+                    ),
             },
             ensure_ascii=False,
             indent=2,
@@ -482,6 +637,11 @@ def run_suite(
                     scenario["phase"],
                 "candidate":
                     candidate.model_dump(),
+                "orchestration":
+                    build_orchestration_context(
+                        scenario=scenario,
+                        candidate=candidate,
+                    ),
                 "evaluation":
                     evaluation.model_dump(),
                 "expected_matches":
