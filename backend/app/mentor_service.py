@@ -4,6 +4,7 @@ from backend.app.models import (
     MentorDecision,
     SkillDetection,
     LearningEvidenceDecision,
+    LearningEvidenceContext,
     DataQualityFinding,
     DataQualityAttemptResponse,
     DataQualityNextStep,
@@ -662,6 +663,7 @@ def get_mentor_response_from_message(
         current_message=current_message,
         session_id=session_id,
         conversation_history=conversation_history,
+        workspace_context=workspace_context,
     )
 
     return mentor_response
@@ -804,6 +806,7 @@ def process_learning_evidence(
     current_message: str,
     session_id: str | None = None,
     conversation_history: list[dict] | None = None,
+    workspace_context: dict | None = None,
 ) -> LearningEvidenceDecision:
 
     evidence = classify_learning_evidence(
@@ -817,6 +820,32 @@ def process_learning_evidence(
     if not evidence.is_evidence:
         return evidence
 
+    workspace_context = workspace_context or {}
+    ui_context = workspace_context.get("ui_context") or {}
+    checkpoint = workspace_context.get("checkpoint") or {}
+
+    evidence_context = LearningEvidenceContext(
+        workspace_id=workspace_context.get("workspace_id"),
+        stage=(
+            ui_context.get("active_prepare_stage")
+            or ui_context.get("active_workspace_stage")
+        ),
+        task_type=(
+            (workspace_context.get("current_step") or {}).get("step_type")
+            if isinstance(workspace_context.get("current_step"), dict)
+            else None
+        ),
+        target_type="workspace_message",
+        target_name=ui_context.get("selected_workbench_column"),
+        user_authored=True,
+        deterministic_validation=False,
+        metadata={
+            "current_focus": checkpoint.get("current_focus"),
+            "selected_notebook_id": ui_context.get("selected_notebook_id"),
+            "workbench_view": ui_context.get("workbench_view"),
+        },
+    )
+
     database.record_learning_evidence(
         learner_id=learner_id,
         skill_name=mentor_decision.skill_name,
@@ -825,6 +854,9 @@ def process_learning_evidence(
         evidence_type=evidence.evidence_type,
         note=evidence.note,
         session_id=session_id,
+        context=evidence_context.model_dump(
+            exclude_none=True,
+        ),
     )
 
     # record_learning_evidence attempts sayılarını güncelledi.
@@ -1051,6 +1083,31 @@ def review_data_quality_attempt(
 
     # Gerçek learning evidence ise kalıcı olarak kaydet.
     if evidence.is_evidence:
+        evidence_context = LearningEvidenceContext(
+            stage="prepare",
+            learning_phase=(
+                "validate"
+                if evidence.evidence_type == "validation"
+                else "implement"
+                if evidence.evidence_type == "application"
+                else "reason"
+                if evidence.evidence_type == "explanation"
+                else None
+            ),
+            task_type=finding.issue_type,
+            target_type=(
+                "column"
+                if finding.column
+                else "dataset"
+            ),
+            target_name=finding.column,
+            user_authored=True,
+            deterministic_validation=False,
+            metadata={
+                "severity": finding.severity,
+            },
+        )
+
         database.record_learning_evidence(
             learner_id=learner_id,
             skill_name=skill_name,
@@ -1059,6 +1116,9 @@ def review_data_quality_attempt(
             evidence_type=evidence.evidence_type,
             note=evidence.note,
             session_id=None,
+            context=evidence_context.model_dump(
+                exclude_none=True,
+            ),
         )
 
     # Evidence kaydedildiyse yeni attempt sayılarına göre,
@@ -1294,6 +1354,24 @@ def review_data_quality_transformation(
 
     # Bu artık gerçek bir uygulama sonucu olduğu için
     # learning evidence olarak DB'ye kaydediyoruz.
+    evidence_context = LearningEvidenceContext(
+        stage="prepare",
+        learning_phase="validate",
+        task_type=finding.issue_type,
+        target_type=(
+            "column"
+            if finding.column
+            else "dataset"
+        ),
+        target_name=finding.column,
+        user_authored=True,
+        deterministic_validation=True,
+        metadata={
+            "severity": finding.severity,
+            "validation_type": type(validation).__name__,
+        },
+    )
+
     database.record_learning_evidence(
         learner_id=learner_id,
         skill_name=skill_name,
@@ -1302,6 +1380,9 @@ def review_data_quality_transformation(
         evidence_type=evidence.evidence_type,
         note=evidence.note,
         session_id=None,
+        context=evidence_context.model_dump(
+            exclude_none=True,
+        ),
     )
 
     # Yeni evidence sonrası skill seviyesini tekrar hesapla.
