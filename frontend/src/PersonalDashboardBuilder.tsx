@@ -488,8 +488,10 @@ const DASHBOARD_THEMES: Record<
 };
 
 const DASHBOARD_GRID_SIZE = 8;
-const DASHBOARD_CANVAS_MIN_WIDTH = 1040;
-const DASHBOARD_CANVAS_MIN_HEIGHT = 620;
+const DASHBOARD_PAGE_WIDTH = 1600;
+const DASHBOARD_PAGE_HEIGHT = 900;
+const DASHBOARD_CANVAS_MIN_WIDTH = DASHBOARD_PAGE_WIDTH;
+const DASHBOARD_CANVAS_MIN_HEIGHT = 680;
 const DASHBOARD_VISUAL_GAP = 16;
 const DASHBOARD_VISUAL_MIN_WIDTH = 240;
 const DASHBOARD_VISUAL_MIN_HEIGHT = 180;
@@ -808,6 +810,113 @@ function DashboardMultiSelect({
     setSearch,
   ] = useState("");
 
+  const rootRef =
+    useRef<HTMLDivElement | null>(
+      null
+    );
+
+  const closeTimerRef =
+    useRef<number | null>(
+      null
+    );
+
+  useEffect(
+    () => {
+      if (!open) {
+        return;
+      }
+
+      const handlePointerDown = (
+        event: PointerEvent
+      ) => {
+        if (
+          rootRef.current &&
+          !rootRef.current.contains(
+            event.target as Node
+          )
+        ) {
+          setOpen(false);
+        }
+      };
+
+      const handleKeyDown = (
+        event: globalThis.KeyboardEvent
+      ) => {
+        if (event.key === "Escape") {
+          setOpen(false);
+        }
+      };
+
+      document.addEventListener(
+        "pointerdown",
+        handlePointerDown
+      );
+
+      document.addEventListener(
+        "keydown",
+        handleKeyDown
+      );
+
+      return () => {
+        document.removeEventListener(
+          "pointerdown",
+          handlePointerDown
+        );
+
+        document.removeEventListener(
+          "keydown",
+          handleKeyDown
+        );
+      };
+    },
+    [open]
+  );
+
+  useEffect(
+    () => () => {
+      if (
+        closeTimerRef.current !== null
+      ) {
+        window.clearTimeout(
+          closeTimerRef.current
+        );
+      }
+    },
+    []
+  );
+
+  const scheduleClose = () => {
+    if (
+      closeTimerRef.current !== null
+    ) {
+      window.clearTimeout(
+        closeTimerRef.current
+      );
+    }
+
+    closeTimerRef.current =
+      window.setTimeout(
+        () => {
+          setOpen(false);
+          closeTimerRef.current =
+            null;
+        },
+        350
+      );
+  };
+
+  const cancelClose = () => {
+    if (
+      closeTimerRef.current !== null
+    ) {
+      window.clearTimeout(
+        closeTimerRef.current
+      );
+      closeTimerRef.current =
+        null;
+    }
+  };
+
   const visible =
     values.filter(
       (value) =>
@@ -827,6 +936,7 @@ function DashboardMultiSelect({
 
   return (
     <div
+      ref={rootRef}
       className={
         "dashboard-multi-select" +
         (
@@ -834,6 +944,12 @@ function DashboardMultiSelect({
             ? " open"
             : ""
         )
+      }
+      onMouseEnter={
+        cancelClose
+      }
+      onMouseLeave={
+        scheduleClose
       }
     >
       <button
