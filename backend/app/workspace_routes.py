@@ -2127,6 +2127,13 @@ def start_workspace_prepare_learning_loop(
     learner_id: str,
     workspace_id: str,
     finding_index: int,
+    language: Literal[
+        "en",
+        "nl",
+        "tr",
+    ] = Query(
+        default="en"
+    ),
 ):
     workspace = database.get_workspace(
         workspace_id=workspace_id,
@@ -2180,6 +2187,7 @@ def start_workspace_prepare_learning_loop(
             finding_index=finding_index,
             finding=finding,
             skill_name=skill_name,
+            language=language,
         )
     )
 
