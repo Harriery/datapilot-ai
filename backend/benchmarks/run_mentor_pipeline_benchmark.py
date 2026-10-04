@@ -97,6 +97,8 @@ def build_mentor_reply_instructions() -> str:
     Response rules:
     - Reply in the same language as learner_message.
     - Give only ONE small next step.
+    - The reply must have one cognitive target only. Do not combine two checks
+      or two questions in one sentence.
     - Prefer one short sentence; target <= 20 words.
     - If success=true and next_phase differs from current_phase, briefly
       acknowledge the learner and move to the next phase. Do not ask them to
@@ -109,7 +111,8 @@ def build_mentor_reply_instructions() -> str:
       an imputation or transformation in the same reply. Give only the reasoning
       step.
     - If is_evidence=false, give one small step that helps the learner continue
-      the current phase.
+      the current phase. Do not ask the learner to recompute, restate, or record
+      a fact that is already present in workspace_context.
     - Never invent an arbitrary technique, threshold, percentage bucket, sample
       size, grouping rule, or transformation that is not justified by the
       supplied context.
@@ -154,15 +157,16 @@ def build_pipeline_judge_instructions() -> str:
       analytical advice. Also penalize arbitrary methods, thresholds, percentage
       buckets, or transformations unsupported by the scenario context.
     - pedagogy: 5 requires the reply to advance learning without making the
-      learner repeat an already-correct conclusion.
+      learner repeat an already-correct conclusion or re-check a fact that is
+      already explicitly available in workspace_context.
     - assistance_calibration: 5 requires matching orchestration.assistance_level.
     - learning_loop_discipline: 5 requires targeting orchestration.next_phase.
       If next_phase=completed, any new directive, continuation request, question,
       or task prevents a score of 5.
     - concise_stepwise_guidance scores RESPONSE SHAPE only. A single <=20-word
-      step with no second task should normally score 5. If the reply contains a
-      sequence such as "first X, then Y" or "X, ardından Y", it contains multiple
-      steps and cannot score 5.
+      step with one cognitive target should normally score 5. If the reply
+      combines two checks/questions, or contains a sequence such as "first X,
+      then Y" or "X, ardından Y", it contains multiple steps and cannot score 5.
     - language_match is 5 only when mentor_reply matches learner_message language.
     - transfer_reasoning: if transfer is not relevant in the scenario, score 5
       unless the reply introduces an unjustified prior-project transfer.
