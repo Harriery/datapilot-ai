@@ -8570,11 +8570,18 @@ function PersonalDashboardBuilder({
 
         <main
           className="dashboard-canvas"
+          ref={pageViewportRef}
           style={{
             "--dashboard-theme-accent":
               DASHBOARD_THEMES[
                 dashboardTheme
               ].accent,
+            "--dashboard-page-scale":
+              interactScale,
+            "--dashboard-page-width":
+              DASHBOARD_PAGE_WIDTH + "px",
+            "--dashboard-page-height":
+              DASHBOARD_PAGE_HEIGHT + "px",
           } as CSSProperties}
         >
           <div className="dashboard-canvas-heading">
