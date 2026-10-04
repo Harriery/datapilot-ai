@@ -10,12 +10,13 @@ from pydantic import BaseModel, Field
 
 from backend.app.ai_provider_service import (
     AIProviderConfigurationError,
-    get_ai_runtime,
+)
+from backend.benchmarks.mentor_benchmark_provider import (
+    generate_benchmark_structured,
 )
 from backend.app.ai_usage_guard import (
     AIBillingPolicyError,
     AIUsageLimitError,
-    guarded_responses_parse,
 )
 
 
@@ -230,25 +231,14 @@ def run_candidate(
     model: str,
     scenario: dict[str, Any],
 ) -> tuple[CandidateResponse, float]:
-    runtime = get_ai_runtime(
-        "mentor"
-    )
-
-    if runtime.provider != provider:
-        raise AIProviderConfigurationError(
-            "Resolved provider does not match requested benchmark provider: "
-            f"{runtime.provider} != {provider}"
-        )
-
     started = perf_counter()
 
-    response = guarded_responses_parse(
-        runtime.client,
-        provider=runtime.provider,
-        purpose="mentor_benchmark_candidate",
+    candidate = generate_benchmark_structured(
+        provider=provider,
         model=model,
+        purpose="mentor_benchmark_candidate",
         instructions=build_candidate_instructions(),
-        input=json.dumps(
+        input_text=json.dumps(
             {
                 "scenario": scenario,
             },
@@ -264,7 +254,7 @@ def run_candidate(
     ) * 1000
 
     return (
-        response.output_parsed,
+        candidate,
         round(
             elapsed_ms,
             2,
@@ -279,23 +269,12 @@ def run_judge(
     scenario: dict[str, Any],
     candidate: CandidateResponse,
 ) -> BenchmarkEvaluation:
-    runtime = get_ai_runtime(
-        "classifier"
-    )
-
-    if runtime.provider != provider:
-        raise AIProviderConfigurationError(
-            "Resolved judge provider does not match requested provider: "
-            f"{runtime.provider} != {provider}"
-        )
-
-    response = guarded_responses_parse(
-        runtime.client,
-        provider=runtime.provider,
-        purpose="mentor_benchmark_judge",
+    return generate_benchmark_structured(
+        provider=provider,
         model=model,
+        purpose="mentor_benchmark_judge",
         instructions=build_judge_instructions(),
-        input=json.dumps(
+        input_text=json.dumps(
             {
                 "scenario": scenario,
                 "candidate": candidate.model_dump(),
@@ -305,8 +284,6 @@ def run_judge(
         ),
         text_format=BenchmarkEvaluation,
     )
-
-    return response.output_parsed
 
 
 def run_suite(
