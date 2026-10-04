@@ -91,7 +91,7 @@ export default function WorkspaceMentorPanel({
     onOpenChange(true);
 
     fetch(
-      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/findings/${learningLoopFindingIndex}/learning-loop`,
+      `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/findings/${learningLoopFindingIndex}/learning-loop?language=${language}`,
       { method:"POST" }
     )
       .then(async response=>{
@@ -266,7 +266,37 @@ export default function WorkspaceMentorPanel({
           }>
             {learningLoop.status==="completed"
               ? copy.completed
-              : `${copy.phase}: ${learningLoop.current_phase}`}
+              : `${copy.phase}: ${
+                  {
+                    en: {
+                      observe: "Observe",
+                      reason: "Reason",
+                      decide: "Decide",
+                      implement: "Implement",
+                      validate: "Validate",
+                      explain: "Explain",
+                      completed: "Completed",
+                    },
+                    nl: {
+                      observe: "Observeren",
+                      reason: "Redeneren",
+                      decide: "Beslissen",
+                      implement: "Uitvoeren",
+                      validate: "Valideren",
+                      explain: "Uitleggen",
+                      completed: "Voltooid",
+                    },
+                    tr: {
+                      observe: "Gözlemle",
+                      reason: "Akıl yürüt",
+                      decide: "Karar ver",
+                      implement: "Uygula",
+                      validate: "Doğrula",
+                      explain: "Açıkla",
+                      completed: "Tamamlandı",
+                    },
+                  }[language][learningLoop.current_phase]
+                }`}
           </span>
         </div>
       )}
