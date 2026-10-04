@@ -211,3 +211,15 @@ def test_benchmark_provider_rejects_unknown_provider():
             input_text="input",
             text_format=CandidateResponse,
         )
+
+
+
+def test_benchmark_compact_threshold_is_twenty_words():
+    source = Path(
+        "backend/benchmarks/run_mentor_benchmark.py"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    assert "mentor_reply_word_count <= 20" in source
+    assert "Give only ONE next small step." in source
