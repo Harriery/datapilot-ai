@@ -10,6 +10,9 @@ from backend.benchmarks.run_mentor_benchmark import (
     build_benchmark_plan,
     calculate_expected_matches,
     load_suite,
+    select_match_group,
+    MODEL_OWNED_MATCH_FIELDS,
+    ORCHESTRATION_DIAGNOSTIC_FIELDS,
 )
 
 
@@ -269,3 +272,44 @@ def test_candidate_instructions_require_same_language_and_no_repeat():
     assert "same language as learner_message" in instructions
     assert "do not ask them to repeat" in instructions
     assert "Do not provide code unless" in instructions
+
+
+
+def test_benchmark_separates_model_owned_and_orchestration_matches():
+    matches = {
+        "evidence_expected_match": 100.0,
+        "success_expected_match": 100.0,
+        "assistance_allowed_match": 70.0,
+        "next_phase_match": 60.0,
+        "misconception_match": 100.0,
+    }
+
+    model_owned = select_match_group(
+        matches,
+        MODEL_OWNED_MATCH_FIELDS,
+    )
+    orchestration = select_match_group(
+        matches,
+        ORCHESTRATION_DIAGNOSTIC_FIELDS,
+    )
+
+    assert model_owned == {
+        "evidence_expected_match": 100.0,
+        "success_expected_match": 100.0,
+        "misconception_match": 100.0,
+    }
+    assert orchestration == {
+        "assistance_allowed_match": 70.0,
+        "next_phase_match": 60.0,
+    }
+
+
+def test_concise_judge_dimension_does_not_mix_correctness():
+    from backend.benchmarks.run_mentor_benchmark import (
+        build_judge_instructions,
+    )
+
+    instructions = build_judge_instructions()
+
+    assert "scores only RESPONSE SHAPE" in instructions
+    assert "Do not lower this score" in instructions
