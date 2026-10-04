@@ -9202,6 +9202,46 @@ function PersonalDashboardBuilder({
 
             {visuals.map(
               (visual) => {
+                const visualWidth =
+                  visual.canvas_width ??
+                  480;
+
+                const visualHeight =
+                  visual.canvas_height ??
+                  300;
+
+                const fitBaselineWidth =
+                  visual.visual_type ===
+                  "kpi"
+                    ? 260
+                    : 480;
+
+                const fitBaselineHeight =
+                  visual.visual_type ===
+                  "kpi"
+                    ? 150
+                    : 300;
+
+                const visualFitScale =
+                  Math.max(
+                    0.62,
+                    Math.min(
+                      1,
+                      visualWidth /
+                        fitBaselineWidth,
+                      visualHeight /
+                        fitBaselineHeight,
+                    )
+                  );
+
+                const visualCompact =
+                  visualWidth < 360 ||
+                  visualHeight < 220;
+
+                const visualVeryCompact =
+                  visualWidth < 290 ||
+                  visualHeight < 180;
+
                 const analysis =
                   previewResults[
                     visual.visual_id
@@ -9297,6 +9337,16 @@ function PersonalDashboardBuilder({
                         )
                           ? " selected"
                           : ""
+                      ) +
+                      (
+                        visualCompact
+                          ? " compact-visual"
+                          : ""
+                      ) +
+                      (
+                        visualVeryCompact
+                          ? " very-compact-visual"
+                          : ""
                       )
                     }
                     style={{
@@ -9373,6 +9423,8 @@ function PersonalDashboardBuilder({
                       "--dashboard-legend-color":
                         visual.legend_label_color ??
                         visual.text_color,
+                      "--dashboard-fit-scale":
+                        visualFitScale,
                     } as CSSProperties}
                     onClick={(event) => {
                       if (
