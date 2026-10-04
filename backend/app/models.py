@@ -1690,6 +1690,75 @@ class WorkspaceProcessedDataset(BaseModel):
     ] = "working_snapshot"
 
 
+class WorkspaceLearningLoop(BaseModel):
+    loop_id: str
+
+    stage: Literal[
+        "prepare",
+    ] = "prepare"
+
+    finding_index: int
+    skill_name: str
+
+    target_type: Literal[
+        "column",
+        "dataset",
+    ]
+
+    target_name: str | None = None
+
+    current_phase: Literal[
+        "observe",
+        "reason",
+        "decide",
+        "implement",
+        "validate",
+        "explain",
+        "completed",
+    ] = "observe"
+
+    completed_phases: list[
+        Literal[
+            "observe",
+            "reason",
+            "decide",
+            "implement",
+            "validate",
+            "explain",
+        ]
+    ] = Field(default_factory=list)
+
+    status: Literal[
+        "active",
+        "completed",
+    ] = "active"
+
+
+class WorkspaceLearningLoopResponse(BaseModel):
+    loop: WorkspaceLearningLoop
+    mentor_prompt: str
+
+
+class WorkspaceLearningLoopResponseRequest(BaseModel):
+    response: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+
+
+class WorkspaceLearningLoopReviewResponse(BaseModel):
+    loop: WorkspaceLearningLoop
+    mentor_response: str
+    evidence: LearningEvidenceDecision
+    assistance_level: Literal[
+        "NONE",
+        "NUDGE",
+        "GUIDE",
+        "TEACH",
+        "DEMONSTRATE",
+    ]
+
+
 class Workspace(BaseModel):
     workspace_id: str
     learner_id: str
@@ -1870,6 +1939,10 @@ class Workspace(BaseModel):
     checkpoint: WorkspaceCheckpoint = Field(
         default_factory=WorkspaceCheckpoint
     )
+
+    learning_loops: list[
+        WorkspaceLearningLoop
+    ] = Field(default_factory=list)
     
 class TaskSummaryItem(BaseModel):
     workspace_id: str
