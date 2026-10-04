@@ -504,6 +504,11 @@ def test_get_progress_returns_learner_progress():
                 "last_assistance_level": "NUDGE",
                 "independence_trend": "improving",
                 "practice_priority": "low",
+                "independence_score": 0,
+                "latest_learning_phase": None,
+                "learning_phase_counts": {},
+                "learning_phase_success_counts": {},
+                "misconceptions": [],
             }
         ],
         "mentor_dependency_history": [],
