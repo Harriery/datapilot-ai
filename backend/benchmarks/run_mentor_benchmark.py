@@ -29,12 +29,6 @@ DEFAULT_SUITE = (
 
 
 class BenchmarkEvaluation(BaseModel):
-    evidence_expected_match: bool
-    success_expected_match: bool
-    assistance_allowed_match: bool
-    next_phase_match: bool
-    misconception_match: bool
-
     technical_correctness: int = Field(
         ge=0,
         le=5,
@@ -126,18 +120,106 @@ def build_judge_instructions() -> str:
     - learning_loop_discipline
     - transfer_reasoning
 
-    Also compare the candidate structured fields against the scenario's
-    expected values. For assistance_allowed_match, the candidate assistance
-    level must be one of expected.allowed_assistance.
-
-    For misconception_match:
-    - if expected.misconception is absent, candidate misconception should be
-      null or empty.
-    - if expected.misconception exists, it must match exactly.
+    Structured-field correctness is scored separately by deterministic code.
+    Your job here is only to score response quality.
 
     Evaluate only from the supplied scenario and expectation. Do not add
     outside facts.
     """
+
+
+def calculate_expected_matches(
+    *,
+    scenario: dict[str, Any],
+    candidate: CandidateResponse,
+) -> dict[str, bool]:
+    expected = scenario[
+        "expected"
+    ]
+
+    expected_misconception = (
+        expected.get(
+            "misconception"
+        )
+    )
+
+    candidate_misconception = (
+        candidate.misconception
+        if candidate.misconception
+        else None
+    )
+
+    return {
+        "evidence_expected_match":
+            candidate.is_evidence
+            == expected[
+                "evidence_expected"
+            ],
+        "success_expected_match":
+            candidate.success
+            == expected[
+                "success_expected"
+            ],
+        "assistance_allowed_match":
+            candidate.assistance_level
+            in expected[
+                "allowed_assistance"
+            ],
+        "next_phase_match":
+            candidate.next_phase
+            == expected[
+                "next_phase"
+            ],
+        "misconception_match":
+            candidate_misconception
+            == expected_misconception,
+    }
+
+
+def build_benchmark_plan(
+    *,
+    suite_path: Path,
+    provider: str,
+    candidate_model: str,
+    judge_provider: str,
+    judge_model: str,
+    scenario_limit: int | None,
+) -> dict[str, Any]:
+    suite = load_suite(
+        suite_path
+    )
+
+    scenarios = suite[
+        "scenarios"
+    ]
+
+    if scenario_limit is not None:
+        scenarios = scenarios[
+            :scenario_limit
+        ]
+
+    return {
+        "suite_id":
+            suite["suite_id"],
+        "suite_version":
+            suite["version"],
+        "scenario_count":
+            len(scenarios),
+        "provider":
+            provider,
+        "candidate_model":
+            candidate_model,
+        "judge_provider":
+            judge_provider,
+        "judge_model":
+            judge_model,
+        "network_calls":
+            False,
+        "scenario_ids": [
+            scenario["id"]
+            for scenario in scenarios
+        ],
+    }
 
 
 def run_candidate(
@@ -268,6 +350,13 @@ def run_suite(
             candidate=candidate,
         )
 
+        expected_matches = (
+            calculate_expected_matches(
+                scenario=scenario,
+                candidate=candidate,
+            )
+        )
+
         rows.append(
             {
                 "scenario_id":
@@ -282,6 +371,8 @@ def run_suite(
                     candidate.model_dump(),
                 "evaluation":
                     evaluation.model_dump(),
+                "expected_matches":
+                    expected_matches,
                 "latency_ms":
                     elapsed_ms,
             }
@@ -328,7 +419,7 @@ def run_suite(
                     1
                     for row in rows
                     if row[
-                        "evaluation"
+                        "expected_matches"
                     ][field]
                 )
                 / len(rows)
@@ -431,12 +522,55 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         required=True,
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Validate and print the benchmark plan without "
+            "making any external AI request."
+        ),
+    )
 
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+
+    if args.dry_run:
+        plan = build_benchmark_plan(
+            suite_path=args.suite,
+            provider=args.provider,
+            candidate_model=args.candidate_model,
+            judge_provider=args.judge_provider,
+            judge_model=args.judge_model,
+            scenario_limit=args.limit,
+        )
+
+        args.output.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        args.output.write_text(
+            json.dumps(
+                plan,
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        print(
+            json.dumps(
+                plan,
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+
+        return 0
 
     try:
         result = run_suite(
