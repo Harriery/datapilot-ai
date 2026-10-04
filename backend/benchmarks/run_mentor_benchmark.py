@@ -155,7 +155,10 @@ def build_candidate_instructions() -> str:
       misconception label; otherwise null.
     - Reply in the learner's language.
     - Give only ONE next small step.
-    - Keep the mentor reply to at most 2 short sentences and normally <= 40 words.
+    - Prefer ONE short sentence, usually phrased as one focused question.
+    - Keep the mentor reply to <= 20 words whenever possible.
+    - Do not add a second instruction, explanation, checklist, or follow-up task
+      after the first small step.
     - Use simple language appropriate for a beginner unless the learner clearly
       demonstrates a higher level.
     - Do not give a mini-lecture, long checklist, or full solution unless the
@@ -185,8 +188,9 @@ def build_judge_instructions() -> str:
     - concise_stepwise_guidance
     - learner_level_fit
 
-    concise_stepwise_guidance = 5 only when the reply gives one small next step
-    without a long explanation, checklist, or unnecessary solution.
+    concise_stepwise_guidance = 5 only when the reply gives exactly one small
+    next step, preferably in one sentence and about 20 words or fewer, without
+    an added explanation, checklist, second task, or unnecessary solution.
     learner_level_fit = 5 only when the wording and amount of help match the
     learner profile and current assistance need.
 
@@ -424,7 +428,7 @@ def run_suite(
                 "mentor_reply_word_count":
                     mentor_reply_word_count,
                 "compact_reply":
-                    mentor_reply_word_count <= 40,
+                    mentor_reply_word_count <= 20,
                 "latency_ms":
                     elapsed_ms,
             }
