@@ -26,6 +26,22 @@ StructuredModel = TypeVar(
 )
 
 
+def _is_output_parse_failed(
+    exc: Exception,
+) -> bool:
+    if getattr(exc, "status_code", None) != 400:
+        return False
+
+    body = getattr(exc, "body", None)
+
+    if isinstance(body, dict):
+        error = body.get("error", body)
+        if isinstance(error, dict):
+            return error.get("code") == "output_parse_failed"
+
+    return "output_parse_failed" in str(exc)
+
+
 def _required_env(
     name: str,
 ) -> str:
@@ -80,15 +96,41 @@ def _generate_openai_compatible_structured(
         provider
     )
 
-    response = guarded_responses_parse(
-        client,
-        provider=provider,
-        purpose=purpose,
-        model=model,
-        instructions=instructions,
-        input=input_text,
-        text_format=text_format,
-    )
+    try:
+        response = guarded_responses_parse(
+            client,
+            provider=provider,
+            purpose=purpose,
+            model=model,
+            instructions=instructions,
+            input=input_text,
+            text_format=text_format,
+        )
+    except Exception as exc:
+        if (
+            provider != "groq"
+            or not _is_output_parse_failed(exc)
+        ):
+            raise
+
+        retry_instructions = (
+            instructions
+            + "\n\nSTRICT STRUCTURED OUTPUT RETRY:\n"
+            + "- Return only the structured JSON required by the schema.\n"
+            + "- Do not include analysis, reasoning, commentary, markdown, "
+              "or text before/after the JSON.\n"
+            + "- Populate every required field."
+        )
+
+        response = guarded_responses_parse(
+            client,
+            provider=provider,
+            purpose=purpose + "_parse_retry",
+            model=model,
+            instructions=retry_instructions,
+            input=input_text,
+            text_format=text_format,
+        )
 
     return response.output_parsed
 
