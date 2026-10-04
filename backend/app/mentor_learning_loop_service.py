@@ -46,41 +46,100 @@ def _phase_prompt(
     target = (
         finding.column
         if finding.column
-        else "the dataset"
+        else {
+            "en": "the dataset",
+            "nl": "de dataset",
+            "tr": "veri seti",
+        }[loop.language]
     )
 
     prompts = {
-        "observe": (
-            f"Before changing anything, inspect {target}. "
-            "What do you notice about this issue from the available evidence?"
-        ),
-        "reason": (
-            "What could explain this issue, and what evidence would help you "
-            "distinguish between the possible causes?"
-        ),
-        "decide": (
-            "What action would you choose for this issue, and why is that "
-            "decision appropriate for this data rather than an automatic fix?"
-        ),
-        "implement": (
-            "Implement the smallest safe change in the Workbench or notebook. "
-            "Write the code yourself, then run it."
-        ),
-        "validate": (
-            "Validate the result against the original data. Confirm that the "
-            "intended issue changed without introducing an unexpected data loss "
-            "or schema problem."
-        ),
-        "explain": (
-            "Explain in your own words what you changed, why you chose that "
-            "approach, and what evidence shows the result is acceptable."
-        ),
+        "en": {
+            "observe": (
+                f"Before changing anything, inspect {target}. "
+                "What do you notice about this issue from the available evidence?"
+            ),
+            "reason": (
+                "What could explain this issue, and what evidence would help you "
+                "distinguish between the possible causes?"
+            ),
+            "decide": (
+                "What action would you choose for this issue, and why is that "
+                "decision appropriate for this data rather than an automatic fix?"
+            ),
+            "implement": (
+                "Implement the smallest safe change in the Workbench or notebook. "
+                "Write the code yourself, then run it."
+            ),
+            "validate": (
+                "Validate the result against the original data. Confirm that the "
+                "intended issue changed without introducing unexpected data loss "
+                "or a schema problem."
+            ),
+            "explain": (
+                "Explain in your own words what you changed, why you chose that "
+                "approach, and what evidence shows the result is acceptable."
+            ),
+            "completed": "This learning loop is complete.",
+        },
+        "nl": {
+            "observe": (
+                f"Bekijk eerst {target} voordat je iets wijzigt. "
+                "Wat valt je op aan dit probleem op basis van het beschikbare bewijs?"
+            ),
+            "reason": (
+                "Wat kan dit probleem verklaren, en welk bewijs zou je helpen om "
+                "de mogelijke oorzaken van elkaar te onderscheiden?"
+            ),
+            "decide": (
+                "Welke actie zou je kiezen, en waarom past die keuze bij deze data "
+                "in plaats van automatisch waarden te vullen of te verwijderen?"
+            ),
+            "implement": (
+                "Voer de kleinste veilige wijziging uit in de Workbench of notebook. "
+                "Schrijf de code zelf en voer die daarna uit."
+            ),
+            "validate": (
+                "Valideer het resultaat tegenover de oorspronkelijke data. Controleer "
+                "of het bedoelde probleem is veranderd zonder onverwacht dataverlies "
+                "of een schemaprobleem te veroorzaken."
+            ),
+            "explain": (
+                "Leg in je eigen woorden uit wat je hebt gewijzigd, waarom je die "
+                "aanpak koos en welk bewijs laat zien dat het resultaat acceptabel is."
+            ),
+            "completed": "Deze leerloop is voltooid.",
+        },
+        "tr": {
+            "observe": (
+                f"Herhangi bir değişiklik yapmadan önce {target} alanını incele. "
+                "Eldeki kanıtlara göre bu problem hakkında ne fark ediyorsun?"
+            ),
+            "reason": (
+                "Bu probleme ne sebep olmuş olabilir? Olası nedenleri birbirinden "
+                "ayırt etmek için hangi kanıtlara bakman gerekir?"
+            ),
+            "decide": (
+                "Bu problem için hangi işlemi seçerdin? Neden bu veri için uygun "
+                "olduğunu, otomatik olarak doldurmak veya silmek yerine açıkla."
+            ),
+            "implement": (
+                "Workbench veya notebook içinde en küçük güvenli değişikliği uygula. "
+                "Kodu mümkün olduğunca kendin yaz ve sonra çalıştır."
+            ),
+            "validate": (
+                "Sonucu kaynak veriyle karşılaştırarak doğrula. Amaçlanan problemin "
+                "düzeldiğini ve beklenmeyen veri kaybı ya da şema problemi oluşmadığını kontrol et."
+            ),
+            "explain": (
+                "Kendi cümlelerinle neyi değiştirdiğini, neden bu yaklaşımı seçtiğini "
+                "ve sonucun doğru olduğuna hangi kanıtın işaret ettiğini açıkla."
+            ),
+            "completed": "Bu öğrenme döngüsü tamamlandı.",
+        },
     }
 
-    if loop.current_phase == "completed":
-        return "This learning loop is complete."
-
-    return prompts[loop.current_phase]
+    return prompts[loop.language][loop.current_phase]
 
 
 def start_or_resume_prepare_learning_loop(
@@ -89,6 +148,7 @@ def start_or_resume_prepare_learning_loop(
     finding_index: int,
     finding: DataQualityFinding,
     skill_name: str,
+    language: str = "en",
 ) -> tuple[WorkspaceLearningLoop, str]:
     for loop in workspace.learning_loops:
         if (
@@ -96,6 +156,13 @@ def start_or_resume_prepare_learning_loop(
             and loop.finding_index == finding_index
             and loop.status == "active"
         ):
+            if language in {
+                "en",
+                "nl",
+                "tr",
+            }:
+                loop.language = language
+
             return (
                 loop,
                 _phase_prompt(
@@ -106,6 +173,15 @@ def start_or_resume_prepare_learning_loop(
 
     loop = WorkspaceLearningLoop(
         loop_id=str(uuid.uuid4()),
+        language=(
+            language
+            if language in {
+                "en",
+                "nl",
+                "tr",
+            }
+            else "en"
+        ),
         stage="prepare",
         finding_index=finding_index,
         skill_name=skill_name,
@@ -498,8 +574,24 @@ def complete_prepare_learning_loop(
     loop.current_phase = "completed"
     loop.status = "completed"
 
+    completed_messages = {
+        "en": (
+            "Learning loop complete. The decision, implementation, validation, "
+            "and explanation are now recorded as separate learning evidence."
+        ),
+        "nl": (
+            "De leerloop is voltooid. Besluit, uitvoering, validatie en uitleg "
+            "zijn nu als afzonderlijk leerbewijs opgeslagen."
+        ),
+        "tr": (
+            "Öğrenme döngüsü tamamlandı. Karar, uygulama, doğrulama ve açıklama "
+            "ayrı öğrenme kanıtları olarak kaydedildi."
+        ),
+    }
+
     return (
         loop,
-        "Learning loop complete. The decision, implementation, validation, "
-        "and explanation are now recorded as separate learning evidence.",
+        completed_messages[
+            loop.language
+        ],
     )
