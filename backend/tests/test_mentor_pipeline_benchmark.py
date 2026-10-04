@@ -110,6 +110,12 @@ def test_pipeline_classifier_treats_question_shaped_decision_as_evidence_rule():
 
 def test_pipeline_mentor_repairs_premise_before_replacement():
     instructions = build_mentor_reply_instructions()
+    normalized = " ".join(
+        instructions.split()
+    )
 
-    assert "Challenge the faulty premise before suggesting any implementation" in instructions
-    assert "use X instead of Y" in instructions
+    assert (
+        "Challenge the faulty premise before suggesting any implementation"
+        in normalized
+    )
+    assert "use X instead of Y" in normalized
