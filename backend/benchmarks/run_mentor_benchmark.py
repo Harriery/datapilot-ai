@@ -165,7 +165,12 @@ def build_candidate_instructions() -> str:
       required assistance level is DEMONSTRATE.
     - Do not invent columns, values, business rules, or prior-project facts.
     - Do not skip ahead in the learning loop.
-    - A help request is not failed learning evidence.
+    - A help request or clarification question by itself is not learning evidence.
+    - A learner claim, proposed decision, explanation, or attempted answer IS learning
+      evidence even when it is wrong or based on a misconception. In that case set
+      is_evidence=true and success=false.
+    - Do not mark a genuine incorrect attempt as is_evidence=false merely because
+      the learner needs correction.
     - Successful code execution alone is not validation.
     - Numeric dtype does not automatically mean measure.
     - Prior-project patterns may be transferred only when current context
