@@ -5,6 +5,7 @@ from typing import TypeVar
 
 from openai import OpenAI
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
 from backend.app.ai_provider_service import (
     AIProviderConfigurationError,
@@ -14,6 +15,9 @@ from backend.app.ai_usage_guard import (
     guarded_responses_parse,
     reserve_ai_request,
 )
+
+
+load_dotenv()
 
 
 StructuredModel = TypeVar(
