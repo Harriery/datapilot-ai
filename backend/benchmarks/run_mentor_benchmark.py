@@ -215,6 +215,8 @@ def build_benchmark_plan(
             judge_model,
         "network_calls":
             False,
+        "estimated_external_requests":
+            len(scenarios) * 2,
         "scenario_ids": [
             scenario["id"]
             for scenario in scenarios
@@ -530,6 +532,14 @@ def parse_args() -> argparse.Namespace:
             "making any external AI request."
         ),
     )
+    parser.add_argument(
+        "--confirm-live",
+        action="store_true",
+        help=(
+            "Required for any live benchmark run. "
+            "Without this flag, external AI requests are blocked."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -571,6 +581,57 @@ def main() -> int:
         )
 
         return 0
+
+    if not args.confirm_live:
+        plan = build_benchmark_plan(
+            suite_path=args.suite,
+            provider=args.provider,
+            candidate_model=args.candidate_model,
+            judge_provider=args.judge_provider,
+            judge_model=args.judge_model,
+            scenario_limit=args.limit,
+        )
+
+        print(
+            "Benchmark blocked before external AI calls. "
+            "Run with --dry-run to inspect the plan, or add "
+            "--confirm-live only when you intentionally want "
+            "to send requests."
+        )
+        print(
+            json.dumps(
+                {
+                    "scenario_count":
+                        plan[
+                            "scenario_count"
+                        ],
+                    "estimated_external_requests":
+                        plan[
+                            "estimated_external_requests"
+                        ],
+                    "provider":
+                        plan[
+                            "provider"
+                        ],
+                    "candidate_model":
+                        plan[
+                            "candidate_model"
+                        ],
+                    "judge_provider":
+                        plan[
+                            "judge_provider"
+                        ],
+                    "judge_model":
+                        plan[
+                            "judge_model"
+                        ],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+
+        return 2
 
     try:
         result = run_suite(
