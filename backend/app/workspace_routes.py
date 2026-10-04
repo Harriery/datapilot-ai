@@ -33,6 +33,8 @@ from backend.app.models import (
     WorkspaceFindingAttemptRequest,
     WorkspaceFindingAttemptResponse,
     WorkspaceLearningLoopResponse,
+    WorkspaceLearningLoopResponseRequest,
+    WorkspaceLearningLoopReviewResponse,
     LearningEvidenceDecision,
     PersonalProjectAnalysisRequest,
     PersonalProjectAnalysisResult,
@@ -94,6 +96,7 @@ from backend.app.workspace_data_service import (
 )
 
 from backend.app.mentor_service import (
+    get_mentor_decision_for_learner,
     review_data_engineering_task_transformation,
     get_skill_for_data_quality_issue,
     review_data_quality_attempt,
@@ -164,6 +167,10 @@ from backend.app.workspace_pipeline_service import (
 )
 
 from backend.app.mentor_learning_loop_service import (
+    apply_learning_phase_review,
+    complete_prepare_learning_loop,
+    evaluate_prepare_phase_response,
+    record_prepare_phase_evidence,
     start_or_resume_prepare_learning_loop,
 )
 
@@ -2099,6 +2106,144 @@ def start_workspace_prepare_learning_loop(
     return WorkspaceLearningLoopResponse(
         loop=loop,
         mentor_prompt=mentor_prompt,
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data/findings/{finding_index}"
+        "/learning-loop/{loop_id}/respond"
+    ),
+    response_model=WorkspaceLearningLoopReviewResponse,
+)
+def respond_to_workspace_prepare_learning_loop(
+    learner_id: str,
+    workspace_id: str,
+    finding_index: int,
+    loop_id: str,
+    request: WorkspaceLearningLoopResponseRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.dataset_analysis is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Workspace için dataset analysis "
+                "henüz bulunmuyor."
+            ),
+        )
+
+    findings = workspace.dataset_analysis.findings
+
+    if (
+        finding_index < 0
+        or finding_index >= len(findings)
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Finding bulunamadı.",
+        )
+
+    loop = next(
+        (
+            item
+            for item in workspace.learning_loops
+            if item.loop_id == loop_id
+        ),
+        None,
+    )
+
+    if loop is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learning loop bulunamadı.",
+        )
+
+    if loop.finding_index != finding_index:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Learning loop bu finding'e ait değil."
+            ),
+        )
+
+    if loop.current_phase in {
+        "implement",
+        "validate",
+        "completed",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu learning-loop phase'i free-text "
+                "cevap ile ilerletilemez."
+            ),
+        )
+
+    finding = findings[finding_index]
+
+    mentor_decision = get_mentor_decision_for_learner(
+        learner_id=learner_id,
+        skill_name=loop.skill_name,
+        current_message=request.response,
+    )
+
+    evaluation = evaluate_prepare_phase_response(
+        loop=loop,
+        finding=finding,
+        response=request.response,
+    )
+
+    evidence = record_prepare_phase_evidence(
+        learner_id=learner_id,
+        workspace_id=workspace_id,
+        loop=loop,
+        finding=finding,
+        assistance_level=(
+            mentor_decision.assistance_level
+        ),
+        evaluation=evaluation,
+    )
+
+    if loop.current_phase == "explain":
+        loop, mentor_response = (
+            complete_prepare_learning_loop(
+                loop=loop,
+                finding=finding,
+                evidence=evidence,
+            )
+        )
+    else:
+        loop, mentor_response = (
+            apply_learning_phase_review(
+                loop=loop,
+                finding=finding,
+                evidence=evidence,
+            )
+        )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceLearningLoopReviewResponse(
+        loop=loop,
+        mentor_response=mentor_response,
+        evidence=evidence,
+        assistance_level=(
+            mentor_decision.assistance_level
+        ),
     )
 
 
