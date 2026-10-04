@@ -1708,6 +1708,12 @@ class WorkspaceProcessedDataset(BaseModel):
 class WorkspaceLearningLoop(BaseModel):
     loop_id: str
 
+    language: Literal[
+        "en",
+        "nl",
+        "tr",
+    ] = "en"
+
     stage: Literal[
         "prepare",
     ] = "prepare"
