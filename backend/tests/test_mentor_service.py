@@ -659,6 +659,18 @@ def test_review_data_quality_attempt_records_evidence_and_returns_response():
             evidence_type="application",
             note="Junior uygun bir null kontrolü önerdi.",
             session_id=None,
+            context={
+                "stage": "prepare",
+                "learning_phase": "implement",
+                "task_type": "missing_values",
+                "target_type": "column",
+                "target_name": "age",
+                "user_authored": True,
+                "deterministic_validation": False,
+                "metadata": {
+                    "severity": "medium",
+                },
+            },
         )
 
 def test_generate_data_quality_attempt_response_returns_text():
@@ -794,6 +806,19 @@ def test_review_data_quality_transformation_records_real_validation_evidence():
             "2 değerinden 1 değerine değişti."
         ),
         session_id=None,
+        context={
+            "stage": "prepare",
+            "learning_phase": "validate",
+            "task_type": "missing_values",
+            "target_type": "column",
+            "target_name": "age",
+            "user_authored": True,
+            "deterministic_validation": True,
+            "metadata": {
+                "severity": "medium",
+                "validation_type": "MissingValuesValidationResult",
+            },
+        },
     )
 
 def test_build_learning_evidence_from_duplicate_validation():

@@ -1,3 +1,5 @@
+import json
+
 import backend.app.database as database
 
 from backend.app.models import (
@@ -57,6 +59,138 @@ def get_evidence_value(
         TypeError,
     ):
         return default
+
+
+def parse_evidence_context(
+    evidence_item,
+) -> dict:
+    raw = get_evidence_value(
+        evidence_item,
+        "context_json",
+    )
+
+    if raw in (
+        None,
+        "",
+    ):
+        return {}
+
+    if isinstance(raw, dict):
+        return raw
+
+    try:
+        value = json.loads(raw)
+    except (
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+    ):
+        return {}
+
+    return (
+        value
+        if isinstance(value, dict)
+        else {}
+    )
+
+
+def build_learning_phase_summary(
+    evidence,
+) -> tuple[
+    str | None,
+    dict[str, int],
+    dict[str, int],
+    list[str],
+]:
+    phase_counts: dict[str, int] = {}
+    phase_success_counts: dict[str, int] = {}
+    misconceptions: list[str] = []
+    latest_phase: str | None = None
+
+    for item in evidence:
+        context = parse_evidence_context(
+            item
+        )
+
+        phase = context.get(
+            "learning_phase"
+        )
+
+        if isinstance(phase, str):
+            latest_phase = phase
+            phase_counts[phase] = (
+                phase_counts.get(
+                    phase,
+                    0,
+                )
+                + 1
+            )
+
+            if bool(
+                get_evidence_value(
+                    item,
+                    "success",
+                    False,
+                )
+            ):
+                phase_success_counts[phase] = (
+                    phase_success_counts.get(
+                        phase,
+                        0,
+                    )
+                    + 1
+                )
+
+        misconception = context.get(
+            "misconception"
+        )
+
+        if (
+            isinstance(
+                misconception,
+                str,
+            )
+            and misconception.strip()
+            and misconception
+            not in misconceptions
+        ):
+            misconceptions.append(
+                misconception
+            )
+
+    return (
+        latest_phase,
+        phase_counts,
+        phase_success_counts,
+        misconceptions,
+    )
+
+
+def build_skill_independence_score(
+    evidence,
+) -> int:
+    scores = [
+        assistance_level_to_percent(
+            get_evidence_value(
+                item,
+                "assistance_level",
+            )
+        )
+        for item in evidence
+        if get_evidence_value(
+            item,
+            "assistance_level",
+        )
+        is not None
+    ]
+
+    if not scores:
+        return 0
+
+    return round(
+        sum(scores)
+        / len(scores)
+    )
 
 
 def build_mentor_dependency_history(
@@ -293,6 +427,21 @@ def get_learner_progress(
             success_rate=success_rate,
             independence_trend=independence_trend,
         )
+
+        (
+            latest_learning_phase,
+            learning_phase_counts,
+            learning_phase_success_counts,
+            misconceptions,
+        ) = build_learning_phase_summary(
+            evidence
+        )
+
+        independence_score = (
+            build_skill_independence_score(
+                evidence
+            )
+        )
         
         skill_progress = LearnerSkillProgress(
             skill_name=skill_name,
@@ -303,6 +452,15 @@ def get_learner_progress(
             last_assistance_level=last_assistance_level,
             independence_trend=independence_trend,
             practice_priority=practice_priority,
+            independence_score=independence_score,
+            latest_learning_phase=latest_learning_phase,
+            learning_phase_counts=(
+                learning_phase_counts
+            ),
+            learning_phase_success_counts=(
+                learning_phase_success_counts
+            ),
+            misconceptions=misconceptions,
         )
 
         skill_progress_list.append(

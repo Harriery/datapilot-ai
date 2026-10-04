@@ -306,6 +306,7 @@ def init_db():
         evidence_type TEXT NOT NULL,
         note TEXT,
         session_id TEXT,
+        context_json TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 
         FOREIGN KEY (learner_id)
@@ -316,6 +317,21 @@ def init_db():
     )
     """
     )
+
+    learning_evidence_columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(learning_evidence)"
+        ).fetchall()
+    }
+
+    if "context_json" not in learning_evidence_columns:
+        connection.execute(
+            """
+            ALTER TABLE learning_evidence
+            ADD COLUMN context_json TEXT
+            """
+        )
 
         # ==================================================
     # DATA ENGINEERING TASKS
@@ -1064,47 +1080,81 @@ def record_learning_evidence(
     assistance_level: str,
     success: bool,
     evidence_type: str,
-    note: str | None = None,    # str | None → string de olabilir, None da olabilir
-    session_id: str | None = None,  # = None → kullanıcı değer vermezse varsayılan olarak None kullan
+    note: str | None = None,
+    session_id: str | None = None,
+    context: dict | None = None,
+):
+    """
+    Persist Learning Evidence V2.
 
-    ):
+    Core fields stay normalized for progress queries. Rich project/stage/task
+    context is stored as JSON so the adaptive mentor can learn from different
+    datasets without schema churn.
+    """
     connection = get_connection()
-    
+
+    context_json = (
+        json.dumps(
+            context,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        if context
+        else None
+    )
+
     try:
         connection.execute(
             """
-                INSERT INTO learning_evidence(learner_id,skill_name, assistance_level, success, evidence_type,note, session_id)
-                VALUES (?,?,?,?,?,?,?)
+            INSERT INTO learning_evidence(
+                learner_id,
+                skill_name,
+                assistance_level,
+                success,
+                evidence_type,
+                note,
+                session_id,
+                context_json
+            )
+            VALUES (?,?,?,?,?,?,?,?)
             """,
-            (learner_id, skill_name, assistance_level, success, evidence_type,note, session_id)
-        ),
+            (
+                learner_id,
+                skill_name,
+                assistance_level,
+                success,
+                evidence_type,
+                note,
+                session_id,
+                context_json,
+            ),
+        )
+
         cursor = connection.execute(
             """
-                UPDATE skill_states
-                SET
-                    attempts = attempts + 1,
-                    successful_attempts = successful_attempts + ?,
-                    last_used_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE learner_id = ?
-                AND skill_name = ?
-                """,
-                (
-                    int(success),
-                    learner_id,
-                    skill_name,
-                ),
-
+            UPDATE skill_states
+            SET
+                attempts = attempts + 1,
+                successful_attempts = successful_attempts + ?,
+                last_used_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE learner_id = ?
+            AND skill_name = ?
+            """,
+            (
+                int(success),
+                learner_id,
+                skill_name,
+            ),
         )
-        # kontrolettigimiz, kac kayit etkilendi.
-        if cursor.rowcount == 0:                        # rowcount = 1 → skill bulundu ve update edildi
-                                                        # rowcount = 0 → skill bulunamadı, hiçbir şey update edilmedi
+
+        if cursor.rowcount == 0:
             raise ValueError("Skill state bulunamadı.")
+
         connection.commit()
-        
-       
+
     except Exception:
-        connection.rollback() # Bu transaction içinde şimdiye kadar yaptığımız değişiklikleri iptal et.
+        connection.rollback()
         raise
 
     finally:

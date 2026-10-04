@@ -977,6 +977,16 @@ function App() {
   const [mentorContextPrompt, setMentorContextPrompt] = useState<string | null>(null);
   const [mentorContextPromptKey, setMentorContextPromptKey] = useState(0);
   const [mentorPanelOpen, setMentorPanelOpen] = useState(false);
+
+  const [
+    mentorLearningFindingIndex,
+    setMentorLearningFindingIndex,
+  ] = useState<number | null>(null);
+
+  const [
+    mentorLearningLoopKey,
+    setMentorLearningLoopKey,
+  ] = useState(0);
   
   const [
     workspaceTask,
@@ -7234,6 +7244,26 @@ async function restoreWorkspaceVersion(
                                               {finding.suggested_action}
                                             </p>
                                           </div>
+
+                                          {dashboardWorkspace.usage_context === "personal" && (
+                                            <button
+                                              type="button"
+                                              className="workspace-finding-mentor-button"
+                                              onClick={() => {
+                                                setMentorLearningFindingIndex(
+                                                  index
+                                                );
+                                                setMentorLearningLoopKey(
+                                                  (value) => value + 1
+                                                );
+                                                setMentorPanelOpen(
+                                                  true
+                                                );
+                                              }}
+                                            >
+                                              Learn with Mentor →
+                                            </button>
+                                          )}
                                         </div>
                                       </details>
                                     )
@@ -8627,6 +8657,15 @@ async function restoreWorkspaceVersion(
           language={language}
           contextualPrompt={mentorContextPrompt}
           contextualPromptKey={mentorContextPromptKey}
+          learningLoopFindingIndex={
+            mentorLearningFindingIndex
+          }
+          learningLoopKey={
+            mentorLearningLoopKey
+          }
+          workspaceRevision={
+            workspacePreviewRevision
+          }
           uiContext={{
             active_workspace_stage: activeWorkspaceStage,
             active_prepare_stage:

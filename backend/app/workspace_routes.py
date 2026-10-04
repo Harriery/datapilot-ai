@@ -32,6 +32,9 @@ from backend.app.models import (
     WorkspaceFindingMentorResponse,
     WorkspaceFindingAttemptRequest,
     WorkspaceFindingAttemptResponse,
+    WorkspaceLearningLoopResponse,
+    WorkspaceLearningLoopResponseRequest,
+    WorkspaceLearningLoopReviewResponse,
     LearningEvidenceDecision,
     PersonalProjectAnalysisRequest,
     PersonalProjectAnalysisResult,
@@ -107,6 +110,15 @@ from backend.app.data_security_service import (
     evaluate_external_ai_policy,
 )
 
+from backend.app.ai_provider_service import (
+    AIProviderConfigurationError,
+)
+from backend.app.ai_usage_guard import (
+    AIBillingPolicyError,
+    AIUsageLimitError,
+)
+
+
 from backend.app.local_data_quality_mentor_service import (
     build_local_mentor_response,
     get_local_assistance_level,
@@ -160,6 +172,16 @@ from backend.app.transformation_validation_service import (
 from backend.app.workspace_pipeline_service import (
     apply_pipeline_action,
     apply_replayable_workbench_pipeline,
+)
+
+from backend.app.mentor_learning_loop_service import (
+    apply_learning_phase_review,
+    apply_trusted_prepare_validation,
+    complete_prepare_learning_loop,
+    evaluate_prepare_phase_response,
+    record_prepare_phase_evidence,
+    record_trusted_prepare_validation_evidence,
+    start_or_resume_prepare_learning_loop,
 )
 
 from backend.app.workspace_notebook_mentor_service import (
@@ -772,6 +794,8 @@ def transform_workspace_workbench_data(
             ),
         )
 
+    learning_validation_summary = None
+
     if operation.origin == "data_quality":
 
         if (
@@ -862,6 +886,17 @@ def transform_workspace_workbench_data(
                     "karşılamıyor."
                 ),
             )
+
+        if validation is not None:
+            learning_validation_summary = (
+                validation.model_dump()
+            )
+        else:
+            learning_validation_summary = {
+                "success": True,
+                "validation_type":
+                    "suspicious_value_replacement",
+            }
 
     # --------------------------------------------------
     # VERSION SNAPSHOT
@@ -1081,6 +1116,75 @@ def transform_workspace_workbench_data(
         ]
 
     workspace.checkpoint.last_error = None
+
+    if (
+        operation.origin == "data_quality"
+        and operation.finding_index is not None
+        and learning_validation_summary is not None
+        and workspace.dataset_analysis is not None
+    ):
+        active_loop = next(
+            (
+                loop
+                for loop in workspace.learning_loops
+                if (
+                    loop.stage == "prepare"
+                    and loop.finding_index
+                        == operation.finding_index
+                    and loop.status == "active"
+                    and loop.current_phase
+                        in {
+                            "implement",
+                            "validate",
+                        }
+                )
+            ),
+            None,
+        )
+
+        if active_loop is not None:
+            finding = (
+                workspace.dataset_analysis.findings[
+                    operation.finding_index
+                ]
+            )
+
+            skill_state = (
+                database.get_skill_state(
+                    learner_id,
+                    active_loop.skill_name,
+                )
+            )
+
+            skill_status = (
+                skill_state["status"]
+                if skill_state is not None
+                else "new"
+            )
+
+            assistance_level = (
+                get_local_assistance_level(
+                    skill_status
+                )
+            )
+
+            record_trusted_prepare_validation_evidence(
+                learner_id=learner_id,
+                workspace_id=workspace_id,
+                loop=active_loop,
+                finding=finding,
+                assistance_level=assistance_level,
+                success=True,
+                validation_summary=(
+                    learning_validation_summary
+                ),
+            )
+
+            apply_trusted_prepare_validation(
+                loop=active_loop,
+                finding=finding,
+                success=True,
+            )
 
     database.save_workspace(
         workspace=workspace
@@ -2019,6 +2123,250 @@ def profile_workspace_data(
         "analysis_source":
             analysis_source,
     }
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data/findings/{finding_index}/learning-loop"
+    ),
+    response_model=WorkspaceLearningLoopResponse,
+)
+def start_workspace_prepare_learning_loop(
+    learner_id: str,
+    workspace_id: str,
+    finding_index: int,
+    language: Literal[
+        "en",
+        "nl",
+        "tr",
+    ] = Query(
+        default="en"
+    ),
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.dataset_analysis is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Workspace için dataset analysis "
+                "henüz bulunmuyor."
+            ),
+        )
+
+    findings = workspace.dataset_analysis.findings
+
+    if (
+        finding_index < 0
+        or finding_index >= len(findings)
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Finding bulunamadı.",
+        )
+
+    finding = findings[finding_index]
+
+    skill_name = get_skill_for_data_quality_issue(
+        finding.issue_type
+    )
+
+    if skill_name is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu finding için uygun "
+                "mentor skill'i bulunamadı."
+            ),
+        )
+
+    loop, mentor_prompt = (
+        start_or_resume_prepare_learning_loop(
+            workspace=workspace,
+            finding_index=finding_index,
+            finding=finding,
+            skill_name=skill_name,
+            language=language,
+        )
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceLearningLoopResponse(
+        loop=loop,
+        mentor_prompt=mentor_prompt,
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data/findings/{finding_index}"
+        "/learning-loop/{loop_id}/respond"
+    ),
+    response_model=WorkspaceLearningLoopReviewResponse,
+)
+def respond_to_workspace_prepare_learning_loop(
+    learner_id: str,
+    workspace_id: str,
+    finding_index: int,
+    loop_id: str,
+    request: WorkspaceLearningLoopResponseRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.dataset_analysis is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Workspace için dataset analysis "
+                "henüz bulunmuyor."
+            ),
+        )
+
+    findings = workspace.dataset_analysis.findings
+
+    if (
+        finding_index < 0
+        or finding_index >= len(findings)
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Finding bulunamadı.",
+        )
+
+    loop = next(
+        (
+            item
+            for item in workspace.learning_loops
+            if item.loop_id == loop_id
+        ),
+        None,
+    )
+
+    if loop is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learning loop bulunamadı.",
+        )
+
+    if loop.finding_index != finding_index:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Learning loop bu finding'e ait değil."
+            ),
+        )
+
+    if loop.current_phase in {
+        "implement",
+        "validate",
+        "completed",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu learning-loop phase'i free-text "
+                "cevap ile ilerletilemez."
+            ),
+        )
+
+    finding = findings[finding_index]
+
+    skill_state = database.get_skill_state(
+        learner_id,
+        loop.skill_name,
+    )
+
+    skill_status = (
+        skill_state["status"]
+        if skill_state is not None
+        else "new"
+    )
+
+    assistance_level = (
+        get_local_assistance_level(
+            skill_status
+        )
+    )
+
+    try:
+        evaluation = evaluate_prepare_phase_response(
+            loop=loop,
+            finding=finding,
+            response=request.response,
+        )
+    except (
+        AIProviderConfigurationError,
+        AIBillingPolicyError,
+        AIUsageLimitError,
+    ) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    evidence = record_prepare_phase_evidence(
+        learner_id=learner_id,
+        workspace_id=workspace_id,
+        loop=loop,
+        finding=finding,
+        assistance_level=(
+            assistance_level
+        ),
+        evaluation=evaluation,
+    )
+
+    if loop.current_phase == "explain":
+        loop, mentor_response = (
+            complete_prepare_learning_loop(
+                loop=loop,
+                finding=finding,
+                evidence=evidence,
+            )
+        )
+    else:
+        loop, mentor_response = (
+            apply_learning_phase_review(
+                loop=loop,
+                finding=finding,
+                evidence=evidence,
+            )
+        )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceLearningLoopReviewResponse(
+        loop=loop,
+        mentor_response=mentor_response,
+        evidence=evidence,
+        assistance_level=(
+            assistance_level
+        ),
+    )
+
 
 @router.post(
     (

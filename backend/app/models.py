@@ -199,6 +199,53 @@ class LearningEvidenceDecision(BaseModel):
     # AI'nın kısa açıklaması
     note: str | None = None
 
+class LearningEvidenceContext(BaseModel):
+    """
+    Learning Evidence V2 context.
+
+    The core evidence fields (skill, success, assistance level, type)
+    stay query-friendly in SQL. This model stores the richer project
+    context needed by the adaptive mentor without hard-coding one dataset.
+    """
+
+    workspace_id: str | None = None
+    stage: str | None = None
+
+    learning_phase: Literal[
+        "observe",
+        "reason",
+        "decide",
+        "implement",
+        "validate",
+        "explain",
+    ] | None = None
+
+    task_type: str | None = None
+    target_type: str | None = None
+    target_name: str | None = None
+
+    user_authored: bool | None = None
+    deterministic_validation: bool | None = None
+
+    misconception: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class PrepareLearningPhaseEvaluation(BaseModel):
+    is_evidence: bool
+    success: bool | None = None
+
+    evidence_type: Literal[
+        "application",
+        "explanation",
+        "debugging",
+        "validation",
+    ] | None = None
+
+    note: str | None = None
+    misconception: str | None = None
+
+
 class DataQualityFinding(BaseModel):
     issue_type:Literal[
         "missing_values",
@@ -1658,6 +1705,85 @@ class WorkspaceProcessedDataset(BaseModel):
     ] = "working_snapshot"
 
 
+class WorkspaceLearningLoop(BaseModel):
+    loop_id: str
+
+    language: Literal[
+        "en",
+        "nl",
+        "tr",
+    ] = "en"
+
+    stage: Literal[
+        "prepare",
+    ] = "prepare"
+
+    finding_index: int
+    skill_name: str
+
+    target_type: Literal[
+        "column",
+        "dataset",
+    ]
+
+    target_name: str | None = None
+
+    current_phase: Literal[
+        "observe",
+        "reason",
+        "decide",
+        "implement",
+        "validate",
+        "explain",
+        "completed",
+    ] = "observe"
+
+    completed_phases: list[
+        Literal[
+            "observe",
+            "reason",
+            "decide",
+            "implement",
+            "validate",
+            "explain",
+        ]
+    ] = Field(default_factory=list)
+
+    status: Literal[
+        "active",
+        "completed",
+    ] = "active"
+
+    trusted_validation: dict = Field(
+        default_factory=dict
+    )
+
+
+class WorkspaceLearningLoopResponse(BaseModel):
+    loop: WorkspaceLearningLoop
+    mentor_prompt: str
+
+
+class WorkspaceLearningLoopResponseRequest(BaseModel):
+    response: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+
+
+class WorkspaceLearningLoopReviewResponse(BaseModel):
+    loop: WorkspaceLearningLoop
+    mentor_response: str
+    evidence: LearningEvidenceDecision
+    assistance_level: Literal[
+        "NONE",
+        "NUDGE",
+        "GUIDE",
+        "TEACH",
+        "DEMONSTRATE",
+    ]
+
+
 class Workspace(BaseModel):
     workspace_id: str
     learner_id: str
@@ -1838,6 +1964,10 @@ class Workspace(BaseModel):
     checkpoint: WorkspaceCheckpoint = Field(
         default_factory=WorkspaceCheckpoint
     )
+
+    learning_loops: list[
+        WorkspaceLearningLoop
+    ] = Field(default_factory=list)
     
 class TaskSummaryItem(BaseModel):
     workspace_id: str
@@ -1923,6 +2053,31 @@ class LearnerSkillProgress(BaseModel):
         "low",
         "none",
     ] = "none"
+
+    independence_score: int = 0
+
+    latest_learning_phase: Literal[
+        "observe",
+        "reason",
+        "decide",
+        "implement",
+        "validate",
+        "explain",
+    ] | None = None
+
+    learning_phase_counts: dict[
+        str,
+        int,
+    ] = Field(default_factory=dict)
+
+    learning_phase_success_counts: dict[
+        str,
+        int,
+    ] = Field(default_factory=dict)
+
+    misconceptions: list[
+        str
+    ] = Field(default_factory=list)
 
 
 class MentorDependencyPoint(BaseModel):

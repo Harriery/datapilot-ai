@@ -54,6 +54,25 @@ type SkillProgressData = {
     | "medium"
     | "low"
     | "none";
+
+  independence_score: number;
+
+  latest_learning_phase:
+    | "observe"
+    | "reason"
+    | "decide"
+    | "implement"
+    | "validate"
+    | "explain"
+    | null;
+
+  learning_phase_counts:
+    Record<string, number>;
+
+  learning_phase_success_counts:
+    Record<string, number>;
+
+  misconceptions: string[];
 };
 
 
@@ -71,18 +90,6 @@ type ProgressResponse = {
 
 type ProgressPageProps = {
   language: AppLanguage;
-};
-
-
-const ASSISTANCE_INDEPENDENCE_SCORE: Record<
-  AssistanceLevel,
-  number
-> = {
-  DEMONSTRATE: 0,
-  TEACH: 25,
-  GUIDE: 50,
-  NUDGE: 75,
-  NONE: 100,
 };
 
 
@@ -223,15 +230,11 @@ function ProgressPage({
     skills
       .filter(
         (skill) =>
-          skill.last_assistance_level !==
-          null
+          skill.attempts > 0
       )
       .map(
         (skill) =>
-          ASSISTANCE_INDEPENDENCE_SCORE[
-            skill.last_assistance_level as
-              AssistanceLevel
-          ]
+          skill.independence_score
       );
 
 
@@ -467,11 +470,7 @@ function ProgressPage({
               <div className="progress-panel-content">
                 {skills.map((skill) => {
                   const independence =
-                    skill.last_assistance_level
-                      ? ASSISTANCE_INDEPENDENCE_SCORE[
-                          skill.last_assistance_level
-                        ]
-                      : 0;
+                    skill.independence_score;
 
                   return (
                     <div
@@ -499,7 +498,7 @@ function ProgressPage({
                         </div>
 
                         <strong>
-                          {skill.last_assistance_level
+                          {skill.attempts > 0
                             ? `${independence}%`
                             : "—"}
                         </strong>
@@ -663,20 +662,109 @@ function ProgressPage({
                       <div>
                         <strong>
                           {
-                            getMentorModeLabel(
-                              skill
-                                .last_assistance_level
-                            )
+                            skill.independence_score
                           }
+                          %
                         </strong>
 
                         <span>
                           {
                             t.progress
-                              .mentorMode
+                              .independenceScore
                           }
                         </span>
                       </div>
+                    </div>
+
+                    <div className="progress-learning-evidence">
+                      <div className="progress-learning-evidence-header">
+                        <span>
+                          {t.progress.learningEvidence}
+                        </span>
+
+                        <strong>
+                          {skill.latest_learning_phase
+                            ? t.progress.learningPhases[
+                                skill.latest_learning_phase
+                              ]
+                            : t.progress.noPhaseEvidence}
+                        </strong>
+                      </div>
+
+                      <div className="progress-phase-grid">
+                        {(
+                          [
+                            "observe",
+                            "reason",
+                            "decide",
+                            "implement",
+                            "validate",
+                            "explain",
+                          ] as const
+                        ).map((phase) => {
+                          const total =
+                            skill.learning_phase_counts[
+                              phase
+                            ] ?? 0;
+
+                          const successful =
+                            skill
+                              .learning_phase_success_counts[
+                                phase
+                              ] ?? 0;
+
+                          return (
+                            <div
+                              className={
+                                "progress-phase-chip " +
+                                (
+                                  total > 0
+                                    ? "has-evidence"
+                                    : ""
+                                )
+                              }
+                              key={phase}
+                            >
+                              <span>
+                                {
+                                  t.progress
+                                    .learningPhases[
+                                      phase
+                                    ]
+                                }
+                              </span>
+
+                              <strong>
+                                {successful}/{total}
+                              </strong>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {skill.misconceptions.length > 0 && (
+                        <div className="progress-misconceptions">
+                          <span>
+                            {t.progress.misconceptions}
+                          </span>
+
+                          <div>
+                            {skill.misconceptions.map(
+                              (misconception) => (
+                                <code
+                                  key={
+                                    misconception
+                                  }
+                                >
+                                  {
+                                    misconception
+                                  }
+                                </code>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </article>
                 ))}

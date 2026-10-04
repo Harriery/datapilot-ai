@@ -1,0 +1,1274 @@
+{
+  "suite_id": "datapilot-mentor-v1",
+  "version": 1,
+  "purpose": "Compare candidate models specifically as adaptive DataPilot learning mentors.",
+  "scoring_dimensions": [
+    "technical_correctness",
+    "pedagogy",
+    "assistance_calibration",
+    "context_fidelity",
+    "non_hallucination",
+    "learning_loop_discipline",
+    "transfer_reasoning"
+  ],
+  "score_scale": {
+    "min": 0,
+    "max": 5
+  },
+  "scenarios": [
+    {
+      "id": "prepare_missing_observe_small_ratio",
+      "title": "Observe a small missing-value ratio",
+      "stage": "prepare",
+      "skill_name": "null_analysis",
+      "phase": "observe",
+      "difficulty": "foundation",
+      "learner_profile": {
+        "skill_status": "new",
+        "prior_success_rate": 0,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "missing_values",
+          "column": "parking_spaces",
+          "observation": "23 missing values found (0.46%)."
+        },
+        "evidence": {
+          "row_count": 5000,
+          "missing_count": 23,
+          "missing_percentage": 0.46
+        }
+      },
+      "learner_message": "parking_spaces sütununda 23 eksik değer var. Bu da verinin yaklaşık %0,46'sı.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "GUIDE",
+          "TEACH"
+        ],
+        "next_phase": "reason",
+        "required_behaviors": [
+          "Recognize the learner's observation as relevant evidence.",
+          "Do not jump directly to filling or dropping values.",
+          "Move the learner toward investigating why the values are missing."
+        ],
+        "forbidden_behaviors": [
+          "Invent additional dataset facts.",
+          "Provide a full transformation solution before reasoning."
+        ]
+      }
+    },
+    {
+      "id": "prepare_missing_reason_pattern",
+      "title": "Reason about a missingness pattern",
+      "stage": "prepare",
+      "skill_name": "null_analysis",
+      "phase": "reason",
+      "difficulty": "easy",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.67,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "missing_values",
+          "column": "garage_size",
+          "observation": "48 missing values found."
+        },
+        "evidence": {
+          "missing_by_property_type": {
+            "apartment": 45,
+            "house": 3
+          },
+          "total_missing": 48
+        }
+      },
+      "learner_message": "Eksiklerin çoğu apartment kayıtlarında. Garage alanı olmayan apartmanlarda bu değer doğal olarak boş olabilir diye düşünüyorum.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Recognize that the learner is testing whether missingness may be semantically meaningful.",
+          "Encourage confirming the pattern before transforming.",
+          "Avoid treating every missing value as an error."
+        ],
+        "forbidden_behaviors": [
+          "State that the missing values are definitely random.",
+          "Recommend median imputation without further evidence."
+        ]
+      }
+    },
+    {
+      "id": "prepare_missing_decide_auto_fill_misconception",
+      "title": "Catch automatic missing-value imputation",
+      "stage": "prepare",
+      "skill_name": "null_analysis",
+      "phase": "decide",
+      "difficulty": "easy",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.5,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "missing_values",
+          "column": "garage_size",
+          "observation": "48 missing values found."
+        },
+        "evidence": {
+          "missing_percentage": 0.9
+        }
+      },
+      "learner_message": "Eksik değer varsa en güvenlisi hepsini 0 ile doldurmak olur.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": false,
+        "allowed_assistance": [
+          "GUIDE",
+          "TEACH"
+        ],
+        "next_phase": "decide",
+        "misconception": "missing_value_means_fill_zero",
+        "required_behaviors": [
+          "Identify that zero may have a real semantic meaning.",
+          "Ask the learner to justify whether zero is valid for this column.",
+          "Keep the learner in the decision phase until reasoning improves."
+        ],
+        "forbidden_behaviors": [
+          "Approve zero-filling automatically.",
+          "Give implementation code immediately."
+        ]
+      }
+    },
+    {
+      "id": "prepare_duplicates_business_identity",
+      "title": "Distinguish row duplicates from business duplicates",
+      "stage": "prepare",
+      "skill_name": "duplicate_analysis",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.8,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "duplicate_rows",
+          "column": null,
+          "observation": "12 exact duplicate rows found."
+        },
+        "evidence": {
+          "exact_duplicate_count": 12
+        }
+      },
+      "learner_message": "Exact duplicate oldukları için silinebilirler ama önce aynı olayın iki kez kaydedilmiş olması mı yoksa gerçekten iki ayrı kayıt mı anlamalıyım.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Reward the distinction between technical duplicates and business duplicates.",
+          "Encourage checking business keys or event identity."
+        ],
+        "forbidden_behaviors": [
+          "Assume exact duplicates are always safe to delete."
+        ]
+      }
+    },
+    {
+      "id": "prepare_outlier_true_value",
+      "title": "Reason about a possible true outlier",
+      "stage": "prepare",
+      "skill_name": "numeric_analysis",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.75,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "suspicious_values",
+          "column": "sale_price",
+          "observation": "A small set of values lies above the IQR upper bound."
+        },
+        "evidence": {
+          "iqr_flag_count": 17,
+          "max_value": 4200000
+        }
+      },
+      "learner_message": "IQR dışında olması tek başına hatalı olduğu anlamına gelmez. Lüks ürünler gerçekten pahalı olabilir; önce kayıtların bağlamına bakmalıyım.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Confirm that an outlier rule is not equivalent to an error rule.",
+          "Encourage contextual validation."
+        ],
+        "forbidden_behaviors": [
+          "Recommend deleting all IQR outliers."
+        ]
+      }
+    },
+    {
+      "id": "prepare_numeric_identifier",
+      "title": "Do not treat a numeric identifier as a measure",
+      "stage": "prepare",
+      "skill_name": "data_types",
+      "phase": "observe",
+      "difficulty": "easy",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.6,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "schema_issue",
+          "column": "customer_id",
+          "observation": "customer_id is stored as integer."
+        },
+        "evidence": {
+          "distinct_count": 1000,
+          "row_count": 1000
+        }
+      },
+      "learner_message": "customer_id sayısal ama her satırda benzersiz. Bunu toplamak veya ortalamasını almak anlamsız olur.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "reason",
+        "required_behaviors": [
+          "Recognize identifier-vs-measure reasoning.",
+          "Reinforce semantic role over physical dtype."
+        ],
+        "forbidden_behaviors": [
+          "Call every numeric column a measure."
+        ]
+      }
+    },
+    {
+      "id": "prepare_validation_code_ran",
+      "title": "Reject 'the code ran' as validation",
+      "stage": "prepare",
+      "skill_name": "data_validation",
+      "phase": "validate",
+      "difficulty": "easy",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.5,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "missing_values",
+          "column": "city",
+          "observation": "31 missing values found."
+        },
+        "evidence": {
+          "before_rows": 2000,
+          "before_nulls": 31,
+          "after_rows": 1969,
+          "after_nulls": 0
+        }
+      },
+      "learner_message": "Kod hata vermeden çalıştı, yani dönüşüm doğru.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": false,
+        "allowed_assistance": [
+          "GUIDE",
+          "TEACH"
+        ],
+        "next_phase": "validate",
+        "misconception": "execution_success_equals_validation",
+        "required_behaviors": [
+          "Explain that successful execution is not sufficient validation.",
+          "Direct attention to before/after row counts and null counts."
+        ],
+        "forbidden_behaviors": [
+          "Mark the transformation as validated solely because it ran."
+        ]
+      }
+    },
+    {
+      "id": "prepare_validation_unexpected_row_loss",
+      "title": "Catch unexpected row loss after imputation",
+      "stage": "prepare",
+      "skill_name": "data_validation",
+      "phase": "validate",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.8,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "missing_values",
+          "column": "age",
+          "observation": "20 missing values found."
+        },
+        "evidence": {
+          "before_rows": 1000,
+          "after_rows": 980,
+          "before_nulls": 20,
+          "after_nulls": 0,
+          "operation_claim": "fill missing values"
+        }
+      },
+      "learner_message": "Null kalmadı, bu yüzden başarılı görünüyor.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": false,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "validate",
+        "misconception": "single_metric_validation",
+        "required_behaviors": [
+          "Notice the unexpected loss of 20 rows.",
+          "Challenge the learner to reconcile the operation intent with row-count change."
+        ],
+        "forbidden_behaviors": [
+          "Declare success based only on after_nulls being zero."
+        ]
+      }
+    },
+    {
+      "id": "mentor_help_request_beginner",
+      "title": "Increase support when the learner explicitly asks for help",
+      "stage": "prepare",
+      "skill_name": "null_analysis",
+      "phase": "reason",
+      "difficulty": "foundation",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.9,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "missing_values",
+          "column": "income",
+          "observation": "14 missing values found."
+        },
+        "evidence": {
+          "missing_percentage": 1.4
+        }
+      },
+      "learner_message": "Bunu hiç anlamadım. Ne kontrol etmem gerektiğini adım adım söyler misin?",
+      "expected": {
+        "evidence_expected": false,
+        "success_expected": null,
+        "allowed_assistance": [
+          "GUIDE",
+          "TEACH"
+        ],
+        "next_phase": "reason",
+        "required_behaviors": [
+          "Treat the message as a help request, not learning evidence.",
+          "Increase support despite strong historical performance.",
+          "Give only the next small reasoning step."
+        ],
+        "forbidden_behaviors": [
+          "Score the learner as incorrect.",
+          "Provide a complete end-to-end solution."
+        ]
+      }
+    },
+    {
+      "id": "mentor_independent_correct_reasoning",
+      "title": "Reduce support for demonstrated independence",
+      "stage": "prepare",
+      "skill_name": "null_analysis",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "comfortable",
+        "prior_success_rate": 0.92,
+        "recent_assistance": "NONE"
+      },
+      "workspace_context": {
+        "finding": {
+          "issue_type": "missing_values",
+          "column": "discount_code",
+          "observation": "7 missing values found."
+        },
+        "evidence": {
+          "missing_percentage": 0.2
+        }
+      },
+      "learner_message": "Önce missing kayıtların belirli kampanya türlerinde yoğunlaşıp yoğunlaşmadığına bakarım; eğer 'kod yok' anlamına geliyorsa boş bırakmak daha doğru olabilir.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Acknowledge strong reasoning briefly.",
+          "Avoid reteaching missing-value basics."
+        ],
+        "forbidden_behaviors": [
+          "Switch to step-by-step teaching without need."
+        ]
+      }
+    },
+    {
+      "id": "model_grain_order_lines",
+      "title": "Identify fact grain before modeling",
+      "stage": "data_model",
+      "skill_name": "data_modeling",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.5,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "table_preview": {
+          "columns": [
+            "order_id",
+            "line_id",
+            "product_id",
+            "quantity",
+            "unit_price",
+            "order_date"
+          ],
+          "notes": "One order_id can appear on multiple rows with different line_id values."
+        }
+      },
+      "learner_message": "Fact tablosunun grain'i sipariş değil, sipariş satırı olmalı çünkü aynı order_id birden fazla ürün satırında tekrar ediyor.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Confirm the row-level grain reasoning.",
+          "Keep grain definition ahead of dimension design."
+        ],
+        "forbidden_behaviors": [
+          "Jump directly to a star schema without confirming grain."
+        ]
+      }
+    },
+    {
+      "id": "model_identifier_not_measure",
+      "title": "Separate identifier from measure in the fact table",
+      "stage": "data_model",
+      "skill_name": "data_modeling",
+      "phase": "decide",
+      "difficulty": "easy",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.6,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "columns": [
+          {
+            "name": "order_id",
+            "dtype": "int",
+            "distinct_ratio": 0.45
+          },
+          {
+            "name": "quantity",
+            "dtype": "int",
+            "distinct_ratio": 0.02
+          },
+          {
+            "name": "revenue",
+            "dtype": "float",
+            "distinct_ratio": 0.8
+          }
+        ]
+      },
+      "learner_message": "order_id numerik olsa da measure değil. quantity ve revenue ise analizde aggregate edilebilir.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "implement",
+        "required_behaviors": [
+          "Reward semantic-role reasoning.",
+          "Avoid using dtype alone to classify measures."
+        ],
+        "forbidden_behaviors": [
+          "Recommend SUM(order_id)."
+        ]
+      }
+    },
+    {
+      "id": "model_dimension_vs_attribute",
+      "title": "Decide whether an attribute deserves its own dimension",
+      "stage": "data_model",
+      "skill_name": "data_modeling",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.78,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "entity": "customer",
+        "attributes": [
+          "customer_id",
+          "city",
+          "postal_code",
+          "segment"
+        ],
+        "usage": "Reports slice mostly by city and segment; postal_code is descriptive."
+      },
+      "learner_message": "postal_code için ayrı dimension yapmak zorunda değilim; customer dimension içinde attribute olarak kalabilir.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Recognize that not every descriptive field needs its own dimension.",
+          "Focus on reuse, grain, and analytical purpose."
+        ],
+        "forbidden_behaviors": [
+          "Create a dimension for every categorical column."
+        ]
+      }
+    },
+    {
+      "id": "model_relationship_cardinality",
+      "title": "Reason about many-to-one relationship cardinality",
+      "stage": "data_model",
+      "skill_name": "data_modeling",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.75,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "fact": "fact_sales",
+        "dimension": "dim_product",
+        "relation": "fact_sales.product_key -> dim_product.product_key",
+        "evidence": {
+          "fact_distinct_product_keys": 1200,
+          "dimension_distinct_product_keys": 1200,
+          "dimension_rows": 1200
+        }
+      },
+      "learner_message": "Fact tarafında product_key tekrar edebilir ama dim_product tarafında tekil olmalı; bu yüzden many-to-one beklerim.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Confirm cardinality reasoning.",
+          "Mention uniqueness on the dimension key as relevant evidence."
+        ],
+        "forbidden_behaviors": [
+          "Assume one-to-one because distinct key counts match."
+        ]
+      }
+    },
+    {
+      "id": "model_date_dimension_transfer",
+      "title": "Use prior experience without blindly copying",
+      "stage": "data_model",
+      "skill_name": "data_modeling",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.8,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "current_dataset": {
+          "date_columns": [
+            "invoice_date"
+          ],
+          "analysis_needs": [
+            "monthly trend",
+            "quarter comparison"
+          ]
+        },
+        "prior_project_reference": {
+          "pattern": "date dimension used for year/month/quarter slicing"
+        }
+      },
+      "learner_message": "Önceki projede date dimension kullanmıştım. Burada da aylık ve çeyreklik analiz gerektiği için uygun olabilir ama sırf eskiden kullandım diye kopyalamamalıyım.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Reward transfer of a modeling pattern with current-context justification.",
+          "Avoid assuming old project structure is automatically correct."
+        ],
+        "forbidden_behaviors": [
+          "Tell the learner to copy the prior model unchanged."
+        ]
+      }
+    },
+    {
+      "id": "model_many_to_many_bridge",
+      "title": "Recognize a many-to-many modeling risk",
+      "stage": "data_model",
+      "skill_name": "data_modeling",
+      "phase": "reason",
+      "difficulty": "hard",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.82,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "entities": {
+          "students": "one student can take many courses",
+          "courses": "one course has many students"
+        },
+        "reporting_need": "Analyze enrollments by student and course."
+      },
+      "learner_message": "Student ile Course'u doğrudan tek cardinality ile bağlamak yerine enrollment gibi bridge/fact tablo gerekebilir.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Recognize the many-to-many relationship.",
+          "Support an enrollment bridge/fact concept."
+        ],
+        "forbidden_behaviors": [
+          "Force a direct one-to-many relationship without evidence."
+        ]
+      }
+    },
+    {
+      "id": "kpi_maximum_not_business_kpi",
+      "title": "Distinguish a technical measure from a meaningful KPI",
+      "stage": "kpi",
+      "skill_name": "data_modeling",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.6,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "candidate": {
+          "title": "Maximum Sale Price",
+          "aggregation": "max",
+          "column": "sale_price"
+        },
+        "business_goal": "Understand typical market performance by region."
+      },
+      "learner_message": "Maximum Sale Price teknik olarak hesaplanabilir ama tipik piyasa performansını anlatmak için tek başına iyi KPI olmayabilir.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Reinforce business-question-to-KPI alignment.",
+          "Distinguish metric validity from KPI usefulness."
+        ],
+        "forbidden_behaviors": [
+          "Approve every valid aggregation as a KPI."
+        ]
+      }
+    },
+    {
+      "id": "kpi_business_question_first",
+      "title": "Start KPI design from the business question",
+      "stage": "kpi",
+      "skill_name": "data_modeling",
+      "phase": "observe",
+      "difficulty": "easy",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.55,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "business_question": "Which regions generate the highest average order value?",
+        "available_fields": [
+          "region",
+          "order_id",
+          "revenue"
+        ]
+      },
+      "learner_message": "Soruyu cevaplamak için önce order bazında value hesaplayıp sonra region'a göre ortalama almalıyım; sadece toplam revenue yeterli değil.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "reason",
+        "required_behaviors": [
+          "Confirm the metric grain implied by the business question.",
+          "Keep the KPI linked to the question."
+        ],
+        "forbidden_behaviors": [
+          "Replace average order value with total revenue."
+        ]
+      }
+    },
+    {
+      "id": "kpi_invalid_sum_percentage",
+      "title": "Catch invalid aggregation of percentages",
+      "stage": "kpi",
+      "skill_name": "data_validation",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.8,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "field": {
+          "name": "conversion_rate",
+          "semantic_type": "ratio",
+          "values_example": [
+            0.12,
+            0.08,
+            0.2
+          ]
+        }
+      },
+      "learner_message": "conversion_rate değerlerini SUM ile toplamak doğru olmaz. Oranın nasıl üretildiğine göre weighted average gibi bir yöntem gerekebilir.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Recognize non-additive measure behavior.",
+          "Encourage checking numerator/denominator grain."
+        ],
+        "forbidden_behaviors": [
+          "Recommend SUM(conversion_rate)."
+        ]
+      }
+    },
+    {
+      "id": "analysis_small_sample_top_group",
+      "title": "Question a top-group result with tiny sample size",
+      "stage": "analysis",
+      "skill_name": "data_validation",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.78,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "result": {
+          "metric": "average_revenue",
+          "top_group": "Region Z",
+          "top_value": 920,
+          "group_counts": {
+            "Region Z": 3,
+            "Region A": 450,
+            "Region B": 380
+          }
+        }
+      },
+      "learner_message": "Region Z en yüksek ortalamaya sahip ama sadece 3 kayıt var. Bunu güçlü bir bulgu gibi sunmamalıyım.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Reward sample-size awareness.",
+          "Encourage reliability qualification."
+        ],
+        "forbidden_behaviors": [
+          "Present Region Z as conclusively best without caveat."
+        ]
+      }
+    },
+    {
+      "id": "analysis_correlation_not_causation",
+      "title": "Avoid causal claims from correlation",
+      "stage": "analysis",
+      "skill_name": "numeric_analysis",
+      "phase": "explain",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.8,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "result": {
+          "correlation": 0.71,
+          "variables": [
+            "marketing_spend",
+            "sales"
+          ]
+        }
+      },
+      "learner_message": "Aralarında güçlü ilişki var ama bu tek başına marketing spend satışları artırdı demek için yeterli değil.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "completed",
+        "required_behaviors": [
+          "Confirm association-vs-causation distinction.",
+          "Avoid strengthening the claim beyond the evidence."
+        ],
+        "forbidden_behaviors": [
+          "Claim causality from correlation alone."
+        ]
+      }
+    },
+    {
+      "id": "analysis_two_period_not_trend",
+      "title": "Do not call two periods a trend",
+      "stage": "analysis",
+      "skill_name": "data_validation",
+      "phase": "reason",
+      "difficulty": "easy",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.65,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "result": {
+          "periods": [
+            "2025",
+            "2026"
+          ],
+          "values": [
+            100,
+            112
+          ]
+        }
+      },
+      "learner_message": "İki dönem arasında %12 artış var diyebilirim ama sadece iki noktayla uzun vadeli trend demek fazla iddialı olur.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Preserve the distinction between a period-over-period change and a trend."
+        ],
+        "forbidden_behaviors": [
+          "Call the two-point change a strong long-term trend."
+        ]
+      }
+    },
+    {
+      "id": "dashboard_time_series_visual",
+      "title": "Choose a visual that matches a time trend",
+      "stage": "dashboard",
+      "skill_name": "data_modeling",
+      "phase": "decide",
+      "difficulty": "easy",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.6,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "question": "How has average revenue changed month by month?",
+        "available_visuals": [
+          "line",
+          "bar",
+          "pie",
+          "table"
+        ]
+      },
+      "learner_message": "Zaman içindeki değişimi göstermek için line chart seçerim.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "implement",
+        "required_behaviors": [
+          "Confirm the time-series visual choice.",
+          "Keep the explanation tied to temporal continuity."
+        ],
+        "forbidden_behaviors": [
+          "Recommend pie as the primary visual for the time series."
+        ]
+      }
+    },
+    {
+      "id": "dashboard_visual_overload",
+      "title": "Prefer decision-useful visuals over quantity",
+      "stage": "dashboard",
+      "skill_name": "data_modeling",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.76,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "dashboard": {
+          "visual_count": 18,
+          "page_count": 1
+        },
+        "goal": "Executive overview"
+      },
+      "learner_message": "18 grafik koymak yerine karar vermeye yarayan birkaç KPI ve ana trendleri seçmek daha iyi olabilir.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "decide",
+        "required_behaviors": [
+          "Reward prioritization and dashboard readability.",
+          "Encourage alignment with audience and decision needs."
+        ],
+        "forbidden_behaviors": [
+          "Treat more visuals as automatically better."
+        ]
+      }
+    },
+    {
+      "id": "mentor_no_unseen_column_hallucination",
+      "title": "Do not invent columns that are not in context",
+      "stage": "prepare",
+      "skill_name": "schema_analysis",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.6,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "visible_columns": [
+          "customer_id",
+          "age",
+          "city",
+          "spend"
+        ],
+        "finding": {
+          "issue_type": "missing_values",
+          "column": "city",
+          "observation": "12 missing values found."
+        }
+      },
+      "learner_message": "Eksik city değerlerini country kolonuna bakarak doldurabilir miyim?",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": false,
+        "allowed_assistance": [
+          "GUIDE",
+          "TEACH"
+        ],
+        "next_phase": "reason",
+        "misconception": "assumes_unseen_column_exists",
+        "required_behaviors": [
+          "State that country is not present in the supplied context.",
+          "Ask the learner to use only available evidence or verify the schema."
+        ],
+        "forbidden_behaviors": [
+          "Pretend that a country column exists.",
+          "Invent country values."
+        ]
+      }
+    },
+    {
+      "id": "mentor_prior_project_reference",
+      "title": "Use prior project as a reference, not as a copied answer",
+      "stage": "data_model",
+      "skill_name": "data_modeling",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.8,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "current_dataset": {
+          "grain_hint": "one row per support ticket",
+          "columns": [
+            "ticket_id",
+            "customer_id",
+            "opened_at",
+            "status"
+          ]
+        },
+        "prior_project": {
+          "grain": "one row per order line",
+          "dimensions": [
+            "customer",
+            "product",
+            "date"
+          ]
+        }
+      },
+      "learner_message": "Eski projede customer ve date dimension vardı. Burada da aynısını direkt kurayım mı?",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": false,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "reason",
+        "misconception": "copies_prior_model_without_current_grain",
+        "required_behaviors": [
+          "Use the prior project only as a pattern reference.",
+          "Ask whether customer/date dimensions fit the current ticket grain and reporting needs."
+        ],
+        "forbidden_behaviors": [
+          "Tell the learner to copy the old model unchanged."
+        ]
+      }
+    },
+    {
+      "id": "explain_transformation_reasoning",
+      "title": "Require explanation after successful transformation",
+      "stage": "prepare",
+      "skill_name": "data_transformation",
+      "phase": "explain",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.82,
+        "recent_assistance": "NUDGE"
+      },
+      "workspace_context": {
+        "trusted_validation": {
+          "success": true,
+          "before_null_count": 40,
+          "after_null_count": 0,
+          "before_rows": 2500,
+          "after_rows": 2500
+        },
+        "operation": "Fill missing category values with explicit 'Unknown' label after confirming missing means unavailable."
+      },
+      "learner_message": "Unknown ile doldurdum çünkü boşluk gerçek bir kategori eksikliğini ifade ediyordu; satır sayısı değişmedi ve null sayısı 40'tan 0'a indi.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": true,
+        "allowed_assistance": [
+          "NONE",
+          "NUDGE"
+        ],
+        "next_phase": "completed",
+        "required_behaviors": [
+          "Recognize that the learner explains decision, implementation, and validation evidence.",
+          "Complete the loop without reteaching."
+        ],
+        "forbidden_behaviors": [
+          "Ignore the trusted validation evidence."
+        ]
+      }
+    },
+    {
+      "id": "explain_without_validation",
+      "title": "Do not complete explanation without validation evidence",
+      "stage": "prepare",
+      "skill_name": "data_transformation",
+      "phase": "explain",
+      "difficulty": "easy",
+      "learner_profile": {
+        "skill_status": "learning",
+        "prior_success_rate": 0.6,
+        "recent_assistance": "GUIDE"
+      },
+      "workspace_context": {
+        "trusted_validation": {},
+        "operation": "Normalize category casing."
+      },
+      "learner_message": "Kod çalıştı ve kategorileri küçük harfe çevirdim, o yüzden tamam.",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": false,
+        "allowed_assistance": [
+          "GUIDE",
+          "TEACH"
+        ],
+        "next_phase": "explain",
+        "misconception": "explanation_without_validation_evidence",
+        "required_behaviors": [
+          "Ask for evidence that the intended categories changed safely.",
+          "Do not complete the learning loop."
+        ],
+        "forbidden_behaviors": [
+          "Treat code execution as sufficient validation."
+        ]
+      }
+    },
+    {
+      "id": "practice_target_repeated_misconception",
+      "title": "Target practice to a repeated misconception",
+      "stage": "practice",
+      "skill_name": "null_analysis",
+      "phase": "reason",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.7,
+        "recent_assistance": "GUIDE",
+        "misconceptions": [
+          "missing_value_means_fill_zero",
+          "missing_value_means_fill_zero"
+        ]
+      },
+      "workspace_context": {
+        "new_dataset": {
+          "columns": [
+            "sensor_id",
+            "reading",
+            "error_code"
+          ],
+          "finding": "error_code is missing in 35% of rows"
+        }
+      },
+      "learner_message": "Bu sefer de eksik error_code değerlerini 0 yapayım mı?",
+      "expected": {
+        "evidence_expected": true,
+        "success_expected": false,
+        "allowed_assistance": [
+          "GUIDE",
+          "TEACH"
+        ],
+        "next_phase": "reason",
+        "misconception": "missing_value_means_fill_zero",
+        "required_behaviors": [
+          "Recognize the repeated misconception.",
+          "Prompt the learner to interpret what missing error_code means in this new dataset.",
+          "Avoid replaying the old dataset solution."
+        ],
+        "forbidden_behaviors": [
+          "Approve zero filling automatically.",
+          "Reference unavailable answers from a prior dataset as facts."
+        ]
+      }
+    },
+    {
+      "id": "practice_validation_habit",
+      "title": "Reinforce a recurring validation omission",
+      "stage": "practice",
+      "skill_name": "data_validation",
+      "phase": "validate",
+      "difficulty": "medium",
+      "learner_profile": {
+        "skill_status": "practicing",
+        "prior_success_rate": 0.75,
+        "recent_assistance": "NUDGE",
+        "misconceptions": [
+          "execution_success_equals_validation"
+        ]
+      },
+      "workspace_context": {
+        "task": "A transformation changed product categories and removed duplicate rows.",
+        "available_checks": [
+          "row_count",
+          "duplicate_count",
+          "category_values",
+          "schema"
+        ]
+      },
+      "learner_message": "Kod çalıştı. Başka bir şey kontrol etmeme gerek var mı?",
+      "expected": {
+        "evidence_expected": false,
+        "success_expected": null,
+        "allowed_assistance": [
+          "NUDGE",
+          "GUIDE"
+        ],
+        "next_phase": "validate",
+        "required_behaviors": [
+          "Treat the message as a help request rather than a failed attempt.",
+          "Prompt checks that validate intended effects and unintended side effects."
+        ],
+        "forbidden_behaviors": [
+          "Mark the task complete.",
+          "Dump a long generic checklist unrelated to the transformation."
+        ]
+      }
+    }
+  ]
+}
