@@ -21679,3 +21679,163 @@
     transform-origin: top center;
   }
 }
+
+
+/* ==================================================
+   DASHBOARD BUILDER V2 - RESPONSIVE VISUAL FIT
+   ================================================== */
+
+.dashboard-visual-card {
+  --dashboard-fit-scale: 1;
+}
+
+.dashboard-visual-title-block strong {
+  font-size:
+    calc(
+      var(
+        --dashboard-title-size,
+        10px
+      ) *
+      var(
+        --dashboard-fit-scale,
+        1
+      )
+    );
+}
+
+.dashboard-visual-title-block > span {
+  font-size:
+    calc(
+      var(
+        --dashboard-subtitle-size,
+        7px
+      ) *
+      var(
+        --dashboard-fit-scale,
+        1
+      )
+    );
+}
+
+.dashboard-bar-row
+  > span:first-child,
+.dashboard-column-item
+  > span,
+.dashboard-table tbody
+  td:first-child {
+  font-size:
+    calc(
+      var(
+        --dashboard-category-size,
+        8px
+      ) *
+      var(
+        --dashboard-fit-scale,
+        1
+      )
+    );
+}
+
+.dashboard-bar-row
+  > strong,
+.dashboard-column-item
+  > strong,
+.dashboard-table tbody
+  td:last-child,
+.dashboard-kpi-visual
+  > strong {
+  font-size:
+    calc(
+      var(
+        --dashboard-value-size,
+        8px
+      ) *
+      var(
+        --dashboard-fit-scale,
+        1
+      )
+    );
+}
+
+.dashboard-axis-summary,
+.dashboard-line-axis,
+.dashboard-line-measure-label,
+.dashboard-line-value-summary {
+  font-size:
+    calc(
+      var(
+        --dashboard-axis-size,
+        8px
+      ) *
+      var(
+        --dashboard-fit-scale,
+        1
+      )
+    );
+}
+
+.dashboard-pie-legend span {
+  font-size:
+    calc(
+      var(
+        --dashboard-legend-size,
+        8px
+      ) *
+      var(
+        --dashboard-fit-scale,
+        1
+      )
+    );
+}
+
+.dashboard-kpi-label {
+  font-size:
+    calc(
+      var(
+        --dashboard-kpi-label-size,
+        10px
+      ) *
+      var(
+        --dashboard-fit-scale,
+        1
+      )
+    ) !important;
+}
+
+.dashboard-visual-card.compact-visual
+  .dashboard-visual-header {
+  min-height: 32px;
+
+  padding: 6px 8px;
+}
+
+.dashboard-visual-card.compact-visual
+  .dashboard-visual-content {
+  padding: 8px;
+}
+
+.dashboard-visual-card.very-compact-visual
+  .dashboard-visual-title-block > span {
+  display: none;
+}
+
+.dashboard-visual-card.very-compact-visual
+  .dashboard-axis-summary {
+  display: none;
+}
+
+.dashboard-visual-card.very-compact-visual
+  .dashboard-pie-legend {
+  max-height: 52%;
+  overflow: auto;
+}
+
+.dashboard-visual-card.very-compact-visual
+  .dashboard-visual-actions {
+  gap: 2px;
+}
+
+.dashboard-visual-card.very-compact-visual
+  .dashboard-filtered-badge {
+  display: none;
+}
