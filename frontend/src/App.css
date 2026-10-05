@@ -23223,3 +23223,54 @@
   color: #a74444;
   font-size: 9px;
 }
+
+
+.practice-instruction-code {
+  margin: 8px 0;
+  padding: 9px 10px;
+  overflow-x: auto;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #f4f7fa;
+  color: #30445e;
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.practice-instruction-code code {
+  font: inherit;
+}
+
+.practice-instruction-table-wrap {
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.practice-instruction-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.practice-instruction-table th,
+.practice-instruction-table td {
+  padding: 6px 8px;
+  border: 1px solid #dfe6ef;
+  text-align: left;
+  vertical-align: top;
+}
+
+.practice-instruction-table th {
+  background: #f4f7fa;
+  color: #344b66;
+  font-weight: 700;
+}
+
+.practice-instructions-scroll code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #edf2f7;
+  color: #314760;
+  font-size: .95em;
+}
