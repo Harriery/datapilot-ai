@@ -70,6 +70,41 @@ def get_practice_attempt_assistance_level(
 # ==================================================
 
 
+def _practice_evidence_context(
+    challenge,
+) -> dict | None:
+    context = {
+        "stage": "practice",
+        "task_type": "practice_challenge",
+        "topic_id": challenge.topic_id,
+        "subtopic_id": challenge.subtopic_id,
+        "practice_mode": challenge.practice_mode,
+        "difficulty": challenge.difficulty,
+        "source_id": challenge.source_id,
+        "source_exercise_id": challenge.source_exercise_id,
+        "challenge_id": challenge.challenge_id,
+        "challenge_type": challenge.challenge_type,
+        "deterministic_validation": True,
+    }
+
+    meaningful = {
+        key: value
+        for key, value in context.items()
+        if value is not None
+    }
+
+    if (
+        challenge.topic_id is None
+        and challenge.subtopic_id is None
+        and challenge.practice_mode is None
+        and challenge.source_id is None
+        and challenge.source_exercise_id is None
+    ):
+        return None
+
+    return meaningful
+
+
 PRACTICE_EVIDENCE_TYPE_MAP = {
     "code": "application",
     "sql": "application",
@@ -103,6 +138,7 @@ def record_practice_learning_evidence(
     challenge_type: str,
     success: bool,
     assistance_level: str,
+    practice_context: dict | None = None,
 ) -> str:
     """
     Deterministic practice validation sonucunu
@@ -127,6 +163,7 @@ def record_practice_learning_evidence(
             f"{'success' if success else 'failure'}."
         ),
         session_id=None,
+        context=practice_context,
     )
 
     return refresh_skill_status(
@@ -218,6 +255,9 @@ def review_practice_attempt(
             challenge_type=challenge.challenge_type,
             success=True,
             assistance_level=assistance_level,
+            practice_context=_practice_evidence_context(
+                challenge
+            ),
         )
 
         return PracticeAttemptReview(
@@ -364,6 +404,9 @@ def review_practice_attempt(
         challenge_type=challenge.challenge_type,
         success=False,
         assistance_level=assistance_level,
+        practice_context=_practice_evidence_context(
+            challenge
+        ),
     )
 
     # --------------------------------------------------
