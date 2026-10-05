@@ -10,6 +10,7 @@ from backend.app.practice_source_cache_service import (
     PRACTICE_SOURCE_CACHE,
 )
 from backend.app.practice_theory_check_service import (
+    _deterministic_fallback_check,
     create_python_theory_check,
     review_python_theory_answer,
 )
@@ -259,3 +260,72 @@ def test_wrong_theory_answer_does_not_demonstrate_concept(
     assert signals[
         "independent_completion"
     ].demonstrated is False
+
+
+
+def test_theory_check_falls_back_when_ai_budget_is_empty(
+    tmp_path,
+    monkeypatch,
+):
+    _seed(tmp_path)
+    PRACTICE_SOURCE_CACHE.clear()
+    calls = []
+
+    monkeypatch.setattr(
+        "backend.app.practice_theory_check_service."
+        "get_exercism_python_theory_concept",
+        lambda learner_id, concept_id: (
+            _source(learner_id)
+        ),
+    )
+    monkeypatch.setattr(
+        "backend.app.practice_theory_check_service."
+        "get_ai_usage_status",
+        lambda: {
+            "daily_remaining": 0,
+            "monthly_remaining": 100,
+        },
+    )
+
+    def generator(**kwargs):
+        calls.append(kwargs)
+        return _generated()
+
+    result = create_python_theory_check(
+        request=_request(),
+        generator=generator,
+    )
+
+    assert calls == []
+    assert (
+        result.challenge.challenge_type
+        == "multiple_choice"
+    )
+    assert (
+        result.challenge.instructions
+        == (
+            "Which statement best distinguishes "
+            "Python for and while loops?"
+        )
+    )
+
+
+def test_deterministic_fallback_fails_closed_when_source_changes():
+    try:
+        _deterministic_fallback_check(
+            source_text=(
+                "This source no longer contains the "
+                "required loop concepts."
+            ),
+            concept_id="loops",
+        )
+    except ValueError as exc:
+        assert (
+            "source no longer supports"
+            in str(exc)
+        )
+    else:
+        raise AssertionError(
+            "Fallback should fail closed when "
+            "required source markers disappear."
+        )
