@@ -32,12 +32,45 @@ export type PracticeCatalogData = {
   sources: PracticeCatalogSource[];
 };
 
+export type ExternalPracticeExercise = {
+  source_id: string;
+  source_exercise_id: string;
+  title: string;
+  difficulty: "easy" | "medium" | "hard";
+  practices: string[];
+  prerequisites: string[];
+  mastery_signals: string[];
+  attribution: string;
+};
+
+export type ExternalPracticeContent = {
+  learner_id: string;
+  source_id: string;
+  source_exercise_id: string;
+  title: string;
+  instructions: string;
+  solution_filename: string | null;
+  starter_code: string | null;
+  attribution: string;
+  source_revision: string | null;
+  content_hash: string;
+  cached: boolean;
+};
+
 type Props = {
   catalog: PracticeCatalogData | null;
   loading: boolean;
   error: string | null;
   onBack: () => void;
   onStartRecommended: () => void;
+  onStartExternal: (data: {
+    topicId: string;
+    subtopicId: string;
+    mode: string;
+    difficulty: "easy" | "medium" | "hard";
+    exercise: ExternalPracticeExercise;
+    content: ExternalPracticeContent;
+  }) => void;
 };
 
 function label(value: string) {
@@ -54,6 +87,7 @@ export default function PracticeCatalogPage({
   error,
   onBack,
   onStartRecommended,
+  onStartExternal,
 }: Props) {
   const [topicId, setTopicId] = useState<string | null>(null);
   const [subtopic, setSubtopic] = useState<string | null>(null);
@@ -61,6 +95,9 @@ export default function PracticeCatalogPage({
   const [difficulty, setDifficulty] = useState<
     "easy" | "medium" | "hard" | null
   >(null);
+  const [startLoading, setStartLoading] = useState(false);
+  const [startError, setStartError] =
+    useState<string | null>(null);
 
   const selectedTopic = useMemo(
     () =>
@@ -83,6 +120,105 @@ export default function PracticeCatalogPage({
       selectedIds.has(source.source_id)
     );
   }, [catalog, selectedTopic]);
+
+  async function startSelectedPractice() {
+    if (
+      !catalog ||
+      !selectedTopic ||
+      !subtopic ||
+      !mode ||
+      !difficulty
+    ) {
+      return;
+    }
+
+    if (
+      selectedTopic.topic_id !== "python" ||
+      mode !== "code"
+    ) {
+      setStartError(
+        "The first external exercise adapter currently supports Python Code mode. Theory and other topics are next."
+      );
+      return;
+    }
+
+    setStartLoading(true);
+    setStartError(null);
+
+    try {
+      const params = new URLSearchParams({
+        subtopic_id: subtopic,
+        difficulty,
+        practice_mode: mode,
+      });
+
+      const sourceResponse = await fetch(
+        `http://127.0.0.1:8000/mentor/practice/source/exercism/python/${catalog.learner_id}?${params.toString()}`
+      );
+
+      if (!sourceResponse.ok) {
+        const detail = await sourceResponse
+          .json()
+          .catch(() => null);
+
+        throw new Error(
+          detail?.detail ||
+          "Exercise list could not be loaded."
+        );
+      }
+
+      const sourceData = await sourceResponse.json() as {
+        exercises: ExternalPracticeExercise[];
+      };
+
+      const exercise = sourceData.exercises[0];
+
+      if (!exercise) {
+        throw new Error(
+          "No matching exercise is available for this path yet."
+        );
+      }
+
+      const contentParams = new URLSearchParams({
+        title: exercise.title,
+      });
+
+      const contentResponse = await fetch(
+        `http://127.0.0.1:8000/mentor/practice/source/exercism/python/${catalog.learner_id}/exercise/${encodeURIComponent(exercise.source_exercise_id)}?${contentParams.toString()}`
+      );
+
+      if (!contentResponse.ok) {
+        const detail = await contentResponse
+          .json()
+          .catch(() => null);
+
+        throw new Error(
+          detail?.detail ||
+          "Exercise content could not be loaded."
+        );
+      }
+
+      const content =
+        await contentResponse.json() as ExternalPracticeContent;
+
+      onStartExternal({
+        topicId: selectedTopic.topic_id,
+        subtopicId: subtopic,
+        mode,
+        difficulty,
+        exercise,
+        content,
+      });
+    } catch (caught) {
+      setStartError(
+        caught instanceof Error
+          ? caught.message
+          : "Practice could not be started."
+      );
+    } finally {
+      setStartLoading(false);
+    }
+  }
 
   function selectTopic(nextTopicId: string) {
     const nextTopic = catalog?.topics.find(
@@ -326,12 +462,32 @@ export default function PracticeCatalogPage({
                   <button
                     type="button"
                     className="run-button"
-                    disabled
-                    title="Exercise source adapter is the next implementation step."
+                    disabled={
+                      startLoading ||
+                      selectedTopic.topic_id !== "python" ||
+                      mode !== "code"
+                    }
+                    title={
+                      selectedTopic.topic_id === "python" &&
+                      mode === "code"
+                        ? "Load a matching exercise"
+                        : "External exercises currently support Python Code mode."
+                    }
+                    onClick={() => {
+                      void startSelectedPractice();
+                    }}
                   >
-                    Start practice
+                    {startLoading
+                      ? "Loading…"
+                      : "Start practice"}
                   </button>
                 </div>
+
+                {startError && (
+                  <div className="practice-v2-start-error">
+                    {startError}
+                  </div>
+                )}
 
                 <div className="practice-v2-project-note">
                   <strong>Mini projects</strong>
