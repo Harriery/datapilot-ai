@@ -23091,3 +23091,19 @@
 .learner-notebook-add-form {
   margin-top: 9px;
 }
+
+
+.practice-source-attribution {
+  margin: 4px 0 0;
+  color: #8290a2;
+  font-size: 9px;
+}
+
+.practice-v2-start-error {
+  padding: 8px 10px;
+  border: 1px solid #efcaca;
+  border-radius: 8px;
+  background: #fff7f7;
+  color: #a74444;
+  font-size: 10px;
+}
