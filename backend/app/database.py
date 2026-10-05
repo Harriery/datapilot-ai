@@ -20,6 +20,7 @@ from backend.app.models import (
     LearnerResumePayload,
     LearnerResumeState,
     LearnerNote,
+    ExternalPracticeValidationEvent,
     Workspace,
 )
 
@@ -291,6 +292,31 @@ def init_db():
                 context_type,
                 context_key
             ),
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS external_practice_validation_events (
+            event_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            source_exercise_id TEXT NOT NULL,
+            topic_id TEXT NOT NULL,
+            subtopic_id TEXT NOT NULL,
+            practice_mode TEXT NOT NULL,
+            difficulty TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            validation_bundle_hash TEXT NOT NULL,
+            solution_hash TEXT NOT NULL,
+            client_reported_success INTEGER NOT NULL,
+            tests_run INTEGER NOT NULL,
+            trust_level TEXT NOT NULL DEFAULT 'client_sandbox',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (learner_id)
                 REFERENCES learner_profiles(learner_id)
                 ON DELETE CASCADE
@@ -992,6 +1018,133 @@ def get_learner_profile_by_id(learner_id:str):
     connection.close()
     
     return profile
+
+
+def record_external_practice_validation_event(
+    *,
+    event: ExternalPracticeValidationEvent,
+) -> ExternalPracticeValidationEvent:
+    connection = get_connection()
+
+    connection.execute(
+        """
+        INSERT INTO external_practice_validation_events(
+            event_id,
+            learner_id,
+            source_id,
+            source_exercise_id,
+            topic_id,
+            subtopic_id,
+            practice_mode,
+            difficulty,
+            content_hash,
+            validation_bundle_hash,
+            solution_hash,
+            client_reported_success,
+            tests_run,
+            trust_level
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            event.event_id,
+            event.learner_id,
+            event.source_id,
+            event.source_exercise_id,
+            event.topic_id,
+            event.subtopic_id,
+            event.practice_mode,
+            event.difficulty,
+            event.content_hash,
+            event.validation_bundle_hash,
+            event.solution_hash,
+            int(event.client_reported_success),
+            event.tests_run,
+            event.trust_level,
+        ),
+    )
+    connection.commit()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM external_practice_validation_events
+        WHERE event_id = ?
+        """,
+        (event.event_id,),
+    ).fetchone()
+
+    connection.close()
+
+    return ExternalPracticeValidationEvent(
+        event_id=row["event_id"],
+        learner_id=row["learner_id"],
+        source_id=row["source_id"],
+        source_exercise_id=row["source_exercise_id"],
+        topic_id=row["topic_id"],
+        subtopic_id=row["subtopic_id"],
+        practice_mode=row["practice_mode"],
+        difficulty=row["difficulty"],
+        content_hash=row["content_hash"],
+        validation_bundle_hash=row["validation_bundle_hash"],
+        solution_hash=row["solution_hash"],
+        client_reported_success=bool(
+            row["client_reported_success"]
+        ),
+        tests_run=row["tests_run"],
+        trust_level=row["trust_level"],
+        created_at=row["created_at"],
+    )
+
+
+def list_external_practice_validation_events(
+    *,
+    learner_id: str,
+    source_id: str,
+    source_exercise_id: str,
+) -> list[ExternalPracticeValidationEvent]:
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM external_practice_validation_events
+        WHERE learner_id = ?
+        AND source_id = ?
+        AND source_exercise_id = ?
+        ORDER BY created_at ASC
+        """,
+        (
+            learner_id,
+            source_id,
+            source_exercise_id,
+        ),
+    ).fetchall()
+
+    connection.close()
+
+    return [
+        ExternalPracticeValidationEvent(
+            event_id=row["event_id"],
+            learner_id=row["learner_id"],
+            source_id=row["source_id"],
+            source_exercise_id=row["source_exercise_id"],
+            topic_id=row["topic_id"],
+            subtopic_id=row["subtopic_id"],
+            practice_mode=row["practice_mode"],
+            difficulty=row["difficulty"],
+            content_hash=row["content_hash"],
+            validation_bundle_hash=row["validation_bundle_hash"],
+            solution_hash=row["solution_hash"],
+            client_reported_success=bool(
+                row["client_reported_success"]
+            ),
+            tests_run=row["tests_run"],
+            trust_level=row["trust_level"],
+            created_at=row["created_at"],
+        )
+        for row in rows
+    ]
 
 
 def upsert_learner_resume_state(
