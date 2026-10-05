@@ -99,6 +99,11 @@ export default function LearnerNotebookPanel({
   const [editingBody, setEditingBody] =
     useState("");
 
+  const resumeStateKey = useMemo(
+    () => JSON.stringify(resumeState ?? null),
+    [resumeState]
+  );
+
   const resumeSummary = useMemo(() => {
     const state =
       journal?.resume_state?.state ?? resumeState;
@@ -124,7 +129,7 @@ export default function LearnerNotebookPanel({
   }, [
     contextType,
     journal,
-    resumeState,
+    resumeStateKey,
   ]);
 
   async function loadJournal() {
