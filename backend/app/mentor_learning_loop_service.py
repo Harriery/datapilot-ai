@@ -12,6 +12,10 @@ from backend.app.ai_provider_service import (
 from backend.app.ai_usage_guard import (
     guarded_responses_parse,
 )
+from backend.app.mentor_misconception_taxonomy import (
+    canonical_misconception_instructions,
+    normalize_misconception,
+)
 from backend.app.models import (
     DataQualityFinding,
     LearningEvidenceContext,
@@ -273,8 +277,8 @@ def evaluate_prepare_phase_response(
       request.
     - If it is a genuine attempt, set is_evidence=true and success true/false.
     - evidence_type should normally be "explanation" for observe/reason/decide/explain.
-    - misconception should be a short reusable concept label only when a clear
-      misconception is visible; otherwise null.
+    - If success=true, misconception must be null.
+    - {canonical_misconception_instructions()}
     - note must be concise and specific.
     """
 
@@ -301,6 +305,10 @@ def evaluate_prepare_phase_response(
     )
 
     evaluation = response_obj.output_parsed
+    evaluation.misconception = normalize_misconception(
+        success=evaluation.success,
+        misconception=evaluation.misconception,
+    )
 
     if evaluation.is_evidence:
         if (
