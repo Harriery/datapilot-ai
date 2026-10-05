@@ -44,6 +44,7 @@ from backend.app.models import (
     PracticeSolutionResponse,
     PracticeCatalogResponse,
     PracticeExerciseSourceResponse,
+    PracticeNextExerciseResponse,
     PracticeExerciseContentResponse,
     PracticeExerciseValidationBundle,
     PracticeTranslationRequest,
@@ -73,6 +74,9 @@ from backend.app.practice_service import (
 )
 from backend.app.practice_catalog_service import (
     get_practice_catalog,
+)
+from backend.app.practice_progression_service import (
+    choose_next_external_exercise,
 )
 from backend.app.practice_exercism_adapter import (
     get_exercism_python_exercise_content,
@@ -654,6 +658,54 @@ def get_exercism_python_practice_source(
             status_code=400,
             detail=str(exc),
         ) from exc
+
+
+@router.get(
+    "/practice/source/exercism/python/{learner_id}/next",
+    response_model=PracticeNextExerciseResponse,
+)
+def get_next_exercism_python_practice(
+    learner_id: str,
+    subtopic_id: str,
+    difficulty: str,
+    practice_mode: str = "code",
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    if practice_mode != "code":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Exercism Python progression currently "
+                "supports code mode only."
+            ),
+        )
+
+    source = list_exercism_python_exercises(
+        learner_id=learner_id,
+        subtopic_id=subtopic_id,
+        difficulty=difficulty,
+    )
+
+    return choose_next_external_exercise(
+        learner_id=learner_id,
+        topic_id="python",
+        subtopic_id=subtopic_id,
+        practice_mode=practice_mode,
+        difficulty=difficulty,
+        source_id=source.source_id,
+        exercises=source.exercises,
+    )
 
 
 @router.get(
