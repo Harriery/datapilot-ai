@@ -17,6 +17,9 @@ from backend.app.models import (
     PracticeMicroCheckValidation,
     PracticeValidationSpec,
     PracticeSupportSpec,
+    LearnerResumePayload,
+    LearnerResumeState,
+    LearnerNote,
     Workspace,
 )
 
@@ -275,6 +278,45 @@ def init_db():
         )
 
     
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS learner_resume_states (
+            learner_id TEXT NOT NULL,
+            context_type TEXT NOT NULL,
+            context_key TEXT NOT NULL,
+            state_json TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (
+                learner_id,
+                context_type,
+                context_key
+            ),
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS learner_notes (
+            note_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL,
+            context_type TEXT NOT NULL,
+            context_key TEXT NOT NULL,
+            title TEXT,
+            body TEXT NOT NULL,
+            source_exercise_id TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS skill_states(
@@ -950,6 +992,307 @@ def get_learner_profile_by_id(learner_id:str):
     connection.close()
     
     return profile
+
+
+def upsert_learner_resume_state(
+    *,
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+    state: LearnerResumePayload,
+) -> LearnerResumeState:
+    connection = get_connection()
+
+    connection.execute(
+        """
+        INSERT INTO learner_resume_states(
+            learner_id,
+            context_type,
+            context_key,
+            state_json
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(
+            learner_id,
+            context_type,
+            context_key
+        )
+        DO UPDATE SET
+            state_json = excluded.state_json,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            learner_id,
+            context_type,
+            context_key,
+            state.model_dump_json(),
+        ),
+    )
+    connection.commit()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM learner_resume_states
+        WHERE learner_id = ?
+        AND context_type = ?
+        AND context_key = ?
+        """,
+        (
+            learner_id,
+            context_type,
+            context_key,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    return LearnerResumeState(
+        learner_id=row["learner_id"],
+        context_type=row["context_type"],
+        context_key=row["context_key"],
+        state=LearnerResumePayload.model_validate_json(
+            row["state_json"]
+        ),
+        updated_at=row["updated_at"],
+    )
+
+
+def get_learner_resume_state(
+    *,
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+) -> LearnerResumeState | None:
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM learner_resume_states
+        WHERE learner_id = ?
+        AND context_type = ?
+        AND context_key = ?
+        """,
+        (
+            learner_id,
+            context_type,
+            context_key,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    return LearnerResumeState(
+        learner_id=row["learner_id"],
+        context_type=row["context_type"],
+        context_key=row["context_key"],
+        state=LearnerResumePayload.model_validate_json(
+            row["state_json"]
+        ),
+        updated_at=row["updated_at"],
+    )
+
+
+def create_learner_note(
+    *,
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+    body: str,
+    title: str | None = None,
+    source_exercise_id: str | None = None,
+) -> LearnerNote:
+    connection = get_connection()
+    note_id = str(uuid4())
+
+    connection.execute(
+        """
+        INSERT INTO learner_notes(
+            note_id,
+            learner_id,
+            context_type,
+            context_key,
+            title,
+            body,
+            source_exercise_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            note_id,
+            learner_id,
+            context_type,
+            context_key,
+            title,
+            body,
+            source_exercise_id,
+        ),
+    )
+    connection.commit()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM learner_notes
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            note_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    return _learner_note_from_row(row)
+
+
+def _learner_note_from_row(row) -> LearnerNote:
+    return LearnerNote(
+        note_id=row["note_id"],
+        learner_id=row["learner_id"],
+        context_type=row["context_type"],
+        context_key=row["context_key"],
+        title=row["title"],
+        body=row["body"],
+        source_exercise_id=row["source_exercise_id"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def list_learner_notes(
+    *,
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+) -> list[LearnerNote]:
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM learner_notes
+        WHERE learner_id = ?
+        AND context_type = ?
+        AND context_key = ?
+        ORDER BY updated_at DESC, created_at DESC
+        """,
+        (
+            learner_id,
+            context_type,
+            context_key,
+        ),
+    ).fetchall()
+
+    connection.close()
+
+    return [
+        _learner_note_from_row(row)
+        for row in rows
+    ]
+
+
+def update_learner_note(
+    *,
+    learner_id: str,
+    note_id: str,
+    title: str | None = None,
+    body: str | None = None,
+) -> LearnerNote | None:
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM learner_notes
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            note_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    if row is None:
+        connection.close()
+        return None
+
+    next_title = (
+        title
+        if title is not None
+        else row["title"]
+    )
+    next_body = (
+        body
+        if body is not None
+        else row["body"]
+    )
+
+    connection.execute(
+        """
+        UPDATE learner_notes
+        SET
+            title = ?,
+            body = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            next_title,
+            next_body,
+            note_id,
+            learner_id,
+        ),
+    )
+    connection.commit()
+
+    updated = connection.execute(
+        """
+        SELECT *
+        FROM learner_notes
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            note_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+    return _learner_note_from_row(updated)
+
+
+def delete_learner_note(
+    *,
+    learner_id: str,
+    note_id: str,
+) -> bool:
+    connection = get_connection()
+
+    cursor = connection.execute(
+        """
+        DELETE FROM learner_notes
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            note_id,
+            learner_id,
+        ),
+    )
+    connection.commit()
+    deleted = cursor.rowcount > 0
+    connection.close()
+    return deleted
 
 
 def insert_skill_state(
