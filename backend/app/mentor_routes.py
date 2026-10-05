@@ -48,6 +48,10 @@ from backend.app.models import (
     PracticeExerciseContentResponse,
     PracticeTheoryConceptResponse,
     PracticeTheoryConceptContent,
+    PracticeTheoryCheckCreateRequest,
+    PracticeTheoryCheckResponse,
+    PracticeTheoryAnswerRequest,
+    PracticeTheoryAnswerResponse,
     PracticeExerciseValidationBundle,
     PracticeTranslationRequest,
     PracticeTranslationResponse,
@@ -83,6 +87,10 @@ from backend.app.practice_progression_service import (
 from backend.app.practice_theory_source_service import (
     get_exercism_python_theory_concept,
     list_exercism_python_theory_concepts,
+)
+from backend.app.practice_theory_check_service import (
+    create_python_theory_check,
+    review_python_theory_answer,
 )
 from backend.app.practice_exercism_adapter import (
     get_exercism_python_exercise_content,
@@ -934,6 +942,74 @@ def translate_practice_instructions_route(
             detail=(
                 "Practice translation could not be loaded."
             ),
+        ) from exc
+
+
+@router.post(
+    "/practice/theory/check",
+    response_model=PracticeTheoryCheckResponse,
+)
+def create_practice_theory_check_route(
+    request: PracticeTheoryCheckCreateRequest,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            request.learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return create_python_theory_check(
+            request=request
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Practice theory check "
+                "could not be generated."
+            ),
+        ) from exc
+
+
+@router.post(
+    "/practice/theory/answer",
+    response_model=PracticeTheoryAnswerResponse,
+)
+def review_practice_theory_answer_route(
+    request: PracticeTheoryAnswerRequest,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            request.learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return review_python_theory_answer(
+            request=request
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
         ) from exc
 
 
