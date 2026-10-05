@@ -2402,6 +2402,54 @@ class PracticeTheoryConceptResponse(BaseModel):
     ]
 
 
+class PracticeTheoryCheckGenerated(BaseModel):
+    question: str = Field(
+        min_length=10,
+        max_length=500,
+    )
+    options: list[str] = Field(
+        min_length=3,
+        max_length=4,
+    )
+    correct_index: int = Field(
+        ge=0,
+        le=3,
+    )
+    explanation: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+
+class PracticeTheoryCheckResponse(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    concept_id: str
+    challenge: PracticeChallenge
+    attribution: str
+
+
+class PracticeTheoryAnswerRequest(BaseModel):
+    learner_id: str
+    challenge_id: str
+    answer: str
+
+
+class PracticeTheoryAnswerResponse(BaseModel):
+    learner_id: str
+    challenge_id: str
+    concept_id: str
+    success: bool
+    feedback: str
+    mastery: PracticeMasterySummary
+
+
 class PracticeTheoryConceptContent(BaseModel):
     learner_id: str
     source_id: str
