@@ -2203,6 +2203,45 @@ class PracticeTopicDescriptor(BaseModel):
     )
 
 
+class PracticeMasterySignalState(BaseModel):
+    signal: Literal[
+        "concept_coverage",
+        "correct_application",
+        "transfer_to_new_context",
+        "independent_completion",
+    ]
+    demonstrated: bool
+    evidence_count: int = Field(
+        ge=0
+    )
+
+
+class PracticeMasterySummary(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    status: Literal[
+        "not_started",
+        "building",
+        "demonstrated",
+    ]
+    signals: list[
+        PracticeMasterySignalState
+    ]
+    successful_evidence_count: int = Field(
+        ge=0
+    )
+    independent_success_count: int = Field(
+        ge=0
+    )
+
+
 class PracticeCatalogResponse(BaseModel):
     learner_id: str
     level_completion_rule: str
@@ -2283,6 +2322,13 @@ class PracticeChallenge(BaseModel):
     ] | None = None
     source_id: str | None = None
     source_exercise_id: str | None = None
+    mastery_signals: list[
+        Literal[
+            "concept_coverage",
+            "correct_application",
+            "transfer_to_new_context",
+        ]
+    ] = Field(default_factory=list)
 
     difficulty: Literal[
         "foundation",
