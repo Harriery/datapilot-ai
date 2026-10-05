@@ -633,6 +633,49 @@ type PracticeSolutionData = {
 };
 
 
+function renderPracticeInstructions(markdown: string) {
+  const cleaned = markdown
+    .replace(/^#\s+Instructions\s*/i, "")
+    .replace(/~~~~exercism\/caution\s*/g, "")
+    .replace(/~~~~\s*/g, "")
+    .trim();
+
+  const blocks = cleaned
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  return blocks.map((block, index) => {
+    const lines = block.split("\n");
+
+    if (
+      lines.every((line) =>
+        line.trim().startsWith("- ")
+      )
+    ) {
+      return (
+        <ul key={index}>
+          {lines.map((line, itemIndex) => (
+            <li key={itemIndex}>
+              {line
+                .trim()
+                .replace(/^-\s+/, "")
+                .replace(/\*\*/g, "")}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    return (
+      <p key={index}>
+        {block.replace(/\*\*/g, "")}
+      </p>
+    );
+  });
+}
+
+
 function App() {
   const [language, setLanguage] =
     useState<AppLanguage>("en");
@@ -6235,6 +6278,34 @@ async function restoreWorkspaceVersion(
                     : "Adaptive challenge based on your learning progress."}
                 </p>
               </div>
+
+              {practiceChallenge?.topic_id &&
+                practiceChallenge?.subtopic_id && (
+                  <LearnerNotebookPanel
+                    learnerId="demo-learner"
+                    contextType="practice"
+                    contextKey={
+                      `${practiceChallenge.topic_id}:${practiceChallenge.subtopic_id}`
+                    }
+                    contextLabel={
+                      `${practiceChallenge.topic_id} · ${practiceChallenge.subtopic_id}`
+                    }
+                    resumeState={{
+                      topic_id:
+                        practiceChallenge.topic_id,
+                      subtopic_id:
+                        practiceChallenge.subtopic_id,
+                      practice_mode:
+                        practiceChallenge.practice_mode,
+                      difficulty:
+                        practiceChallenge.difficulty,
+                      source_id:
+                        practiceChallenge.source_id,
+                      source_exercise_id:
+                        practiceChallenge.source_exercise_id,
+                    }}
+                  />
+                )}
             </div>
 
             {practiceError ? (
@@ -6258,9 +6329,11 @@ async function restoreWorkspaceVersion(
                   {practiceChallenge.skill_name}
                 </p>
 
-                <p>
-                  {practiceChallenge.instructions}
-                </p>
+                {!practiceExternalValidationPending && (
+                  <p>
+                    {practiceChallenge.instructions}
+                  </p>
+                )}
 
                 <div className="badge-row">
                   <span className="priority-badge">
@@ -6274,8 +6347,26 @@ async function restoreWorkspaceVersion(
                   </p>
                 )}
                 
-                <div className="practice-workbench">
-                  {practiceChallenge.context_code && (
+                <div
+                  className={
+                    practiceExternalValidationPending
+                      ? "practice-workbench practice-external-workbench"
+                      : "practice-workbench"
+                  }
+                >
+                  {practiceExternalValidationPending ? (
+                    <div className="practice-external-instructions">
+                      <div className="panel-title">
+                        Instructions
+                      </div>
+
+                      <div className="practice-instructions-scroll">
+                        {renderPracticeInstructions(
+                          practiceChallenge.instructions
+                        )}
+                      </div>
+                    </div>
+                  ) : practiceChallenge.context_code ? (
                     <div className="practice-context-section">
                       <div className="panel-title">
                         Given data
@@ -6285,7 +6376,7 @@ async function restoreWorkspaceVersion(
                         {practiceChallenge.context_code}
                       </pre>
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="practice-editor-section">
                     <div className="panel-title">
@@ -6350,6 +6441,14 @@ async function restoreWorkspaceVersion(
                             : "✓ Submit answer"}
                       </button>
                     </div>
+
+                    {practiceExternalValidationPending && (
+                      <p className="practice-execution-note">
+                        Run executes your code only. Correctness
+                        validation will be enabled with the isolated
+                        validation sandbox.
+                      </p>
+                    )}
                   </div>
                 </div>
                         
