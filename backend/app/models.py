@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Bu dosya, API içinde kullanılan veri modellerini içerir.
 
