@@ -31,7 +31,8 @@ def strict_validation_classifier_rules() -> str:
       validation. Compare before/after evidence and the intended operation.
       Unexpected row loss, row gain, or other unintended side effects mean
       success=false until reconciled.
-    - In validation, a single metric is insufficient when another supplied
-      metric contradicts success. For example, checking only null_count=0 is
-      not enough when row-count evidence shows an unintended change.
+    - In validation, checking only one metric is insufficient when another
+      supplied metric contradicts success. A single metric is not enough.
+      For example, checking only null_count=0 is not enough when row-count
+      evidence shows an unintended change.
     """.strip()
