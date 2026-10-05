@@ -1712,6 +1712,67 @@ def record_learning_evidence(
     finally:
         connection.close()
 
+def record_practice_mastery_evidence(
+    *,
+    learner_id: str,
+    skill_name: str,
+    assistance_level: str,
+    success: bool,
+    evidence_type: str,
+    note: str | None = None,
+    context: dict | None = None,
+):
+    """
+    Practice V2 mastery evidence.
+
+    Unlike record_learning_evidence(), this intentionally
+    does NOT mutate legacy skill_states counters.
+    """
+    connection = get_connection()
+
+    context_json = (
+        json.dumps(
+            context,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        if context
+        else None
+    )
+
+    try:
+        connection.execute(
+            """
+            INSERT INTO learning_evidence(
+                learner_id,
+                skill_name,
+                assistance_level,
+                success,
+                evidence_type,
+                note,
+                session_id,
+                context_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+            """,
+            (
+                learner_id,
+                skill_name,
+                assistance_level,
+                int(success),
+                evidence_type,
+                note,
+                context_json,
+            ),
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def update_skill_status(
   learner_id: str,
   skill_name: str,
