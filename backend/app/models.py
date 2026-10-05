@@ -2365,6 +2365,25 @@ class PracticeExerciseContentResponse(BaseModel):
     cached: bool = False
 
 
+class PracticeValidationSourceFile(BaseModel):
+    path: str
+    content: str
+
+
+class PracticeExerciseValidationBundle(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    solution_filename: str
+    test_files: list[
+        PracticeValidationSourceFile
+    ]
+    attribution: str
+    source_revision: str | None = None
+    content_hash: str
+    cached: bool = False
+
+
 class PracticeMasterySignalState(BaseModel):
     signal: Literal[
         "concept_coverage",
