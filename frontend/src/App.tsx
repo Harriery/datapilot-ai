@@ -49,6 +49,11 @@ import {
 import {
   runPythonCode,
 } from "./pythonRunner";
+import {
+  runPracticeValidationSandbox,
+  type PracticeSandboxResult,
+  type PracticeValidationBundle,
+} from "./practiceValidationSandbox";
 
 
 
@@ -554,6 +559,8 @@ type PracticeChallengeData = {
   source_id?: string | null;
   source_exercise_id?: string | null;
   source_attribution?: string | null;
+  source_revision?: string | null;
+  source_content_hash?: string | null;
   external_validation_pending?: boolean;
   difficulty: "foundation" | "easy" | "medium" | "hard";
   challenge_type:
@@ -1251,6 +1258,11 @@ function App() {
   const [practiceReview, setPracticeReview] =
     useState<PracticeAttemptReviewData | null>(null);
 
+  const [
+    practiceSandboxResult,
+    setPracticeSandboxResult,
+  ] = useState<PracticeSandboxResult | null>(null);
+
   const [practiceHint, setPracticeHint] =
   useState<PracticeHintData | null>(null);
 
@@ -1668,6 +1680,10 @@ function App() {
         data.exercise.source_exercise_id,
       source_attribution:
         data.content.attribution,
+      source_revision:
+        data.content.source_revision,
+      source_content_hash:
+        data.content.content_hash,
       external_validation_pending: true,
       difficulty: data.difficulty,
       challenge_type: "code",
@@ -1687,6 +1703,8 @@ function App() {
     setPracticeOutput(null);
     setPracticeExecutionError(null);
     setPracticeReview(null);
+    setPracticeSandboxResult(null);
+    setPracticeSandboxResult(null);
     setPracticeHint(null);
     setPracticeHintError(null);
     setPracticeSolution(null);
@@ -1736,6 +1754,7 @@ function App() {
 
       setPracticeOutput(null);
       setPracticeExecutionError(null);
+      setPracticeSandboxResult(null);
       setPracticeHint(null);
       setPracticeHintError(null);
     } catch (error) {
@@ -1801,10 +1820,78 @@ function App() {
   }
 
   async function submitPracticeAnswer() {
-    if (
-      !practiceChallenge ||
-      practiceExternalValidationPending
-    ) {
+    if (!practiceChallenge) {
+      return;
+    }
+
+    if (practiceExternalValidationPending) {
+      if (
+        !practiceChallenge.source_exercise_id ||
+        !practiceCode.trim()
+      ) {
+        return;
+      }
+
+      setPracticeSubmitting(true);
+      setPracticeSandboxResult(null);
+      setPracticeExecutionError(null);
+
+      try {
+        const revisionParams =
+          practiceChallenge.source_revision
+            ? new URLSearchParams({
+                source_revision:
+                  practiceChallenge.source_revision,
+              })
+            : new URLSearchParams();
+
+        const suffix = revisionParams.toString()
+          ? `?${revisionParams.toString()}`
+          : "";
+
+        const response = await fetch(
+          (
+            "http://127.0.0.1:8000/mentor/practice/" +
+            "source/exercism/python/demo-learner/" +
+            `exercise/${encodeURIComponent(
+              practiceChallenge.source_exercise_id
+            )}/validation${suffix}`
+          )
+        );
+
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => null);
+
+          throw new Error(
+            errorData?.detail ||
+            "Validation bundle could not be loaded."
+          );
+        }
+
+        const bundle =
+          await response.json() as PracticeValidationBundle;
+
+        const result =
+          await runPracticeValidationSandbox(
+            bundle,
+            practiceCode
+          );
+
+        setPracticeSandboxResult(result);
+      } catch (error) {
+        console.error(error);
+
+        setPracticeExecutionError(
+          error instanceof Error
+            ? error.message
+            : "Practice validation failed."
+        );
+      } finally {
+        setPracticeSubmitting(false);
+      }
+
       return;
     }
 
@@ -6426,27 +6513,30 @@ async function restoreWorkspaceVersion(
                         className="submit-button"
                         onClick={submitPracticeAnswer}
                         disabled={
-                          practiceExternalValidationPending ||
                           practiceSubmitting ||
                           (
-                            practiceOutput === null &&
-                            practiceExecutionError === null
+                            practiceExternalValidationPending
+                              ? !practiceCode.trim()
+                              : (
+                                  practiceOutput === null &&
+                                  practiceExecutionError === null
+                                )
                           )
                         }
                       >
-                        {practiceExternalValidationPending
-                          ? "Validation sandbox next"
-                          : practiceSubmitting
-                            ? "Checking..."
+                        {practiceSubmitting
+                          ? "Validating..."
+                          : practiceExternalValidationPending
+                            ? "✓ Validate solution"
                             : "✓ Submit answer"}
                       </button>
                     </div>
 
                     {practiceExternalValidationPending && (
                       <p className="practice-execution-note">
-                        Run executes your code only. Correctness
-                        validation will be enabled with the isolated
-                        validation sandbox.
+                        Run executes your code only. Validate solution
+                        runs the selected exercise tests in a disposable
+                        isolated worker.
                       </p>
                     )}
                   </div>
@@ -6545,6 +6635,37 @@ async function restoreWorkspaceVersion(
                       {practiceHintError && (
                         <div className="practice-hint-error">
                           {practiceHintError}
+                        </div>
+                      )}
+
+                      {practiceSandboxResult && (
+                        <div
+                          className={
+                            practiceSandboxResult.success
+                              ? "practice-feedback success"
+                              : "practice-feedback failure"
+                          }
+                        >
+                          <strong>
+                            {practiceSandboxResult.success
+                              ? "✓ All tests passed"
+                              : "Some tests failed"}
+                          </strong>
+
+                          <p>
+                            {practiceSandboxResult.testsRun}
+                            {" tests run in the isolated sandbox."}
+                          </p>
+
+                          {!practiceSandboxResult.success && (
+                            <pre className="practice-sandbox-detail">
+                              {
+                                practiceSandboxResult.errors[0] ??
+                                practiceSandboxResult.failures[0] ??
+                                "The solution did not pass all tests."
+                              }
+                            </pre>
+                          )}
                         </div>
                       )}
 
