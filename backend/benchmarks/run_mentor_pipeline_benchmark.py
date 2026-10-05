@@ -968,6 +968,8 @@ def build_plan(
             suite["suite_id"],
         "benchmark_type":
             "mentor_pipeline",
+        "production_integration":
+            mentor_pipeline_production_status(),
         "scenario_count":
             len(scenarios),
         "estimated_external_requests":
