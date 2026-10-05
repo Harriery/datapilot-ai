@@ -40,6 +40,7 @@ import PracticeCatalogPage, {
   type ExternalPracticeContent,
   type ExternalPracticeExercise,
   type PracticeCatalogData,
+  type PracticeTheoryCheckData,
 } from "./PracticeCatalogPage";
 import {
   WorkspaceLineageView,
@@ -565,6 +566,7 @@ type PracticeChallengeData = {
   difficulty: "foundation" | "easy" | "medium" | "hard";
   challenge_type:
     | "code"
+    | "multiple_choice"
     | "debug"
     | "output_prediction"
     | "sql"
@@ -595,6 +597,36 @@ type PracticeAttemptReviewData = {
     message: string;
     micro_check: string | null;
   } | null;
+};
+
+type PracticeTheoryAnswerData = {
+  learner_id: string;
+  challenge_id: string;
+  concept_id: string;
+  success: boolean;
+  feedback: string;
+  mastery: {
+    learner_id: string;
+    topic_id: string;
+    subtopic_id: string;
+    practice_mode: string;
+    difficulty: "easy" | "medium" | "hard";
+    status:
+      | "not_started"
+      | "building"
+      | "demonstrated";
+    signals: Array<{
+      signal:
+        | "concept_coverage"
+        | "correct_application"
+        | "transfer_to_new_context"
+        | "independent_completion";
+      demonstrated: boolean;
+      evidence_count: number;
+    }>;
+    successful_evidence_count: number;
+    independent_success_count: number;
+  };
 };
 
 type PracticeHintData = {
@@ -1389,6 +1421,16 @@ function App() {
     useState<PracticeAttemptReviewData | null>(null);
 
   const [
+    practiceTheorySelectedAnswer,
+    setPracticeTheorySelectedAnswer,
+  ] = useState<string | null>(null);
+
+  const [
+    practiceTheoryResult,
+    setPracticeTheoryResult,
+  ] = useState<PracticeTheoryAnswerData | null>(null);
+
+  const [
     practiceSandboxResult,
     setPracticeSandboxResult,
   ] = useState<PracticeSandboxResult | null>(null);
@@ -1809,6 +1851,37 @@ function App() {
     }
   }
 
+  function openTheoryPracticeChallenge(
+    data: PracticeTheoryCheckData
+  ) {
+    const challenge: PracticeChallengeData = {
+      ...data.challenge,
+      source_attribution: data.attribution,
+      source_revision: null,
+      source_content_hash: null,
+      external_validation_pending: false,
+      context_code: null,
+      starter_code: null,
+      input_rows: null,
+    };
+
+    setPracticeChallenge(challenge);
+    setPracticeCode("");
+    setPracticeOutput(null);
+    setPracticeExecutionError(null);
+    setPracticeReview(null);
+    setPracticeSandboxResult(null);
+    setPracticeTheorySelectedAnswer(null);
+    setPracticeTheoryResult(null);
+    setPracticeHint(null);
+    setPracticeHintError(null);
+    setPracticeSolution(null);
+    setPracticeSolutionError(null);
+    setPracticeExternalValidationPending(false);
+    setPracticeError(null);
+    setPracticeRunnerOpen(true);
+  }
+
   function openExternalPracticeChallenge(data: {
     topicId: string;
     subtopicId: string;
@@ -1854,7 +1927,8 @@ function App() {
     setPracticeExecutionError(null);
     setPracticeReview(null);
     setPracticeSandboxResult(null);
-    setPracticeSandboxResult(null);
+    setPracticeTheorySelectedAnswer(null);
+    setPracticeTheoryResult(null);
     setPracticeHint(null);
     setPracticeHintError(null);
     setPracticeSolution(null);
@@ -1905,6 +1979,8 @@ function App() {
       setPracticeOutput(null);
       setPracticeExecutionError(null);
       setPracticeSandboxResult(null);
+      setPracticeTheorySelectedAnswer(null);
+      setPracticeTheoryResult(null);
       setPracticeHint(null);
       setPracticeHintError(null);
     } catch (error) {
@@ -2048,6 +2124,65 @@ function App() {
       );
     } finally {
       setPracticeRunning(false);
+    }
+  }
+
+  async function submitPracticeTheoryAnswer() {
+    if (
+      !practiceChallenge ||
+      practiceChallenge.challenge_type !== "multiple_choice" ||
+      !practiceTheorySelectedAnswer
+    ) {
+      return;
+    }
+
+    setPracticeSubmitting(true);
+    setPracticeExecutionError(null);
+    setPracticeTheoryResult(null);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/mentor/practice/theory/answer",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            learner_id: "demo-learner",
+            challenge_id:
+              practiceChallenge.challenge_id,
+            answer:
+              practiceTheorySelectedAnswer,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => null);
+
+        throw new Error(
+          errorData?.detail ||
+          "Theory answer could not be checked."
+        );
+      }
+
+      const data =
+        await response.json() as PracticeTheoryAnswerData;
+
+      setPracticeTheoryResult(data);
+    } catch (error) {
+      console.error(error);
+
+      setPracticeExecutionError(
+        error instanceof Error
+          ? error.message
+          : "Theory answer could not be checked."
+      );
+    } finally {
+      setPracticeSubmitting(false);
     }
   }
 
@@ -7074,6 +7209,7 @@ async function restoreWorkspaceVersion(
                   void openRecommendedPracticeChallenge();
                 }}
                 onStartExternal={openExternalPracticeChallenge}
+                onStartTheory={openTheoryPracticeChallenge}
               />
             )
           ) : dashboardWorkspace ? (
