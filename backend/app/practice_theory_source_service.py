@@ -23,6 +23,20 @@ EXERCISM_ATTRIBUTION = (
     "Source: Exercism Python Track (MIT License)"
 )
 
+PYTHON_DOCS_RAW_ROOT = (
+    "https://raw.githubusercontent.com/"
+    "python/cpython/main/Doc/tutorial"
+)
+
+PYTHON_DOCS_ATTRIBUTION = (
+    "Source: Python Documentation (PSF-2.0 License)"
+)
+
+PYTHON_DOCS_CONCEPT_PATHS = {
+    "list-comprehensions": "datastructures.rst",
+    "raising-and-handling-errors": "errors.rst",
+}
+
 PYTHON_THEORY_CONCEPTS: dict[
     str,
     tuple[str, ...],
@@ -93,6 +107,94 @@ def _load_concept_text(
         )
 
 
+def _source_is_placeholder(
+    source_text: str,
+) -> bool:
+    normalized = (
+        source_text
+        .strip()
+        .casefold()
+    )
+
+    return (
+        len(normalized) < 200
+        and "todo" in normalized
+    )
+
+
+def _extract_python_docs_section(
+    *,
+    concept_id: str,
+    source_text: str,
+) -> str:
+    if concept_id == "list-comprehensions":
+        start_marker = "List Comprehensions\n-------------------"
+        end_marker = "Nested List Comprehensions\n--------------------------"
+    elif concept_id == "raising-and-handling-errors":
+        start_marker = "Handling Exceptions\n==================="
+        end_marker = "User-defined Exceptions\n======================="
+    else:
+        return source_text
+
+    start = source_text.find(
+        start_marker
+    )
+
+    if start < 0:
+        raise ValueError(
+            "Required Python documentation section was not found."
+        )
+
+    end = source_text.find(
+        end_marker,
+        start + len(start_marker),
+    )
+
+    if end < 0:
+        end = len(source_text)
+
+    return source_text[
+        start:end
+    ].strip()
+
+
+def _load_python_docs_text(
+    concept_id: str,
+) -> str:
+    path = PYTHON_DOCS_CONCEPT_PATHS.get(
+        concept_id
+    )
+
+    if path is None:
+        raise ValueError(
+            "No official Python documentation fallback "
+            "is configured for this concept."
+        )
+
+    request = Request(
+        f"{PYTHON_DOCS_RAW_ROOT}/{path}",
+        headers={
+            "User-Agent":
+                "DataPilot-Practice-Adapter/1.0"
+        },
+    )
+
+    with urlopen(
+        request,
+        timeout=10,
+    ) as response:
+        source_text = (
+            response.read().decode(
+                "utf-8"
+            )
+        )
+
+    return _extract_python_docs_section(
+        concept_id=concept_id,
+        source_text=source_text,
+    )
+
+
 def _title_from_concept_id(
     concept_id: str,
 ) -> str:
@@ -126,16 +228,31 @@ def list_exercism_python_theory_concepts(
         source_id="exercism-python",
         concepts=[
             PracticeTheoryConceptItem(
-                source_id="exercism-python",
+                source_id=(
+                    "python-docs"
+                    if concept_id
+                    in PYTHON_DOCS_CONCEPT_PATHS
+                    else "exercism-python"
+                ),
                 concept_id=concept_id,
                 title=_title_from_concept_id(
                     concept_id
                 ),
-                source_path=_concept_path(
-                    concept_id
+                source_path=(
+                    PYTHON_DOCS_CONCEPT_PATHS[
+                        concept_id
+                    ]
+                    if concept_id
+                    in PYTHON_DOCS_CONCEPT_PATHS
+                    else _concept_path(
+                        concept_id
+                    )
                 ),
                 attribution=(
-                    EXERCISM_ATTRIBUTION
+                    PYTHON_DOCS_ATTRIBUTION
+                    if concept_id
+                    in PYTHON_DOCS_CONCEPT_PATHS
+                    else EXERCISM_ATTRIBUTION
                 ),
             )
             for concept_id in concept_ids
@@ -151,6 +268,10 @@ def get_exercism_python_theory_concept(
         [str],
         str,
     ] = _load_concept_text,
+    python_docs_loader: Callable[
+        [str],
+        str,
+    ] = _load_python_docs_text,
 ) -> PracticeTheoryConceptContent:
     supported_ids = {
         concept_id_value
@@ -189,6 +310,40 @@ def get_exercism_python_theory_concept(
         concept_id
     )
 
+    source_id = "exercism-python"
+    source_path = _concept_path(
+        concept_id
+    )
+    attribution = (
+        EXERCISM_ATTRIBUTION
+    )
+
+    if _source_is_placeholder(
+        source_text
+    ):
+        if (
+            concept_id
+            not in PYTHON_DOCS_CONCEPT_PATHS
+        ):
+            raise ValueError(
+                "Theory source content is incomplete."
+            )
+
+        source_text = (
+            python_docs_loader(
+                concept_id
+            )
+        )
+        source_id = "python-docs"
+        source_path = (
+            PYTHON_DOCS_CONCEPT_PATHS[
+                concept_id
+            ]
+        )
+        attribution = (
+            PYTHON_DOCS_ATTRIBUTION
+        )
+
     if len(
         source_text.encode("utf-8")
     ) > 524288:
@@ -202,16 +357,14 @@ def get_exercism_python_theory_concept(
 
     result = PracticeTheoryConceptContent(
         learner_id=learner_id,
-        source_id="exercism-python",
+        source_id=source_id,
         concept_id=concept_id,
         title=_title_from_concept_id(
             concept_id
         ),
-        source_path=_concept_path(
-            concept_id
-        ),
+        source_path=source_path,
         source_text=source_text,
-        attribution=EXERCISM_ATTRIBUTION,
+        attribution=attribution,
         content_hash=content_hash,
         cached=False,
     )
