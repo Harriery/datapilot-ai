@@ -22,6 +22,12 @@ class AIProviderConfigurationError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class AIRuntimeConfig:
+    provider: str
+    model: str
+
+
+@dataclass(frozen=True)
 class AIRuntime:
     provider: str
     model: str
@@ -167,17 +173,30 @@ def _resolve_provider(
     )
 
 
-def get_ai_runtime(
+def get_ai_runtime_config(
     role: AIRole = "mentor",
-) -> AIRuntime:
+) -> AIRuntimeConfig:
     provider = _resolve_provider(
         role
     )
-
     model = _configured_model(
         provider=provider,
         role=role,
     )
+    return AIRuntimeConfig(
+        provider=provider,
+        model=model,
+    )
+
+
+def get_ai_runtime(
+    role: AIRole = "mentor",
+) -> AIRuntime:
+    runtime_config = get_ai_runtime_config(
+        role
+    )
+    provider = runtime_config.provider
+    model = runtime_config.model
 
     if provider == "groq":
         return AIRuntime(
