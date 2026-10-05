@@ -26,20 +26,29 @@ StructuredModel = TypeVar(
 )
 
 
-def _is_output_parse_failed(
+def _is_structured_output_failure(
     exc: Exception,
 ) -> bool:
     if getattr(exc, "status_code", None) != 400:
         return False
+
+    supported_codes = {
+        "output_parse_failed",
+        "json_validate_failed",
+    }
 
     body = getattr(exc, "body", None)
 
     if isinstance(body, dict):
         error = body.get("error", body)
         if isinstance(error, dict):
-            return error.get("code") == "output_parse_failed"
+            return error.get("code") in supported_codes
 
-    return "output_parse_failed" in str(exc)
+    message = str(exc)
+    return any(
+        code in message
+        for code in supported_codes
+    )
 
 
 def _required_env(
@@ -109,7 +118,7 @@ def _generate_openai_compatible_structured(
     except Exception as exc:
         if (
             provider != "groq"
-            or not _is_output_parse_failed(exc)
+            or not _is_structured_output_failure(exc)
         ):
             raise
 
