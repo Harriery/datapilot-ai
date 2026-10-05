@@ -1263,6 +1263,26 @@ function App() {
     setPracticeSandboxResult,
   ] = useState<PracticeSandboxResult | null>(null);
 
+  const [
+    practiceInstructionLanguage,
+    setPracticeInstructionLanguage,
+  ] = useState<"en" | "tr" | "nl">("en");
+
+  const [
+    practiceTranslatedInstructions,
+    setPracticeTranslatedInstructions,
+  ] = useState<string | null>(null);
+
+  const [
+    practiceTranslationLoading,
+    setPracticeTranslationLoading,
+  ] = useState(false);
+
+  const [
+    practiceTranslationError,
+    setPracticeTranslationError,
+  ] = useState<string | null>(null);
+
   const [practiceHint, setPracticeHint] =
   useState<PracticeHintData | null>(null);
 
@@ -1767,6 +1787,88 @@ function App() {
       );
     } finally {
       setPracticeLoading(false);
+    }
+  }
+
+  async function changePracticeInstructionLanguage(
+    language: "en" | "tr" | "nl"
+  ) {
+    if (!practiceChallenge) {
+      return;
+    }
+
+    setPracticeInstructionLanguage(language);
+    setPracticeTranslationError(null);
+
+    if (language === "en") {
+      setPracticeTranslatedInstructions(null);
+      return;
+    }
+
+    if (
+      !practiceChallenge.source_id ||
+      !practiceChallenge.source_exercise_id ||
+      !practiceChallenge.source_content_hash
+    ) {
+      setPracticeTranslationError(
+        "This exercise cannot be translated yet."
+      );
+      return;
+    }
+
+    setPracticeTranslationLoading(true);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/mentor/practice/translate",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            learner_id: "demo-learner",
+            source_id:
+              practiceChallenge.source_id,
+            source_exercise_id:
+              practiceChallenge.source_exercise_id,
+            content_hash:
+              practiceChallenge.source_content_hash,
+            target_language: language,
+            source_text:
+              practiceChallenge.instructions,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => null);
+
+        throw new Error(
+          errorData?.detail ||
+          "Translation could not be loaded."
+        );
+      }
+
+      const data = await response.json() as {
+        translated_text: string;
+      };
+
+      setPracticeTranslatedInstructions(
+        data.translated_text
+      );
+    } catch (error) {
+      console.error(error);
+
+      setPracticeTranslationError(
+        error instanceof Error
+          ? error.message
+          : "Translation could not be loaded."
+      );
+    } finally {
+      setPracticeTranslationLoading(false);
     }
   }
 
@@ -6500,15 +6602,63 @@ async function restoreWorkspaceVersion(
                 >
                   {practiceExternalValidationPending ? (
                     <div className="practice-external-instructions">
-                      <div className="panel-title">
-                        Instructions
+                      <div className="practice-instructions-header">
+                        <div className="panel-title">
+                          Instructions
+                        </div>
+
+                        <div
+                          className="practice-language-switcher"
+                          aria-label="Exercise language"
+                        >
+                          {(["en", "tr", "nl"] as const).map(
+                            (language) => (
+                              <button
+                                key={language}
+                                type="button"
+                                className={
+                                  practiceInstructionLanguage === language
+                                    ? "active"
+                                    : ""
+                                }
+                                disabled={
+                                  practiceTranslationLoading
+                                }
+                                onClick={() => {
+                                  void changePracticeInstructionLanguage(
+                                    language
+                                  );
+                                }}
+                              >
+                                {language.toUpperCase()}
+                              </button>
+                            )
+                          )}
+                        </div>
                       </div>
 
                       <div className="practice-instructions-scroll">
-                        {renderPracticeInstructions(
-                          practiceChallenge.instructions
+                        {practiceTranslationLoading ? (
+                          <p className="muted">
+                            Translating…
+                          </p>
+                        ) : (
+                          renderPracticeInstructions(
+                            practiceInstructionLanguage === "en"
+                              ? practiceChallenge.instructions
+                              : (
+                                  practiceTranslatedInstructions ??
+                                  practiceChallenge.instructions
+                                )
+                          )
                         )}
                       </div>
+
+                      {practiceTranslationError && (
+                        <p className="practice-translation-error">
+                          {practiceTranslationError}
+                        </p>
+                      )}
                     </div>
                   ) : practiceChallenge.context_code ? (
                     <div className="practice-context-section">
