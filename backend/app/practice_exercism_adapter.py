@@ -9,6 +9,8 @@ from backend.app.models import (
     PracticeExerciseContentResponse,
     PracticeExerciseSourceItem,
     PracticeExerciseSourceResponse,
+    PracticeExerciseValidationBundle,
+    PracticeValidationSourceFile,
 )
 from backend.app.practice_source_cache_service import (
     PRACTICE_SOURCE_CACHE,
@@ -420,6 +422,183 @@ def get_exercism_python_exercise_content(
                 + meta_raw
             ).encode("utf-8")
         ),
+    )
+
+    return result
+
+
+
+def _safe_source_path(path: str) -> bool:
+    return (
+        bool(path)
+        and not path.startswith("/")
+        and ".." not in path.split("/")
+        and "\\" not in path
+    )
+
+
+def get_exercism_python_validation_bundle(
+    *,
+    learner_id: str,
+    exercise_id: str,
+    source_revision: str | None = None,
+    text_loader: Callable[
+        [str, str],
+        str,
+    ] = _load_exercise_file,
+) -> PracticeExerciseValidationBundle:
+    cache_key = (
+        "exercism-python-validation:"
+        f"{exercise_id}:"
+        f"{source_revision or 'main'}"
+    )
+
+    cached_value = (
+        PRACTICE_SOURCE_CACHE.get(
+            cache_key
+        )
+    )
+
+    if isinstance(
+        cached_value,
+        PracticeExerciseValidationBundle,
+    ):
+        return cached_value.model_copy(
+            update={
+                "learner_id": learner_id,
+                "cached": True,
+            }
+        )
+
+    meta_raw = text_loader(
+        exercise_id,
+        ".meta/config.json",
+    )
+
+    try:
+        meta = json.loads(meta_raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            "Exercism exercise metadata is invalid."
+        ) from exc
+
+    if not isinstance(meta, dict):
+        raise ValueError(
+            "Exercism exercise metadata is invalid."
+        )
+
+    files = meta.get(
+        "files",
+        {},
+    )
+
+    if not isinstance(files, dict):
+        raise ValueError(
+            "Exercism exercise file metadata is invalid."
+        )
+
+    solution_files = files.get(
+        "solution",
+        [],
+    )
+    test_files = files.get(
+        "test",
+        [],
+    )
+
+    if (
+        not isinstance(solution_files, list)
+        or not solution_files
+        or not isinstance(test_files, list)
+        or not test_files
+    ):
+        raise ValueError(
+            "Exercism validation files are missing."
+        )
+
+    solution_filename = str(
+        solution_files[0]
+    )
+
+    if not _safe_source_path(
+        solution_filename
+    ):
+        raise ValueError(
+            "Unsafe Exercism solution path."
+        )
+
+    if len(test_files) > 8:
+        raise ValueError(
+            "Too many Exercism test files."
+        )
+
+    validation_files = []
+    total_bytes = len(
+        meta_raw.encode("utf-8")
+    )
+
+    for raw_path in test_files:
+        path = str(raw_path)
+
+        if not _safe_source_path(path):
+            raise ValueError(
+                "Unsafe Exercism test path."
+            )
+
+        content = text_loader(
+            exercise_id,
+            path,
+        )
+
+        file_bytes = len(
+            content.encode("utf-8")
+        )
+        total_bytes += file_bytes
+
+        if file_bytes > 262144:
+            raise ValueError(
+                "Exercism test file is too large."
+            )
+
+        validation_files.append(
+            PracticeValidationSourceFile(
+                path=path,
+                content=content,
+            )
+        )
+
+    if total_bytes > 1048576:
+        raise ValueError(
+            "Exercism validation bundle is too large."
+        )
+
+    content_hash = hashlib.sha256(
+        (
+            meta_raw
+            + "\n"
+            + "\n".join(
+                file.content
+                for file in validation_files
+            )
+        ).encode("utf-8")
+    ).hexdigest()
+
+    result = PracticeExerciseValidationBundle(
+        learner_id=learner_id,
+        source_id="exercism-python",
+        source_exercise_id=exercise_id,
+        solution_filename=solution_filename,
+        test_files=validation_files,
+        attribution=EXERCISM_ATTRIBUTION,
+        source_revision=source_revision,
+        content_hash=content_hash,
+        cached=False,
+    )
+
+    PRACTICE_SOURCE_CACHE.put(
+        key=cache_key,
+        value=result,
+        size_bytes=total_bytes,
     )
 
     return result
