@@ -44,6 +44,12 @@ from backend.app.models import (
     PracticeSolutionResponse,
     PracticeCatalogResponse,
     PracticeExerciseSourceResponse,
+    LearnerJournalResponse,
+    LearnerNote,
+    LearnerNoteCreateRequest,
+    LearnerNoteUpdateRequest,
+    LearnerResumeState,
+    LearnerResumeStateUpsertRequest,
 )
 from backend.app.practice_micro_check_service import (
     review_practice_micro_check,
@@ -67,6 +73,13 @@ from backend.app.practice_exercism_adapter import (
 )
 from backend.app.progress_service import (
     get_learner_progress,
+)
+from backend.app.learner_journal_service import (
+    add_note,
+    edit_note,
+    get_journal,
+    remove_note,
+    save_resume_state,
 )
 
 
@@ -449,6 +462,137 @@ def get_progress(
     return get_learner_progress(
         learner_id=learner_id
     )
+
+# ---------------------------------------------------------
+# LEARNER JOURNAL / RESUME STATE
+# ---------------------------------------------------------
+
+@router.put(
+    "/journal/{learner_id}/resume",
+    response_model=LearnerResumeState,
+)
+def upsert_learner_resume_state_route(
+    learner_id: str,
+    request: LearnerResumeStateUpsertRequest,
+):
+    learner = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return save_resume_state(
+        learner_id=learner_id,
+        request=request,
+    )
+
+
+@router.get(
+    "/journal/{learner_id}",
+    response_model=LearnerJournalResponse,
+)
+def get_learner_journal_route(
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+):
+    learner = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    if context_type not in {
+        "practice",
+        "workspace",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail="Geçersiz journal context_type.",
+        )
+
+    return get_journal(
+        learner_id=learner_id,
+        context_type=context_type,
+        context_key=context_key,
+    )
+
+
+@router.post(
+    "/journal/{learner_id}/notes",
+    response_model=LearnerNote,
+)
+def create_learner_note_route(
+    learner_id: str,
+    request: LearnerNoteCreateRequest,
+):
+    learner = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return add_note(
+        learner_id=learner_id,
+        request=request,
+    )
+
+
+@router.patch(
+    "/journal/{learner_id}/notes/{note_id}",
+    response_model=LearnerNote,
+)
+def update_learner_note_route(
+    learner_id: str,
+    note_id: str,
+    request: LearnerNoteUpdateRequest,
+):
+    note = edit_note(
+        learner_id=learner_id,
+        note_id=note_id,
+        request=request,
+    )
+
+    if note is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Note bulunamadı.",
+        )
+
+    return note
+
+
+@router.delete(
+    "/journal/{learner_id}/notes/{note_id}",
+    status_code=204,
+)
+def delete_learner_note_route(
+    learner_id: str,
+    note_id: str,
+):
+    deleted = remove_note(
+        learner_id=learner_id,
+        note_id=note_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Note bulunamadı.",
+        )
+
 
 # ---------------------------------------------------------
 # PRACTICE V2 EXTERNAL EXERCISE SOURCE
