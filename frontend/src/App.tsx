@@ -604,6 +604,10 @@ type AIUsageStatus = {
   allow_paid_provider: boolean;
   current_provider: string;
   current_model: string;
+  mentor_provider: string;
+  mentor_model: string;
+  classifier_provider: string;
+  classifier_model: string;
   current_provider_allowed: boolean;
   usage_scope: "local_safety_budget";
   provider_quota_known: boolean;
@@ -5528,14 +5532,28 @@ async function restoreWorkspaceVersion(
                                       <div>
                                         <span>Mentor provider</span>
                                         <strong>
-                                          {aiUsageStatus.current_provider}
+                                          {aiUsageStatus.mentor_provider}
                                         </strong>
                                       </div>
 
                                       <div>
                                         <span>Mentor model</span>
                                         <strong>
-                                          {aiUsageStatus.current_model}
+                                          {aiUsageStatus.mentor_model}
+                                        </strong>
+                                      </div>
+
+                                      <div>
+                                        <span>Classifier provider</span>
+                                        <strong>
+                                          {aiUsageStatus.classifier_provider}
+                                        </strong>
+                                      </div>
+
+                                      <div>
+                                        <span>Classifier model</span>
+                                        <strong>
+                                          {aiUsageStatus.classifier_model}
                                         </strong>
                                       </div>
 
