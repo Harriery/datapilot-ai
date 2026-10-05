@@ -460,3 +460,59 @@ def test_benchmark_provider_does_not_retry_unrelated_error():
             )
 
     assert mock_parse.call_count == 1
+
+
+
+def test_benchmark_provider_retries_groq_json_validation_failure_once():
+    from backend.benchmarks.mentor_benchmark_provider import (
+        _generate_openai_compatible_structured,
+    )
+
+    class FakeJsonValidationError(Exception):
+        status_code = 400
+        body = {
+            "error": {
+                "code": "json_validate_failed",
+                "failed_generation": (
+                    "max completion tokens reached before "
+                    "generating a valid document"
+                ),
+            }
+        }
+
+    parsed = CandidateResponse(
+        is_evidence=True,
+        success=True,
+        misconception=None,
+        mentor_reply="Kısa cevap.",
+    )
+    response = MagicMock()
+    response.output_parsed = parsed
+
+    with patch(
+        "backend.benchmarks.mentor_benchmark_provider."
+        "_openai_compatible_client",
+        return_value=MagicMock(),
+    ), patch(
+        "backend.benchmarks.mentor_benchmark_provider."
+        "guarded_responses_parse",
+        side_effect=[
+            FakeJsonValidationError("json failed"),
+            response,
+        ],
+    ) as mock_parse:
+        result = _generate_openai_compatible_structured(
+            provider="groq",
+            model="openai/gpt-oss-20b",
+            purpose="judge",
+            instructions="Return structured output.",
+            input_text="input",
+            text_format=CandidateResponse,
+        )
+
+    assert result == parsed
+    assert mock_parse.call_count == 2
+    assert (
+        mock_parse.call_args_list[1].kwargs["purpose"]
+        == "judge_parse_retry"
+    )
