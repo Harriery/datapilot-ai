@@ -2423,6 +2423,22 @@ class PracticeTheoryCheckGenerated(BaseModel):
     )
 
 
+class PracticeTheoryCheckCreateRequest(BaseModel):
+    learner_id: str
+    subtopic_id: str
+    concept_id: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    language: Literal[
+        "en",
+        "tr",
+        "nl",
+    ] = "en"
+
+
 class PracticeTheoryCheckResponse(BaseModel):
     learner_id: str
     topic_id: str
