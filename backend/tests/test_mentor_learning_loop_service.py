@@ -386,3 +386,87 @@ def test_prepare_phase_classifier_prompt_treats_proposed_question_as_evidence():
     instructions = mock_parse.call_args.kwargs["instructions"]
     assert "proposed decision or attempted answer remains learning evidence" in instructions
     assert "phrased as a question" in instructions
+
+
+
+def test_prepare_classifier_normalizes_misconception_alias():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+    )
+    loop.current_phase = "decide"
+
+    parsed = MagicMock()
+    parsed.output_parsed.is_evidence = True
+    parsed.output_parsed.success = False
+    parsed.output_parsed.evidence_type = "explanation"
+    parsed.output_parsed.note = "Automatic zero fill is not justified."
+    parsed.output_parsed.misconception = "imputation_with_zero_when_missing"
+
+    runtime = MagicMock()
+    runtime.client = MagicMock()
+    runtime.provider = "groq"
+    runtime.model = "openai/gpt-oss-20b"
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+        return_value=runtime,
+    ), patch(
+        "backend.app.mentor_learning_loop_service.guarded_responses_parse",
+        return_value=parsed,
+    ):
+        evaluation = evaluate_prepare_phase_response(
+            loop=loop,
+            finding=finding,
+            response="Eksik değerleri 0 ile doldurayım.",
+        )
+
+    assert (
+        evaluation.misconception
+        == "missing_value_means_fill_zero"
+    )
+
+
+def test_prepare_classifier_clears_misconception_after_success():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+    )
+    loop.current_phase = "reason"
+
+    parsed = MagicMock()
+    parsed.output_parsed.is_evidence = True
+    parsed.output_parsed.success = True
+    parsed.output_parsed.evidence_type = "explanation"
+    parsed.output_parsed.note = "Reasoning is sound."
+    parsed.output_parsed.misconception = "duplicate_classification_confusion"
+
+    runtime = MagicMock()
+    runtime.client = MagicMock()
+    runtime.provider = "groq"
+    runtime.model = "openai/gpt-oss-20b"
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+        return_value=runtime,
+    ), patch(
+        "backend.app.mentor_learning_loop_service.guarded_responses_parse",
+        return_value=parsed,
+    ):
+        evaluation = evaluate_prepare_phase_response(
+            loop=loop,
+            finding=finding,
+            response="Önce bağlamı kontrol etmeliyim.",
+        )
+
+    assert evaluation.misconception is None
