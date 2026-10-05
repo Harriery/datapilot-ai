@@ -131,6 +131,38 @@ def get_practice_evidence_type(
     )
 
 
+def _record_challenge_learning_evidence(
+    *,
+    learner_id: str,
+    challenge,
+    success: bool,
+    assistance_level: str,
+) -> str:
+    practice_context = (
+        _practice_evidence_context(
+            challenge
+        )
+    )
+
+    kwargs = {
+        "learner_id": learner_id,
+        "skill_name": challenge.skill_name,
+        "challenge_id": challenge.challenge_id,
+        "challenge_type": challenge.challenge_type,
+        "success": success,
+        "assistance_level": assistance_level,
+    }
+
+    if practice_context is not None:
+        kwargs["practice_context"] = (
+            practice_context
+        )
+
+    return record_practice_learning_evidence(
+        **kwargs
+    )
+
+
 def record_practice_learning_evidence(
     learner_id: str,
     skill_name: str,
@@ -151,19 +183,27 @@ def record_practice_learning_evidence(
         challenge_type
     )
 
-    database.record_learning_evidence(
-        learner_id=learner_id,
-        skill_name=skill_name,
-        assistance_level=assistance_level,
-        success=success,
-        evidence_type=evidence_type,
-        note=(
+    evidence_kwargs = {
+        "learner_id": learner_id,
+        "skill_name": skill_name,
+        "assistance_level": assistance_level,
+        "success": success,
+        "evidence_type": evidence_type,
+        "note": (
             f"Practice challenge {challenge_id} "
             f"deterministic validation sonucu: "
             f"{'success' if success else 'failure'}."
         ),
-        session_id=None,
-        context=practice_context,
+        "session_id": None,
+    }
+
+    if practice_context is not None:
+        evidence_kwargs["context"] = (
+            practice_context
+        )
+
+    database.record_learning_evidence(
+        **evidence_kwargs
     )
 
     return refresh_skill_status(
@@ -248,16 +288,11 @@ def review_practice_attempt(
         )
 
         # Deterministic success artık learner progress'e yazılır.
-        record_practice_learning_evidence(
+        _record_challenge_learning_evidence(
             learner_id=attempt.learner_id,
-            skill_name=challenge.skill_name,
-            challenge_id=attempt.challenge_id,
-            challenge_type=challenge.challenge_type,
+            challenge=challenge,
             success=True,
             assistance_level=assistance_level,
-            practice_context=_practice_evidence_context(
-                challenge
-            ),
         )
 
         return PracticeAttemptReview(
@@ -397,16 +432,11 @@ def review_practice_attempt(
         )
     )
 
-    record_practice_learning_evidence(
+    _record_challenge_learning_evidence(
         learner_id=attempt.learner_id,
-        skill_name=challenge.skill_name,
-        challenge_id=attempt.challenge_id,
-        challenge_type=challenge.challenge_type,
+        challenge=challenge,
         success=False,
         assistance_level=assistance_level,
-        practice_context=_practice_evidence_context(
-            challenge
-        ),
     )
 
     # --------------------------------------------------
