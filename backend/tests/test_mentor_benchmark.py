@@ -568,3 +568,40 @@ def test_benchmark_provider_retries_transient_groq_rate_limit_once():
         == "judge_rate_limit_retry"
     )
     mock_sleep.assert_called_once_with(1.5)
+
+
+def test_shared_orchestration_matches_benchmark_rules():
+    from backend.app.mentor_orchestration_service import (
+        determine_assistance_level,
+        determine_next_learning_phase,
+    )
+
+    assert determine_assistance_level(
+        skill_status="new",
+    ) == "GUIDE"
+    assert determine_assistance_level(
+        skill_status="practicing",
+    ) == "NUDGE"
+    assert determine_assistance_level(
+        skill_status="comfortable",
+    ) == "NONE"
+    assert determine_assistance_level(
+        skill_status="comfortable",
+        learner_message="Bilmiyorum, adım adım anlatır mısın?",
+    ) == "GUIDE"
+
+    assert determine_next_learning_phase(
+        current_phase="reason",
+        is_evidence=True,
+        success=True,
+    ) == "decide"
+    assert determine_next_learning_phase(
+        current_phase="reason",
+        is_evidence=True,
+        success=False,
+    ) == "reason"
+    assert determine_next_learning_phase(
+        current_phase="explain",
+        is_evidence=True,
+        success=True,
+    ) == "completed"
