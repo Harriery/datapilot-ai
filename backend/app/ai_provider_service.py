@@ -15,6 +15,7 @@ AIRole = Literal[
     "mentor",
     "classifier",
     "translator",
+    "practice_generator",
 ]
 
 
@@ -57,9 +58,17 @@ def _configured_provider(
                 "groq",
             ),
         )
-    elif role == "translator":
+    elif role in {
+        "translator",
+        "practice_generator",
+    }:
+        env_name = (
+            "AI_TRANSLATOR_PROVIDER"
+            if role == "translator"
+            else "AI_PRACTICE_GENERATOR_PROVIDER"
+        )
         value = os.getenv(
-            "AI_TRANSLATOR_PROVIDER",
+            env_name,
             os.getenv(
                 "AI_CLASSIFIER_PROVIDER",
                 os.getenv(
@@ -92,10 +101,18 @@ def _configured_model(
                 or "openai/gpt-oss-20b"
             )
 
-        if role == "translator":
+        if role in {
+            "translator",
+            "practice_generator",
+        }:
+            env_name = (
+                "AI_GROQ_TRANSLATOR_MODEL"
+                if role == "translator"
+                else "AI_GROQ_PRACTICE_GENERATOR_MODEL"
+            )
             return (
                 os.getenv(
-                    "AI_GROQ_TRANSLATOR_MODEL",
+                    env_name,
                     os.getenv(
                         "AI_GROQ_CLASSIFIER_MODEL",
                         "openai/gpt-oss-20b",
