@@ -2268,6 +2268,22 @@ class PracticeChallenge(BaseModel):
 
     skill_name: str
 
+    # Practice V2 path metadata. Optional fields keep legacy
+    # adaptive challenges backward compatible.
+    topic_id: str | None = None
+    subtopic_id: str | None = None
+    practice_mode: Literal[
+        "theory",
+        "code",
+        "sql",
+        "transformation",
+        "design",
+        "project",
+        "mixed",
+    ] | None = None
+    source_id: str | None = None
+    source_exercise_id: str | None = None
+
     difficulty: Literal[
         "foundation",
         "easy",
