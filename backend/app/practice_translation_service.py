@@ -7,7 +7,7 @@ from backend.app.ai_provider_service import (
     get_ai_runtime,
 )
 from backend.app.ai_usage_guard import (
-    guarded_responses_create,
+    guarded_chat_completions_create,
 )
 from backend.app.models import (
     PracticeTranslationRequest,
@@ -25,9 +25,27 @@ LANGUAGE_LABELS = {
 
 
 def _response_text(response) -> str:
-    value = getattr(
+    choices = getattr(
         response,
-        "output_text",
+        "choices",
+        None,
+    )
+
+    if (
+        not choices
+        or getattr(
+            choices[0],
+            "message",
+            None,
+        ) is None
+    ):
+        raise ValueError(
+            "Translation response did not contain text."
+        )
+
+    value = getattr(
+        choices[0].message,
+        "content",
         None,
     )
 
@@ -93,14 +111,23 @@ def translate_practice_instructions(
         "bullets, and emphasis as plain Markdown."
     )
 
-    response = guarded_responses_create(
+    response = guarded_chat_completions_create(
         runtime.client,
         provider=runtime.provider,
         purpose="practice_translation",
         model=runtime.model,
-        instructions=instructions,
-        input=request.source_text,
-        max_output_tokens=1800,
+        messages=[
+            {
+                "role": "system",
+                "content": instructions,
+            },
+            {
+                "role": "user",
+                "content": request.source_text,
+            },
+        ],
+        max_tokens=1800,
+        temperature=0,
     )
 
     translated_text = _response_text(
