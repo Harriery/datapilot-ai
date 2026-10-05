@@ -2351,6 +2351,39 @@ class PracticeExerciseSourceResponse(BaseModel):
     ]
 
 
+class PracticeExerciseProgressState(BaseModel):
+    source_exercise_id: str
+    attempts: int = Field(ge=0)
+    client_passes: int = Field(ge=0)
+    client_failures: int = Field(ge=0)
+    last_client_success: bool | None = None
+
+
+class PracticeNextExerciseResponse(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    source_id: str
+    status: Literal[
+        "new",
+        "resume",
+        "next",
+        "cycle_complete",
+    ]
+    exercise: PracticeExerciseSourceItem | None = None
+    progress: list[
+        PracticeExerciseProgressState
+    ] = Field(default_factory=list)
+    completed_exercise_count: int = Field(ge=0)
+    available_exercise_count: int = Field(ge=0)
+
+
 class PracticeExerciseContentResponse(BaseModel):
     learner_id: str
     source_id: str
