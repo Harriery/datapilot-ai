@@ -640,6 +640,50 @@ type PracticeSolutionData = {
 };
 
 
+function renderPracticeInlineText(text: string) {
+  const parts = text.split(
+    /(\*\*[^*]+\*\*|_[^_]+_|\`[^\`]+\`)/g
+  );
+
+  return parts.map((part, index) => {
+    if (
+      part.startsWith("**") &&
+      part.endsWith("**")
+    ) {
+      return (
+        <strong key={index}>
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    if (
+      part.startsWith("_") &&
+      part.endsWith("_")
+    ) {
+      return (
+        <em key={index}>
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
+
+    if (
+      part.startsWith("`") &&
+      part.endsWith("`")
+    ) {
+      return (
+        <code key={index}>
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+
+    return part;
+  });
+}
+
+
 function renderPracticeInstructions(markdown: string) {
   const cleaned = markdown
     .replace(/^#\s+Instructions\s*/i, "")
@@ -656,6 +700,92 @@ function renderPracticeInstructions(markdown: string) {
     const lines = block.split("\n");
 
     if (
+      block.startsWith("```") &&
+      block.endsWith("```")
+    ) {
+      const codeLines = lines.slice(1, -1);
+      const firstLine = lines[0]
+        .replace(/^```/, "")
+        .trim();
+
+      return (
+        <pre
+          key={index}
+          className="practice-instruction-code"
+        >
+          <code>
+            {[
+              firstLine &&
+              !["text", "python", "py"].includes(
+                firstLine.toLowerCase()
+              )
+                ? firstLine
+                : null,
+              ...codeLines,
+            ]
+              .filter(Boolean)
+              .join("\n")}
+          </code>
+        </pre>
+      );
+    }
+
+    const tableLines = lines.filter(
+      (line) => line.trim().startsWith("|")
+    );
+
+    if (
+      tableLines.length >= 2 &&
+      tableLines.length === lines.length &&
+      /^\|?\s*:?-+/.test(
+        tableLines[1].replace(/\|/g, " ")
+      )
+    ) {
+      const parseRow = (line: string) =>
+        line
+          .trim()
+          .replace(/^\|/, "")
+          .replace(/\|$/, "")
+          .split("|")
+          .map((cell) => cell.trim());
+
+      const header = parseRow(tableLines[0]);
+      const rows = tableLines
+        .slice(2)
+        .map(parseRow);
+
+      return (
+        <div
+          key={index}
+          className="practice-instruction-table-wrap"
+        >
+          <table className="practice-instruction-table">
+            <thead>
+              <tr>
+                {header.map((cell, cellIndex) => (
+                  <th key={cellIndex}>
+                    {renderPracticeInlineText(cell)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {row.map((cell, cellIndex) => (
+                    <td key={cellIndex}>
+                      {renderPracticeInlineText(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (
       lines.every((line) =>
         line.trim().startsWith("- ")
       )
@@ -664,10 +794,11 @@ function renderPracticeInstructions(markdown: string) {
         <ul key={index}>
           {lines.map((line, itemIndex) => (
             <li key={itemIndex}>
-              {line
-                .trim()
-                .replace(/^-\s+/, "")
-                .replace(/\*\*/g, "")}
+              {renderPracticeInlineText(
+                line
+                  .trim()
+                  .replace(/^-\s+/, "")
+              )}
             </li>
           ))}
         </ul>
@@ -676,12 +807,11 @@ function renderPracticeInstructions(markdown: string) {
 
     return (
       <p key={index}>
-        {block.replace(/\*\*/g, "")}
+        {renderPracticeInlineText(block)}
       </p>
     );
   });
 }
-
 
 function App() {
   const [language, setLanguage] =
