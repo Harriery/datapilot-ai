@@ -490,3 +490,26 @@ def test_pipeline_partial_failure_keeps_completed_checkpoint(tmp_path):
         selected[0]["id"]
     ]
     assert saved["last_error"]["scenario_id"] == selected[1]["id"]
+
+
+def test_pipeline_reports_production_integration_status():
+    from backend.app.mentor_reply_policy import (
+        mentor_pipeline_production_status,
+        mentor_reply_rules,
+    )
+
+    status = mentor_pipeline_production_status()
+
+    assert status["classifier_policy_shared"] is True
+    assert status["orchestration_policy_shared"] is True
+    assert status["misconception_taxonomy_shared"] is True
+    assert status["guided_learning_llm_reply_integrated"] is False
+    assert status["production_reply_mode"] == "deterministic_phase_prompt"
+    assert status["benchmark_reply_mode"] == "llm_mentor_reply"
+
+    rules = mentor_reply_rules()
+    assert "Give only ONE small next step" in rules
+    assert "target <= 20 words" in rules
+    assert "Challenge the faulty premise" in rules
+    assert "If next_phase=completed" in rules
+    assert "Do not provide code unless" in rules
