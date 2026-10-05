@@ -1880,6 +1880,63 @@ function App() {
           );
 
         setPracticeSandboxResult(result);
+
+        if (
+          practiceChallenge.topic_id &&
+          practiceChallenge.subtopic_id &&
+          practiceChallenge.practice_mode &&
+          practiceChallenge.source_id &&
+          practiceChallenge.source_exercise_id &&
+          practiceChallenge.source_content_hash
+        ) {
+          try {
+            const eventResponse = await fetch(
+              "http://127.0.0.1:8000/mentor/practice/external-validation-event",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  learner_id: "demo-learner",
+                  source_id:
+                    practiceChallenge.source_id,
+                  source_exercise_id:
+                    practiceChallenge.source_exercise_id,
+                  topic_id:
+                    practiceChallenge.topic_id,
+                  subtopic_id:
+                    practiceChallenge.subtopic_id,
+                  practice_mode:
+                    practiceChallenge.practice_mode,
+                  difficulty:
+                    practiceChallenge.difficulty,
+                  content_hash:
+                    practiceChallenge.source_content_hash,
+                  validation_bundle_hash:
+                    bundle.content_hash,
+                  client_reported_success:
+                    result.success,
+                  tests_run:
+                    result.testsRun,
+                  answer:
+                    practiceCode,
+                }),
+              }
+            );
+
+            if (!eventResponse.ok) {
+              console.error(
+                "Practice validation activity could not be saved."
+              );
+            }
+          } catch (activityError) {
+            console.error(
+              "Practice validation activity could not be saved.",
+              activityError
+            );
+          }
+        }
       } catch (error) {
         console.error(error);
 
