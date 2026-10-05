@@ -5010,12 +5010,15 @@ async function restoreWorkspaceVersion(
               : "nav-item"
           }
           onClick={openPractice}
-          disabled={practiceLoading}
+          disabled={
+            practiceLoading ||
+            practiceCatalogLoading
+          }
         >
           <span className="nav-icon">◉</span>
         
           <span className="nav-label">
-            {practiceLoading
+            {practiceLoading || practiceCatalogLoading
               ? "Loading..."
               : t.sidebar.practice}
           </span>
