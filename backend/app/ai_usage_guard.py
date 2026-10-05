@@ -203,6 +203,48 @@ def guarded_responses_parse(client, *, provider: str = "openai", purpose: str, *
     return client.responses.parse(**kwargs)
 
 
+def guarded_chat_completions_create(
+    client,
+    *,
+    provider: str = "openai",
+    purpose: str,
+    **kwargs,
+):
+    reserve_ai_request(
+        provider=provider,
+        model=str(
+            kwargs.get(
+                "model",
+                "unknown",
+            )
+        ),
+        purpose=purpose,
+        input_value=kwargs.get(
+            "messages"
+        ),
+    )
+
+    max_output_tokens = (
+        get_ai_usage_limits()[
+            "max_output_tokens_per_request"
+        ]
+    )
+
+    if (
+        max_output_tokens > 0
+        and "max_tokens" not in kwargs
+    ):
+        kwargs["max_tokens"] = (
+            max_output_tokens
+        )
+
+    return (
+        client.chat.completions.create(
+            **kwargs
+        )
+    )
+
+
 def guarded_embeddings_create(client, *, provider: str = "openai", purpose: str = "embedding", **kwargs):
     reserve_ai_request(
         provider=provider,
