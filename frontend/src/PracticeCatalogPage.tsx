@@ -153,7 +153,7 @@ export default function PracticeCatalogPage({
       });
 
       const sourceResponse = await fetch(
-        `http://127.0.0.1:8000/mentor/practice/source/exercism/python/${catalog.learner_id}?${params.toString()}`
+        `http://127.0.0.1:8000/mentor/practice/source/exercism/python/${catalog.learner_id}/next?${params.toString()}`
       );
 
       if (!sourceResponse.ok) {
@@ -163,21 +163,32 @@ export default function PracticeCatalogPage({
 
         throw new Error(
           detail?.detail ||
-          "Exercise list could not be loaded."
+          "Next exercise could not be loaded."
         );
       }
 
       const sourceData = await sourceResponse.json() as {
-        exercises: ExternalPracticeExercise[];
+        status:
+          | "new"
+          | "resume"
+          | "next"
+          | "cycle_complete";
+        exercise: ExternalPracticeExercise | null;
+        completed_exercise_count: number;
+        available_exercise_count: number;
       };
 
-      const exercise = sourceData.exercises[0];
-
-      if (!exercise) {
-        throw new Error(
-          "No matching exercise is available for this path yet."
+      if (
+        sourceData.status === "cycle_complete" ||
+        !sourceData.exercise
+      ) {
+        setStartError(
+          `You have completed the available ${difficulty} exercises for this path. This is exercise coverage, not mastery yet.`
         );
+        return;
       }
+
+      const exercise = sourceData.exercise;
 
       const contentParams = new URLSearchParams({
         title: exercise.title,
