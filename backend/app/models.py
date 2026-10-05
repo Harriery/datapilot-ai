@@ -2370,6 +2370,36 @@ class PracticeValidationSourceFile(BaseModel):
     content: str
 
 
+class PracticeTranslationRequest(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    content_hash: str
+    target_language: Literal[
+        "tr",
+        "nl",
+    ]
+    source_text: str = Field(
+        min_length=1,
+        max_length=30000,
+    )
+
+
+class PracticeTranslationResponse(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    content_hash: str
+    target_language: Literal[
+        "tr",
+        "nl",
+    ]
+    translated_text: str
+    provider: str
+    model: str
+    cached: bool = False
+
+
 class PracticeExerciseValidationBundle(BaseModel):
     learner_id: str
     source_id: str
