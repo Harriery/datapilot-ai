@@ -579,11 +579,17 @@ export default function PracticeCatalogPage({
                     disabled={
                       startLoading ||
                       selectedTopic.topic_id !== "python" ||
-                      !["code", "theory"].includes(mode)
+                      (
+                        mode === null ||
+                        !["code", "theory"].includes(mode)
+                      )
                     }
                     title={
                       selectedTopic.topic_id === "python" &&
-                      ["code", "theory"].includes(mode)
+                      (
+                        mode !== null &&
+                        ["code", "theory"].includes(mode)
+                      )
                         ? (
                             mode === "theory"
                               ? "Start a source-grounded theory check"
