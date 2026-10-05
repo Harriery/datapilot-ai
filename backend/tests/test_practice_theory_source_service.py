@@ -70,3 +70,30 @@ def test_python_theory_rejects_unknown_concept():
         raise AssertionError(
             "Unknown theory concept should fail."
         )
+
+
+
+def test_incomplete_exercism_theory_uses_python_docs_fallback():
+    PRACTICE_SOURCE_CACHE.clear()
+    calls = []
+
+    result = get_exercism_python_theory_concept(
+        learner_id="learner-001",
+        concept_id="list-comprehensions",
+        text_loader=lambda _: (
+            "#TODO: Add about for this concept."
+        ),
+        python_docs_loader=lambda concept_id: (
+            calls.append(concept_id)
+            or (
+                "List Comprehensions\n"
+                "List comprehensions provide a concise way "
+                "to create lists using an expression and for clause."
+            )
+        ),
+    )
+
+    assert result.source_id == "python-docs"
+    assert result.source_path == "datastructures.rst"
+    assert "PSF-2.0" in result.attribution
+    assert calls == ["list-comprehensions"]
