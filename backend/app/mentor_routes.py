@@ -46,6 +46,8 @@ from backend.app.models import (
     PracticeExerciseSourceResponse,
     PracticeExerciseContentResponse,
     PracticeExerciseValidationBundle,
+    ExternalPracticeValidationEvent,
+    ExternalPracticeValidationEventRequest,
     LearnerJournalResponse,
     LearnerNote,
     LearnerNoteCreateRequest,
@@ -77,6 +79,9 @@ from backend.app.practice_exercism_adapter import (
 )
 from backend.app.progress_service import (
     get_learner_progress,
+)
+from backend.app.external_practice_validation_service import (
+    record_client_validation_event,
 )
 from backend.app.learner_journal_service import (
     add_note,
@@ -736,6 +741,30 @@ def get_exercism_python_validation_bundle_route(
                 "bundle could not be loaded."
             ),
         ) from exc
+
+
+@router.post(
+    "/practice/external-validation-event",
+    response_model=ExternalPracticeValidationEvent,
+)
+def record_external_practice_validation_event_route(
+    request: ExternalPracticeValidationEventRequest,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            request.learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return record_client_validation_event(
+        request=request
+    )
 
 
 # ---------------------------------------------------------
