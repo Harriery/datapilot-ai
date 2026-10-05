@@ -206,3 +206,71 @@ def test_practice_evidence_updates_real_learner_progress(
     # practicing + declining
     # → medium practice priority
     assert skill.practice_priority == "medium"
+
+
+def test_practice_v2_path_metadata_is_persisted_as_learning_evidence(
+    tmp_path,
+):
+    database.DATABASE_PATH = (
+        tmp_path / "practice_v2_evidence.db"
+    )
+    database.init_db()
+
+    database.insert_learner_profile(
+        learner_id="learner-v2",
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+        preferred_language="en",
+    )
+    database.insert_skill_state(
+        learner_id="learner-v2",
+        skill_name="python_data_structures",
+        status="new",
+    )
+
+    practice_context = {
+        "stage": "practice",
+        "task_type": "practice_challenge",
+        "topic_id": "python",
+        "subtopic_id": "loops",
+        "practice_mode": "code",
+        "difficulty": "easy",
+        "source_id": "exercism-python",
+        "source_exercise_id": "two-fer",
+        "challenge_id": "challenge-v2",
+        "challenge_type": "code",
+        "deterministic_validation": True,
+    }
+
+    record_practice_learning_evidence(
+        learner_id="learner-v2",
+        skill_name="python_data_structures",
+        challenge_id="challenge-v2",
+        challenge_type="code",
+        success=True,
+        assistance_level="NONE",
+        practice_context=practice_context,
+    )
+
+    evidence = database.get_learning_evidence_by_skill(
+        learner_id="learner-v2",
+        skill_name="python_data_structures",
+    )
+
+    assert len(evidence) == 1
+    assert evidence[0]["context_json"] is not None
+
+    import json
+
+    context = json.loads(
+        evidence[0]["context_json"]
+    )
+
+    assert context["topic_id"] == "python"
+    assert context["subtopic_id"] == "loops"
+    assert context["practice_mode"] == "code"
+    assert context["difficulty"] == "easy"
+    assert context["source_id"] == "exercism-python"
+    assert context["source_exercise_id"] == "two-fer"
+    assert context["deterministic_validation"] is True
