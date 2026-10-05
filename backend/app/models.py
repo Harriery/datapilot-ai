@@ -2131,6 +2131,110 @@ class LearnerProgressResponse(BaseModel):
 
 
 # ==================================================
+# LEARNER JOURNAL / RESUME STATE
+# ==================================================
+
+class LearnerResumePayload(BaseModel):
+    topic_id: str | None = None
+    subtopic_id: str | None = None
+    practice_mode: str | None = None
+    difficulty: str | None = None
+    source_id: str | None = None
+    source_exercise_id: str | None = None
+
+    workspace_id: str | None = None
+    stage: str | None = None
+    current_view: str | None = None
+
+    metadata: dict = Field(
+        default_factory=dict
+    )
+
+
+class LearnerResumeStateUpsertRequest(BaseModel):
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str = Field(
+        min_length=1,
+        max_length=240,
+    )
+    state: LearnerResumePayload
+
+
+class LearnerResumeState(BaseModel):
+    learner_id: str
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str
+    state: LearnerResumePayload
+    updated_at: str | None = None
+
+
+class LearnerNoteCreateRequest(BaseModel):
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str = Field(
+        min_length=1,
+        max_length=240,
+    )
+    title: str | None = Field(
+        default=None,
+        max_length=120,
+    )
+    body: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+    source_exercise_id: str | None = None
+
+
+class LearnerNoteUpdateRequest(BaseModel):
+    title: str | None = Field(
+        default=None,
+        max_length=120,
+    )
+    body: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=4000,
+    )
+
+
+class LearnerNote(BaseModel):
+    note_id: str
+    learner_id: str
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str
+    title: str | None = None
+    body: str
+    source_exercise_id: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class LearnerJournalResponse(BaseModel):
+    learner_id: str
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str
+    resume_state: LearnerResumeState | None = None
+    notes: list[LearnerNote] = Field(
+        default_factory=list
+    )
+
+
+# ==================================================
 # PRACTICE SYSTEM
 # ==================================================
 
