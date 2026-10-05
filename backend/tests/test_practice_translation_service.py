@@ -14,7 +14,7 @@ from backend.app.practice_translation_service import (
 )
 
 
-class FakeResponses:
+class FakeChatCompletions:
     def __init__(self):
         self.calls = 0
 
@@ -22,16 +22,30 @@ class FakeResponses:
         self.calls += 1
 
         return SimpleNamespace(
-            output_text=(
-                "Görevin, verilen bir yılın leap year "
-                "(artık yıl) olup olmadığını belirlemektir."
-            )
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            "Görevin, verilen bir yılın "
+                            "leap year (artık yıl) olup "
+                            "olmadığını belirlemektir."
+                        )
+                    )
+                )
+            ]
+        )
+
+
+class FakeChat:
+    def __init__(self):
+        self.completions = (
+            FakeChatCompletions()
         )
 
 
 class FakeClient:
     def __init__(self):
-        self.responses = FakeResponses()
+        self.chat = FakeChat()
 
 
 def _request():
@@ -56,9 +70,11 @@ def test_practice_translation_uses_free_runtime_and_returns_text(
 
     monkeypatch.setattr(
         "backend.app.practice_translation_service."
-        "guarded_responses_create",
+        "guarded_chat_completions_create",
         lambda client_arg, **kwargs: (
-            client.responses.create(**kwargs)
+            client.chat.completions.create(
+                **kwargs
+            )
         ),
     )
 
@@ -75,7 +91,7 @@ def test_practice_translation_uses_free_runtime_and_returns_text(
     assert result.model == "openai/gpt-oss-20b"
     assert "leap year" in result.translated_text
     assert result.cached is False
-    assert client.responses.calls == 1
+    assert client.chat.completions.calls == 1
 
 
 def test_practice_translation_is_cached_by_content_hash_and_language(
@@ -117,7 +133,7 @@ def test_practice_translation_is_cached_by_content_hash_and_language(
     assert first.cached is False
     assert second.cached is True
     assert second.learner_id == "learner-002"
-    assert client.responses.calls == 1
+    assert client.chat.completions.calls == 1
 
 
 def test_practice_translation_cache_changes_when_content_hash_changes(
@@ -156,4 +172,4 @@ def test_practice_translation_cache_changes_when_content_hash_changes(
         ),
     )
 
-    assert client.responses.calls == 2
+    assert client.chat.completions.calls == 2
