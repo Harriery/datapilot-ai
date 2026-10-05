@@ -12,6 +12,8 @@ from backend.app.ai_provider_service import (
     get_ai_runtime,
 )
 from backend.app.ai_usage_guard import (
+    AIUsageLimitError,
+    get_ai_usage_status,
     guarded_chat_completions_create,
 )
 from backend.app.models import (
@@ -139,6 +141,273 @@ def _parse_generated_json(
                 generated.explanation.strip()
             ),
         }
+    )
+
+
+DETERMINISTIC_THEORY_CHECKS = {
+    "basics": {
+        "required_markers": (
+            "assignment `=` operator",
+            "reassigned",
+        ),
+        "question": (
+            "Which statement correctly describes Python name assignment?"
+        ),
+        "options": [
+            (
+                "A name can be bound to an object with = "
+                "and later rebound to another value."
+            ),
+            (
+                "A variable must be declared with a var keyword "
+                "before it can receive a value."
+            ),
+            (
+                "A Python name can never refer to a different "
+                "object type after its first assignment."
+            ),
+            (
+                "Constants are enforced by the Python interpreter "
+                "and cannot be reassigned."
+            ),
+        ],
+        "correct_index": 0,
+        "explanation": (
+            "Python binds names to objects with the = operator, "
+            "and a name can later be rebound."
+        ),
+    },
+    "conditionals": {
+        "required_markers": (
+            "if",
+            "elif",
+            "else",
+            "true or false",
+        ),
+        "question": (
+            "What determines which branch of an if/elif/else "
+            "statement runs in Python?"
+        ),
+        "options": [
+            (
+                "The truth value of each condition is evaluated "
+                "in order."
+            ),
+            (
+                "Python always runs every branch once."
+            ),
+            (
+                "Only numeric conditions are allowed."
+            ),
+            (
+                "The else branch runs before the if branch."
+            ),
+        ],
+        "correct_index": 0,
+        "explanation": (
+            "Python evaluates conditional expressions by truth value "
+            "and follows the matching control-flow branch."
+        ),
+    },
+    "loops": {
+        "required_markers": (
+            "while",
+            "for",
+            "iterable",
+        ),
+        "question": (
+            "Which statement best distinguishes Python for and "
+            "while loops?"
+        ),
+        "options": [
+            (
+                "A for loop iterates through an iterable, while a "
+                "while loop continues while its condition is true."
+            ),
+            (
+                "A while loop can only iterate over lists."
+            ),
+            (
+                "A for loop requires a Boolean condition after for."
+            ),
+            (
+                "Python supports for loops but not while loops."
+            ),
+        ],
+        "correct_index": 0,
+        "explanation": (
+            "Python for loops iterate over iterable values, while "
+            "while loops repeat while a condition remains true."
+        ),
+    },
+    "lists": {
+        "required_markers": (
+            "mutable collection",
+            "0-based index",
+        ),
+        "question": (
+            "Which statement about Python lists is correct?"
+        ),
+        "options": [
+            (
+                "Lists are mutable sequences and can be accessed "
+                "using zero-based indexes."
+            ),
+            (
+                "Lists are immutable and cannot be changed after creation."
+            ),
+            (
+                "List indexing starts at 1."
+            ),
+            (
+                "Lists can contain only one Python data type."
+            ),
+        ],
+        "correct_index": 0,
+        "explanation": (
+            "Python lists are mutable sequence collections and use "
+            "zero-based indexing from the left."
+        ),
+    },
+    "functions": {
+        "required_markers": (
+            "def",
+            "return",
+            "parameters",
+            "arguments",
+        ),
+        "question": (
+            "Which statement correctly describes a Python function?"
+        ),
+        "options": [
+            (
+                "A function is defined with def, may accept parameters, "
+                "and can return a value with return."
+            ),
+            (
+                "A function must always accept at least one argument."
+            ),
+            (
+                "A function without an explicit return produces an "
+                "empty string."
+            ),
+            (
+                "Functions cannot be called more than once."
+            ),
+        ],
+        "correct_index": 0,
+        "explanation": (
+            "Python functions are defined with def, can accept "
+            "parameters, and can return values with return."
+        ),
+    },
+    "list-comprehensions": {
+        "required_markers": (
+            "list comprehensions provide a concise way to create lists",
+            "for",
+        ),
+        "question": (
+            "What is a primary purpose of a Python list comprehension?"
+        ),
+        "options": [
+            (
+                "To create a new list concisely by applying an "
+                "expression across iterable values, optionally filtering them."
+            ),
+            (
+                "To mutate every existing list in place automatically."
+            ),
+            (
+                "To define a class without using class."
+            ),
+            (
+                "To catch exceptions raised while iterating."
+            ),
+        ],
+        "correct_index": 0,
+        "explanation": (
+            "List comprehensions provide a concise syntax for building "
+            "new lists from iterable values, with optional conditions."
+        ),
+    },
+    "raising-and-handling-errors": {
+        "required_markers": (
+            "try",
+            "except",
+            "raise",
+        ),
+        "question": (
+            "Which statement correctly describes Python exception handling?"
+        ),
+        "options": [
+            (
+                "try protects code that may raise an exception, except "
+                "handles matching exceptions, and raise can trigger one."
+            ),
+            (
+                "except always runs even when no exception occurs."
+            ),
+            (
+                "raise can only be used inside an except block."
+            ),
+            (
+                "A try statement can never have more than one except clause."
+            ),
+        ],
+        "correct_index": 0,
+        "explanation": (
+            "Python uses try/except to handle selected exceptions, "
+            "and raise can explicitly trigger an exception."
+        ),
+    },
+}
+
+
+def _deterministic_fallback_check(
+    *,
+    source_text: str,
+    concept_id: str,
+) -> PracticeTheoryCheckGenerated:
+    template = DETERMINISTIC_THEORY_CHECKS.get(
+        concept_id
+    )
+
+    if template is None:
+        raise ValueError(
+            "No deterministic Theory fallback exists "
+            "for this concept."
+        )
+
+    normalized_source = (
+        source_text.casefold()
+    )
+
+    missing_markers = [
+        marker
+        for marker in template[
+            "required_markers"
+        ]
+        if marker.casefold()
+        not in normalized_source
+    ]
+
+    if missing_markers:
+        raise ValueError(
+            "Theory source no longer supports the "
+            "deterministic fallback check."
+        )
+
+    return PracticeTheoryCheckGenerated(
+        question=template["question"],
+        options=list(
+            template["options"]
+        ),
+        correct_index=int(
+            template["correct_index"]
+        ),
+        explanation=template[
+            "explanation"
+        ],
     )
 
 
@@ -290,21 +559,67 @@ def create_python_theory_check(
         generated,
         PracticeTheoryCheckGenerated,
     ):
-        generated = generator(
-            source_text=source.source_text,
-            concept_id=request.concept_id,
-            difficulty=request.difficulty,
-            language=request.language,
+        usage = get_ai_usage_status()
+
+        ai_budget_available = (
+            usage["daily_remaining"] > 0
+            and usage["monthly_remaining"] > 0
         )
 
-        PRACTICE_SOURCE_CACHE.put(
-            key=cache_key,
-            value=generated,
-            size_bytes=len(
-                generated.model_dump_json()
-                .encode("utf-8")
-            ),
-        )
+        if ai_budget_available:
+            try:
+                generated = generator(
+                    source_text=source.source_text,
+                    concept_id=request.concept_id,
+                    difficulty=request.difficulty,
+                    language=request.language,
+                )
+            except AIUsageLimitError:
+                generated = None
+
+        if not isinstance(
+            generated,
+            PracticeTheoryCheckGenerated,
+        ):
+            fallback_cache_key = (
+                "practice-theory-fallback:"
+                f"{source.content_hash}:"
+                f"{request.concept_id}:"
+                f"{request.language}"
+            )
+
+            generated = PRACTICE_SOURCE_CACHE.get(
+                fallback_cache_key
+            )
+
+            if not isinstance(
+                generated,
+                PracticeTheoryCheckGenerated,
+            ):
+                generated = (
+                    _deterministic_fallback_check(
+                        source_text=source.source_text,
+                        concept_id=request.concept_id,
+                    )
+                )
+
+                PRACTICE_SOURCE_CACHE.put(
+                    key=fallback_cache_key,
+                    value=generated,
+                    size_bytes=len(
+                        generated.model_dump_json()
+                        .encode("utf-8")
+                    ),
+                )
+        else:
+            PRACTICE_SOURCE_CACHE.put(
+                key=cache_key,
+                value=generated,
+                size_bytes=len(
+                    generated.model_dump_json()
+                    .encode("utf-8")
+                ),
+            )
 
     correct_answer = generated.options[
         generated.correct_index
