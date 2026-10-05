@@ -35,6 +35,9 @@ import WorkspaceNotebook, {
   type WorkspaceNotebookData,
 } from "./WorkspaceNotebook";
 import WorkspaceMentorPanel from "./WorkspaceMentorPanel";
+import PracticeCatalogPage, {
+  type PracticeCatalogData,
+} from "./PracticeCatalogPage";
 import {
   WorkspaceLineageView,
   WorkspacePipelineView,
@@ -1156,6 +1159,18 @@ function App() {
   const [practiceChallenge, setPracticeChallenge] =
   useState<PracticeChallengeData | null>(null);
 
+  const [practiceCatalog, setPracticeCatalog] =
+    useState<PracticeCatalogData | null>(null);
+
+  const [practiceCatalogLoading, setPracticeCatalogLoading] =
+    useState(false);
+
+  const [practiceCatalogError, setPracticeCatalogError] =
+    useState<string | null>(null);
+
+  const [practiceRunnerOpen, setPracticeRunnerOpen] =
+    useState(false);
+
   const [practiceLoading, setPracticeLoading] =
     useState(false);
 
@@ -1537,10 +1552,49 @@ function App() {
   }, []);  
 
   async function openPractice() {
-    // Zaten bir challenge yüklenmişse
-    // yeni challenge oluşturma, sadece Practice ekranını aç.
+    setCurrentView("practice");
+    setPracticeRunnerOpen(false);
+
+    if (practiceCatalog) {
+      return;
+    }
+
+    setPracticeCatalogLoading(true);
+    setPracticeCatalogError(null);
+
+    try {
+      const learnerId = "demo-learner";
+      const response = await fetch(
+        `http://127.0.0.1:8000/mentor/practice/catalog/${learnerId}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            "Practice catalog yüklenemedi."
+        );
+      }
+
+      setPracticeCatalog(data);
+    } catch (error) {
+      console.error(error);
+
+      setPracticeCatalogError(
+        error instanceof Error
+          ? error.message
+          : "Practice catalog yüklenemedi."
+      );
+    } finally {
+      setPracticeCatalogLoading(false);
+    }
+  }
+
+  async function openRecommendedPracticeChallenge() {
+    setPracticeRunnerOpen(true);
+
     if (practiceChallenge) {
-      setCurrentView("practice");
       return;
     }
 
@@ -1578,8 +1632,6 @@ function App() {
       setPracticeExecutionError(null);
       setPracticeHint(null);
       setPracticeHintError(null);
-
-      setCurrentView("practice");
     } catch (error) {
       console.error(error);
 
@@ -6087,6 +6139,7 @@ async function restoreWorkspaceVersion(
 
 
           ) : currentView === "practice" ? (
+            practiceRunnerOpen ? (
           <section className="workspace-page practice-page">
             <div className="workspace-header">
               <div>
@@ -6364,7 +6417,20 @@ async function restoreWorkspaceVersion(
               </p>
             )}
           </section>
-                ) : dashboardWorkspace ? (
+            ) : (
+              <PracticeCatalogPage
+                catalog={practiceCatalog}
+                loading={practiceCatalogLoading}
+                error={practiceCatalogError}
+                onBack={() =>
+                  setCurrentView("dashboard")
+                }
+                onStartRecommended={() => {
+                  void openRecommendedPracticeChallenge();
+                }}
+              />
+            )
+          ) : dashboardWorkspace ? (
                   <section className="workspace-page workspace-overview-page">
                     <div className="workspace-sticky-shell">
                       <header className="workspace-compact-header">
