@@ -570,6 +570,41 @@ def validate_practice_attempt(
         )
 
         # --------------------------------------------------
+    # EXACT ANSWER VALIDATION
+    # --------------------------------------------------
+    if (
+        validation_spec.validation_type
+        == "exact_answer"
+    ):
+        if validation_spec.expected_answer is None:
+            raise ValueError(
+                "Exact answer validation için "
+                "expected_answer bulunamadı."
+            )
+
+        answer = (
+            attempt.answer or ""
+        ).strip()
+
+        expected_answer = (
+            validation_spec.expected_answer
+            .strip()
+        )
+
+        success = (
+            answer == expected_answer
+        )
+
+        return PracticeAttemptValidation(
+            success=success,
+            feedback=(
+                "Correct answer."
+                if success
+                else "That answer is not correct."
+            ),
+        )
+
+    # --------------------------------------------------
     # NULL COUNT REDUCTION
     # --------------------------------------------------
 
