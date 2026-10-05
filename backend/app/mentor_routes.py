@@ -46,6 +46,8 @@ from backend.app.models import (
     PracticeExerciseSourceResponse,
     PracticeExerciseContentResponse,
     PracticeExerciseValidationBundle,
+    PracticeTranslationRequest,
+    PracticeTranslationResponse,
     ExternalPracticeValidationEvent,
     ExternalPracticeValidationEventRequest,
     LearnerJournalResponse,
@@ -79,6 +81,9 @@ from backend.app.practice_exercism_adapter import (
 )
 from backend.app.progress_service import (
     get_learner_progress,
+)
+from backend.app.practice_translation_service import (
+    translate_practice_instructions,
 )
 from backend.app.external_practice_validation_service import (
     record_client_validation_event,
@@ -765,6 +770,38 @@ def record_external_practice_validation_event_route(
     return record_client_validation_event(
         request=request
     )
+
+
+@router.post(
+    "/practice/translate",
+    response_model=PracticeTranslationResponse,
+)
+def translate_practice_instructions_route(
+    request: PracticeTranslationRequest,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            request.learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return translate_practice_instructions(
+            request=request
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Practice translation could not be loaded."
+            ),
+        ) from exc
 
 
 # ---------------------------------------------------------
