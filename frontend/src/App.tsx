@@ -37,6 +37,8 @@ import WorkspaceNotebook, {
 import WorkspaceMentorPanel from "./WorkspaceMentorPanel";
 import LearnerNotebookPanel from "./LearnerNotebookPanel";
 import PracticeCatalogPage, {
+  type ExternalPracticeContent,
+  type ExternalPracticeExercise,
   type PracticeCatalogData,
 } from "./PracticeCatalogPage";
 import {
@@ -546,6 +548,13 @@ type WorkspaceTask = {
 type PracticeChallengeData = {
   challenge_id: string;
   skill_name: string;
+  topic_id?: string | null;
+  subtopic_id?: string | null;
+  practice_mode?: string | null;
+  source_id?: string | null;
+  source_exercise_id?: string | null;
+  source_attribution?: string | null;
+  external_validation_pending?: boolean;
   difficulty: "foundation" | "easy" | "medium" | "hard";
   challenge_type:
     | "code"
@@ -1172,6 +1181,9 @@ function App() {
   const [practiceRunnerOpen, setPracticeRunnerOpen] =
     useState(false);
 
+  const [practiceExternalValidationPending, setPracticeExternalValidationPending] =
+    useState(false);
+
   const [practiceLoading, setPracticeLoading] =
     useState(false);
 
@@ -1592,6 +1604,55 @@ function App() {
     }
   }
 
+  function openExternalPracticeChallenge(data: {
+    topicId: string;
+    subtopicId: string;
+    mode: string;
+    difficulty: "easy" | "medium" | "hard";
+    exercise: ExternalPracticeExercise;
+    content: ExternalPracticeContent;
+  }) {
+    const challenge: PracticeChallengeData = {
+      challenge_id:
+        `external:${data.exercise.source_id}:${data.exercise.source_exercise_id}`,
+      skill_name:
+        `${data.topicId} · ${data.subtopicId}`,
+      topic_id: data.topicId,
+      subtopic_id: data.subtopicId,
+      practice_mode: data.mode,
+      source_id: data.exercise.source_id,
+      source_exercise_id:
+        data.exercise.source_exercise_id,
+      source_attribution:
+        data.content.attribution,
+      external_validation_pending: true,
+      difficulty: data.difficulty,
+      challenge_type: "code",
+      title: data.content.title,
+      instructions: data.content.instructions,
+      context_code: null,
+      options: null,
+      starter_code:
+        data.content.starter_code ?? "",
+      input_rows: null,
+    };
+
+    setPracticeChallenge(challenge);
+    setPracticeCode(
+      challenge.starter_code ?? ""
+    );
+    setPracticeOutput(null);
+    setPracticeExecutionError(null);
+    setPracticeReview(null);
+    setPracticeHint(null);
+    setPracticeHintError(null);
+    setPracticeSolution(null);
+    setPracticeSolutionError(null);
+    setPracticeExternalValidationPending(true);
+    setPracticeError(null);
+    setPracticeRunnerOpen(true);
+  }
+
   async function openRecommendedPracticeChallenge() {
     setPracticeRunnerOpen(true);
 
@@ -1624,6 +1685,7 @@ function App() {
       const data = await response.json();
 
       setPracticeChallenge(data.challenge);
+      setPracticeExternalValidationPending(false);
 
       setPracticeCode(
         data.challenge.starter_code ?? ""
@@ -1696,7 +1758,10 @@ function App() {
   }
 
   async function submitPracticeAnswer() {
-    if (!practiceChallenge) {
+    if (
+      !practiceChallenge ||
+      practiceExternalValidationPending
+    ) {
       return;
     }
 
@@ -1766,7 +1831,10 @@ function App() {
   }
 
   async function requestPracticeHint() {
-    if (!practiceChallenge) {
+    if (
+      !practiceChallenge ||
+      practiceExternalValidationPending
+    ) {
       return;
     }
 
@@ -1816,7 +1884,10 @@ function App() {
   }
 
   async function requestPracticeSolution() {
-    if (!practiceChallenge) {
+    if (
+      !practiceChallenge ||
+      practiceExternalValidationPending
+    ) {
       return;
     }
 
@@ -6159,8 +6230,9 @@ async function restoreWorkspaceVersion(
                 <h2>Practice</h2>
 
                 <p>
-                  Adaptive challenge based on your
-                  learning progress.
+                  {practiceExternalValidationPending
+                    ? "External exercise · validation sandbox is not connected yet."
+                    : "Adaptive challenge based on your learning progress."}
                 </p>
               </div>
             </div>
@@ -6195,6 +6267,12 @@ async function restoreWorkspaceVersion(
                     {practiceChallenge.challenge_type}
                   </span>
                 </div>
+
+                {practiceChallenge.source_attribution && (
+                  <p className="practice-source-attribution">
+                    {practiceChallenge.source_attribution}
+                  </p>
+                )}
                 
                 <div className="practice-workbench">
                   {practiceChallenge.context_code && (
@@ -6239,21 +6317,25 @@ async function restoreWorkspaceVersion(
                         className="hint-button"
                         onClick={requestPracticeHint}
                         disabled={
+                          practiceExternalValidationPending ||
                           practiceHintLoading ||
                           practiceHint?.solution_available === true
                         }
                       >
-                        {practiceHintLoading
-                          ? "Loading hint..."
-                          : practiceHint?.solution_available
-                            ? "Hints completed"
-                            : "💡 Hint"}
+                        {practiceExternalValidationPending
+                          ? "Hint coming with mentor integration"
+                          : practiceHintLoading
+                            ? "Loading hint..."
+                            : practiceHint?.solution_available
+                              ? "Hints completed"
+                              : "💡 Hint"}
                       </button>
                         
                       <button
                         className="submit-button"
                         onClick={submitPracticeAnswer}
                         disabled={
+                          practiceExternalValidationPending ||
                           practiceSubmitting ||
                           (
                             practiceOutput === null &&
@@ -6261,9 +6343,11 @@ async function restoreWorkspaceVersion(
                           )
                         }
                       >
-                        {practiceSubmitting
-                          ? "Checking..."
-                          : "✓ Submit answer"}
+                        {practiceExternalValidationPending
+                          ? "Validation sandbox next"
+                          : practiceSubmitting
+                            ? "Checking..."
+                            : "✓ Submit answer"}
                       </button>
                     </div>
                   </div>
@@ -6432,6 +6516,7 @@ async function restoreWorkspaceVersion(
                 onStartRecommended={() => {
                   void openRecommendedPracticeChallenge();
                 }}
+                onStartExternal={openExternalPracticeChallenge}
               />
             )
           ) : dashboardWorkspace ? (
