@@ -160,3 +160,25 @@ def test_pipeline_mentor_has_one_cognitive_target():
 
     assert "one cognitive target only" in instructions
     assert "Do not combine two checks" in instructions
+
+
+
+def test_pipeline_classifier_has_strict_validation_rules():
+    instructions = " ".join(
+        build_classifier_instructions().split()
+    )
+
+    assert "code running without error is NOT sufficient validation" in instructions
+    assert "Compare before/after evidence" in instructions
+    assert "Unexpected row loss" in instructions
+    assert "checking only one metric" in instructions
+
+
+def test_pipeline_classifier_uses_canonical_misconception_taxonomy():
+    instructions = build_classifier_instructions()
+
+    assert "missing_value_means_fill_zero" in instructions
+    assert "execution_success_equals_validation" in instructions
+    assert "single_metric_validation" in instructions
+    assert "Do not invent a new label" in instructions
+    assert "If success=true, misconception must be null" in instructions
