@@ -13,8 +13,10 @@ from backend.app.ai_usage_guard import (
     guarded_responses_parse,
 )
 from backend.app.mentor_misconception_taxonomy import (
-    canonical_misconception_instructions,
     normalize_misconception,
+)
+from backend.app.mentor_classifier_policy import (
+    learning_evidence_classifier_rules,
 )
 from backend.app.models import (
     DataQualityFinding,
@@ -268,18 +270,12 @@ def evaluate_prepare_phase_response(
     - Evaluate only the learner_response.
     - Finding is context, not learner evidence.
     - Do not reward confident wording by itself.
-    - Do not invent dataset facts that are not supplied.
-    - A pure question/help request with no proposed answer, action, explanation,
-      or hypothesis is not learning evidence; set is_evidence=false.
-    - A proposed decision or attempted answer remains learning evidence even
-      when phrased as a question. For example, asking whether to replace missing
-      values with a specific value is an attempted decision, not merely a help
-      request.
     - If it is a genuine attempt, set is_evidence=true and success true/false.
     - evidence_type should normally be "explanation" for observe/reason/decide/explain.
-    - If success=true, misconception must be null.
-    - {canonical_misconception_instructions()}
     - note must be concise and specific.
+
+    Shared classifier policy:
+    {learning_evidence_classifier_rules()}
     """
 
     runtime = get_ai_runtime(
