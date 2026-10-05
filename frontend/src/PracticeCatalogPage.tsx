@@ -43,6 +43,33 @@ export type ExternalPracticeExercise = {
   attribution: string;
 };
 
+export type PracticeTheoryChallenge = {
+  challenge_id: string;
+  skill_name: string;
+  topic_id: string | null;
+  subtopic_id: string | null;
+  practice_mode: string | null;
+  source_id: string | null;
+  source_exercise_id: string | null;
+  mastery_signals: string[];
+  difficulty: "easy" | "medium" | "hard";
+  challenge_type: "multiple_choice";
+  title: string;
+  instructions: string;
+  options: string[];
+  starter_code: string | null;
+};
+
+export type PracticeTheoryCheckData = {
+  learner_id: string;
+  topic_id: string;
+  subtopic_id: string;
+  difficulty: "easy" | "medium" | "hard";
+  concept_id: string;
+  challenge: PracticeTheoryChallenge;
+  attribution: string;
+};
+
 export type ExternalPracticeContent = {
   learner_id: string;
   source_id: string;
@@ -71,6 +98,7 @@ type Props = {
     exercise: ExternalPracticeExercise;
     content: ExternalPracticeContent;
   }) => void;
+  onStartTheory: (data: PracticeTheoryCheckData) => void;
 };
 
 function label(value: string) {
@@ -88,6 +116,7 @@ export default function PracticeCatalogPage({
   onBack,
   onStartRecommended,
   onStartExternal,
+  onStartTheory,
 }: Props) {
   const [topicId, setTopicId] = useState<string | null>(null);
   const [subtopic, setSubtopic] = useState<string | null>(null);
@@ -132,12 +161,16 @@ export default function PracticeCatalogPage({
       return;
     }
 
-    if (
-      selectedTopic.topic_id !== "python" ||
-      mode !== "code"
-    ) {
+    if (selectedTopic.topic_id !== "python") {
       setStartError(
-        "The first external exercise adapter currently supports Python Code mode. Theory and other topics are next."
+        "External Practice currently supports Python first. Other topics are next."
+      );
+      return;
+    }
+
+    if (!["code", "theory"].includes(mode)) {
+      setStartError(
+        "This Practice mode is not connected yet."
       );
       return;
     }
@@ -146,6 +179,76 @@ export default function PracticeCatalogPage({
     setStartError(null);
 
     try {
+      if (mode === "theory") {
+        const conceptParams = new URLSearchParams({
+          subtopic_id: subtopic,
+        });
+
+        const conceptResponse = await fetch(
+          `http://127.0.0.1:8000/mentor/practice/source/exercism/python/${catalog.learner_id}/theory?${conceptParams.toString()}`
+        );
+
+        if (!conceptResponse.ok) {
+          const detail = await conceptResponse
+            .json()
+            .catch(() => null);
+
+          throw new Error(
+            detail?.detail ||
+            "Theory concepts could not be loaded."
+          );
+        }
+
+        const conceptData = await conceptResponse.json() as {
+          concepts: Array<{
+            concept_id: string;
+            title: string;
+          }>;
+        };
+
+        const concept = conceptData.concepts[0];
+
+        if (!concept) {
+          throw new Error(
+            "No theory concept is available for this focus area."
+          );
+        }
+
+        const checkResponse = await fetch(
+          "http://127.0.0.1:8000/mentor/practice/theory/check",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              learner_id: catalog.learner_id,
+              subtopic_id: subtopic,
+              concept_id: concept.concept_id,
+              difficulty,
+              language: "en",
+            }),
+          }
+        );
+
+        if (!checkResponse.ok) {
+          const detail = await checkResponse
+            .json()
+            .catch(() => null);
+
+          throw new Error(
+            detail?.detail ||
+            "Theory check could not be generated."
+          );
+        }
+
+        const theoryData =
+          await checkResponse.json() as PracticeTheoryCheckData;
+
+        onStartTheory(theoryData);
+        return;
+      }
+
       const params = new URLSearchParams({
         subtopic_id: subtopic,
         difficulty,
@@ -476,13 +579,17 @@ export default function PracticeCatalogPage({
                     disabled={
                       startLoading ||
                       selectedTopic.topic_id !== "python" ||
-                      mode !== "code"
+                      !["code", "theory"].includes(mode)
                     }
                     title={
                       selectedTopic.topic_id === "python" &&
-                      mode === "code"
-                        ? "Load a matching exercise"
-                        : "External exercises currently support Python Code mode."
+                      ["code", "theory"].includes(mode)
+                        ? (
+                            mode === "theory"
+                              ? "Start a source-grounded theory check"
+                              : "Load a matching exercise"
+                          )
+                        : "This Practice path is not connected yet."
                     }
                     onClick={() => {
                       void startSelectedPractice();
