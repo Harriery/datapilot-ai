@@ -6784,9 +6784,11 @@ async function restoreWorkspaceVersion(
                 <h2>Practice</h2>
 
                 <p>
-                  {practiceExternalValidationPending
-                    ? "External exercise · validation sandbox is not connected yet."
-                    : "Adaptive challenge based on your learning progress."}
+                  {practiceChallenge?.challenge_type === "multiple_choice"
+                    ? "Source-grounded theory check · deterministic validation."
+                    : practiceExternalValidationPending
+                      ? "External exercise · isolated validation sandbox."
+                      : "Adaptive challenge based on your learning progress."}
                 </p>
               </div>
 
@@ -6840,11 +6842,12 @@ async function restoreWorkspaceVersion(
                   {practiceChallenge.skill_name}
                 </p>
 
-                {!practiceExternalValidationPending && (
-                  <p>
-                    {practiceChallenge.instructions}
-                  </p>
-                )}
+                {!practiceExternalValidationPending &&
+                  practiceChallenge.challenge_type !== "multiple_choice" && (
+                    <p>
+                      {practiceChallenge.instructions}
+                    </p>
+                  )}
 
                 <div className="badge-row">
                   <span className="priority-badge">
@@ -6858,6 +6861,149 @@ async function restoreWorkspaceVersion(
                   </p>
                 )}
                 
+                {practiceChallenge.challenge_type === "multiple_choice" ? (
+                  <div className="practice-theory-workbench">
+                    <div className="practice-theory-question">
+                      <div className="panel-title">
+                        Theory check
+                      </div>
+
+                      <h4>
+                        {practiceChallenge.instructions}
+                      </h4>
+
+                      <div className="practice-theory-options">
+                        {(practiceChallenge.options ?? []).map(
+                          (option, index) => {
+                            const selected =
+                              practiceTheorySelectedAnswer === option;
+
+                            return (
+                              <button
+                                type="button"
+                                key={option}
+                                className={
+                                  selected
+                                    ? "practice-theory-option selected"
+                                    : "practice-theory-option"
+                                }
+                                disabled={
+                                  practiceSubmitting ||
+                                  practiceTheoryResult !== null
+                                }
+                                onClick={() => {
+                                  setPracticeTheorySelectedAnswer(
+                                    option
+                                  );
+                                  setPracticeTheoryResult(null);
+                                  setPracticeExecutionError(null);
+                                }}
+                              >
+                                <span>
+                                  {String.fromCharCode(
+                                    65 + index
+                                  )}
+                                </span>
+
+                                <strong>{option}</strong>
+                              </button>
+                            );
+                          }
+                        )}
+                      </div>
+
+                      <div className="workspace-actions">
+                        <button
+                          className="submit-button"
+                          onClick={() => {
+                            void submitPracticeTheoryAnswer();
+                          }}
+                          disabled={
+                            practiceSubmitting ||
+                            !practiceTheorySelectedAnswer ||
+                            practiceTheoryResult !== null
+                          }
+                        >
+                          {practiceSubmitting
+                            ? "Checking..."
+                            : practiceTheoryResult
+                              ? "Answer checked"
+                              : "✓ Check answer"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="practice-theory-feedback">
+                      <div className="panel-title">
+                        Feedback & mastery
+                      </div>
+
+                      {practiceExecutionError ? (
+                        <div className="python-error">
+                          {practiceExecutionError}
+                        </div>
+                      ) : practiceTheoryResult ? (
+                        <>
+                          <div
+                            className={
+                              practiceTheoryResult.success
+                                ? "practice-feedback success"
+                                : "practice-feedback failure"
+                            }
+                          >
+                            <strong>
+                              {practiceTheoryResult.success
+                                ? "✓ Correct"
+                                : "Not quite"}
+                            </strong>
+
+                            <p>
+                              {practiceTheoryResult.feedback}
+                            </p>
+                          </div>
+
+                          <div className="practice-mastery-signals">
+                            {practiceTheoryResult.mastery.signals.map(
+                              (signal) => (
+                                <div
+                                  key={signal.signal}
+                                  className={
+                                    signal.demonstrated
+                                      ? "demonstrated"
+                                      : ""
+                                  }
+                                >
+                                  <span>
+                                    {signal.demonstrated
+                                      ? "✓"
+                                      : "○"}
+                                  </span>
+
+                                  <div>
+                                    <strong>
+                                      {signal.signal
+                                        .replaceAll("_", " ")}
+                                    </strong>
+
+                                    <small>
+                                      Evidence: {signal.evidence_count}
+                                    </small>
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="muted">
+                          Choose the answer that best matches
+                          the concept. DataPilot tracks evidence,
+                          not a fixed question count.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
                 <div
                   className={
                     practiceExternalValidationPending
@@ -7186,8 +7332,7 @@ async function restoreWorkspaceVersion(
                     </div>
                   </div>
                 </div>
-                
-                  
+                )}
 
                 </div>
               
