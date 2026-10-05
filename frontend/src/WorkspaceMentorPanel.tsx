@@ -54,13 +54,14 @@ export default function WorkspaceMentorPanel({
   onOpenChange,
 }: Props) {
   const copy = {
-    en: { title:"DataPilot Mentor", subtitle:"Workspace-aware senior mentor", placeholder:"Ask about your current work...", send:"Send", empty:"I follow this workspace, its data-quality findings, notebook and pipeline. Ask me what to investigate or do next.", close:"Close", collapse:"Collapse", expand:"Open mentor", thinking:"Thinking...", learningLoop:"Guided learning loop", learningLoopLoading:"Preparing learning step...", phase:"Phase", workbenchGate:"This phase advances only after a real Workbench transformation and deterministic validation.", completed:"Learning loop completed" },
-    nl: { title:"DataPilot Mentor", subtitle:"Senior mentor met werkruimtecontext", placeholder:"Vraag iets over je huidige werk...", send:"Versturen", empty:"Ik volg deze werkruimte, de datakwaliteitsbevindingen, het notebook en de pipeline. Vraag wat je nu moet onderzoeken of doen.", close:"Sluiten", collapse:"Inklappen", expand:"Mentor openen", thinking:"Nadenken...", learningLoop:"Begeleide leerloop", learningLoopLoading:"Leerstap voorbereiden...", phase:"Fase", workbenchGate:"Deze fase gaat alleen verder na een echte Workbench-transformatie en deterministische validatie.", completed:"Leerloop voltooid" },
-    tr: { title:"DataPilot Mentor", subtitle:"Çalışma alanını bilen kıdemli mentor", placeholder:"Mevcut çalışman hakkında sor...", send:"Gönder", empty:"Bu çalışma alanını, veri kalitesi bulgularını, notebook'u ve pipeline'ı takip ediyorum. Şimdi neyi incelemen veya yapman gerektiğini sorabilirsin.", close:"Kapat", collapse:"Daralt", expand:"Mentoru aç", thinking:"Düşünüyor...", learningLoop:"Yönlendirmeli öğrenme döngüsü", learningLoopLoading:"Öğrenme adımı hazırlanıyor...", phase:"Aşama", workbenchGate:"Bu aşama yalnızca gerçek bir Workbench dönüşümü ve deterministik doğrulama sonrasında ilerler.", completed:"Öğrenme döngüsü tamamlandı" },
+    en: { title:"DataPilot Mentor", subtitle:"Workspace-aware senior mentor", placeholder:"Ask about your current work...", learningPlaceholder:"Answer the current learning step...", send:"Send", empty:"I follow this workspace, its data-quality findings, notebook and pipeline. Ask me what to investigate or do next.", learningEmpty:"Start a guided learning step from a data-quality finding.", close:"Close", collapse:"Collapse", expand:"Open mentor", thinking:"Thinking...", chatMode:"Mentor Chat", learningMode:"Guided Learning", learningLoop:"Guided learning loop", learningLoopLoading:"Preparing learning step...", phase:"Phase", workbenchGate:"This phase advances only after a real Workbench transformation and deterministic validation.", completed:"Learning loop completed" },
+    nl: { title:"DataPilot Mentor", subtitle:"Senior mentor met werkruimtecontext", placeholder:"Vraag iets over je huidige werk...", learningPlaceholder:"Beantwoord de huidige leerstap...", send:"Versturen", empty:"Ik volg deze werkruimte, de datakwaliteitsbevindingen, het notebook en de pipeline. Vraag wat je nu moet onderzoeken of doen.", learningEmpty:"Start een begeleide leerstap vanuit een datakwaliteitsbevinding.", close:"Sluiten", collapse:"Inklappen", expand:"Mentor openen", thinking:"Nadenken...", chatMode:"Mentorchat", learningMode:"Begeleid leren", learningLoop:"Begeleide leerloop", learningLoopLoading:"Leerstap voorbereiden...", phase:"Fase", workbenchGate:"Deze fase gaat alleen verder na een echte Workbench-transformatie en deterministische validatie.", completed:"Leerloop voltooid" },
+    tr: { title:"DataPilot Mentor", subtitle:"Çalışma alanını bilen kıdemli mentor", placeholder:"Mevcut çalışman hakkında sor...", learningPlaceholder:"Mevcut öğrenme adımını cevapla...", send:"Gönder", empty:"Bu çalışma alanını, veri kalitesi bulgularını, notebook'u ve pipeline'ı takip ediyorum. Şimdi neyi incelemen veya yapman gerektiğini sorabilirsin.", learningEmpty:"Bir veri kalitesi bulgusundan yönlendirmeli öğrenme adımı başlat.", close:"Kapat", collapse:"Daralt", expand:"Mentoru aç", thinking:"Düşünüyor...", chatMode:"Mentor Chat", learningMode:"Yönlendirmeli Öğrenme", learningLoop:"Yönlendirmeli öğrenme döngüsü", learningLoopLoading:"Öğrenme adımı hazırlanıyor...", phase:"Aşama", workbenchGate:"Bu aşama yalnızca gerçek bir Workbench dönüşümü ve deterministik doğrulama sonrasında ilerler.", completed:"Öğrenme döngüsü tamamlandı" },
   }[language];
 
   const [messages,setMessages]=useState<MentorMessage[]>([]);
   const [learningMessages,setLearningMessages]=useState<MentorMessage[]>([]);
+  const [activeMode,setActiveMode]=useState<"chat"|"learning">("chat");
   const [learningLoop,setLearningLoop]=useState<WorkspaceLearningLoop|null>(null);
   const [learningLoopLoading,setLearningLoopLoading]=useState(false);
   const [input,setInput]=useState("");
@@ -79,7 +80,9 @@ export default function WorkspaceMentorPanel({
 
   useEffect(()=>{
     if(contextualPrompt && contextualPromptKey){
-      onOpenChange(true); setInput(contextualPrompt);
+      setActiveMode("chat");
+      onOpenChange(true);
+      setInput(contextualPrompt);
     }
   },[contextualPrompt,contextualPromptKey,onOpenChange]);
 
@@ -88,6 +91,7 @@ export default function WorkspaceMentorPanel({
 
     let cancelled=false;
     setLearningLoopLoading(true);
+    setActiveMode("learning");
     onOpenChange(true);
 
     fetch(
@@ -153,6 +157,7 @@ export default function WorkspaceMentorPanel({
     if(!message || !sessionId || loading) return;
 
     const structuredPhase =
+      activeMode==="learning" &&
       learningLoop?.status==="active" &&
       (
         learningLoop.current_phase==="observe" ||
@@ -247,7 +252,28 @@ export default function WorkspaceMentorPanel({
       </span>
     </header>
     <>
-      {learningLoop && (
+      <div className="workspace-mentor-modes" role="tablist" aria-label="Mentor mode">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeMode==="chat"}
+          className={activeMode==="chat" ? "active" : ""}
+          onClick={()=>setActiveMode("chat")}
+        >
+          {copy.chatMode}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeMode==="learning"}
+          className={activeMode==="learning" ? "active" : ""}
+          onClick={()=>setActiveMode("learning")}
+        >
+          {copy.learningMode}
+        </button>
+      </div>
+
+      {activeMode==="learning" && learningLoop && (
         <div className="mentor-learning-loop-status">
           <div>
             <span>{copy.learningLoop}</span>
@@ -302,19 +328,57 @@ export default function WorkspaceMentorPanel({
       )}
 
       <div className="workspace-mentor-messages">
-        {messages.length===0 && learningMessages.length===0 && <div className="workspace-mentor-empty"><Sparkles size={18}/><p>{copy.empty}</p></div>}
-        {messages.map((m,i)=><div key={`chat-${i}`} className={`workspace-mentor-message ${m.role}`}><span>{m.content}</span></div>)}
-        {learningMessages.map((m,i)=><div key={`learning-${i}`} className={`workspace-mentor-message ${m.role} learning`}><span>{m.content}</span></div>)}
-        {learningLoop && learningLoop.status==="active" && (learningLoop.current_phase==="implement" || learningLoop.current_phase==="validate") && (
+        {activeMode==="chat" && messages.length===0 && (
+          <div className="workspace-mentor-empty"><Sparkles size={18}/><p>{copy.empty}</p></div>
+        )}
+        {activeMode==="learning" && learningMessages.length===0 && (
+          <div className="workspace-mentor-empty"><Sparkles size={18}/><p>{copy.learningEmpty}</p></div>
+        )}
+        {activeMode==="chat" && messages.map((m,i)=><div key={`chat-${i}`} className={`workspace-mentor-message ${m.role}`}><span>{m.content}</span></div>)}
+        {activeMode==="learning" && learningMessages.map((m,i)=><div key={`learning-${i}`} className={`workspace-mentor-message ${m.role} learning`}><span>{m.content}</span></div>)}
+        {activeMode==="learning" && learningLoop && learningLoop.status==="active" && (learningLoop.current_phase==="implement" || learningLoop.current_phase==="validate") && (
           <div className="mentor-learning-gate">{copy.workbenchGate}</div>
         )}
-        {(loading || learningLoopLoading) && <div className="workspace-mentor-message assistant"><span>{learningLoopLoading?copy.learningLoopLoading:copy.thinking}</span></div>}
+        {activeMode==="chat" && loading && <div className="workspace-mentor-message assistant"><span>{copy.thinking}</span></div>}
+        {activeMode==="learning" && (loading || learningLoopLoading) && <div className="workspace-mentor-message assistant learning"><span>{learningLoopLoading?copy.learningLoopLoading:copy.thinking}</span></div>}
         <div ref={endRef}/>
       </div>
       <form className="workspace-mentor-composer" onSubmit={submit}>
-        <textarea value={input} onChange={e=>setInput(e.target.value)} placeholder={copy.placeholder} rows={2}
-          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void submit();}}}/>
-        <button type="submit" disabled={!input.trim()||loading} title={copy.send}><Send size={17}/></button>
+        <textarea
+          value={input}
+          onChange={e=>setInput(e.target.value)}
+          placeholder={activeMode==="learning" ? copy.learningPlaceholder : copy.placeholder}
+          rows={2}
+          disabled={
+            activeMode==="learning" &&
+            (
+              !learningLoop ||
+              learningLoop.status==="completed" ||
+              learningLoop.current_phase==="implement" ||
+              learningLoop.current_phase==="validate"
+            )
+          }
+          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void submit();}}}
+        />
+        <button
+          type="submit"
+          disabled={
+            !input.trim() ||
+            loading ||
+            (
+              activeMode==="learning" &&
+              (
+                !learningLoop ||
+                learningLoop.status==="completed" ||
+                learningLoop.current_phase==="implement" ||
+                learningLoop.current_phase==="validate"
+              )
+            )
+          }
+          title={copy.send}
+        >
+          <Send size={17}/>
+        </button>
       </form>
     </>
   </aside>;
