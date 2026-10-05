@@ -2384,6 +2384,36 @@ class PracticeNextExerciseResponse(BaseModel):
     available_exercise_count: int = Field(ge=0)
 
 
+class PracticeTheoryConceptItem(BaseModel):
+    source_id: str
+    concept_id: str
+    title: str
+    source_path: str
+    attribution: str
+
+
+class PracticeTheoryConceptResponse(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    source_id: str
+    concepts: list[
+        PracticeTheoryConceptItem
+    ]
+
+
+class PracticeTheoryConceptContent(BaseModel):
+    learner_id: str
+    source_id: str
+    concept_id: str
+    title: str
+    source_path: str
+    source_text: str
+    attribution: str
+    content_hash: str
+    cached: bool = False
+
+
 class PracticeExerciseContentResponse(BaseModel):
     learner_id: str
     source_id: str
