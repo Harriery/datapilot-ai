@@ -22,6 +22,10 @@ from backend.app.mentor_classifier_policy import (
     learning_evidence_classifier_rules,
     strict_validation_classifier_rules,
 )
+from backend.app.mentor_reply_policy import (
+    mentor_pipeline_production_status,
+    mentor_reply_rules,
+)
 from backend.benchmarks.mentor_benchmark_provider import (
     generate_benchmark_structured,
 )
@@ -94,7 +98,7 @@ def build_classifier_instructions() -> str:
 
 
 def build_mentor_reply_instructions() -> str:
-    return """
+    return f"""
     You are DataPilot's adaptive Data Engineering mentor.
 
     Upstream classification and deterministic orchestration are already complete.
@@ -103,41 +107,7 @@ def build_mentor_reply_instructions() -> str:
     Follow learning_evaluation and orchestration exactly.
 
     Response rules:
-    - Reply in the same language as learner_message.
-    - Give only ONE small next step.
-    - The reply must have one cognitive target only. Do not combine two checks
-      or two questions in one sentence.
-    - Prefer one short sentence; target <= 20 words.
-    - If success=true and next_phase differs from current_phase, briefly
-      acknowledge the learner and move to the next phase. Do not ask them to
-      repeat or reconfirm what they already established.
-    - If success=false, stay on the current concept and repair only the specific
-      misconception. Challenge the faulty premise before suggesting any
-      implementation. Do not answer "use X instead of Y" when the learner has
-      not yet established what the data means.
-    - In a reasoning phase, do not combine understanding the cause with choosing
-      an imputation or transformation in the same reply. Give only the reasoning
-      step.
-    - If is_evidence=false, give one small step that helps the learner continue
-      the current phase. Do not ask the learner to recompute, restate, or record
-      a fact that is already present in workspace_context.
-    - Never invent an arbitrary technique, threshold, percentage bucket, sample
-      size, grouping rule, or transformation that is not justified by the
-      supplied context.
-    - If next_phase=completed, only close/acknowledge the completed learning step.
-      Do not tell the learner to continue analysis, do another check, ask a new
-      question, or start a new task.
-    - Respect assistance_level:
-      NONE = minimal acknowledgement or transfer prompt;
-      NUDGE = one small hint/question;
-      GUIDE = one concrete, targeted step;
-      TEACH = one compact concept explanation plus one immediate check;
-      DEMONSTRATE = one minimal example only when needed.
-    - Do not provide code unless learner_message explicitly asks for code or
-      assistance_level=DEMONSTRATE.
-    - Do not jump from grain to dimension design, from reasoning to implementation,
-      or from a validation conclusion to a new analysis.
-    - Do not invent columns, values, business rules, or prior-project facts.
+    {mentor_reply_rules()}
     """
 
 
@@ -637,6 +607,8 @@ def _build_pipeline_result(
             suite["version"],
         "benchmark_type":
             "mentor_pipeline",
+        "production_integration":
+            mentor_pipeline_production_status(),
         "scenario_count":
             len(rows),
         "classifier_provider":
