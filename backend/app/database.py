@@ -1147,6 +1147,43 @@ def list_external_practice_validation_events(
     ]
 
 
+def list_external_practice_validation_events_for_path(
+    *,
+    learner_id: str,
+    source_id: str,
+    topic_id: str,
+    subtopic_id: str,
+    practice_mode: str,
+    difficulty: str,
+):
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM external_practice_validation_events
+        WHERE learner_id = ?
+        AND source_id = ?
+        AND topic_id = ?
+        AND subtopic_id = ?
+        AND practice_mode = ?
+        AND difficulty = ?
+        ORDER BY created_at ASC, rowid ASC
+        """,
+        (
+            learner_id,
+            source_id,
+            topic_id,
+            subtopic_id,
+            practice_mode,
+            difficulty,
+        ),
+    ).fetchall()
+
+    connection.close()
+    return rows
+
+
 def upsert_learner_resume_state(
     *,
     learner_id: str,
