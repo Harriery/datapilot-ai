@@ -1,8 +1,12 @@
 import pytest
 
 from backend.app.practice_exercism_adapter import (
+    get_exercism_python_exercise_content,
     list_exercism_python_exercises,
     map_exercism_difficulty,
+)
+from backend.app.practice_source_cache_service import (
+    PRACTICE_SOURCE_CACHE,
 )
 
 
@@ -130,3 +134,115 @@ def test_exercism_adapter_keeps_attribution():
         in item.attribution
         for item in result.exercises
     )
+
+
+
+def _exercise_file_loader(
+    exercise_id: str,
+    relative_path: str,
+) -> str:
+    assert exercise_id == "binary-search"
+
+    if relative_path == ".docs/instructions.md":
+        return "Implement binary search."
+
+    if relative_path == ".meta/config.json":
+        return (
+            '{"files":{"solution":["binary_search.py"],'
+            '"test":["binary_search_test.py"],'
+            '"example":[".meta/example.py"]},'
+            '"blurb":"Implement binary search."}'
+        )
+
+    raise AssertionError(
+        f"Unexpected file request: {relative_path}"
+    )
+
+
+def test_exercism_content_loads_only_public_bundle():
+    PRACTICE_SOURCE_CACHE.clear()
+
+    result = (
+        get_exercism_python_exercise_content(
+            learner_id="learner-001",
+            exercise_id="binary-search",
+            title="Binary Search",
+            text_loader=_exercise_file_loader,
+        )
+    )
+
+    assert result.instructions == (
+        "Implement binary search."
+    )
+    assert result.solution_filename == (
+        "binary_search.py"
+    )
+    assert result.starter_code is None
+    assert result.cached is False
+    assert len(result.content_hash) == 64
+
+
+def test_exercism_content_uses_disposable_cache():
+    PRACTICE_SOURCE_CACHE.clear()
+    calls = []
+
+    def loader(
+        exercise_id: str,
+        relative_path: str,
+    ) -> str:
+        calls.append(relative_path)
+        return _exercise_file_loader(
+            exercise_id,
+            relative_path,
+        )
+
+    first = (
+        get_exercism_python_exercise_content(
+            learner_id="learner-001",
+            exercise_id="binary-search",
+            title="Binary Search",
+            text_loader=loader,
+        )
+    )
+
+    second = (
+        get_exercism_python_exercise_content(
+            learner_id="learner-002",
+            exercise_id="binary-search",
+            title="Binary Search",
+            text_loader=loader,
+        )
+    )
+
+    assert first.cached is False
+    assert second.cached is True
+    assert second.learner_id == "learner-002"
+    assert calls == [
+        ".docs/instructions.md",
+        ".meta/config.json",
+    ]
+
+
+def test_exercism_content_does_not_fetch_example_solution():
+    PRACTICE_SOURCE_CACHE.clear()
+    requested_paths = []
+
+    def loader(
+        exercise_id: str,
+        relative_path: str,
+    ) -> str:
+        requested_paths.append(relative_path)
+        return _exercise_file_loader(
+            exercise_id,
+            relative_path,
+        )
+
+    get_exercism_python_exercise_content(
+        learner_id="learner-001",
+        exercise_id="binary-search",
+        title="Binary Search",
+        text_loader=loader,
+    )
+
+    assert ".meta/example.py" not in requested_paths
+    assert "binary_search_test.py" not in requested_paths
