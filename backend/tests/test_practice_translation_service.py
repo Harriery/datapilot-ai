@@ -102,9 +102,11 @@ def test_practice_translation_is_cached_by_content_hash_and_language(
 
     monkeypatch.setattr(
         "backend.app.practice_translation_service."
-        "guarded_responses_create",
+        "guarded_chat_completions_create",
         lambda client_arg, **kwargs: (
-            client.responses.create(**kwargs)
+            client.chat.completions.create(
+                **kwargs
+            )
         ),
     )
 
@@ -144,9 +146,11 @@ def test_practice_translation_cache_changes_when_content_hash_changes(
 
     monkeypatch.setattr(
         "backend.app.practice_translation_service."
-        "guarded_responses_create",
+        "guarded_chat_completions_create",
         lambda client_arg, **kwargs: (
-            client.responses.create(**kwargs)
+            client.chat.completions.create(
+                **kwargs
+            )
         ),
     )
 
