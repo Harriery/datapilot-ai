@@ -17,6 +17,7 @@ from openai import (
     AuthenticationError,
     RateLimitError,
     APIConnectionError,
+    BadRequestError,
 )
 
 from backend.app.models import (
@@ -64,6 +65,14 @@ from backend.app.models import (
     LearnerResumeState,
     LearnerResumeStateUpsertRequest,
 )
+from backend.app.ai_usage_guard import (
+    AIBillingPolicyError,
+    AIUsageLimitError,
+)
+from backend.app.ai_provider_service import (
+    AIProviderConfigurationError,
+)
+
 from backend.app.practice_micro_check_service import (
     review_practice_micro_check,
 )
@@ -968,6 +977,52 @@ def create_practice_theory_check_route(
         return create_python_theory_check(
             request=request
         )
+    except AIUsageLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+        ) from exc
+    except AIBillingPolicyError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail=str(exc),
+        ) from exc
+    except AIProviderConfigurationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+    except RateLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Groq rate limit reached. "
+                "Try again after the provider quota resets."
+            ),
+        ) from exc
+    except AuthenticationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Practice AI provider authentication "
+                "is not configured correctly."
+            ),
+        ) from exc
+    except APIConnectionError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Practice AI provider could not be reached."
+            ),
+        ) from exc
+    except BadRequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Practice AI provider rejected the "
+                "Theory generation request."
+            ),
+        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
