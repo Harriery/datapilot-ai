@@ -22699,7 +22699,7 @@
   display: flex;
   flex-direction: column;
 
-  width: min(390px, 92vw);
+  width: min(380px, 92vw);
   height: 100vh;
 
   border-left: 1px solid #dce5ef;
@@ -23060,4 +23060,34 @@
   .learner-notebook-panel {
     width: 100%;
   }
+}
+
+
+.learner-notebook-add-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  width: 100%;
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+  color: #314760;
+
+  font: inherit;
+  cursor: pointer;
+}
+
+.learner-notebook-add-toggle strong {
+  font-size: 11px;
+}
+
+.learner-notebook-add-toggle svg {
+  color: #73849a;
+}
+
+.learner-notebook-add-form {
+  margin-top: 9px;
 }
