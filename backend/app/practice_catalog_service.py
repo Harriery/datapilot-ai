@@ -7,9 +7,12 @@ from backend.app.models import (
 )
 
 
-PRACTICE_LEVEL_TARGET = 15
-PRACTICE_THEORY_TARGET = 5
-PRACTICE_APPLIED_TARGET = 10
+MASTERY_SIGNALS = [
+    "concept_coverage",
+    "correct_application",
+    "transfer_to_new_context",
+    "independent_completion",
+]
 
 
 PRACTICE_SOURCES = (
@@ -80,9 +83,7 @@ PRACTICE_TOPICS = (
             "comprehensions",
             "exceptions",
         ],
-        level_target=PRACTICE_LEVEL_TARGET,
-        theory_target=PRACTICE_THEORY_TARGET,
-        applied_target=PRACTICE_APPLIED_TARGET,
+        mastery_signals=MASTERY_SIGNALS,
         mini_project_target=4,
         source_ids=[
             "exercism-python",
@@ -107,9 +108,7 @@ PRACTICE_TOPICS = (
             "window_functions",
             "data_quality_queries",
         ],
-        level_target=PRACTICE_LEVEL_TARGET,
-        theory_target=PRACTICE_THEORY_TARGET,
-        applied_target=PRACTICE_APPLIED_TARGET,
+        mastery_signals=MASTERY_SIGNALS,
         mini_project_target=4,
         source_ids=[
             "sql-practice-reference",
@@ -134,9 +133,7 @@ PRACTICE_TOPICS = (
             "derived_columns",
             "before_after_validation",
         ],
-        level_target=PRACTICE_LEVEL_TARGET,
-        theory_target=PRACTICE_THEORY_TARGET,
-        applied_target=PRACTICE_APPLIED_TARGET,
+        mastery_signals=MASTERY_SIGNALS,
         mini_project_target=4,
         source_ids=[
             "pandas-exercises",
@@ -160,9 +157,7 @@ PRACTICE_TOPICS = (
             "star_schema",
             "semantic_columns",
         ],
-        level_target=PRACTICE_LEVEL_TARGET,
-        theory_target=PRACTICE_THEORY_TARGET,
-        applied_target=PRACTICE_APPLIED_TARGET,
+        mastery_signals=MASTERY_SIGNALS,
         mini_project_target=3,
         source_ids=[
             "de-zoomcamp-reference",
@@ -186,9 +181,7 @@ PRACTICE_TOPICS = (
             "batch_processing",
             "end_to_end_pipeline",
         ],
-        level_target=PRACTICE_LEVEL_TARGET,
-        theory_target=PRACTICE_THEORY_TARGET,
-        applied_target=PRACTICE_APPLIED_TARGET,
+        mastery_signals=MASTERY_SIGNALS,
         mini_project_target=4,
         source_ids=[
             "de-zoomcamp-reference",
@@ -204,8 +197,9 @@ def get_practice_catalog(
     return PracticeCatalogResponse(
         learner_id=learner_id,
         level_completion_rule=(
-            "A difficulty level completes after 15 successful exercises, "
-            "including at least 5 theory and 10 applied exercises."
+            "A difficulty level completes when the learner has enough mastery "
+            "evidence for that topic and level. Exercise count is not a fixed "
+            "quota and may vary by topic, subtopic and learner performance."
         ),
         project_unlock_rule=(
             "Mini projects unlock after easy, medium and hard levels for the "
