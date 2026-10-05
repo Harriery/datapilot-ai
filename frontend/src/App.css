@@ -23274,3 +23274,136 @@
   color: #314760;
   font-size: .95em;
 }
+
+
+.practice-theory-workbench {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(260px, .85fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.practice-theory-question,
+.practice-theory-feedback {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #dfe6ef;
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.practice-theory-question h4 {
+  margin: 8px 0 12px;
+  color: #2e4057;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.practice-theory-options {
+  display: grid;
+  gap: 7px;
+}
+
+.practice-theory-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #42556d;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-theory-option:hover:not(:disabled) {
+  border-color: #b9c9dc;
+  background: #f8fbff;
+}
+
+.practice-theory-option.selected {
+  border-color: #75a9ea;
+  background: #f1f7ff;
+}
+
+.practice-theory-option > span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #eef3f8;
+  color: #5e7087;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.practice-theory-option strong {
+  padding-top: 2px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.practice-theory-question .workspace-actions {
+  margin-top: 10px;
+}
+
+.practice-theory-feedback {
+  max-height: 330px;
+  overflow-y: auto;
+}
+
+.practice-mastery-signals {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.practice-mastery-signals > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid #e3e9f0;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #8290a2;
+}
+
+.practice-mastery-signals > div.demonstrated {
+  color: #2e6f52;
+  background: #f6fbf8;
+}
+
+.practice-mastery-signals span {
+  font-weight: 800;
+}
+
+.practice-mastery-signals div div {
+  display: grid;
+  gap: 1px;
+}
+
+.practice-mastery-signals strong {
+  font-size: 9px;
+  text-transform: capitalize;
+}
+
+.practice-mastery-signals small {
+  font-size: 8px;
+  color: #8b98a9;
+}
+
+@media (max-width: 900px) {
+  .practice-theory-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-theory-feedback {
+    max-height: none;
+  }
+}
