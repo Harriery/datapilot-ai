@@ -2351,6 +2351,20 @@ class PracticeExerciseSourceResponse(BaseModel):
     ]
 
 
+class PracticeExerciseContentResponse(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    title: str
+    instructions: str
+    solution_filename: str | None = None
+    starter_code: str | None = None
+    attribution: str
+    source_revision: str | None = None
+    content_hash: str
+    cached: bool = False
+
+
 class PracticeMasterySignalState(BaseModel):
     signal: Literal[
         "concept_coverage",
