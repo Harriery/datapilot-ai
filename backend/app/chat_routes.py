@@ -33,6 +33,9 @@ from backend.app.ai_usage_guard import (
     get_ai_usage_status,
     guarded_responses_create,
 )
+from backend.app.ai_provider_service import (
+    get_ai_runtime_config,
+)
 
 import json
 
@@ -516,5 +519,27 @@ def chat(request: ChatRequest):
 
 @router.get("/ai/usage")
 def ai_usage_status():
-    """Return local hard-stop counters without contacting any AI provider."""
-    return get_ai_usage_status()
+    """Return local safety counters and resolved AI runtime configuration."""
+    status = get_ai_usage_status()
+    mentor_runtime = get_ai_runtime_config(
+        "mentor"
+    )
+    classifier_runtime = get_ai_runtime_config(
+        "classifier"
+    )
+
+    return {
+        **status,
+        "current_provider":
+            mentor_runtime.provider,
+        "current_model":
+            mentor_runtime.model,
+        "mentor_provider":
+            mentor_runtime.provider,
+        "mentor_model":
+            mentor_runtime.model,
+        "classifier_provider":
+            classifier_runtime.provider,
+        "classifier_model":
+            classifier_runtime.model,
+    }
