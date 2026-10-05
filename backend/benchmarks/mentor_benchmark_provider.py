@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import re
+from time import sleep
 from typing import TypeVar
 
 from openai import OpenAI
@@ -48,6 +50,43 @@ def _is_structured_output_failure(
     return any(
         code in message
         for code in supported_codes
+    )
+
+
+def _is_transient_rate_limit(
+    exc: Exception,
+) -> bool:
+    if getattr(exc, "status_code", None) != 429:
+        return False
+
+    message = str(exc).casefold()
+
+    return (
+        "rate_limit_exceeded" in message
+        or "rate limit reached" in message
+    )
+
+
+def _rate_limit_retry_seconds(
+    exc: Exception,
+) -> float:
+    message = str(exc)
+
+    match = re.search(
+        r"try again in\s+([0-9]+(?:\.[0-9]+)?)s",
+        message,
+        flags=re.IGNORECASE,
+    )
+
+    if match is None:
+        return 2.0
+
+    return min(
+        max(
+            float(match.group(1)) + 0.25,
+            0.5,
+        ),
+        5.0,
     )
 
 
@@ -117,29 +156,46 @@ def _generate_openai_compatible_structured(
         )
     except Exception as exc:
         if (
-            provider != "groq"
-            or not _is_structured_output_failure(exc)
+            provider == "groq"
+            and _is_transient_rate_limit(exc)
         ):
+            sleep(
+                _rate_limit_retry_seconds(exc)
+            )
+
+            response = guarded_responses_parse(
+                client,
+                provider=provider,
+                purpose=purpose + "_rate_limit_retry",
+                model=model,
+                instructions=instructions,
+                input=input_text,
+                text_format=text_format,
+            )
+        elif (
+            provider == "groq"
+            and _is_structured_output_failure(exc)
+        ):
+            retry_instructions = (
+                instructions
+                + "\n\nSTRICT STRUCTURED OUTPUT RETRY:\n"
+                + "- Return only the structured JSON required by the schema.\n"
+                + "- Do not include analysis, reasoning, commentary, markdown, "
+                  "or text before/after the JSON.\n"
+                + "- Populate every required field."
+            )
+
+            response = guarded_responses_parse(
+                client,
+                provider=provider,
+                purpose=purpose + "_parse_retry",
+                model=model,
+                instructions=retry_instructions,
+                input=input_text,
+                text_format=text_format,
+            )
+        else:
             raise
-
-        retry_instructions = (
-            instructions
-            + "\n\nSTRICT STRUCTURED OUTPUT RETRY:\n"
-            + "- Return only the structured JSON required by the schema.\n"
-            + "- Do not include analysis, reasoning, commentary, markdown, "
-              "or text before/after the JSON.\n"
-            + "- Populate every required field."
-        )
-
-        response = guarded_responses_parse(
-            client,
-            provider=provider,
-            purpose=purpose + "_parse_retry",
-            model=model,
-            instructions=retry_instructions,
-            input=input_text,
-            text_format=text_format,
-        )
 
     return response.output_parsed
 
