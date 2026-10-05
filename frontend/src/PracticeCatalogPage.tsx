@@ -17,9 +17,8 @@ export type PracticeCatalogTopic = {
   modes: string[];
   difficulties: Array<"easy" | "medium" | "hard">;
   subtopics: string[];
-  level_target: number;
-  theory_target: number;
-  applied_target: number;
+  mastery_policy: "evidence_based";
+  mastery_signals: string[];
   mini_project_target: number;
   source_ids: string[];
 };
@@ -40,6 +39,14 @@ type Props = {
   onStartRecommended: () => void;
 };
 
+function label(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace(/w/g, (char) =>
+      char.toUpperCase()
+    );
+}
+
 export default function PracticeCatalogPage({
   catalog,
   loading,
@@ -48,6 +55,7 @@ export default function PracticeCatalogPage({
   onStartRecommended,
 }: Props) {
   const [topicId, setTopicId] = useState<string | null>(null);
+  const [subtopic, setSubtopic] = useState<string | null>(null);
   const [mode, setMode] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<
     "easy" | "medium" | "hard" | null
@@ -76,9 +84,16 @@ export default function PracticeCatalogPage({
   }, [catalog, selectedTopic]);
 
   function selectTopic(nextTopicId: string) {
+    const nextTopic = catalog?.topics.find(
+      (topic) => topic.topic_id === nextTopicId
+    );
+
     setTopicId(nextTopicId);
-    setMode(null);
-    setDifficulty(null);
+    setSubtopic(
+      nextTopic?.subtopics[0] ?? null
+    );
+    setMode(nextTopic?.modes[0] ?? null);
+    setDifficulty("easy");
   }
 
   return (
@@ -99,8 +114,8 @@ export default function PracticeCatalogPage({
           <h2>Build your skills deliberately</h2>
 
           <p>
-            Choose what you want to refresh, how you want
-            to practice it, and the difficulty level.
+            Choose a topic and focus area. DataPilot will
+            track mastery, not a fixed question quota.
           </p>
         </div>
 
@@ -109,7 +124,7 @@ export default function PracticeCatalogPage({
           className="secondary-button"
           onClick={onStartRecommended}
         >
-          Current adaptive challenge →
+          Recommended practice →
         </button>
       </div>
 
@@ -127,207 +142,213 @@ export default function PracticeCatalogPage({
           Practice catalog is not available.
         </div>
       ) : (
-        <>
-          <section className="practice-v2-section">
-            <div className="practice-v2-section-heading">
-              <div>
-                <span>1</span>
-                <div>
-                  <strong>Choose a topic</strong>
-                  <p>
-                    Start with the skill you want to rebuild.
-                  </p>
-                </div>
-              </div>
-            </div>
+        <div className="practice-v2-shell">
+          <aside className="practice-v2-topic-list">
+            <strong>Topics</strong>
 
-            <div className="practice-topic-grid">
-              {catalog.topics.map((topic) => (
-                <button
-                  type="button"
-                  key={topic.topic_id}
-                  className={
-                    topicId === topic.topic_id
-                      ? "practice-topic-card active"
-                      : "practice-topic-card"
-                  }
-                  onClick={() =>
-                    selectTopic(topic.topic_id)
-                  }
-                >
-                  <strong>{topic.title}</strong>
-                  <p>{topic.description}</p>
-                  <span>
-                    {topic.subtopics.length} subtopics
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {selectedTopic && (
-            <section className="practice-v2-section">
-              <div className="practice-v2-section-heading">
-                <div>
-                  <span>2</span>
-                  <div>
-                    <strong>
-                      Choose how to practice
-                    </strong>
-                    <p>
-                      Theory checks understanding; applied
-                      modes make you write or design.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="practice-choice-row">
-                {selectedTopic.modes.map(
-                  (topicMode) => (
-                    <button
-                      type="button"
-                      key={topicMode}
-                      className={
-                        mode === topicMode
-                          ? "practice-choice active"
-                          : "practice-choice"
-                      }
-                      onClick={() =>
-                        setMode(topicMode)
-                      }
-                    >
-                      {topicMode.replaceAll("_", " ")}
-                    </button>
-                  )
-                )}
-              </div>
-            </section>
-          )}
-
-          {selectedTopic && mode && (
-            <section className="practice-v2-section">
-              <div className="practice-v2-section-heading">
-                <div>
-                  <span>3</span>
-                  <div>
-                    <strong>
-                      Choose difficulty
-                    </strong>
-                    <p>
-                      Each level has its own completion goal.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="practice-level-grid">
-                {selectedTopic.difficulties.map(
-                  (level) => (
-                    <button
-                      type="button"
-                      key={level}
-                      className={
-                        difficulty === level
-                          ? "practice-level-card active"
-                          : "practice-level-card"
-                      }
-                      onClick={() =>
-                        setDifficulty(level)
-                      }
-                    >
-                      <div>
-                        <strong>
-                          {level.charAt(0).toUpperCase() +
-                            level.slice(1)}
-                        </strong>
-                        <span>0 / {selectedTopic.level_target}</span>
-                      </div>
-
-                      <div className="practice-level-track">
-                        <div style={{ width: "0%" }} />
-                      </div>
-
-                      <small>
-                        Theory 0 / {selectedTopic.theory_target}
-                        {" · "}
-                        Applied 0 / {selectedTopic.applied_target}
-                      </small>
-                    </button>
-                  )
-                )}
-              </div>
-            </section>
-          )}
-
-          {selectedTopic && mode && difficulty && (
-            <section className="card practice-v2-path-summary">
-              <div>
-                <p className="workspace-eyebrow">
-                  SELECTED PATH
-                </p>
-                <h3>
-                  {selectedTopic.title}
-                  {" · "}
-                  {mode.replaceAll("_", " ")}
-                  {" · "}
-                  {difficulty}
-                </h3>
-
-                <p>
-                  {selectedTopic.subtopics
-                    .map((item) =>
-                      item.replaceAll("_", " ")
-                    )
-                    .join(" · ")}
-                </p>
-              </div>
-
-              <div className="practice-v2-source-info">
-                <strong>Exercise sources</strong>
-
-                {sourceNames.map((source) => (
-                  <span key={source.source_id}>
-                    {source.name}
-                    {" · "}
-                    {source.license}
-                    {" · "}
-                    {source.delivery === "on_demand"
-                      ? "on demand"
-                      : "reference only"}
-                  </span>
-                ))}
-              </div>
-
-              <div className="practice-v2-unlock">
-                <strong>
-                  Level target: {selectedTopic.level_target}
-                  {" successful exercises"}
-                </strong>
-                <span>
-                  {selectedTopic.theory_target} theory +
-                  {" "}
-                  {selectedTopic.applied_target} applied
-                </span>
-                <span>
-                  Complete easy, medium and hard to unlock
-                  {" "}
-                  {selectedTopic.mini_project_target}
-                  {" mini projects."}
-                </span>
-              </div>
-
+            {catalog.topics.map((topic) => (
               <button
                 type="button"
-                className="run-button"
-                disabled
-                title="Exercise source adapter is the next implementation step."
+                key={topic.topic_id}
+                className={
+                  topicId === topic.topic_id
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  selectTopic(topic.topic_id)
+                }
               >
-                Exercise pack integration next
+                <span>{topic.title}</span>
+                <small>
+                  {topic.subtopics.length} areas
+                </small>
               </button>
-            </section>
-          )}
-        </>
+            ))}
+          </aside>
+
+          <div className="practice-v2-workspace">
+            {!selectedTopic ? (
+              <div className="practice-v2-empty">
+                <strong>Choose a topic</strong>
+                <p>
+                  Select the skill you want to refresh or
+                  strengthen.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="practice-v2-topic-heading">
+                  <div>
+                    <p className="workspace-eyebrow">
+                      {selectedTopic.title}
+                    </p>
+                    <h3>{selectedTopic.description}</h3>
+                  </div>
+
+                  <details className="practice-v2-source-details">
+                    <summary>Sources</summary>
+                    {sourceNames.map((source) => (
+                      <span key={source.source_id}>
+                        {source.name} · {source.license}
+                      </span>
+                    ))}
+                  </details>
+                </div>
+
+                <div className="practice-v2-control-grid">
+                  <label>
+                    <span>Focus area</span>
+                    <select
+                      value={subtopic ?? ""}
+                      onChange={(event) =>
+                        setSubtopic(event.target.value)
+                      }
+                    >
+                      {selectedTopic.subtopics.map(
+                        (item) => (
+                          <option
+                            key={item}
+                            value={item}
+                          >
+                            {label(item)}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>Practice mode</span>
+                    <select
+                      value={mode ?? ""}
+                      onChange={(event) =>
+                        setMode(event.target.value)
+                      }
+                    >
+                      {selectedTopic.modes.map(
+                        (item) => (
+                          <option
+                            key={item}
+                            value={item}
+                          >
+                            {label(item)}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>Difficulty</span>
+                    <select
+                      value={difficulty ?? ""}
+                      onChange={(event) =>
+                        setDifficulty(
+                          event.target.value as
+                            | "easy"
+                            | "medium"
+                            | "hard"
+                        )
+                      }
+                    >
+                      {selectedTopic.difficulties.map(
+                        (item) => (
+                          <option
+                            key={item}
+                            value={item}
+                          >
+                            {label(item)}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="practice-v2-mastery-row">
+                  {selectedTopic.difficulties.map(
+                    (level) => (
+                      <button
+                        type="button"
+                        key={level}
+                        className={
+                          difficulty === level
+                            ? "practice-mastery-card active"
+                            : "practice-mastery-card"
+                        }
+                        onClick={() =>
+                          setDifficulty(level)
+                        }
+                      >
+                        <div>
+                          <strong>{label(level)}</strong>
+                          <span>Not started</span>
+                        </div>
+
+                        <small>
+                          Mastery is based on evidence,
+                          not question count.
+                        </small>
+                      </button>
+                    )
+                  )}
+                </div>
+
+                <div className="practice-v2-selected">
+                  <div>
+                    <span>Selected path</span>
+                    <strong>
+                      {selectedTopic.title}
+                      {" · "}
+                      {subtopic ? label(subtopic) : "All"}
+                      {" · "}
+                      {mode ? label(mode) : "Mixed"}
+                      {" · "}
+                      {difficulty
+                        ? label(difficulty)
+                        : "Easy"}
+                    </strong>
+                  </div>
+
+                  <div className="practice-v2-mastery-signals">
+                    <span>Mastery evidence</span>
+                    <div>
+                      {selectedTopic.mastery_signals.map(
+                        (signal) => (
+                          <small key={signal}>
+                            {label(signal)}
+                          </small>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="run-button"
+                    disabled
+                    title="Exercise source adapter is the next implementation step."
+                  >
+                    Start practice
+                  </button>
+                </div>
+
+                <div className="practice-v2-project-note">
+                  <strong>Mini projects</strong>
+                  <span>
+                    Unlock after mastery is demonstrated
+                    across easy, medium and hard.
+                  </span>
+                  <small>
+                    {selectedTopic.mini_project_target}
+                    {" projects planned for this topic."}
+                  </small>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </section>
   );
