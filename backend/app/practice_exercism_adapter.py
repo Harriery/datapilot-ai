@@ -1,18 +1,27 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Callable
 from urllib.request import Request, urlopen
 
 from backend.app.models import (
+    PracticeExerciseContentResponse,
     PracticeExerciseSourceItem,
     PracticeExerciseSourceResponse,
 )
+from backend.app.practice_source_cache_service import (
+    PRACTICE_SOURCE_CACHE,
+)
 
+
+EXERCISM_RAW_ROOT = (
+    "https://raw.githubusercontent.com/"
+    "exercism/python/main"
+)
 
 EXERCISM_CONFIG_URL = (
-    "https://raw.githubusercontent.com/"
-    "exercism/python/main/config.json"
+    f"{EXERCISM_RAW_ROOT}/config.json"
 )
 
 EXERCISM_ATTRIBUTION = (
@@ -261,3 +270,156 @@ def list_exercism_python_exercises(
         source_id="exercism-python",
         exercises=items,
     )
+
+
+
+def _load_text_url(
+    url: str,
+) -> str:
+    request = Request(
+        url,
+        headers={
+            "User-Agent":
+                "DataPilot-Practice-Adapter/1.0"
+        },
+    )
+
+    with urlopen(
+        request,
+        timeout=10,
+    ) as response:
+        return response.read().decode(
+            "utf-8"
+        )
+
+
+def _load_exercise_file(
+    exercise_id: str,
+    relative_path: str,
+) -> str:
+    return _load_text_url(
+        (
+            f"{EXERCISM_RAW_ROOT}/"
+            f"exercises/practice/{exercise_id}/"
+            f"{relative_path}"
+        )
+    )
+
+
+def get_exercism_python_exercise_content(
+    *,
+    learner_id: str,
+    exercise_id: str,
+    title: str,
+    source_revision: str | None = None,
+    text_loader: Callable[
+        [str, str],
+        str,
+    ] = _load_exercise_file,
+) -> PracticeExerciseContentResponse:
+    cache_key = (
+        "exercism-python:"
+        f"{exercise_id}:"
+        f"{source_revision or 'main'}"
+    )
+
+    cached_value = (
+        PRACTICE_SOURCE_CACHE.get(
+            cache_key
+        )
+    )
+
+    if isinstance(
+        cached_value,
+        PracticeExerciseContentResponse,
+    ):
+        return cached_value.model_copy(
+            update={
+                "learner_id": learner_id,
+                "cached": True,
+            }
+        )
+
+    instructions = text_loader(
+        exercise_id,
+        ".docs/instructions.md",
+    )
+
+    meta_raw = text_loader(
+        exercise_id,
+        ".meta/config.json",
+    )
+
+    try:
+        meta = json.loads(meta_raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            "Exercism exercise metadata is invalid."
+        ) from exc
+
+    if not isinstance(meta, dict):
+        raise ValueError(
+            "Exercism exercise metadata is invalid."
+        )
+
+    files = meta.get(
+        "files",
+        {},
+    )
+
+    if not isinstance(files, dict):
+        files = {}
+
+    solution_files = files.get(
+        "solution",
+        [],
+    )
+
+    solution_filename = (
+        str(solution_files[0])
+        if (
+            isinstance(solution_files, list)
+            and solution_files
+        )
+        else None
+    )
+
+    # Do not fetch .meta/example.py here.
+    # A worked solution is intentionally excluded from
+    # normal exercise loading.
+    starter_code = None
+
+    content_hash = hashlib.sha256(
+        (
+            instructions
+            + "\n"
+            + meta_raw
+        ).encode("utf-8")
+    ).hexdigest()
+
+    result = PracticeExerciseContentResponse(
+        learner_id=learner_id,
+        source_id="exercism-python",
+        source_exercise_id=exercise_id,
+        title=title,
+        instructions=instructions,
+        solution_filename=solution_filename,
+        starter_code=starter_code,
+        attribution=EXERCISM_ATTRIBUTION,
+        source_revision=source_revision,
+        content_hash=content_hash,
+        cached=False,
+    )
+
+    PRACTICE_SOURCE_CACHE.put(
+        key=cache_key,
+        value=result,
+        size_bytes=len(
+            (
+                instructions
+                + meta_raw
+            ).encode("utf-8")
+        ),
+    )
+
+    return result
