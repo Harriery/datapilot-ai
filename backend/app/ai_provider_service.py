@@ -14,6 +14,7 @@ from backend.app.ai_usage_guard import (
 AIRole = Literal[
     "mentor",
     "classifier",
+    "translator",
 ]
 
 
@@ -56,6 +57,17 @@ def _configured_provider(
                 "groq",
             ),
         )
+    elif role == "translator":
+        value = os.getenv(
+            "AI_TRANSLATOR_PROVIDER",
+            os.getenv(
+                "AI_CLASSIFIER_PROVIDER",
+                os.getenv(
+                    "AI_MENTOR_PROVIDER",
+                    "groq",
+                ),
+            ),
+        )
     else:
         value = os.getenv(
             "AI_MENTOR_PROVIDER",
@@ -76,6 +88,18 @@ def _configured_model(
                 os.getenv(
                     "AI_GROQ_CLASSIFIER_MODEL",
                     "openai/gpt-oss-20b",
+                ).strip()
+                or "openai/gpt-oss-20b"
+            )
+
+        if role == "translator":
+            return (
+                os.getenv(
+                    "AI_GROQ_TRANSLATOR_MODEL",
+                    os.getenv(
+                        "AI_GROQ_CLASSIFIER_MODEL",
+                        "openai/gpt-oss-20b",
+                    ),
                 ).strip()
                 or "openai/gpt-oss-20b"
             )
