@@ -2384,6 +2384,54 @@ class PracticeExerciseValidationBundle(BaseModel):
     cached: bool = False
 
 
+class ExternalPracticeValidationEventRequest(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    content_hash: str
+    validation_bundle_hash: str
+    client_reported_success: bool
+    tests_run: int = Field(
+        ge=0,
+        le=500,
+    )
+    answer: str = Field(
+        max_length=50000
+    )
+
+
+class ExternalPracticeValidationEvent(BaseModel):
+    event_id: str
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    content_hash: str
+    validation_bundle_hash: str
+    solution_hash: str
+    client_reported_success: bool
+    tests_run: int
+    trust_level: Literal[
+        "client_sandbox",
+    ] = "client_sandbox"
+    created_at: str | None = None
+
+
 class PracticeMasterySignalState(BaseModel):
     signal: Literal[
         "concept_coverage",
