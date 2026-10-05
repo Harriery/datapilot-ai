@@ -22,6 +22,8 @@ type ValidationResult = {
   output: string;
 };
 
+const SANDBOX_ROOT = "/datapilot_practice";
+
 function ensureParentDirectories(
   fs: {
     mkdir: (path: string) => unknown;
@@ -94,35 +96,52 @@ self.onmessage = async (
       // Some runtimes may not expose WebSocket.
     }
 
+    try {
+      pyodide.FS.mkdir(SANDBOX_ROOT);
+    } catch {
+      // Sandbox root already exists.
+    }
+
+    const solutionPath =
+      `${SANDBOX_ROOT}/${request.solutionFilename}`;
+
     ensureParentDirectories(
       pyodide.FS,
-      request.solutionFilename
+      solutionPath
     );
 
     pyodide.FS.writeFile(
-      request.solutionFilename,
+      solutionPath,
       request.userCode
     );
 
-    for (const file of request.testFiles) {
-      ensureParentDirectories(
-        pyodide.FS,
-        file.path
-      );
+    const testPaths = request.testFiles.map(
+      (file) => {
+        const absolutePath =
+          `${SANDBOX_ROOT}/${file.path}`;
 
-      pyodide.FS.writeFile(
-        file.path,
-        file.content
-      );
-    }
+        ensureParentDirectories(
+          pyodide.FS,
+          absolutePath
+        );
+
+        pyodide.FS.writeFile(
+          absolutePath,
+          file.content
+        );
+
+        return absolutePath;
+      }
+    );
 
     pyodide.globals.set(
       "validation_test_paths_json",
-      JSON.stringify(
-        request.testFiles.map(
-          (file) => file.path
-        )
-      )
+      JSON.stringify(testPaths)
+    );
+
+    pyodide.globals.set(
+      "validation_sandbox_root",
+      SANDBOX_ROOT
     );
 
     const rawResult = await pyodide.runPythonAsync(`
@@ -135,6 +154,20 @@ import unittest
 
 _test_paths = json.loads(
     validation_test_paths_json
+)
+
+_sandbox_root = str(
+    validation_sandbox_root
+)
+
+if _sandbox_root not in sys.path:
+    sys.path.insert(
+        0,
+        _sandbox_root,
+    )
+
+os.chdir(
+    _sandbox_root
 )
 
 _stream = io.StringIO()
