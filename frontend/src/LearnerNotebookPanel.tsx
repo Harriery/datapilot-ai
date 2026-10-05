@@ -91,6 +91,8 @@ export default function LearnerNotebookPanel({
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [adding, setAdding] = useState(false);
+  const [addFormOpen, setAddFormOpen] =
+    useState(false);
 
   const [editingId, setEditingId] =
     useState<string | null>(null);
@@ -276,6 +278,7 @@ export default function LearnerNotebookPanel({
 
       setNewTitle("");
       setNewBody("");
+      setAddFormOpen(false);
       await loadJournal();
     } catch (caught) {
       setError(
@@ -454,52 +457,70 @@ export default function LearnerNotebookPanel({
               </section>
 
               <section className="learner-notebook-add">
-                <div className="learner-notebook-section-title">
-                  <strong>Add a note</strong>
-                  <Plus
-                    size={14}
-                    aria-hidden="true"
-                  />
-                </div>
-
-                <input
-                  type="text"
-                  value={newTitle}
-                  maxLength={120}
-                  placeholder="Optional title"
-                  onChange={(event) =>
-                    setNewTitle(event.target.value)
-                  }
-                />
-
-                <textarea
-                  value={newBody}
-                  maxLength={4000}
-                  placeholder="What do you want to remember?"
-                  onChange={(event) =>
-                    setNewBody(event.target.value)
-                  }
-                />
-
                 <button
                   type="button"
-                  className="learner-notebook-primary"
-                  disabled={
-                    adding ||
-                    !newBody.trim()
+                  className="learner-notebook-add-toggle"
+                  aria-expanded={addFormOpen}
+                  onClick={() =>
+                    setAddFormOpen((value) => !value)
                   }
-                  onClick={() => {
-                    void addNote();
-                  }}
                 >
-                  <Save
-                    size={14}
-                    aria-hidden="true"
-                  />
-                  {adding
-                    ? "Saving…"
-                    : "Save note"}
+                  <strong>Add a note</strong>
+                  {addFormOpen ? (
+                    <X
+                      size={14}
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Plus
+                      size={14}
+                      aria-hidden="true"
+                    />
+                  )}
                 </button>
+
+                {addFormOpen && (
+                  <div className="learner-notebook-add-form">
+                    <input
+                      type="text"
+                      value={newTitle}
+                      maxLength={120}
+                      placeholder="Optional title"
+                      onChange={(event) =>
+                        setNewTitle(event.target.value)
+                      }
+                    />
+
+                    <textarea
+                      value={newBody}
+                      maxLength={4000}
+                      placeholder="What do you want to remember?"
+                      onChange={(event) =>
+                        setNewBody(event.target.value)
+                      }
+                    />
+
+                    <button
+                      type="button"
+                      className="learner-notebook-primary"
+                      disabled={
+                        adding ||
+                        !newBody.trim()
+                      }
+                      onClick={() => {
+                        void addNote();
+                      }}
+                    >
+                      <Save
+                        size={14}
+                        aria-hidden="true"
+                      />
+                      {adding
+                        ? "Saving…"
+                        : "Save note"}
+                    </button>
+                  </div>
+                )}
               </section>
 
               <section className="learner-notebook-notes">
