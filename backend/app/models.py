@@ -2186,15 +2186,14 @@ class PracticeTopicDescriptor(BaseModel):
         default_factory=list
     )
 
-    level_target: int = Field(
-        ge=1
+    mastery_policy: Literal[
+        "evidence_based",
+    ] = "evidence_based"
+
+    mastery_signals: list[str] = Field(
+        default_factory=list
     )
-    theory_target: int = Field(
-        ge=0
-    )
-    applied_target: int = Field(
-        ge=0
-    )
+
     mini_project_target: int = Field(
         ge=0
     )
