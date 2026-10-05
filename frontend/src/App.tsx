@@ -35,6 +35,7 @@ import WorkspaceNotebook, {
   type WorkspaceNotebookData,
 } from "./WorkspaceNotebook";
 import WorkspaceMentorPanel from "./WorkspaceMentorPanel";
+import LearnerNotebookPanel from "./LearnerNotebookPanel";
 import PracticeCatalogPage, {
   type PracticeCatalogData,
 } from "./PracticeCatalogPage";
@@ -6498,19 +6499,48 @@ async function restoreWorkspaceVersion(
                           </div>
                         </div>
                               
-                        <span
-                          className={
-                            dashboardWorkspace.status === "completed"
-                              ? "workspace-list-status completed"
-                              : "workspace-list-status active"
-                          }
-                        >
-                          {dashboardWorkspace.status === "completed"
-                            ? t.workspace.completed
-                            : dashboardWorkspace.status === "paused"
-                              ? t.workspace.paused
-                              : t.workspace.active}
-                        </span>
+                        <div className="workspace-compact-actions">
+                          <LearnerNotebookPanel
+                            learnerId="demo-learner"
+                            contextType="workspace"
+                            contextKey={
+                              dashboardWorkspace.workspace_id
+                            }
+                            contextLabel={
+                              dashboardWorkspace.title
+                            }
+                            resumeState={{
+                              workspace_id:
+                                dashboardWorkspace.workspace_id,
+                              stage:
+                                dashboardWorkspace.usage_context === "personal"
+                                  ? activeWorkspaceStage
+                                  : "workspace",
+                              current_view:
+                                dashboardWorkspace.usage_context === "personal"
+                                  ? (
+                                      activeWorkspaceStage === "prepare"
+                                        ? activePrepareStage
+                                        : activeWorkspaceStage
+                                    )
+                                  : "workspace",
+                            }}
+                          />
+
+                          <span
+                            className={
+                              dashboardWorkspace.status === "completed"
+                                ? "workspace-list-status completed"
+                                : "workspace-list-status active"
+                            }
+                          >
+                            {dashboardWorkspace.status === "completed"
+                              ? t.workspace.completed
+                              : dashboardWorkspace.status === "paused"
+                                ? t.workspace.paused
+                                : t.workspace.active}
+                          </span>
+                        </div>
                       </header>
 
 
