@@ -271,3 +271,58 @@ def test_chat_rejects_session_from_another_workspace():
     assert response.json()["detail"] == (
         "Session bu workspace'e ait değil."
     )
+
+def test_ai_usage_reports_resolved_runtime_models(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "AI_FREE_ONLY",
+        "true",
+    )
+    monkeypatch.setenv(
+        "AI_FREE_PROVIDER_ALLOWLIST",
+        "groq",
+    )
+    monkeypatch.setenv(
+        "AI_ALLOW_PAID_PROVIDER",
+        "false",
+    )
+    monkeypatch.setenv(
+        "AI_MENTOR_PROVIDER",
+        "groq",
+    )
+    monkeypatch.setenv(
+        "AI_CLASSIFIER_PROVIDER",
+        "groq",
+    )
+    monkeypatch.setenv(
+        "AI_GROQ_MENTOR_MODEL",
+        "openai/gpt-oss-120b",
+    )
+    monkeypatch.setenv(
+        "AI_GROQ_CLASSIFIER_MODEL",
+        "openai/gpt-oss-20b",
+    )
+
+    response = client.get(
+        "/ai/usage"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["mentor_provider"] == "groq"
+    assert (
+        payload["mentor_model"]
+        == "openai/gpt-oss-120b"
+    )
+    assert payload["classifier_provider"] == "groq"
+    assert (
+        payload["classifier_model"]
+        == "openai/gpt-oss-20b"
+    )
+    assert payload["current_provider"] == "groq"
+    assert (
+        payload["current_model"]
+        == "openai/gpt-oss-120b"
+    )
