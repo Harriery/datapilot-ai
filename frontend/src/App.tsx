@@ -6146,10 +6146,10 @@ async function restoreWorkspaceVersion(
                 <button
                   className="back-button"
                   onClick={() =>
-                    setCurrentView("dashboard")
+                    setPracticeRunnerOpen(false)
                   }
                 >
-                  ← Dashboard
+                  ← Practice
                 </button>
 
                 <h2>Practice</h2>
