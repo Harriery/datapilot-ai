@@ -1031,9 +1031,11 @@ def test_practice_v2_catalog_exposes_topic_paths():
     ]
     assert "theory" in python_topic.modes
     assert "code" in python_topic.modes
-    assert python_topic.level_target == 15
-    assert python_topic.theory_target == 5
-    assert python_topic.applied_target == 10
+    assert python_topic.mastery_policy == "evidence_based"
+    assert "concept_coverage" in python_topic.mastery_signals
+    assert "correct_application" in python_topic.mastery_signals
+    assert "transfer_to_new_context" in python_topic.mastery_signals
+    assert "independent_completion" in python_topic.mastery_signals
     assert python_topic.mini_project_target == 4
 
 
@@ -1100,3 +1102,30 @@ def test_practice_v2_catalog_marks_license_restrictions_explicitly():
         sources["de-zoomcamp-reference"].import_policy
         == "reference_only_pending_license_review"
     )
+
+
+def test_practice_v2_catalog_has_no_fixed_question_quota():
+    catalog = get_practice_catalog(
+        learner_id="learner-001"
+    )
+
+    assert "15 successful exercises" not in (
+        catalog.level_completion_rule
+    )
+    assert "not a fixed quota" in (
+        catalog.level_completion_rule
+    )
+
+    for topic in catalog.topics:
+        assert not hasattr(
+            topic,
+            "level_target",
+        )
+        assert not hasattr(
+            topic,
+            "theory_target",
+        )
+        assert not hasattr(
+            topic,
+            "applied_target",
+        )
