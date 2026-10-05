@@ -22634,3 +22634,430 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ==================================================
+   LEARNER NOTEBOOK
+   ================================================== */
+
+.practice-v2-header-actions,
+.workspace-compact-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.learner-notebook-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  height: 34px;
+  padding: 0 10px;
+
+  border: 1px solid #d9e3ef;
+  border-radius: 9px;
+
+  background: #ffffff;
+  color: #425a76;
+
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.learner-notebook-trigger:hover:not(:disabled) {
+  border-color: #b9cee6;
+  background: #f8fbff;
+  color: #2f80ed;
+}
+
+.learner-notebook-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.learner-notebook-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 89;
+
+  border: 0;
+  background: rgba(20, 33, 61, 0.14);
+  cursor: default;
+}
+
+.learner-notebook-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 90;
+
+  display: flex;
+  flex-direction: column;
+
+  width: min(390px, 92vw);
+  height: 100vh;
+
+  border-left: 1px solid #dce5ef;
+  background: #ffffff;
+
+  box-shadow:
+    -14px 0 32px
+    rgba(20, 33, 61, 0.12);
+}
+
+.learner-notebook-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 17px 18px;
+
+  border-bottom: 1px solid #e7edf4;
+}
+
+.learner-notebook-header span {
+  display: block;
+  margin-bottom: 4px;
+
+  color: #2f80ed;
+
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+.learner-notebook-header h3 {
+  margin: 0;
+
+  color: #223751;
+
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.learner-notebook-header > button {
+  display: grid;
+  place-items: center;
+
+  width: 30px;
+  height: 30px;
+
+  border: 0;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #718197;
+
+  cursor: pointer;
+}
+
+.learner-notebook-header > button:hover {
+  background: #f3f6fa;
+  color: #2b405c;
+}
+
+.learner-notebook-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+
+  padding: 14px;
+
+  background: #fbfcfe;
+}
+
+.learner-notebook-body section {
+  margin-bottom: 11px;
+  padding: 12px;
+
+  border: 1px solid #e0e7ef;
+  border-radius: 11px;
+
+  background: #ffffff;
+}
+
+.learner-notebook-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  margin-bottom: 8px;
+}
+
+.learner-notebook-section-title strong {
+  color: #314760;
+
+  font-size: 11px;
+}
+
+.learner-notebook-section-title > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  color: #7e8ea2;
+
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.learner-notebook-resume > p,
+.learner-notebook-notes > p {
+  margin: 0;
+
+  color: #7b8a9d;
+
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.learner-notebook-resume-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.learner-notebook-resume-tags span {
+  padding: 4px 7px;
+
+  border-radius: 999px;
+
+  background: #eef4fb;
+  color: #536a84;
+
+  font-size: 8px;
+  font-weight: 650;
+}
+
+.learner-notebook-add input,
+.learner-notebook-add textarea,
+.learner-notebook-note input,
+.learner-notebook-note textarea {
+  width: 100%;
+  box-sizing: border-box;
+
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+
+  background: #fbfcfe;
+  color: #283e59;
+
+  font: inherit;
+  font-size: 10px;
+
+  outline: none;
+}
+
+.learner-notebook-add input,
+.learner-notebook-note input {
+  height: 32px;
+  padding: 0 9px;
+
+  margin-bottom: 6px;
+}
+
+.learner-notebook-add textarea,
+.learner-notebook-note textarea {
+  min-height: 82px;
+  padding: 8px 9px;
+
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.learner-notebook-add input:focus,
+.learner-notebook-add textarea:focus,
+.learner-notebook-note input:focus,
+.learner-notebook-note textarea:focus {
+  border-color: #8bb6e8;
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, .08);
+}
+
+.learner-notebook-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+
+  margin-top: 7px;
+  padding: 7px 10px;
+
+  border: 0;
+  border-radius: 8px;
+
+  background: #2f80ed;
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.learner-notebook-primary:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.learner-notebook-note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.learner-notebook-note {
+  padding: 9px 10px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+
+  background: #fbfcfe;
+}
+
+.learner-notebook-note-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.learner-notebook-note-heading strong {
+  display: block;
+
+  color: #30465f;
+
+  font-size: 10px;
+}
+
+.learner-notebook-note-heading span {
+  display: block;
+  margin-top: 2px;
+
+  color: #8794a5;
+
+  font-size: 7px;
+}
+
+.learner-notebook-note > p {
+  margin: 7px 0 0;
+
+  color: #53657c;
+
+  font-size: 9px;
+  line-height: 1.5;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.learner-notebook-note-icons,
+.learner-notebook-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.learner-notebook-note-icons button {
+  display: grid;
+  place-items: center;
+
+  width: 25px;
+  height: 25px;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: transparent;
+  color: #7f8ea1;
+
+  cursor: pointer;
+}
+
+.learner-notebook-note-icons button:hover {
+  background: #edf2f7;
+  color: #39526f;
+}
+
+.learner-notebook-note-actions {
+  justify-content: flex-end;
+  margin-top: 7px;
+}
+
+.learner-notebook-note-actions button {
+  padding: 6px 9px;
+
+  border: 1px solid #d9e2ec;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #5a6c82;
+
+  font: inherit;
+  font-size: 8px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.learner-notebook-note-actions button.primary {
+  border-color: #2f80ed;
+  background: #2f80ed;
+  color: #ffffff;
+}
+
+.learner-notebook-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 10px;
+
+  border: 1px dashed #d8e1eb;
+  border-radius: 9px;
+
+  color: #8a98a9;
+}
+
+.learner-notebook-empty p {
+  margin: 0;
+
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.learner-notebook-error {
+  margin-bottom: 8px;
+  padding: 7px 8px;
+
+  border: 1px solid #edcaca;
+  border-radius: 7px;
+
+  background: #fff7f7;
+  color: #a74343;
+
+  font-size: 9px;
+}
+
+@media (max-width: 720px) {
+  .practice-v2-header-actions,
+  .workspace-compact-actions {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
+  .learner-notebook-panel {
+    width: 100%;
+  }
+}
