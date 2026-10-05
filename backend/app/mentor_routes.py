@@ -46,6 +46,8 @@ from backend.app.models import (
     PracticeExerciseSourceResponse,
     PracticeNextExerciseResponse,
     PracticeExerciseContentResponse,
+    PracticeTheoryConceptResponse,
+    PracticeTheoryConceptContent,
     PracticeExerciseValidationBundle,
     PracticeTranslationRequest,
     PracticeTranslationResponse,
@@ -77,6 +79,10 @@ from backend.app.practice_catalog_service import (
 )
 from backend.app.practice_progression_service import (
     choose_next_external_exercise,
+)
+from backend.app.practice_theory_source_service import (
+    get_exercism_python_theory_concept,
+    list_exercism_python_theory_concepts,
 )
 from backend.app.practice_exercism_adapter import (
     get_exercism_python_exercise_content,
@@ -657,6 +663,81 @@ def get_exercism_python_practice_source(
         raise HTTPException(
             status_code=400,
             detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/practice/source/exercism/python/{learner_id}/theory",
+    response_model=PracticeTheoryConceptResponse,
+)
+def get_exercism_python_theory_concepts_route(
+    learner_id: str,
+    subtopic_id: str,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return list_exercism_python_theory_concepts(
+            learner_id=learner_id,
+            subtopic_id=subtopic_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    (
+        "/practice/source/exercism/python/"
+        "{learner_id}/theory/{concept_id}"
+    ),
+    response_model=PracticeTheoryConceptContent,
+)
+def get_exercism_python_theory_concept_route(
+    learner_id: str,
+    concept_id: str,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return get_exercism_python_theory_concept(
+            learner_id=learner_id,
+            concept_id=concept_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Theory concept source "
+                "could not be loaded."
+            ),
         ) from exc
 
 
