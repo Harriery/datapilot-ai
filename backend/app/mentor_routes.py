@@ -44,6 +44,7 @@ from backend.app.models import (
     PracticeSolutionResponse,
     PracticeCatalogResponse,
     PracticeExerciseSourceResponse,
+    PracticeExerciseContentResponse,
     LearnerJournalResponse,
     LearnerNote,
     LearnerNoteCreateRequest,
@@ -69,6 +70,7 @@ from backend.app.practice_catalog_service import (
     get_practice_catalog,
 )
 from backend.app.practice_exercism_adapter import (
+    get_exercism_python_exercise_content,
     list_exercism_python_exercises,
 )
 from backend.app.progress_service import (
@@ -639,6 +641,53 @@ def get_exercism_python_practice_source(
         raise HTTPException(
             status_code=400,
             detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    (
+        "/practice/source/exercism/python/"
+        "{learner_id}/exercise/{exercise_id}"
+    ),
+    response_model=PracticeExerciseContentResponse,
+)
+def get_exercism_python_exercise_content_route(
+    learner_id: str,
+    exercise_id: str,
+    title: str,
+    source_revision: str | None = None,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return get_exercism_python_exercise_content(
+            learner_id=learner_id,
+            exercise_id=exercise_id,
+            title=title,
+            source_revision=source_revision,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "External Practice source "
+                "could not be loaded."
+            ),
         ) from exc
 
 
