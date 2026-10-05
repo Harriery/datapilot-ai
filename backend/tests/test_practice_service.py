@@ -24,6 +24,9 @@ from backend.app.practice_service import (
     get_python_data_structure_variant,
     get_next_practice_hint,
 )
+from backend.app.practice_catalog_service import (
+    get_practice_catalog,
+)
 
 def test_get_practice_difficulty_for_new_skill():
     result = get_practice_difficulty("new")
@@ -994,4 +997,106 @@ def test_get_next_practice_hint_makes_solution_available_after_all_hints():
         challenge_id="challenge-hint-002",
         learner_id="learner-001",
         hint_level=3,
+    )
+
+
+def test_practice_v2_catalog_exposes_topic_paths():
+    catalog = get_practice_catalog(
+        learner_id="learner-001"
+    )
+
+    topic_ids = {
+        topic.topic_id
+        for topic in catalog.topics
+    }
+
+    assert {
+        "python",
+        "sql",
+        "data_cleaning_transform",
+        "data_modeling",
+        "data_engineering",
+    }.issubset(topic_ids)
+
+    python_topic = next(
+        topic
+        for topic in catalog.topics
+        if topic.topic_id == "python"
+    )
+
+    assert python_topic.difficulties == [
+        "easy",
+        "medium",
+        "hard",
+    ]
+    assert "theory" in python_topic.modes
+    assert "code" in python_topic.modes
+    assert python_topic.level_target == 15
+    assert python_topic.theory_target == 5
+    assert python_topic.applied_target == 10
+    assert python_topic.mini_project_target == 4
+
+
+def test_practice_v2_catalog_keeps_external_sources_on_demand():
+    catalog = get_practice_catalog(
+        learner_id="learner-001"
+    )
+
+    sources = {
+        source.source_id: source
+        for source in catalog.sources
+    }
+
+    assert (
+        sources["exercism-python"].delivery
+        == "on_demand"
+    )
+    assert (
+        sources["pandas-exercises"].delivery
+        == "on_demand"
+    )
+    assert (
+        sources["100-pandas-puzzles"].delivery
+        == "on_demand"
+    )
+
+    assert (
+        sources["sql-practice-reference"].delivery
+        == "metadata_only"
+    )
+    assert (
+        sources["de-zoomcamp-reference"].delivery
+        == "metadata_only"
+    )
+
+
+def test_practice_v2_catalog_marks_license_restrictions_explicitly():
+    catalog = get_practice_catalog(
+        learner_id="learner-001"
+    )
+
+    sources = {
+        source.source_id: source
+        for source in catalog.sources
+    }
+
+    assert (
+        sources["exercism-python"].license
+        == "MIT"
+    )
+    assert (
+        sources["pandas-exercises"].license
+        == "BSD-3-Clause"
+    )
+    assert (
+        sources["100-pandas-puzzles"].license
+        == "MIT"
+    )
+    assert (
+        sources["sql-practice-reference"].import_policy
+        == "reference_only_copyleft_review"
+    )
+    assert (
+        sources["de-zoomcamp-reference"].import_policy
+        == "reference_only_pending_license_review"
     )
