@@ -26,6 +26,15 @@ PRACTICE_SOURCES = (
         topics=["python"],
     ),
     PracticeSourceDescriptor(
+        source_id="python-docs",
+        name="Python Documentation",
+        repository="python/cpython",
+        license="PSF-2.0",
+        import_policy="allowed_with_attribution",
+        delivery="on_demand",
+        topics=["python"],
+    ),
+    PracticeSourceDescriptor(
         source_id="pandas-exercises",
         name="pandas_exercises",
         repository="guipsamora/pandas_exercises",
@@ -87,6 +96,7 @@ PRACTICE_TOPICS = (
         mini_project_target=4,
         source_ids=[
             "exercism-python",
+            "python-docs",
             "100-pandas-puzzles",
         ],
     ),
