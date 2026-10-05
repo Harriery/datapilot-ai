@@ -43,6 +43,7 @@ from backend.app.models import (
     PracticeSolutionRequest,
     PracticeSolutionResponse,
     PracticeCatalogResponse,
+    PracticeExerciseSourceResponse,
 )
 from backend.app.practice_micro_check_service import (
     review_practice_micro_check,
@@ -60,6 +61,9 @@ from backend.app.practice_service import (
 )
 from backend.app.practice_catalog_service import (
     get_practice_catalog,
+)
+from backend.app.practice_exercism_adapter import (
+    list_exercism_python_exercises,
 )
 from backend.app.progress_service import (
     get_learner_progress,
@@ -445,6 +449,54 @@ def get_progress(
     return get_learner_progress(
         learner_id=learner_id
     )
+
+# ---------------------------------------------------------
+# PRACTICE V2 EXTERNAL EXERCISE SOURCE
+# ---------------------------------------------------------
+
+@router.get(
+    "/practice/source/exercism/python/{learner_id}",
+    response_model=PracticeExerciseSourceResponse,
+)
+def get_exercism_python_practice_source(
+    learner_id: str,
+    subtopic_id: str,
+    difficulty: str,
+    practice_mode: str = "code",
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    if practice_mode != "code":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Exercism Python adapter currently "
+                "supports code mode only."
+            ),
+        )
+
+    try:
+        return list_exercism_python_exercises(
+            learner_id=learner_id,
+            subtopic_id=subtopic_id,
+            difficulty=difficulty,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
 
 # ---------------------------------------------------------
 # PRACTICE V2 CATALOG ENDPOINT
