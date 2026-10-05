@@ -23158,3 +23158,18 @@
   font-size: 9px;
   line-height: 1.4;
 }
+
+
+.practice-sandbox-detail {
+  max-height: 140px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 8px 9px;
+  border: 1px solid #e1e7ef;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #52657b;
+  font-size: 9px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
