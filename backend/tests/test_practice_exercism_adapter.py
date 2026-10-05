@@ -2,6 +2,7 @@ import pytest
 
 from backend.app.practice_exercism_adapter import (
     get_exercism_python_exercise_content,
+    get_exercism_python_validation_bundle,
     list_exercism_python_exercises,
     map_exercism_difficulty,
 )
@@ -246,3 +247,117 @@ def test_exercism_content_does_not_fetch_example_solution():
 
     assert ".meta/example.py" not in requested_paths
     assert "binary_search_test.py" not in requested_paths
+
+
+
+def _validation_file_loader(
+    exercise_id: str,
+    relative_path: str,
+) -> str:
+    assert exercise_id == "binary-search"
+
+    if relative_path == ".meta/config.json":
+        return (
+            '{"files":{"solution":["binary_search.py"],'
+            '"test":["binary_search_test.py"],'
+            '"example":[".meta/example.py"]}}'
+        )
+
+    if relative_path == "binary_search_test.py":
+        return (
+            "import unittest\n"
+            "from binary_search import find\n"
+            "\n"
+            "class BinarySearchTest(unittest.TestCase):\n"
+            "    def test_one(self):\n"
+            "        self.assertEqual(find([1], 1), 0)\n"
+        )
+
+    raise AssertionError(
+        f"Unexpected validation file: {relative_path}"
+    )
+
+
+def test_exercism_validation_bundle_loads_only_tests():
+    PRACTICE_SOURCE_CACHE.clear()
+
+    result = get_exercism_python_validation_bundle(
+        learner_id="learner-001",
+        exercise_id="binary-search",
+        text_loader=_validation_file_loader,
+    )
+
+    assert result.solution_filename == (
+        "binary_search.py"
+    )
+    assert len(result.test_files) == 1
+    assert result.test_files[0].path == (
+        "binary_search_test.py"
+    )
+    assert ".meta/example.py" not in [
+        item.path
+        for item in result.test_files
+    ]
+    assert len(result.content_hash) == 64
+
+
+def test_exercism_validation_bundle_uses_cache():
+    PRACTICE_SOURCE_CACHE.clear()
+    calls = []
+
+    def loader(
+        exercise_id: str,
+        relative_path: str,
+    ) -> str:
+        calls.append(relative_path)
+        return _validation_file_loader(
+            exercise_id,
+            relative_path,
+        )
+
+    first = get_exercism_python_validation_bundle(
+        learner_id="learner-001",
+        exercise_id="binary-search",
+        text_loader=loader,
+    )
+    second = get_exercism_python_validation_bundle(
+        learner_id="learner-002",
+        exercise_id="binary-search",
+        text_loader=loader,
+    )
+
+    assert first.cached is False
+    assert second.cached is True
+    assert second.learner_id == "learner-002"
+    assert calls == [
+        ".meta/config.json",
+        "binary_search_test.py",
+    ]
+
+
+def test_exercism_validation_bundle_rejects_unsafe_paths():
+    PRACTICE_SOURCE_CACHE.clear()
+
+    def loader(
+        exercise_id: str,
+        relative_path: str,
+    ) -> str:
+        if relative_path == ".meta/config.json":
+            return (
+                '{"files":{"solution":["binary_search.py"],'
+                '"test":["../escape.py"]}}'
+            )
+
+        raise AssertionError(
+            "Unsafe test path should not be loaded."
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="Unsafe Exercism test path",
+    ):
+        get_exercism_python_validation_bundle(
+            learner_id="learner-001",
+            exercise_id="binary-search",
+            text_loader=loader,
+        )
