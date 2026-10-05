@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import LearnerNotebookPanel from "./LearnerNotebookPanel";
 
 export type PracticeCatalogSource = {
   source_id: string;
@@ -119,13 +120,40 @@ export default function PracticeCatalogPage({
           </p>
         </div>
 
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={onStartRecommended}
-        >
-          Recommended practice →
-        </button>
+        <div className="practice-v2-header-actions">
+          <LearnerNotebookPanel
+            learnerId={catalog?.learner_id ?? "demo-learner"}
+            contextType="practice"
+            contextKey={
+              topicId && subtopic
+                ? `${topicId}:${subtopic}`
+                : null
+            }
+            contextLabel={
+              selectedTopic && subtopic
+                ? `${selectedTopic.title} · ${label(subtopic)}`
+                : "Practice"
+            }
+            resumeState={
+              selectedTopic && subtopic
+                ? {
+                    topic_id: selectedTopic.topic_id,
+                    subtopic_id: subtopic,
+                    practice_mode: mode,
+                    difficulty,
+                  }
+                : null
+            }
+          />
+
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onStartRecommended}
+          >
+            Recommended practice →
+          </button>
+        </div>
       </div>
 
       {loading ? (
