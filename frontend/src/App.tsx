@@ -7004,6 +7004,7 @@ async function restoreWorkspaceVersion(
                     </div>
                   </div>
                 ) : (
+                  <>
                 <div
                   className={
                     practiceExternalValidationPending
@@ -7332,6 +7333,7 @@ async function restoreWorkspaceVersion(
                     </div>
                   </div>
                 </div>
+                  </>
                 )}
 
                 </div>
