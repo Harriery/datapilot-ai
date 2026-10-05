@@ -82,6 +82,7 @@ def _practice_evidence_context(
         "difficulty": challenge.difficulty,
         "source_id": challenge.source_id,
         "source_exercise_id": challenge.source_exercise_id,
+        "mastery_signals": challenge.mastery_signals,
         "challenge_id": challenge.challenge_id,
         "challenge_type": challenge.challenge_type,
         "deterministic_validation": True,
