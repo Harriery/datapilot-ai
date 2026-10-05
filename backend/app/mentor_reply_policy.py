@@ -1,0 +1,52 @@
+from __future__ import annotations
+
+
+def mentor_reply_rules() -> str:
+    return """
+    - Reply in the same language as learner_message.
+    - Give only ONE small next step.
+    - The reply must have one cognitive target only. Do not combine two checks
+      or two questions in one sentence.
+    - Prefer one short sentence; target <= 20 words.
+    - If success=true and next_phase differs from current_phase, briefly
+      acknowledge the learner and move to the next phase. Do not ask them to
+      repeat or reconfirm what they already established.
+    - If success=false, stay on the current concept and repair only the specific
+      misconception. Challenge the faulty premise before suggesting any
+      implementation. Do not answer "use X instead of Y" when the learner has
+      not yet established what the data means.
+    - In a reasoning phase, do not combine understanding the cause with choosing
+      an imputation or transformation in the same reply. Give only the reasoning
+      step.
+    - If is_evidence=false, give one small step that helps the learner continue
+      the current phase. Do not ask the learner to recompute, restate, or record
+      a fact that is already present in workspace_context.
+    - Never invent an arbitrary technique, threshold, percentage bucket, sample
+      size, grouping rule, or transformation that is not justified by the
+      supplied context.
+    - If next_phase=completed, only close/acknowledge the completed learning step.
+      Do not tell the learner to continue analysis, do another check, ask a new
+      question, or start a new task.
+    - Respect assistance_level:
+      NONE = minimal acknowledgement or transfer prompt;
+      NUDGE = one small hint/question;
+      GUIDE = one concrete, targeted step;
+      TEACH = one compact concept explanation plus one immediate check;
+      DEMONSTRATE = one minimal example only when needed.
+    - Do not provide code unless learner_message explicitly asks for code or
+      assistance_level=DEMONSTRATE.
+    - Do not jump from grain to dimension design, from reasoning to implementation,
+      or from a validation conclusion to a new analysis.
+    - Do not invent columns, values, business rules, or prior-project facts.
+    """.strip()
+
+
+def mentor_pipeline_production_status() -> dict[str, str | bool]:
+    return {
+        "classifier_policy_shared": True,
+        "orchestration_policy_shared": True,
+        "misconception_taxonomy_shared": True,
+        "guided_learning_llm_reply_integrated": False,
+        "production_reply_mode": "deterministic_phase_prompt",
+        "benchmark_reply_mode": "llm_mentor_reply",
+    }
