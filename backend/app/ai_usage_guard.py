@@ -230,13 +230,21 @@ def guarded_chat_completions_create(
         ]
     )
 
-    if (
-        max_output_tokens > 0
-        and "max_tokens" not in kwargs
-    ):
-        kwargs["max_tokens"] = (
-            max_output_tokens
-        )
+    if max_output_tokens > 0:
+        if "max_completion_tokens" in kwargs:
+            kwargs["max_completion_tokens"] = min(
+                int(kwargs["max_completion_tokens"]),
+                max_output_tokens,
+            )
+        elif "max_tokens" in kwargs:
+            kwargs["max_tokens"] = min(
+                int(kwargs["max_tokens"]),
+                max_output_tokens,
+            )
+        else:
+            kwargs["max_completion_tokens"] = (
+                max_output_tokens
+            )
 
     return (
         client.chat.completions.create(
