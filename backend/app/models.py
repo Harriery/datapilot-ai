@@ -2134,6 +2134,89 @@ class LearnerProgressResponse(BaseModel):
 # PRACTICE SYSTEM
 # ==================================================
 
+# ==================================================
+# PRACTICE V2 CATALOG
+# ==================================================
+
+class PracticeSourceDescriptor(BaseModel):
+    source_id: str
+    name: str
+    repository: str
+    license: str
+    import_policy: Literal[
+        "allowed_with_attribution",
+        "reference_only_copyleft_review",
+        "reference_only_pending_license_review",
+    ]
+    delivery: Literal[
+        "on_demand",
+        "metadata_only",
+    ]
+    topics: list[str] = Field(
+        default_factory=list
+    )
+
+
+class PracticeTopicDescriptor(BaseModel):
+    topic_id: str
+    title: str
+    description: str
+
+    modes: list[
+        Literal[
+            "theory",
+            "code",
+            "sql",
+            "transformation",
+            "design",
+            "project",
+            "mixed",
+        ]
+    ]
+
+    difficulties: list[
+        Literal[
+            "easy",
+            "medium",
+            "hard",
+        ]
+    ]
+
+    subtopics: list[str] = Field(
+        default_factory=list
+    )
+
+    level_target: int = Field(
+        ge=1
+    )
+    theory_target: int = Field(
+        ge=0
+    )
+    applied_target: int = Field(
+        ge=0
+    )
+    mini_project_target: int = Field(
+        ge=0
+    )
+
+    source_ids: list[str] = Field(
+        default_factory=list
+    )
+
+
+class PracticeCatalogResponse(BaseModel):
+    learner_id: str
+    level_completion_rule: str
+    project_unlock_rule: str
+    topics: list[
+        PracticeTopicDescriptor
+    ]
+    sources: list[
+        PracticeSourceDescriptor
+    ]
+
+
+
 # PracticeRecommendation:
 #
 # Progress sisteminin sonucuna göre
