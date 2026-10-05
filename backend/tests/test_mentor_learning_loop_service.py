@@ -470,3 +470,23 @@ def test_prepare_classifier_clears_misconception_after_success():
         )
 
     assert evaluation.misconception is None
+
+
+def test_shared_classifier_policy_covers_evidence_semantics():
+    from backend.app.mentor_classifier_policy import (
+        learning_evidence_classifier_rules,
+        strict_validation_classifier_rules,
+    )
+
+    evidence_rules = learning_evidence_classifier_rules()
+    validation_rules = strict_validation_classifier_rules()
+
+    assert "pure help request" in evidence_rules
+    assert "attempted" in evidence_rules
+    assert "Interrogative wording" in evidence_rules
+    assert "success=true" in evidence_rules
+    assert "Do not invent dataset facts" in evidence_rules
+
+    assert "code running without error is NOT sufficient" in validation_rules
+    assert "Unexpected row loss" in validation_rules
+    assert "single metric" in validation_rules
