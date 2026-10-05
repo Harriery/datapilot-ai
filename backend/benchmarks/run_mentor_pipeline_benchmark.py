@@ -16,8 +16,11 @@ from backend.app.ai_usage_guard import (
     AIUsageLimitError,
 )
 from backend.app.mentor_misconception_taxonomy import (
-    canonical_misconception_instructions,
     normalize_misconception,
+)
+from backend.app.mentor_classifier_policy import (
+    learning_evidence_classifier_rules,
+    strict_validation_classifier_rules,
 )
 from backend.benchmarks.mentor_benchmark_provider import (
     generate_benchmark_structured,
@@ -80,26 +83,13 @@ def build_classifier_instructions() -> str:
 
     Rules:
     - Decide whether learner_message is genuine learning evidence.
-    - A pure help request or clarification question with no proposed answer,
-      action, explanation, or hypothesis is not learning evidence.
-    - A learner claim, proposed decision, explanation, hypothesis, or attempted
-      answer IS learning evidence even when it is wrong.
-    - Interrogative wording does not make a proposed decision non-evidence.
-      For example, "Should I fill missing values with 0?" is a proposed action,
-      so classify it as evidence and evaluate whether that proposal is sound.
-    - For genuine evidence, set success true or false from the supplied context
-      AND the current learning phase.
-    - For non-evidence, set success=null.
-    - Validation phase is strict: code running without error is NOT sufficient
-      validation. Compare before/after evidence and the intended operation.
-      Unexpected row loss, row gain, or other unintended side effects mean
-      success=false until reconciled.
-    - In validation, checking only one metric (for example only null_count=0)
-      is insufficient when another supplied metric contradicts success.
-    - If success=true, misconception must be null.
-    - {canonical_misconception_instructions()}
-    - Do not invent dataset facts.
     - Do not generate mentor guidance.
+
+    Shared classifier policy:
+    {learning_evidence_classifier_rules()}
+
+    Validation policy:
+    {strict_validation_classifier_rules()}
     """
 
 
