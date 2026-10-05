@@ -433,12 +433,7 @@ def test_benchmark_provider_does_not_retry_unrelated_error():
     import pytest
 
     class FakeOtherError(Exception):
-        status_code = 429
-        body = {
-            "error": {
-                "code": "rate_limit_exceeded",
-            }
-        }
+        status_code = 500
 
     with patch(
         "backend.benchmarks.mentor_benchmark_provider."
@@ -447,7 +442,7 @@ def test_benchmark_provider_does_not_retry_unrelated_error():
     ), patch(
         "backend.benchmarks.mentor_benchmark_provider."
         "guarded_responses_parse",
-        side_effect=FakeOtherError("rate limited"),
+        side_effect=FakeOtherError("server error"),
     ) as mock_parse:
         with pytest.raises(FakeOtherError):
             _generate_openai_compatible_structured(
@@ -516,3 +511,60 @@ def test_benchmark_provider_retries_groq_json_validation_failure_once():
         mock_parse.call_args_list[1].kwargs["purpose"]
         == "judge_parse_retry"
     )
+
+
+
+def test_benchmark_provider_retries_transient_groq_rate_limit_once():
+    from backend.benchmarks.mentor_benchmark_provider import (
+        _generate_openai_compatible_structured,
+    )
+
+    class FakeRateLimitError(Exception):
+        status_code = 429
+        body = {
+            "error": {
+                "code": "rate_limit_exceeded",
+            }
+        }
+
+    parsed = CandidateResponse(
+        is_evidence=True,
+        success=True,
+        misconception=None,
+        mentor_reply="Kısa cevap.",
+    )
+    response = MagicMock()
+    response.output_parsed = parsed
+
+    with patch(
+        "backend.benchmarks.mentor_benchmark_provider."
+        "_openai_compatible_client",
+        return_value=MagicMock(),
+    ), patch(
+        "backend.benchmarks.mentor_benchmark_provider."
+        "guarded_responses_parse",
+        side_effect=[
+            FakeRateLimitError(
+                "Rate limit reached. Please try again in 1.25s."
+            ),
+            response,
+        ],
+    ) as mock_parse, patch(
+        "backend.benchmarks.mentor_benchmark_provider.sleep",
+    ) as mock_sleep:
+        result = _generate_openai_compatible_structured(
+            provider="groq",
+            model="openai/gpt-oss-20b",
+            purpose="judge",
+            instructions="instructions",
+            input_text="input",
+            text_format=CandidateResponse,
+        )
+
+    assert result == parsed
+    assert mock_parse.call_count == 2
+    assert (
+        mock_parse.call_args_list[1].kwargs["purpose"]
+        == "judge_rate_limit_retry"
+    )
+    mock_sleep.assert_called_once_with(1.5)
