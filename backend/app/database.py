@@ -1027,6 +1027,25 @@ def insert_learning_evidence(
     connection.close()
 
 
+def get_learning_evidence_by_learner(
+    learner_id: str,
+):
+    connection = get_connection()
+
+    evidence = connection.execute(
+        """
+        SELECT *
+        FROM learning_evidence
+        WHERE learner_id = ?
+        ORDER BY id ASC
+        """,
+        (learner_id,),
+    ).fetchall()
+
+    connection.close()
+    return evidence
+
+
 def get_learning_evidence_by_skill(
         learner_id: str,
         skill_name: str,
