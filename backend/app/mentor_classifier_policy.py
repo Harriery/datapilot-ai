@@ -11,6 +11,8 @@ def learning_evidence_classifier_rules() -> str:
       action, explanation, or hypothesis is not learning evidence.
     - A learner claim, proposed decision, explanation, hypothesis, or attempted
       answer IS learning evidence even when it is wrong.
+    - A proposed decision or attempted answer remains learning evidence when
+      phrased as a question.
     - Interrogative wording does not make a proposed decision non-evidence.
       For example, "Should I fill missing values with 0?" is a proposed action,
       so classify it as evidence and evaluate whether that proposal is sound.
@@ -29,6 +31,7 @@ def strict_validation_classifier_rules() -> str:
       validation. Compare before/after evidence and the intended operation.
       Unexpected row loss, row gain, or other unintended side effects mean
       success=false until reconciled.
-    - In validation, checking only one metric (for example only null_count=0)
-      is insufficient when another supplied metric contradicts success.
+    - In validation, a single metric is insufficient when another supplied
+      metric contradicts success. For example, checking only null_count=0 is
+      not enough when row-count evidence shows an unintended change.
     """.strip()
