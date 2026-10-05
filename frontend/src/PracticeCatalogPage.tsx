@@ -266,35 +266,6 @@ export default function PracticeCatalogPage({
                   </label>
                 </div>
 
-                <div className="practice-v2-mastery-row">
-                  {selectedTopic.difficulties.map(
-                    (level) => (
-                      <button
-                        type="button"
-                        key={level}
-                        className={
-                          difficulty === level
-                            ? "practice-mastery-card active"
-                            : "practice-mastery-card"
-                        }
-                        onClick={() =>
-                          setDifficulty(level)
-                        }
-                      >
-                        <div>
-                          <strong>{label(level)}</strong>
-                          <span>Not started</span>
-                        </div>
-
-                        <small>
-                          Mastery is based on evidence,
-                          not question count.
-                        </small>
-                      </button>
-                    )
-                  )}
-                </div>
-
                 <div className="practice-v2-selected">
                   <div>
                     <span>Selected path</span>
