@@ -85,15 +85,15 @@ def _parse_generated_json(
 ) -> PracticeTheoryCheckGenerated:
     text = raw_text.strip()
 
-    if text.startswith("\`\`\`"):
+    if text.startswith("```"):
         text = re.sub(
-            r"^\`\`\`(?:json)?\s*",
+            r"^```(?:json)?\s*",
             "",
             text,
             flags=re.IGNORECASE,
         )
         text = re.sub(
-            r"\s*\`\`\`$",
+            r"\s*```$",
             "",
             text,
         )
@@ -203,8 +203,48 @@ Return ONLY this JSON object:
                 "content": bounded_source,
             },
         ],
-        max_tokens=900,
-        temperature=0,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "practice_theory_check",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "question": {
+                            "type": "string",
+                        },
+                        "options": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                            },
+                            "minItems": 4,
+                            "maxItems": 4,
+                        },
+                        "correct_index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3,
+                        },
+                        "explanation": {
+                            "type": "string",
+                        },
+                    },
+                    "required": [
+                        "question",
+                        "options",
+                        "correct_index",
+                        "explanation",
+                    ],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        max_completion_tokens=900,
+        reasoning_format="hidden",
+        reasoning_effort="low",
+        temperature=0.2,
     )
 
     return _parse_generated_json(
