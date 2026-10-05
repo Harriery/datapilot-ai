@@ -42,6 +42,7 @@ from backend.app.models import (
     PracticeHintResponse,
     PracticeSolutionRequest,
     PracticeSolutionResponse,
+    PracticeCatalogResponse,
 )
 from backend.app.practice_micro_check_service import (
     review_practice_micro_check,
@@ -56,6 +57,9 @@ from backend.app.practice_service import (
     create_practice_challenge,
     get_next_practice_hint,
     get_practice_solution,
+)
+from backend.app.practice_catalog_service import (
+    get_practice_catalog,
 )
 from backend.app.progress_service import (
     get_learner_progress,
@@ -441,6 +445,34 @@ def get_progress(
     return get_learner_progress(
         learner_id=learner_id
     )
+
+# ---------------------------------------------------------
+# PRACTICE V2 CATALOG ENDPOINT
+# ---------------------------------------------------------
+
+@router.get(
+    "/practice/catalog/{learner_id}",
+    response_model=PracticeCatalogResponse,
+)
+def get_practice_catalog_route(
+    learner_id: str,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return get_practice_catalog(
+        learner_id=learner_id
+    )
+
 
 # ---------------------------------------------------------
 # PRACTICE RECOMMENDATION ENDPOINT
