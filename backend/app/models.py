@@ -2203,6 +2203,50 @@ class PracticeTopicDescriptor(BaseModel):
     )
 
 
+class PracticeExerciseSourceItem(BaseModel):
+    source_id: str
+    source_exercise_id: str
+    title: str
+    source_difficulty: int = Field(
+        ge=1
+    )
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    practices: list[str] = Field(
+        default_factory=list
+    )
+    prerequisites: list[str] = Field(
+        default_factory=list
+    )
+    mastery_signals: list[
+        Literal[
+            "concept_coverage",
+            "correct_application",
+            "transfer_to_new_context",
+        ]
+    ] = Field(default_factory=list)
+    attribution: str
+
+
+class PracticeExerciseSourceResponse(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    source_id: str
+    exercises: list[
+        PracticeExerciseSourceItem
+    ]
+
+
 class PracticeMasterySignalState(BaseModel):
     signal: Literal[
         "concept_coverage",
