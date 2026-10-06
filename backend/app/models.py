@@ -639,6 +639,12 @@ class WorkspaceDataPreviewResponse(BaseModel):
     ]
 
     columns: list[str]
+    column_types: dict[str, Literal[
+        "text",
+        "number",
+        "datetime",
+        "boolean",
+    ]] = Field(default_factory=dict)
 
     total_row_count: int
     filtered_row_count: int
