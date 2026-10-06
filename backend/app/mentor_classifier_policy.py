@@ -11,11 +11,14 @@ def learning_evidence_classifier_rules() -> str:
       action, explanation, or hypothesis is not learning evidence.
     - A learner claim, proposed decision, explanation, hypothesis, or attempted
       answer IS learning evidence even when it is wrong.
-    - A proposed decision or attempted answer remains learning evidence when
-      phrased as a question.
-    - Interrogative wording does not make a proposed decision non-evidence.
-      For example, "Should I fill missing values with 0?" is a proposed action,
-      so classify it as evidence and evaluate whether that proposal is sound.
+    - A proposed decision, attempted answer, reasoned distinction, or
+      verification criterion remains learning evidence when phrased as a question.
+    - Interrogative wording does not make learner reasoning non-evidence.
+      For example, "Should I fill missing values with 0?" proposes an action.
+      Likewise, a question that distinguishes two possible interpretations and
+      proposes checking which one applies demonstrates reasoning. In both cases,
+      classify the underlying proposal/reasoning as evidence and evaluate whether
+      it is sound.
     - For genuine evidence, set success true or false from the supplied context
       AND the current learning phase.
     - For non-evidence, set success=null.
