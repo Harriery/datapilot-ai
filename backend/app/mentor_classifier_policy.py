@@ -5,6 +5,18 @@ from backend.app.mentor_misconception_taxonomy import (
 )
 
 
+def classifier_generation_kwargs() -> dict[str, float]:
+    """
+    Keep learning-evidence classification low-variance.
+
+    This is shared by production and benchmarks so classifier behavior is
+    measured with the same sampling policy that production uses.
+    """
+    return {
+        "temperature": 0.1,
+    }
+
+
 def learning_evidence_classifier_rules() -> str:
     return f"""
     - A pure help request or clarification question with no proposed answer,
