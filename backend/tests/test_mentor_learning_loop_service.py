@@ -12,6 +12,7 @@ from backend.app.mentor_learning_loop_service import (
     apply_trusted_prepare_validation,
     complete_prepare_learning_loop,
     evaluate_prepare_phase_response,
+    generate_prepare_mentor_reply,
     record_prepare_phase_evidence,
     record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
@@ -503,3 +504,87 @@ def test_shared_classifier_policy_covers_evidence_semantics():
     assert "code running without error is NOT sufficient" in validation_rules
     assert "Unexpected row loss" in validation_rules
     assert "single metric" in validation_rules
+
+
+def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+    )
+    loop.current_phase = "reason"
+
+    from backend.app.models import (
+        PrepareLearningPhaseEvaluation,
+        PrepareMentorReply,
+    )
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=True,
+        success=True,
+        evidence_type="explanation",
+        note="Reasoning is sound.",
+        misconception=None,
+    )
+
+    parsed = MagicMock()
+    parsed.output_parsed = PrepareMentorReply(
+        mentor_reply="Good distinction. Which criterion should govern the decision?"
+    )
+
+    runtime = MagicMock()
+    runtime.client = MagicMock()
+    runtime.provider = "groq"
+    runtime.model = "openai/gpt-oss-120b"
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+        return_value=runtime,
+    ) as mock_runtime, patch(
+        "backend.app.mentor_learning_loop_service.guarded_responses_parse",
+        return_value=parsed,
+    ) as mock_parse:
+        reply = generate_prepare_mentor_reply(
+            loop=loop,
+            finding=finding,
+            learner_response="I should distinguish the possible causes first.",
+            evaluation=evaluation,
+            assistance_level="NUDGE",
+        )
+
+    assert reply.startswith("Good distinction")
+    mock_runtime.assert_called_once_with("mentor")
+
+    kwargs = mock_parse.call_args.kwargs
+    assert kwargs["provider"] == "groq"
+    assert kwargs["model"] == "openai/gpt-oss-120b"
+
+    payload = __import__("json").loads(
+        kwargs["input"]
+    )
+    assert payload["orchestration"] == {
+        "current_phase": "reason",
+        "assistance_level": "NUDGE",
+        "next_phase": "decide",
+    }
+
+
+def test_mentor_reply_policy_reports_production_llm_integration():
+    from backend.app.mentor_reply_policy import (
+        mentor_pipeline_production_status,
+    )
+
+    status = mentor_pipeline_production_status()
+
+    assert (
+        status["guided_learning_llm_reply_integrated"]
+        is True
+    )
+    assert (
+        status["production_reply_mode"]
+        == "llm_mentor_reply_with_deterministic_fallback"
+    )
