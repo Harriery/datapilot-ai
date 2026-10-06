@@ -62,7 +62,7 @@ def preview_column_types(
                     .str.strip()
                 )
                 date_like = text.str.match(
-                    r"^\\d{1,4}[-/.]\\d{1,2}[-/.]\\d{1,4}",
+                    r"^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}",
                     na=False,
                 )
 
