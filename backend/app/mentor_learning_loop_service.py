@@ -16,6 +16,7 @@ from backend.app.mentor_misconception_taxonomy import (
     normalize_misconception,
 )
 from backend.app.mentor_classifier_policy import (
+    classifier_generation_kwargs,
     learning_evidence_classifier_rules,
 )
 from backend.app.models import (
@@ -298,6 +299,7 @@ def evaluate_prepare_phase_response(
         ),
         instructions=instructions,
         text_format=PrepareLearningPhaseEvaluation,
+        **classifier_generation_kwargs(),
     )
 
     evaluation = response_obj.output_parsed
