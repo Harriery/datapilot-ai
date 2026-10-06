@@ -522,8 +522,11 @@ def test_pipeline_reports_production_integration_status():
     assert status["classifier_policy_shared"] is True
     assert status["orchestration_policy_shared"] is True
     assert status["misconception_taxonomy_shared"] is True
-    assert status["guided_learning_llm_reply_integrated"] is False
-    assert status["production_reply_mode"] == "deterministic_phase_prompt"
+    assert status["guided_learning_llm_reply_integrated"] is True
+    assert (
+        status["production_reply_mode"]
+        == "llm_mentor_reply_with_deterministic_fallback"
+    )
     assert status["benchmark_reply_mode"] == "llm_mentor_reply"
 
     rules = mentor_reply_rules()
