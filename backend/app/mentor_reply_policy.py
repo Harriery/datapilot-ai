@@ -11,6 +11,11 @@ def mentor_reply_rules() -> str:
     - If success=true and next_phase differs from current_phase, briefly
       acknowledge the learner and move to the next phase. Do not ask them to
       repeat or reconfirm what they already established.
+    - When next_phase=decide after successful reasoning, move from reasoning to
+      a decision criterion, not to a predetermined outcome. The mentor may point
+      to the factor that should govern the decision, but must not choose the
+      transformation, deletion, imputation, retention, or other final action
+      before that criterion is evaluated.
     - If success=false, stay on the current concept and repair only the specific
       misconception. Challenge the faulty premise before suggesting any
       implementation. Do not answer "use X instead of Y" when the learner has
