@@ -51,7 +51,7 @@ def mentor_pipeline_production_status() -> dict[str, str | bool]:
         "classifier_policy_shared": True,
         "orchestration_policy_shared": True,
         "misconception_taxonomy_shared": True,
-        "guided_learning_llm_reply_integrated": False,
-        "production_reply_mode": "deterministic_phase_prompt",
+        "guided_learning_llm_reply_integrated": True,
+        "production_reply_mode": "llm_mentor_reply_with_deterministic_fallback",
         "benchmark_reply_mode": "llm_mentor_reply",
     }
