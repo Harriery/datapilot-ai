@@ -19,6 +19,7 @@ from backend.app.mentor_misconception_taxonomy import (
     normalize_misconception,
 )
 from backend.app.mentor_classifier_policy import (
+    classifier_generation_kwargs,
     learning_evidence_classifier_rules,
     strict_validation_classifier_rules,
 )
@@ -178,6 +179,7 @@ def run_classifier(
             indent=2,
         ),
         text_format=ClassifierResponse,
+        request_kwargs=classifier_generation_kwargs(),
     )
 
     result.misconception = normalize_misconception(
