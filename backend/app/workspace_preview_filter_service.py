@@ -54,6 +54,33 @@ def preview_column_types(
         else:
             kind = "text"
 
+            non_missing = series.dropna()
+
+            if not non_missing.empty:
+                text = (
+                    non_missing.astype("string")
+                    .str.strip()
+                )
+                date_like = text.str.match(
+                    r"^\\d{1,4}[-/.]\\d{1,2}[-/.]\\d{1,4}",
+                    na=False,
+                )
+
+                if (
+                    float(date_like.mean())
+                    >= 0.8
+                ):
+                    parsed = pd.to_datetime(
+                        text,
+                        errors="coerce",
+                    )
+
+                    if (
+                        float(parsed.notna().mean())
+                        >= 0.8
+                    ):
+                        kind = "datetime"
+
         result[str(column)] = kind
 
     return result
