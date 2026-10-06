@@ -484,6 +484,8 @@ def test_shared_classifier_policy_covers_evidence_semantics():
     assert "pure help request" in evidence_rules
     assert "attempted" in evidence_rules
     assert "Interrogative wording" in evidence_rules
+    assert "reasoned distinction" in evidence_rules
+    assert "verification criterion" in evidence_rules
     assert "success=true" in evidence_rules
     assert "Do not invent dataset facts" in evidence_rules
 
