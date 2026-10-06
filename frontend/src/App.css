@@ -10541,6 +10541,145 @@
   font-size: 9px;
 }
 
+.data-preview-filter-panel {
+  display: grid;
+  gap: 8px;
+
+  padding: 10px;
+
+  border: 1px solid #dce5ef;
+  border-radius: 8px;
+
+  background: #f9fbfd;
+}
+
+.data-preview-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+}
+
+.data-preview-filter-heading > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.data-preview-filter-heading strong {
+  color: #344b66;
+  font-size: 10px;
+}
+
+.data-preview-filter-heading span {
+  color: #8392a4;
+  font-size: 8px;
+}
+
+.data-preview-filter-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.data-preview-filter-actions button,
+.data-preview-filter-remove {
+  min-height: 28px;
+
+  padding: 5px 8px;
+
+  border: 1px solid #d3deea;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #536a83;
+
+  cursor: pointer;
+
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.data-preview-filter-actions button.secondary {
+  color: #75869a;
+}
+
+.data-preview-filter-row {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, 1.1fr)
+    minmax(150px, 1.2fr)
+    minmax(120px, 1fr)
+    minmax(120px, 1fr)
+    30px;
+  gap: 6px;
+  align-items: center;
+}
+
+.data-preview-filter-row select,
+.data-preview-filter-row input,
+.data-preview-filter-logic select {
+  min-height: 30px;
+
+  padding: 5px 7px;
+
+  border: 1px solid #d5dfeb;
+  border-radius: 6px;
+
+  outline: none;
+
+  background: #ffffff;
+  color: #344b66;
+
+  font-size: 9px;
+}
+
+.data-preview-filter-row select:focus,
+.data-preview-filter-row input:focus,
+.data-preview-filter-logic select:focus {
+  border-color: #84b3e9;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(47, 128, 237, 0.07);
+}
+
+.data-preview-filter-remove {
+  display: grid;
+  place-items: center;
+
+  width: 30px;
+  padding: 0;
+
+  font-size: 15px;
+}
+
+.data-preview-filter-logic {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  width: fit-content;
+
+  color: #71839a;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+@media (max-width: 850px) {
+  .data-preview-filter-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .data-preview-filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .data-preview-filter-remove {
+    width: 100%;
+  }
+}
+
 .data-preview-table-wrap {
   max-height: 310px;
 }
