@@ -139,10 +139,13 @@ def _generate_openai_compatible_structured(
     instructions: str,
     input_text: str,
     text_format: type[StructuredModel],
+    request_kwargs: dict | None = None,
 ) -> StructuredModel:
     client = _openai_compatible_client(
         provider
     )
+
+    request_kwargs = request_kwargs or {}
 
     try:
         response = guarded_responses_parse(
@@ -153,6 +156,7 @@ def _generate_openai_compatible_structured(
             instructions=instructions,
             input=input_text,
             text_format=text_format,
+            **request_kwargs,
         )
     except Exception as exc:
         if (
@@ -171,6 +175,7 @@ def _generate_openai_compatible_structured(
                 instructions=instructions,
                 input=input_text,
                 text_format=text_format,
+                **request_kwargs,
             )
         elif (
             provider == "groq"
@@ -193,6 +198,7 @@ def _generate_openai_compatible_structured(
                 instructions=retry_instructions,
                 input=input_text,
                 text_format=text_format,
+                **request_kwargs,
             )
         else:
             raise
@@ -293,6 +299,7 @@ def generate_benchmark_structured(
     instructions: str,
     input_text: str,
     text_format: type[StructuredModel],
+    request_kwargs: dict | None = None,
 ) -> StructuredModel:
     normalized_provider = (
         provider.strip().casefold()
@@ -312,6 +319,7 @@ def generate_benchmark_structured(
                 instructions=instructions,
                 input_text=input_text,
                 text_format=text_format,
+                request_kwargs=request_kwargs,
             )
         )
 
