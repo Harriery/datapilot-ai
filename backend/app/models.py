@@ -248,6 +248,13 @@ class PrepareLearningPhaseEvaluation(BaseModel):
     misconception: str | None = None
 
 
+class PrepareMentorReply(BaseModel):
+    mentor_reply: str = Field(
+        min_length=1,
+        max_length=600,
+    )
+
+
 class DataQualityFinding(BaseModel):
     issue_type:Literal[
         "missing_values",
