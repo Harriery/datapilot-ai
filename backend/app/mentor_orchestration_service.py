@@ -28,6 +28,14 @@ EXPLICIT_HELP_MARKERS = (
     "ne yapmam gerekiyor",
     "nasıl yapacağım",
     "nasil yapacagim",
+    "nasıl yapacağım",
+    "nasil yapicam",
+    "nasıl yapcam",
+    "nasil yapcam",
+    "nereye basacağım",
+    "nereye basacagim",
+    "neye basmam lazım",
+    "neye basmam lazim",
     "öğretir misin",
     "ogretir misin",
     "step by step",
@@ -51,7 +59,7 @@ def determine_assistance_level(
         marker in message
         for marker in EXPLICIT_HELP_MARKERS
     ):
-        return "GUIDE"
+        return "TEACH"
 
     misconception_list = list(
         misconceptions
