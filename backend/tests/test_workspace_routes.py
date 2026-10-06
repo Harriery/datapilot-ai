@@ -3271,6 +3271,93 @@ def test_workspace_data_preview_paginates_and_searches(
 
 
 
+
+
+def test_workspace_data_preview_filters_missing_rows_read_only(
+    tmp_path,
+    monkeypatch,
+):
+    prepare_database(tmp_path)
+
+    create_response = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "learner-001",
+            "title": "Preview Filter Test",
+            "usage_context": "personal",
+            "project_type": "data_quality",
+            "workspace_type": "data_engineering",
+        },
+    )
+
+    workspace_id = (
+        create_response.json()["workspace_id"]
+    )
+
+    source_df = pd.DataFrame(
+        {
+            "Car": [
+                1.0,
+                None,
+                2.0,
+                None,
+            ],
+            "Type": [
+                "h",
+                "h",
+                "u",
+                "t",
+            ],
+        }
+    )
+    original = source_df.copy(
+        deep=True
+    )
+
+    monkeypatch.setattr(
+        workspace_routes,
+        "load_workspace_source_dataframe",
+        lambda workspace_id: source_df,
+    )
+
+    response = client.get(
+        (
+            f"/workspaces/learner-001/"
+            f"{workspace_id}/data/preview"
+        ),
+        params={
+            "dataset": "source",
+            "page": 1,
+            "page_size": 5,
+            "filters": (
+                '[{"column":"Car",'
+                '"operator":"is_missing"}]'
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["dataset"] == "source"
+    assert body["total_row_count"] == 4
+    assert body["filtered_row_count"] == 2
+    assert body["column_types"]["Car"] == "number"
+    assert [
+        row["Type"]
+        for row in body["rows"]
+    ] == [
+        "h",
+        "t",
+    ]
+
+    pd.testing.assert_frame_equal(
+        source_df,
+        original,
+    )
+
+
 def test_development_sample_rebuilds_working_data_and_resets_state(
     tmp_path,
     monkeypatch,
