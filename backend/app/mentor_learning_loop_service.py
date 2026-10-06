@@ -19,11 +19,18 @@ from backend.app.mentor_classifier_policy import (
     classifier_generation_kwargs,
     learning_evidence_classifier_rules,
 )
+from backend.app.mentor_orchestration_service import (
+    determine_next_learning_phase,
+)
+from backend.app.mentor_reply_policy import (
+    mentor_reply_rules,
+)
 from backend.app.models import (
     DataQualityFinding,
     LearningEvidenceContext,
     LearningEvidenceDecision,
     PrepareLearningPhaseEvaluation,
+    PrepareMentorReply,
     Workspace,
     WorkspaceLearningLoop,
 )
@@ -318,6 +325,77 @@ def evaluate_prepare_phase_response(
             )
 
     return evaluation
+
+
+def generate_prepare_mentor_reply(
+    *,
+    loop: WorkspaceLearningLoop,
+    finding: DataQualityFinding,
+    learner_response: str,
+    evaluation: PrepareLearningPhaseEvaluation,
+    assistance_level: str,
+) -> str:
+    """
+    Generate the learner-facing Mentor reply after classification.
+
+    The model does not choose success, assistance level, or the next learning
+    phase. Those decisions are supplied by DataPilot's deterministic policy.
+    """
+    next_phase = determine_next_learning_phase(
+        current_phase=loop.current_phase,
+        is_evidence=evaluation.is_evidence,
+        success=evaluation.success,
+    )
+
+    runtime = get_ai_runtime(
+        "mentor"
+    )
+
+    instructions = f"""
+    You are DataPilot's adaptive Data Engineering mentor.
+
+    Learning evaluation and orchestration are already complete.
+    Do not reclassify the learner. Do not choose a different assistance level
+    or learning phase. Follow the supplied orchestration exactly.
+
+    Response rules:
+    {mentor_reply_rules()}
+    """
+
+    response_obj = guarded_responses_parse(
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_learning_reply",
+        model=runtime.model,
+        instructions=instructions,
+        input=json.dumps(
+            {
+                "finding":
+                    finding.model_dump(),
+                "learner_message":
+                    learner_response,
+                "learning_evaluation":
+                    evaluation.model_dump(),
+                "orchestration": {
+                    "current_phase":
+                        loop.current_phase,
+                    "assistance_level":
+                        assistance_level,
+                    "next_phase":
+                        next_phase,
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        text_format=PrepareMentorReply,
+    )
+
+    return (
+        response_obj.output_parsed
+        .mentor_reply
+        .strip()
+    )
 
 
 def record_prepare_phase_evidence(
