@@ -124,6 +124,9 @@ from backend.app.local_data_quality_mentor_service import (
     get_local_assistance_level,
     review_task_transformation_locally,
 )
+from backend.app.mentor_orchestration_service import (
+    determine_assistance_level,
+)
 
 from backend.app.personal_project_service import (
     build_personal_project_deliverables,
@@ -179,6 +182,7 @@ from backend.app.mentor_learning_loop_service import (
     apply_trusted_prepare_validation,
     complete_prepare_learning_loop,
     evaluate_prepare_phase_response,
+    generate_prepare_mentor_reply,
     record_prepare_phase_evidence,
     record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
@@ -2304,10 +2308,9 @@ def respond_to_workspace_prepare_learning_loop(
         else "new"
     )
 
-    assistance_level = (
-        get_local_assistance_level(
-            skill_status
-        )
+    assistance_level = determine_assistance_level(
+        skill_status=skill_status,
+        learner_message=request.response,
     )
 
     try:
@@ -2337,8 +2340,23 @@ def respond_to_workspace_prepare_learning_loop(
         evaluation=evaluation,
     )
 
+    try:
+        mentor_response = generate_prepare_mentor_reply(
+            loop=loop,
+            finding=finding,
+            learner_response=request.response,
+            evaluation=evaluation,
+            assistance_level=assistance_level,
+        )
+    except (
+        AIProviderConfigurationError,
+        AIBillingPolicyError,
+        AIUsageLimitError,
+    ):
+        mentor_response = None
+
     if loop.current_phase == "explain":
-        loop, mentor_response = (
+        loop, fallback_response = (
             complete_prepare_learning_loop(
                 loop=loop,
                 finding=finding,
@@ -2346,13 +2364,16 @@ def respond_to_workspace_prepare_learning_loop(
             )
         )
     else:
-        loop, mentor_response = (
+        loop, fallback_response = (
             apply_learning_phase_review(
                 loop=loop,
                 finding=finding,
                 evidence=evidence,
             )
         )
+
+    if mentor_response is None:
+        mentor_response = fallback_response
 
     database.save_workspace(
         workspace=workspace
