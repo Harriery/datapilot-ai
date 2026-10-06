@@ -384,7 +384,18 @@ def test_prepare_phase_classifier_prompt_treats_proposed_question_as_evidence():
     assert evaluation.success is False
 
     instructions = mock_parse.call_args.kwargs["instructions"]
-    assert "proposed decision or attempted answer remains learning evidence" in instructions
+    assert (
+        "reasoned distinction"
+        in instructions
+    )
+    assert (
+        "verification criterion"
+        in instructions
+    )
+    assert (
+        "Interrogative wording does not make learner reasoning non-evidence"
+        in instructions
+    )
     assert "phrased as a question" in instructions
 
 
