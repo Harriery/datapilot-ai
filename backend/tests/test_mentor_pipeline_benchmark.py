@@ -69,6 +69,17 @@ def test_pipeline_mentor_consumes_upstream_state():
     assert "Do not reclassify the learner" in instructions
 
 
+def test_pipeline_mentor_decide_transition_stays_outcome_neutral():
+    instructions = " ".join(
+        build_mentor_reply_instructions().split()
+    )
+
+    assert "next_phase=decide" in instructions
+    assert "decision criterion" in instructions
+    assert "not to a predetermined outcome" in instructions
+    assert "must not choose the transformation" in instructions
+
+
 def test_pipeline_reply_checks_completed_question():
     scenario = {
         "learner_message": "Bunu anlamadım, neye bakmalıyım?",
