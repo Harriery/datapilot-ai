@@ -109,11 +109,19 @@ def test_pipeline_plan_counts_three_requests_per_scenario():
 
 
 
-def test_pipeline_classifier_treats_question_shaped_decision_as_evidence_rule():
+def test_pipeline_classifier_treats_question_shaped_reasoning_as_evidence_rule():
     instructions = build_classifier_instructions()
 
-    assert "Interrogative wording does not make a proposed decision non-evidence" in instructions
+    assert (
+        "Interrogative wording does not make learner reasoning non-evidence"
+        in instructions
+    )
     assert "Should I fill missing values with 0?" in instructions
+    assert (
+        "distinguishes two possible interpretations"
+        in instructions
+    )
+    assert "demonstrates reasoning" in instructions
 
 
 def test_pipeline_mentor_repairs_premise_before_replacement():
