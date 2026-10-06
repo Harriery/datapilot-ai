@@ -96,9 +96,9 @@ def _configured_model(
             return (
                 os.getenv(
                     "AI_GROQ_CLASSIFIER_MODEL",
-                    "openai/gpt-oss-20b",
+                    "openai/gpt-oss-120b",
                 ).strip()
-                or "openai/gpt-oss-20b"
+                or "openai/gpt-oss-120b"
             )
 
         if role in {
@@ -113,10 +113,7 @@ def _configured_model(
             return (
                 os.getenv(
                     env_name,
-                    os.getenv(
-                        "AI_GROQ_CLASSIFIER_MODEL",
-                        "openai/gpt-oss-20b",
-                    ),
+                    "openai/gpt-oss-20b",
                 ).strip()
                 or "openai/gpt-oss-20b"
             )
