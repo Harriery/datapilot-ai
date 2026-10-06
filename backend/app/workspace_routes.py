@@ -176,6 +176,11 @@ from backend.app.workspace_pipeline_service import (
     apply_pipeline_action,
     apply_replayable_workbench_pipeline,
 )
+from backend.app.workspace_preview_filter_service import (
+    apply_preview_filters,
+    parse_preview_filters,
+    preview_column_types,
+)
 
 from backend.app.mentor_learning_loop_service import (
     apply_learning_phase_review,
@@ -3445,6 +3450,16 @@ def get_workspace_data_preview(
         default=None,
         max_length=200,
     ),
+    filters: str | None = Query(
+        default=None,
+        max_length=8000,
+    ),
+    filter_logic: Literal[
+        "and",
+        "or",
+    ] = Query(
+        default="and"
+    ),
 ):
     workspace = database.get_workspace(
         workspace_id=workspace_id,
@@ -3507,6 +3522,21 @@ def get_workspace_data_preview(
             row_matches
         ]
 
+    try:
+        preview_filters = parse_preview_filters(
+            filters
+        )
+        filtered_df = apply_preview_filters(
+            df=filtered_df,
+            filters=preview_filters,
+            logic=filter_logic,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
     filtered_row_count = len(
         filtered_df
     )
@@ -3538,6 +3568,9 @@ def get_workspace_data_preview(
     return WorkspaceDataPreviewResponse(
         dataset=dataset,
         columns=df.columns.tolist(),
+        column_types=preview_column_types(
+            df
+        ),
         total_row_count=total_row_count,
         filtered_row_count=(
             filtered_row_count
