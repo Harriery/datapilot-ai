@@ -316,11 +316,33 @@ function DataPreview({
       );
     }
 
-    if (filters.length > 0) {
+    const activeFilters = filters.filter(
+      (filter) => {
+        if (
+          operatorNeedsValue(filter.operator) &&
+          !filter.value.trim()
+        ) {
+          return false;
+        }
+
+        if (
+          operatorNeedsSecondValue(filter.operator) &&
+          !filter.value_to.trim()
+        ) {
+          return false;
+        }
+
+        return Boolean(
+          filter.column
+        );
+      }
+    );
+
+    if (activeFilters.length > 0) {
       params.set(
         "filters",
         JSON.stringify(
-          filters.map((filter) => ({
+          activeFilters.map((filter) => ({
             column: filter.column,
             operator: filter.operator,
             value:
