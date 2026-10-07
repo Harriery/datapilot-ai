@@ -1789,6 +1789,10 @@ class WorkspaceLearningLoop(BaseModel):
         default_factory=dict
     )
 
+    # Deterministic Mentor workflow state. The learner's wording never sets
+    # this value; trusted phase/execution state does.
+    workflow_state: str | None = None
+
 
 class WorkspaceLearningLoopResponse(BaseModel):
     loop: WorkspaceLearningLoop
