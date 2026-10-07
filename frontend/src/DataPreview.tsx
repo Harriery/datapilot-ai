@@ -48,6 +48,20 @@ type PreviewFilter = {
   value_to: string;
 };
 
+export type DataPreviewInspectionState = {
+  dataset: DataPreviewDataset;
+  columns: string[];
+  total_row_count: number;
+  filtered_row_count: number;
+  filter_logic: "and" | "or";
+  active_filters: Array<{
+    column: string;
+    operator: PreviewFilterOperator;
+    value: string | null;
+    value_to: string | null;
+  }>;
+};
+
 type DataPreviewResponse = {
   dataset: DataPreviewDataset;
   columns: string[];
@@ -72,6 +86,9 @@ type Props = {
   refreshToken?: number;
   onColumnClick?: (
     column: string
+  ) => void;
+  onInspectionChange?: (
+    state: DataPreviewInspectionState
   ) => void;
 };
 
@@ -252,6 +269,7 @@ function DataPreview({
   selectedColumn = null,
   refreshToken = 0,
   onColumnClick,
+  onInspectionChange,
 }: Props) {
   const ui = {
     en: {
@@ -352,6 +370,32 @@ function DataPreview({
   const [error, setError] =
     useState<string | null>(null);
 
+  const activeFilters = useMemo(
+    () =>
+      filters.filter(
+        (filter) => {
+          if (
+            operatorNeedsValue(filter.operator) &&
+            !filter.value.trim()
+          ) {
+            return false;
+          }
+
+          if (
+            operatorNeedsSecondValue(filter.operator) &&
+            !filter.value_to.trim()
+          ) {
+            return false;
+          }
+
+          return Boolean(
+            filter.column
+          );
+        }
+      ),
+    [filters]
+  );
+
   const query = useMemo(() => {
     const params = new URLSearchParams({
       dataset,
@@ -365,28 +409,6 @@ function DataPreview({
         search
       );
     }
-
-    const activeFilters = filters.filter(
-      (filter) => {
-        if (
-          operatorNeedsValue(filter.operator) &&
-          !filter.value.trim()
-        ) {
-          return false;
-        }
-
-        if (
-          operatorNeedsSecondValue(filter.operator) &&
-          !filter.value_to.trim()
-        ) {
-          return false;
-        }
-
-        return Boolean(
-          filter.column
-        );
-      }
-    );
 
     if (activeFilters.length > 0) {
       params.set(
@@ -419,7 +441,7 @@ function DataPreview({
     page,
     pageSize,
     search,
-    filters,
+    activeFilters,
     filterLogic,
     refreshToken,
   ]);
@@ -478,6 +500,40 @@ function DataPreview({
     workspaceId,
     query,
     refreshToken,
+  ]);
+
+  useEffect(() => {
+    if (!data || !onInspectionChange) {
+      return;
+    }
+
+    onInspectionChange({
+      dataset,
+      columns: data.columns,
+      total_row_count: data.total_row_count,
+      filtered_row_count: data.filtered_row_count,
+      filter_logic: filterLogic,
+      active_filters: activeFilters.map(
+        (filter) => ({
+          column: filter.column,
+          operator: filter.operator,
+          value:
+            operatorNeedsValue(filter.operator)
+              ? filter.value
+              : null,
+          value_to:
+            operatorNeedsSecondValue(filter.operator)
+              ? filter.value_to
+              : null,
+        })
+      ),
+    });
+  }, [
+    data,
+    dataset,
+    activeFilters,
+    filterLogic,
+    onInspectionChange,
   ]);
 
   function submitSearch() {
