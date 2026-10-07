@@ -152,6 +152,86 @@ def _phase_prompt(
     return prompts[loop.language][loop.current_phase]
 
 
+def _append_learning_loop_message(
+    *,
+    loop: WorkspaceLearningLoop,
+    role: str,
+    content: str,
+) -> None:
+    text = str(content).strip()
+    if (
+        not text
+        or role not in {
+            "user",
+            "assistant",
+        }
+    ):
+        return
+
+    loop.message_history.append({
+        "role": role,
+        "content": text[:4000],
+    })
+
+    if len(loop.message_history) > 200:
+        loop.message_history = (
+            loop.message_history[-200:]
+        )
+
+
+def record_learning_loop_exchange(
+    *,
+    loop: WorkspaceLearningLoop,
+    learner_message: str,
+    mentor_response: str,
+) -> None:
+    _append_learning_loop_message(
+        loop=loop,
+        role="user",
+        content=learner_message,
+    )
+    _append_learning_loop_message(
+        loop=loop,
+        role="assistant",
+        content=mentor_response,
+    )
+
+
+def restart_prepare_learning_loop(
+    *,
+    loop: WorkspaceLearningLoop,
+    finding: DataQualityFinding,
+    language: str | None = None,
+) -> tuple[WorkspaceLearningLoop, str]:
+    if language in {
+        "en",
+        "nl",
+        "tr",
+    }:
+        loop.language = language
+
+    loop.current_phase = "observe"
+    loop.completed_phases = []
+    loop.status = "active"
+    loop.trusted_validation = {}
+    loop.active_investigation = {}
+    loop.supervisor_state = {}
+    loop.workflow_state = None
+    loop.message_history = []
+
+    prompt = _phase_prompt(
+        loop=loop,
+        finding=finding,
+    )
+    _append_learning_loop_message(
+        loop=loop,
+        role="assistant",
+        content=prompt,
+    )
+
+    return loop, prompt
+
+
 def start_or_resume_prepare_learning_loop(
     *,
     workspace: Workspace,
@@ -173,12 +253,20 @@ def start_or_resume_prepare_learning_loop(
             }:
                 loop.language = language
 
+            prompt = _phase_prompt(
+                loop=loop,
+                finding=finding,
+            )
+            if not loop.message_history:
+                _append_learning_loop_message(
+                    loop=loop,
+                    role="assistant",
+                    content=prompt,
+                )
+
             return (
                 loop,
-                _phase_prompt(
-                    loop=loop,
-                    finding=finding,
-                ),
+                prompt,
             )
 
     loop = WorkspaceLearningLoop(
@@ -208,12 +296,19 @@ def start_or_resume_prepare_learning_loop(
 
     workspace.learning_loops.append(loop)
 
+    prompt = _phase_prompt(
+        loop=loop,
+        finding=finding,
+    )
+    _append_learning_loop_message(
+        loop=loop,
+        role="assistant",
+        content=prompt,
+    )
+
     return (
         loop,
-        _phase_prompt(
-            loop=loop,
-            finding=finding,
-        ),
+        prompt,
     )
 
 
