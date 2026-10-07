@@ -1776,6 +1776,13 @@ class WorkspaceLearningLoop(BaseModel):
         default_factory=dict
     )
 
+    # Mentor V2 keeps the current evidence-gathering subtask stable across
+    # turns. This prevents the LLM from switching comparison columns or
+    # restarting an investigation when the learner asks how to continue.
+    active_investigation: dict = Field(
+        default_factory=dict
+    )
+
 
 class WorkspaceLearningLoopResponse(BaseModel):
     loop: WorkspaceLearningLoop
