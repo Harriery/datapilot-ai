@@ -461,6 +461,234 @@ def _navigation_or_subset_action(
     }
 
 
+def _state_driven_action(
+    *,
+    learner_message: str,
+    loop: WorkspaceLearningLoop,
+    finding: DataQualityFinding,
+    mentor_context: dict,
+) -> dict | None:
+    workflow = mentor_context.get("workflow")
+    if not isinstance(workflow, dict):
+        return None
+
+    state = workflow.get("state")
+    live_state = mentor_context.get("live_state")
+    if not isinstance(live_state, dict):
+        live_state = {}
+
+    diagnosis = mentor_context.get(
+        "execution_diagnosis"
+    )
+    blocker = workflow.get("blocker")
+    investigation = workflow.get(
+        "investigation"
+    )
+    if not isinstance(investigation, dict):
+        investigation = {}
+
+    if isinstance(blocker, dict):
+        if blocker.get("kind") == "execution_error":
+            return {
+                "id": "repair_latest_notebook_error",
+                "kind": "code_repair",
+                "priority": "blocking",
+                "control_id": "notebook.run_cell",
+                "goal": (
+                    "Explain and repair the latest trusted notebook error "
+                    "before continuing the current workflow state."
+                ),
+                "issue_code": blocker.get(
+                    "issue_code"
+                ),
+                "workflow_state": state,
+                "enforce_direct_reply": False,
+            }
+
+        if (
+            blocker.get("issue_code")
+            == "working_vs_raw_confusion"
+        ):
+            return {
+                "id": "select_raw_notebook_dataset",
+                "kind": "navigation",
+                "priority": "blocking",
+                "control_id": "notebook.dataset",
+                "value": "raw",
+                "goal": (
+                    "Use raw source rows before continuing the locked investigation."
+                ),
+                "workflow_state": state,
+                "enforce_direct_reply": True,
+                "messages": {
+                    "tr": (
+                        "Bu inceleme orijinal eksik satırları gerektiriyor. "
+                        "Notebook içindeki Dataset menüsünden Raw source sample seç."
+                    ),
+                    "nl": (
+                        "Kies in Notebook bij Dataset voor Raw source sample."
+                    ),
+                    "en": (
+                        "In Notebook, set Dataset to Raw source sample."
+                    ),
+                },
+            }
+
+        if (
+            blocker.get("issue_code")
+            == "investigation_target_mismatch"
+        ):
+            comparison = investigation.get(
+                "comparison_column"
+            )
+            return {
+                "id": "repair_locked_investigation_target",
+                "kind": "code_reasoning",
+                "priority": "blocking",
+                "control_id": None,
+                "goal": (
+                    f"Return to the locked comparison column {comparison}; "
+                    "the technical workflow state has not changed."
+                ),
+                "comparison_column": comparison,
+                "workflow_state": state,
+                "enforce_direct_reply": False,
+            }
+
+    if state == "NEED_SUBSET_RESULT":
+        if not investigation:
+            return None
+        action = _navigation_or_subset_action(
+            learner_message=learner_message,
+            live_state=live_state,
+            investigation=investigation,
+        )
+        action["workflow_state"] = state
+        return action
+
+    if state == "SUBSET_RESULT_READY":
+        if _contains_any(
+            learner_message,
+            _RESULT_EXPLANATION_MARKERS,
+        ):
+            action = _result_teaching_action(
+                learner_message=learner_message,
+                investigation=investigation,
+                diagnosis=diagnosis,
+            )
+            if action is not None:
+                action["workflow_state"] = state
+            return action
+
+        if _contains_any(
+            learner_message,
+            _CODE_EXPLANATION_MARKERS,
+        ):
+            comparison = str(
+                investigation.get(
+                    "comparison_column"
+                )
+                or "comparison"
+            )
+            code = _baseline_code(comparison)
+            return {
+                "id": "explain_next_baseline_code",
+                "kind": "teaching",
+                "priority": "current",
+                "control_id": None,
+                "goal": (
+                    "Explain the baseline code without claiming that it has run."
+                ),
+                "code_template": code,
+                "workflow_state": state,
+                "enforce_direct_reply": False,
+            }
+
+        comparison = str(
+            investigation.get(
+                "comparison_column"
+            )
+        )
+        code = _baseline_code(comparison)
+        return {
+            "id": "run_locked_baseline_frequency",
+            "kind": "analysis",
+            "priority": "current",
+            "control_id": "notebook.run_cell",
+            "goal": (
+                f"Calculate the overall raw-data {comparison} distribution "
+                "to compare with the already-observed missing subset."
+            ),
+            "comparison_column": comparison,
+            "code_template": code,
+            "workflow_state": state,
+            "enforce_direct_reply": True,
+            "messages": {
+                "tr": (
+                    f"Şimdi aynı {comparison} sütununun tüm raw verideki dağılımını "
+                    f"karşılaştırma tabanı olarak çıkar. Şunu çalıştır: {code}"
+                ),
+                "nl": (
+                    f"Bereken nu de totale {comparison}-verdeling met: {code}"
+                ),
+                "en": (
+                    f"Now calculate the overall {comparison} distribution with: {code}"
+                ),
+            },
+        }
+
+    if state == "NEED_COMPARISON_INTERPRETATION":
+        return {
+            "id": "interpret_locked_pattern",
+            "kind": "reasoning",
+            "priority": "current",
+            "control_id": None,
+            "goal": (
+                "Compare the missing-subset distribution with the overall baseline. "
+                "Explain what is actually different, avoid causal claims, and ask "
+                "the learner for one evidence-based interpretation. Do not open "
+                "another comparison column."
+            ),
+            "comparison_column":
+                investigation.get(
+                    "comparison_column"
+                ),
+            "subset_output":
+                investigation.get(
+                    "subset_output"
+                ),
+            "baseline_output":
+                investigation.get(
+                    "baseline_output"
+                ),
+            "workflow_state": state,
+            "enforce_direct_reply": False,
+        }
+
+    if state == "READY_FOR_DECISION":
+        supervisor = mentor_context.get(
+            "supervisor"
+        )
+        if not isinstance(supervisor, dict):
+            supervisor = {}
+        return {
+            "id": "make_evidence_based_issue_decision",
+            "kind": "reasoning",
+            "priority": "current",
+            "control_id": None,
+            "goal": supervisor.get(
+                "next_objective"
+            ) or (
+                "Choose the treatment from the evidence already collected; "
+                "do not restart exploration."
+            ),
+            "workflow_state": state,
+            "enforce_direct_reply": False,
+        }
+
+    return None
+
+
 def plan_guided_next_action(
     *,
     learner_message: str,
@@ -472,6 +700,20 @@ def plan_guided_next_action(
     Choose deterministic product actions and preserve the active investigation.
     The LLM explains/interprets; it does not get to silently switch the task.
     """
+
+    state_action = _state_driven_action(
+        learner_message=learner_message,
+        loop=loop,
+        finding=finding,
+        mentor_context=mentor_context,
+    )
+    if (
+        isinstance(
+            mentor_context.get("workflow"),
+            dict,
+        )
+    ):
+        return state_action
     live_state = mentor_context.get("live_state")
     if not isinstance(live_state, dict):
         live_state = {}
