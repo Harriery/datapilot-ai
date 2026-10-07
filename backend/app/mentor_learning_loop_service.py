@@ -870,22 +870,36 @@ def _compact_mentor_reply_context(
         }
 
     if isinstance(playbook, dict):
-        compact["playbook"] = {
-            "phase": playbook.get("phase"),
-            "goal": playbook.get("goal"),
-            "evidence": playbook.get("evidence"),
-            "avoid": playbook.get("avoid"),
+        compact_playbook = {
+            key: playbook.get(key)
+            for key in (
+                "phase",
+                "goal",
+                "evidence",
+                "avoid",
+            )
+            if playbook.get(key) is not None
         }
+        if compact_playbook:
+            compact["playbook"] = compact_playbook
 
     if isinstance(supervisor, dict):
-        compact["supervisor"] = {
-            "status": supervisor.get("status"),
-            "next_objective": supervisor.get("next_objective"),
-            "stop_exploration": supervisor.get("stop_exploration"),
+        compact_supervisor = {
+            key: supervisor.get(key)
+            for key in (
+                "status",
+                "next_objective",
+                "stop_exploration",
+            )
+            if supervisor.get(key) is not None
         }
+        if compact_supervisor:
+            compact["supervisor"] = (
+                compact_supervisor
+            )
 
     if isinstance(learner, dict):
-        compact["learner"] = {
+        compact_learner = {
             key: learner.get(key)
             for key in (
                 "skill_name",
@@ -893,9 +907,14 @@ def _compact_mentor_reply_context(
                 "success_rate",
                 "last_assistance_level",
                 "misconceptions",
+                "practice_priority",
             )
-            if key in learner
+            if learner.get(key) is not None
         }
+        if compact_learner:
+            compact["learner"] = (
+                compact_learner
+            )
 
     return compact
 
