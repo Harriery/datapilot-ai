@@ -13,7 +13,7 @@ WORKFLOW_STATES = (
     "OBSERVE_SCOPE",
     "NEED_PATTERN_INVESTIGATION",
     "NEED_SUBSET_RESULT",
-    "NEED_BASELINE_RESULT",
+    "SUBSET_RESULT_READY",
     "NEED_COMPARISON_INTERPRETATION",
     "READY_FOR_DECISION",
     "NEED_IMPLEMENTATION",
@@ -202,9 +202,9 @@ def _missing_reason_state(
         "baseline_output"
     ):
         investigation["step"] = (
-            "baseline_frequency"
+            "subset_result_ready"
         )
-        return "NEED_BASELINE_RESULT"
+        return "SUBSET_RESULT_READY"
 
     investigation["step"] = "interpret"
     return "NEED_COMPARISON_INTERPRETATION"
