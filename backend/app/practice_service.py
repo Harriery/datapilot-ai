@@ -14,6 +14,7 @@ from backend.app.models import (
 import backend.app.database as database
 from uuid import uuid4
 from backend.app.progress_service import (
+    build_misconception_counts,
     get_learner_progress,
 )
 
@@ -273,6 +274,24 @@ def get_practice_recommendation(
         recommendation=recommendation,
     )
 
+def get_practice_focus_misconception(
+    *,
+    learner_id: str,
+    skill_name: str,
+) -> str | None:
+    evidence = database.get_learning_evidence_by_skill(
+        learner_id=learner_id,
+        skill_name=skill_name,
+    )
+    counts = build_misconception_counts(evidence)
+    if not counts:
+        return None
+    return max(
+        counts,
+        key=lambda code: (counts[code], code),
+    )
+
+
 def get_reasoning_practice_variant(
     *,
     skill_name: str,
@@ -480,6 +499,10 @@ def create_practice_challenge(
 
     skill_name = recommendation.skill_name
     difficulty = recommendation.difficulty
+    focus_misconception = get_practice_focus_misconception(
+        learner_id=learner_id,
+        skill_name=skill_name,
+    )
 
     learner_progress = get_learner_progress(
         learner_id=learner_id
@@ -602,48 +625,159 @@ def create_practice_challenge(
     # --------------------------------------------------
     elif skill_name == "null_analysis":
 
-        input_rows = [
-            {
-                "customer_id": 1,
-                "name": "Ali",
-                "age": 30,
-            },
-            {
-                "customer_id": 2,
-                "name": "Ayse",
-                "age": None,
-            },
-            {
-                "customer_id": 3,
-                "name": "Mehmet",
-                "age": None,
-            },
-        ]
+        if focus_misconception == "filter_scope_confusion":
+            challenge = PracticeChallenge(
+                challenge_id=str(uuid4()),
+                skill_name=skill_name,
+                difficulty=difficulty,
+                challenge_type="code",
+                title="Eksik satır kapsamını doğru kur",
+                instructions=(
+                    "Önce age değeri eksik olan kayıtları dikkate al. "
+                    "Yalnızca bu kayıtların içinde city değeri Rotterdam "
+                    "olan kaç kayıt bulunduğunu print ile yazdır. "
+                    "Tüm dataset üzerinde sayım yapma."
+                ),
+                context_code=(
+                    "records = [\n"
+                    "    {'id': 1, 'age': 31, 'city': 'Rotterdam'},\n"
+                    "    {'id': 2, 'age': None, 'city': 'Rotterdam'},\n"
+                    "    {'id': 3, 'age': None, 'city': 'Den Haag'},\n"
+                    "    {'id': 4, 'age': None, 'city': 'Rotterdam'},\n"
+                    "    {'id': 5, 'age': 27, 'city': 'Rotterdam'},\n"
+                    "]\n"
+                ),
+                starter_code="",
+            )
+            expected_outcome = "Beklenen çıktı: 2"
+            validation_spec = PracticeValidationSpec(
+                validation_type="exact_output",
+                expected_output="2",
+            )
+            support_spec = PracticeSupportSpec(
+                hints=[
+                    "İlk koşul age değerinin None olması.",
+                    "city kontrolünü yalnızca eksik-age kayıtlarında yap.",
+                    "İki koşulu aynı record üzerinde birlikte kontrol edebilirsin.",
+                ],
+                solution=(
+                    "count = 0\n"
+                    "for record in records:\n"
+                    "    if record['age'] is None and record['city'] == 'Rotterdam':\n"
+                    "        count += 1\n"
+                    "print(count)\n"
+                ),
+            )
 
-        challenge = PracticeChallenge(
-            challenge_id=str(uuid4()),
-            skill_name=skill_name,
-            difficulty=difficulty,
-            challenge_type="transformation",
-            title="Eksik age değerlerini incele",
-            instructions=(
-                "Customer dataset içindeki eksik age "
-                "değerlerini tespit et ve uygun bir "
-                "transformation uygula."
-            ),
-            starter_code=None,
-            input_rows=input_rows,
-        )
+        elif focus_misconception == "dataset_context_confusion":
+            challenge = PracticeChallenge(
+                challenge_id=str(uuid4()),
+                skill_name=skill_name,
+                difficulty=difficulty,
+                challenge_type="code",
+                title="Raw ve working dataset bağlamını ayır",
+                instructions=(
+                    "Amaç orijinal eksik age kayıtlarını incelemek. "
+                    "raw_records ve working_records verildi. Doğru veri "
+                    "kaynağını seçip orijinal eksik age kayıtlarının "
+                    "sayısını print et."
+                ),
+                context_code=(
+                    "raw_records = [\n"
+                    "    {'id': 1, 'age': 31},\n"
+                    "    {'id': 2, 'age': None},\n"
+                    "    {'id': 3, 'age': None},\n"
+                    "]\n"
+                    "working_records = [\n"
+                    "    {'id': 1, 'age': 31},\n"
+                    "    {'id': 2, 'age': 29},\n"
+                    "    {'id': 3, 'age': 29},\n"
+                    "]\n"
+                ),
+                starter_code="",
+            )
+            expected_outcome = "Beklenen çıktı: 2"
+            validation_spec = PracticeValidationSpec(
+                validation_type="exact_output",
+                expected_output="2",
+            )
+            support_spec = PracticeSupportSpec(
+                hints=[
+                    "Soru orijinal eksikliği araştırıyor.",
+                    "Working dataset temizlenmiş olabilir.",
+                    "Raw kayıtlar içinde age is None koşulunu say.",
+                ],
+                solution=(
+                    "print(sum(1 for record in raw_records "
+                    "if record['age'] is None))\n"
+                ),
+            )
 
-        expected_outcome = (
-            "Eksik age değerleri analiz edilmeli ve "
-            "transformation sonrası null sayısı azaltılmalı."
-        )
+        elif focus_misconception == "premature_transformation":
+            challenge = PracticeChallenge(
+                challenge_id=str(uuid4()),
+                skill_name=skill_name,
+                difficulty=difficulty,
+                challenge_type="code",
+                title="Dönüşümden önce kanıt topla",
+                instructions=(
+                    "Bu görevde hiçbir age değerini doldurma veya silme. "
+                    "Sadece eksik age değerlerinin sayısını inceleme "
+                    "amacıyla print et."
+                ),
+                context_code=(
+                    "records = [\n"
+                    "    {'id': 1, 'age': None},\n"
+                    "    {'id': 2, 'age': 40},\n"
+                    "    {'id': 3, 'age': None},\n"
+                    "]\n"
+                ),
+                starter_code="",
+            )
+            expected_outcome = "Beklenen çıktı: 2"
+            validation_spec = PracticeValidationSpec(
+                validation_type="exact_output",
+                expected_output="2",
+            )
+            support_spec = PracticeSupportSpec(
+                hints=[
+                    "Bu turdaki hedef yalnızca gözlem.",
+                    "Veriyi değiştirmeden age is None kayıtlarını say.",
+                ],
+                solution=(
+                    "print(sum(1 for record in records "
+                    "if record['age'] is None))\n"
+                ),
+            )
 
-        validation_spec = PracticeValidationSpec(
-            validation_type="null_count_reduction",
-            column="age",
-        )
+        else:
+            input_rows = [
+                {"customer_id": 1, "name": "Ali", "age": 30},
+                {"customer_id": 2, "name": "Ayse", "age": None},
+                {"customer_id": 3, "name": "Mehmet", "age": None},
+            ]
+            challenge = PracticeChallenge(
+                challenge_id=str(uuid4()),
+                skill_name=skill_name,
+                difficulty=difficulty,
+                challenge_type="transformation",
+                title="Eksik age değerlerini incele",
+                instructions=(
+                    "Customer dataset içindeki eksik age "
+                    "değerlerini tespit et ve uygun bir "
+                    "transformation uygula."
+                ),
+                starter_code=None,
+                input_rows=input_rows,
+            )
+            expected_outcome = (
+                "Eksik age değerleri analiz edilmeli ve "
+                "transformation sonrası null sayısı azaltılmalı."
+            )
+            validation_spec = PracticeValidationSpec(
+                validation_type="null_count_reduction",
+                column="age",
+            )
 
         # --------------------------------------------------
     # DUPLICATE ANALYSIS
