@@ -27,6 +27,7 @@ from backend.app.mentor_reply_policy import (
 )
 from backend.app.mentor_action_planner_service import (
     render_planned_direct_reply,
+    render_planned_local_support_reply,
 )
 from backend.app.models import (
     DataQualityFinding,
@@ -759,6 +760,57 @@ def _update_loop_language_from_message(
         )
     ):
         loop.language = "en"
+
+
+def render_zero_ai_prepare_support_reply(
+    *,
+    loop: WorkspaceLearningLoop,
+    learner_response: str,
+    mentor_context: dict | None,
+) -> str | None:
+    """
+    Return a local reply for deterministic technical workflow states.
+
+    These turns gather/inspect trusted execution evidence; they are not learner
+    reasoning assessments and therefore must not spend classifier or Mentor LLM
+    tokens.
+    """
+    _update_loop_language_from_message(
+        loop,
+        learner_response,
+    )
+
+    context = (
+        mentor_context
+        if isinstance(mentor_context, dict)
+        else {}
+    )
+    workflow = context.get("workflow")
+    if not isinstance(workflow, dict):
+        return None
+
+    state = workflow.get("state")
+    zero_ai_states = {
+        "NEED_SUBSET_RESULT",
+        "SUBSET_RESULT_READY",
+    }
+
+    if state not in zero_ai_states:
+        return None
+
+    blocker = workflow.get("blocker")
+    if (
+        isinstance(blocker, dict)
+        and blocker.get("kind")
+        == "execution_error"
+    ):
+        # Error repair may require semantic code diagnosis.
+        return None
+
+    return render_planned_local_support_reply(
+        action=context.get("next_action"),
+        language=loop.language,
+    )
 
 
 def generate_prepare_mentor_reply(
