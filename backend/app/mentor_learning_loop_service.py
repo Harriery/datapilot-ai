@@ -339,6 +339,7 @@ _LEARNING_UI_BOOL_KEYS = {
     "validation_visible",
     "understand_visible",
     "source_preview_filter_builder_available",
+    "source_preview_column_click_available",
     "source_preview_grouping_available",
     "source_preview_aggregation_available",
     "notebook_available",
@@ -614,6 +615,89 @@ def _direct_preview_filter_guidance(
     return messages[language]
 
 
+def _direct_preview_frequency_navigation(
+    *,
+    loop: WorkspaceLearningLoop,
+    learner_response: str,
+    ui_context: dict | None,
+) -> str | None:
+    """
+    Route unsupported frequency/distribution checks away from Source Preview.
+    """
+    if loop.current_phase not in {"observe", "reason"}:
+        return None
+
+    safe_context = _safe_learning_ui_context(ui_context)
+
+    if (
+        safe_context.get("source_preview_aggregation_available") is not False
+        or safe_context.get("notebook_available") is not True
+    ):
+        return None
+
+    message = learner_response.casefold()
+
+    frequency_markers = (
+        "en sık", "en sik", "dağılım", "dagilim",
+        "kaç tane", "kac tane", "frekans",
+        "frequency", "distribution", "most common", "count",
+    )
+    click_problem_markers = (
+        "tıklayam", "tiklayam", "tıklanm", "tiklanm",
+        "click", "source", "preview",
+    )
+
+    if not (
+        any(marker in message for marker in frequency_markers)
+        or (
+            safe_context.get("source_preview_column_click_available") is False
+            and any(marker in message for marker in click_problem_markers)
+        )
+    ):
+        return None
+
+    active_prepare_stage = safe_context.get("active_prepare_stage")
+    workbench_view = safe_context.get("workbench_view")
+
+    if loop.language == "tr":
+        if active_prepare_stage != "workbench":
+            return (
+                "Source preview’da sütunlar tıklanabilir değil ve frekans sayımı yok. "
+                "Önce Prepare > Workbench aşamasına geç."
+            )
+        if workbench_view != "notebook":
+            return (
+                "Workbench içindesin; şimdi üstteki Notebook sekmesine geç. "
+                "Frekans sayımını orada yapacağız."
+            )
+        return None
+
+    if loop.language == "nl":
+        if active_prepare_stage != "workbench":
+            return (
+                "In Source preview zijn kolommen niet klikbaar en is er geen "
+                "frequentietelling. Ga eerst naar Prepare > Workbench."
+            )
+        if workbench_view != "notebook":
+            return (
+                "Je bent in Workbench; ga nu naar het tabblad Notebook. "
+                "Daar tellen we de frequenties."
+            )
+        return None
+
+    if active_prepare_stage != "workbench":
+        return (
+            "Source Preview columns are not clickable and it cannot calculate "
+            "frequencies. First go to Prepare > Workbench."
+        )
+    if workbench_view != "notebook":
+        return (
+            "You are in Workbench; now open the Notebook tab. "
+            "We will calculate the frequencies there."
+        )
+    return None
+
+
 def generate_prepare_mentor_reply(
     *,
     loop: WorkspaceLearningLoop,
@@ -645,6 +729,14 @@ def generate_prepare_mentor_reply(
     )
     if direct_guidance is not None:
         return direct_guidance
+
+    frequency_navigation = _direct_preview_frequency_navigation(
+        loop=loop,
+        learner_response=learner_response,
+        ui_context=ui_context,
+    )
+    if frequency_navigation is not None:
+        return frequency_navigation
 
     runtime = get_ai_runtime(
         "mentor"
@@ -688,6 +780,9 @@ def generate_prepare_mentor_reply(
       as a causal rule.
     - Never invent a multi-column grouping rule. Only ask for grouping or
       aggregation if the context justifies it.
+    - Source Preview column headers are clickable only when
+      source_preview_column_click_available=true. Never tell the learner to
+      click a Source Preview column when that capability is false.
     - If grouping/aggregation is actually needed but
       source_preview_grouping_available/source_preview_aggregation_available is
       false, do not tell the learner to perform it in Preview. If
