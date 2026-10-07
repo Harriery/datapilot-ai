@@ -37,7 +37,7 @@ from backend.app.ai_provider_service import (
     get_ai_runtime_config,
 )
 from backend.app.mentor_product_registry import (
-    resolve_product_context,
+    retrieve_product_context,
 )
 
 import json
@@ -237,8 +237,12 @@ def chat(request: ChatRequest):
             ],
             "ui_context": request.ui_context or {},
             "mentor_product_context":
-                resolve_product_context(
-                    request.ui_context or {}
+                retrieve_product_context(
+                    ui_context=(
+                        request.ui_context
+                        or {}
+                    ),
+                    message=message,
                 ),
             "learner_skills": [
                 dict(item)

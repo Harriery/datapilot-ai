@@ -25,6 +25,9 @@ from backend.app.mentor_orchestration_service import (
 from backend.app.mentor_reply_policy import (
     mentor_reply_rules,
 )
+from backend.app.mentor_action_planner_service import (
+    render_planned_direct_reply,
+)
 from backend.app.models import (
     DataQualityFinding,
     LearningEvidenceContext,
@@ -743,23 +746,36 @@ def generate_prepare_mentor_reply(
         success=evaluation.success,
     )
 
-    direct_guidance = (
-        _direct_preview_filter_guidance(
+    planned_reply = (
+        render_planned_direct_reply(
+            action=(
+                mentor_context or {}
+            ).get("next_action"),
+            language=loop.language,
+        )
+    )
+    if planned_reply is not None:
+        return planned_reply
+
+    # Isolated/legacy callers may not yet supply centralized Mentor V2 context.
+    if not mentor_context:
+        direct_guidance = (
+            _direct_preview_filter_guidance(
+                loop=loop,
+                learner_response=learner_response,
+                ui_context=ui_context,
+            )
+        )
+        if direct_guidance is not None:
+            return direct_guidance
+
+        frequency_navigation = _direct_preview_frequency_navigation(
             loop=loop,
             learner_response=learner_response,
             ui_context=ui_context,
         )
-    )
-    if direct_guidance is not None:
-        return direct_guidance
-
-    frequency_navigation = _direct_preview_frequency_navigation(
-        loop=loop,
-        learner_response=learner_response,
-        ui_context=ui_context,
-    )
-    if frequency_navigation is not None:
-        return frequency_navigation
+        if frequency_navigation is not None:
+            return frequency_navigation
 
     runtime = get_ai_runtime(
         "mentor"
@@ -786,6 +802,9 @@ def generate_prepare_mentor_reply(
       assigning a new analysis step.
     - mentor_context.learner summarizes real progress and recurring
       misconceptions. Use it to choose explanation depth, not to lower standards.
+    - mentor_context.next_action is the backend's deterministic next-action
+      recommendation. If present, do not assign a different task. If it describes
+      a code repair, explain that repair before any new analysis.
     - Give only the next atomic action. Backend context is a map, not content to
       dump back to the learner.
 

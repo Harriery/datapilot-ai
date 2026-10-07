@@ -3,6 +3,9 @@ from __future__ import annotations
 from backend.app.mentor_execution_diagnosis_service import (
     diagnose_notebook_execution,
 )
+from backend.app.mentor_action_planner_service import (
+    plan_guided_next_action,
+)
 from backend.app.mentor_learner_model_service import (
     build_learner_snapshot,
 )
@@ -92,6 +95,7 @@ def build_guided_mentor_context(
     loop: WorkspaceLearningLoop,
     finding: DataQualityFinding,
     ui_context: dict | None,
+    learner_message: str = "",
 ) -> dict:
     trusted_ui = dict(
         ui_context
@@ -114,7 +118,7 @@ def build_guided_mentor_context(
             "dataset_kind"
         ]
 
-    return {
+    context = {
         "product": resolve_product_context(
             trusted_ui
         ),
@@ -147,9 +151,22 @@ def build_guided_mentor_context(
                 ),
             "selected_notebook":
                 notebook_state,
+            "notebook_count":
+                len(workspace.notebooks),
             "source_preview_inspection":
                 trusted_ui.get(
                     "source_preview_inspection"
                 ),
         },
     }
+
+    context["next_action"] = (
+        plan_guided_next_action(
+            learner_message=learner_message,
+            loop=loop,
+            finding=finding,
+            mentor_context=context,
+        )
+    )
+
+    return context

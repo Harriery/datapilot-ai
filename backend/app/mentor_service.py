@@ -482,9 +482,11 @@ def generate_mentor_response(
     mevcut aşama/görev, checkpoint, veri profili ve bulgular, pipeline işlemleri,
     notebooklar ve işlenmiş datasetler birbiriyle çelişmeden değerlendirilmelidir.
     Current Mentor State içindeki ACTIVE UI STATE, kullanıcının o anda ekranda gördüğü yeri anlatır.
-    product_context DataPilot'ın o konumdaki gerçek capability registry'sidir.
-    UI hakkında product_context ile çelişen bir kontrol, buton, select seçeneği veya işlem uydurma.
-    product_context'teki limits alanını gerçek ürün sınırı kabul et.
+    product_context DataPilot'ın seçilmiş capability registry bilgisidir:
+    current aktif konumu, referenced ise kullanıcının mesajında açıkça sorduğu diğer
+    stage'leri gösterir. UI hakkında bu kayıtlarla çelişen bir kontrol, buton,
+    select seçeneği veya işlem uydurma. Her entry'nin limits alanını gerçek ürün
+    sınırı kabul et. Soruyla ilgisiz stage bilgisini cevapta dökme.
     Bunu varsayılan bağlam olarak kullan ama kullanıcının sorusunu o sekmeye zorla kilitleme.
     Önce sorunun niyetini ayırt et:
     - mevcut ekrandaki şeyi yorumlama/review,

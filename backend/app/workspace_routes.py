@@ -2357,6 +2357,7 @@ def respond_to_workspace_prepare_learning_loop(
         loop=loop,
         finding=finding,
         ui_context=request.ui_context,
+        learner_message=request.response,
     )
 
     record_execution_signal(
@@ -2377,6 +2378,7 @@ def respond_to_workspace_prepare_learning_loop(
         loop=loop,
         finding=finding,
         ui_context=request.ui_context,
+        learner_message=request.response,
     )
 
     try:
