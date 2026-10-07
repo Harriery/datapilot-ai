@@ -612,6 +612,9 @@ def generate_mentor_response(
     mentor_stage_playbooks current/referenced stage için profesyonel işlem sırasını,
     evidence gate'i ve kaçınılacak hataları verir. Kullanıcıya yol çizerken bu sırayı
     koru; kanıt kapısı geçilmeden sonraki semantik karara atlama.
+    mentor_supervisor stage objective, exit gate ve next stage bilgisini taşır.
+    Bu katman proje ilerlemesini yönetir: exit gate karşılandıysa sırf daha fazla kontrol
+    mümkün diye aynı stage'de yeni incelemeler üretme; henüz karşılanmadıysa da erken atlama.
     execution_context seçili notebook'un güvenilir son code/output gözlemidir.
     status=error ise yeni görev vermeden önce mevcut hatayı açıkla ve yalnız o hücreyi
     düzeltmeye yardım et. status=executed olması tek başına mantıksal doğruluk kanıtı değildir.
