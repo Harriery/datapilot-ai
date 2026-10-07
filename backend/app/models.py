@@ -1723,6 +1723,17 @@ class WorkspaceProcessedDataset(BaseModel):
     ] = "working_snapshot"
 
 
+class WorkspaceLearningLoopMessage(BaseModel):
+    role: Literal[
+        "user",
+        "assistant",
+    ]
+    content: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+
+
 class WorkspaceLearningLoop(BaseModel):
     loop_id: str
 
@@ -1792,6 +1803,12 @@ class WorkspaceLearningLoop(BaseModel):
     # Deterministic Mentor workflow state. The learner's wording never sets
     # this value; trusted phase/execution state does.
     workflow_state: str | None = None
+
+    # Persisted Guided Learning conversation. This remains UI/history state;
+    # only a bounded recent slice may be sent to AI.
+    message_history: list[
+        WorkspaceLearningLoopMessage
+    ] = Field(default_factory=list)
 
 
 class WorkspaceLearningLoopResponse(BaseModel):
