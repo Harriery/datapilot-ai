@@ -67,7 +67,7 @@ STAGE_PLAYBOOKS: dict[str, dict] = {
             "add justified semantic derivations",
             "review ambiguity/duplication risk",
         ],
-        "evidence_gate": "Relationships must respect keys/cardinality and not change fact meaning.",
+        "evidence_gate": "Relationships must preserve the locked fact grain, respect keys/cardinality, and not change fact meaning.",
         "avoid": ["mechanical normalization", "invented dimensions", "grain drift"],
     },
     "kpis": {
