@@ -125,6 +125,102 @@ def diagnose_notebook_execution(
                 "practice_tags": ["null_analysis", "reason_before_transform"],
             }
 
+        investigation = (
+            loop.active_investigation
+            if isinstance(loop.active_investigation, dict)
+            else {}
+        )
+        comparison = str(
+            investigation.get("comparison_column")
+            or ""
+        ).casefold()
+        investigation_step = investigation.get("step")
+
+        if "value_counts(" in normalized and comparison:
+            if comparison not in normalized:
+                return {
+                    **base,
+                    "status": "logic_mismatch",
+                    "issue_code": "investigation_target_mismatch",
+                    "misconception": "investigation_target_drift",
+                    "message": (
+                        "The code switched away from the comparison column "
+                        f"locked for this investigation ({investigation.get('comparison_column')})."
+                    ),
+                    "practice_tags": ["task_context", "null_analysis"],
+                }
+
+            has_missing_scope = (
+                "isna(" in normalized
+                or "isnull(" in normalized
+                or ".isna()" in normalized
+                or ".isnull()" in normalized
+            )
+
+            if investigation_step == "baseline_frequency":
+                if has_missing_scope:
+                    return {
+                        **base,
+                        "status": "logic_mismatch",
+                        "issue_code": "baseline_still_missing_scoped",
+                        "misconception": "filter_scope_confusion",
+                        "message": (
+                            "The baseline step must use the overall raw dataset, "
+                            "not only the missing-value subset."
+                        ),
+                        "practice_tags": ["pandas_filtering", "null_analysis"],
+                    }
+
+                return {
+                    **base,
+                    "status": "aligned_success",
+                    "issue_code": "baseline_frequency_check",
+                    "misconception": None,
+                    "message": (
+                        "The overall comparison-column distribution was calculated "
+                        "for the baseline step."
+                    ),
+                    "practice_tags": ["pandas_filtering", "null_analysis"],
+                }
+
+            if not has_missing_scope:
+                return {
+                    **base,
+                    "status": "logic_mismatch",
+                    "issue_code": "frequency_without_missing_scope",
+                    "misconception": "filter_scope_confusion",
+                    "message": (
+                        "value_counts() is valid, but it is not scoped to the "
+                        "rows where the target column is missing."
+                    ),
+                    "practice_tags": ["pandas_filtering", "null_analysis"],
+                }
+
+            if target and target not in normalized:
+                return {
+                    **base,
+                    "status": "off_task",
+                    "issue_code": "target_not_referenced",
+                    "misconception": "task_context_mismatch",
+                    "message": (
+                        "The missing-subset calculation does not reference the "
+                        f"target column ({finding.column})."
+                    ),
+                    "practice_tags": ["task_context"],
+                }
+
+            return {
+                **base,
+                "status": "aligned_success",
+                "issue_code": "missing_scoped_frequency_check",
+                "misconception": None,
+                "message": (
+                    "The code scopes to missing rows and performs the locked "
+                    "comparison-column frequency check."
+                ),
+                "practice_tags": ["pandas_filtering", "null_analysis"],
+            }
+
         if target and target not in normalized:
             return {
                 **base,
