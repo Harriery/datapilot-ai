@@ -17,6 +17,9 @@ from backend.app.mentor_stage_playbook_service import (
 from backend.app.mentor_learner_model_service import (
     record_execution_signal,
 )
+from backend.app.mentor_supervisor_service import (
+    build_workspace_supervisor_context,
+)
 from backend.app.models import Workspace
 
 
@@ -265,6 +268,11 @@ def build_chat_mentor_workspace_context(
         "mentor_stage_playbooks":
             get_relevant_stage_playbooks(
                 product_context
+            ),
+        "mentor_supervisor":
+            build_workspace_supervisor_context(
+                workspace=workspace,
+                ui_context=ui_context,
             ),
         "mentor_execution_context": execution_context,
         "artifacts": artifacts,
