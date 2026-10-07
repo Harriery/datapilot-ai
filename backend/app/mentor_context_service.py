@@ -118,9 +118,28 @@ def build_guided_mentor_context(
             "dataset_kind"
         ]
 
+    profile = (
+        workspace.dataset_profile
+        if isinstance(workspace.dataset_profile, dict)
+        else {}
+    )
+    profile_context = {
+        "row_count": profile.get("row_count"),
+        "columns": list(profile.get("columns") or [])[:80],
+        "data_types": dict(profile.get("data_types") or {}),
+        "distinct_counts": dict(profile.get("distinct_counts") or {}),
+        "null_counts": dict(profile.get("null_counts") or {}),
+    }
+
     context = {
         "product": resolve_product_context(
             trusted_ui
+        ),
+        "profile": profile_context,
+        "active_investigation": dict(
+            loop.active_investigation
+            if isinstance(loop.active_investigation, dict)
+            else {}
         ),
         "playbook": get_playbook_context(
             finding.issue_type,
@@ -167,6 +186,11 @@ def build_guided_mentor_context(
             finding=finding,
             mentor_context=context,
         )
+    )
+    context["active_investigation"] = dict(
+        loop.active_investigation
+        if isinstance(loop.active_investigation, dict)
+        else {}
     )
 
     return context
