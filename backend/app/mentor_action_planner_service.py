@@ -184,11 +184,29 @@ def _start_investigation_if_needed(
     if not isinstance(profile, dict):
         profile = {}
 
-    comparison = _mentioned_comparison_column(
-        learner_message,
-        profile=profile,
-        target_name=finding.column,
+    supervisor = mentor_context.get("supervisor")
+    if not isinstance(supervisor, dict):
+        supervisor = {}
+
+    recommendation = supervisor.get(
+        "recommended_investigation"
     )
+
+    comparison = None
+    if isinstance(recommendation, dict):
+        candidate = recommendation.get(
+            "comparison_column"
+        )
+        if isinstance(candidate, str):
+            comparison = candidate
+
+    if comparison is None:
+        comparison = _mentioned_comparison_column(
+            learner_message,
+            profile=profile,
+            target_name=finding.column,
+        )
+
     if comparison is None:
         comparison = _choose_pattern_column(
             profile=profile,
@@ -693,6 +711,20 @@ def plan_guided_next_action(
             live_state=live_state,
             investigation=investigation,
         )
+
+    if supervisor.get("stop_exploration") is True:
+        return {
+            "id": "stop_extra_issue_exploration",
+            "kind": "reasoning",
+            "priority": "current",
+            "control_id": None,
+            "goal": supervisor.get(
+                "next_objective"
+            ) or (
+                "Interpret the evidence already collected instead of opening another check."
+            ),
+            "enforce_direct_reply": False,
+        }
 
     if not _contains_any(learner_message, _FREQUENCY_MARKERS):
         return None
