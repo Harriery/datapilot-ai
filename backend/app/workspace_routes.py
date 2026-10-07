@@ -192,6 +192,8 @@ from backend.app.mentor_learning_loop_service import (
     record_prepare_phase_evidence,
     record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
+    restart_prepare_learning_loop,
+    record_learning_loop_exchange,
 )
 
 from backend.app.workspace_notebook_mentor_service import (
@@ -2229,6 +2231,95 @@ def start_workspace_prepare_learning_loop(
     (
         "/workspaces/{learner_id}/{workspace_id}"
         "/data/findings/{finding_index}"
+        "/learning-loop/restart"
+    ),
+    response_model=WorkspaceLearningLoopResponse,
+)
+def restart_workspace_prepare_learning_loop(
+    learner_id: str,
+    workspace_id: str,
+    finding_index: int,
+    language: Literal[
+        "en",
+        "nl",
+        "tr",
+    ] = Query(
+        default="en"
+    ),
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.dataset_analysis is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Workspace için dataset analysis "
+                "henüz bulunmuyor."
+            ),
+        )
+
+    findings = workspace.dataset_analysis.findings
+    if (
+        finding_index < 0
+        or finding_index >= len(findings)
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Finding bulunamadı.",
+        )
+
+    finding = findings[finding_index]
+    skill_name = get_skill_for_data_quality_issue(
+        finding.issue_type
+    )
+    if skill_name is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu finding için uygun "
+                "mentor skill'i bulunamadı."
+            ),
+        )
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=finding_index,
+        finding=finding,
+        skill_name=skill_name,
+        language=language,
+    )
+
+    loop, mentor_prompt = (
+        restart_prepare_learning_loop(
+            loop=loop,
+            finding=finding,
+            language=language,
+        )
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceLearningLoopResponse(
+        loop=loop,
+        mentor_prompt=mentor_prompt,
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data/findings/{finding_index}"
         "/learning-loop/{loop_id}/respond"
     ),
     response_model=WorkspaceLearningLoopReviewResponse,
@@ -2372,6 +2463,11 @@ def respond_to_workspace_prepare_learning_loop(
                 "no external AI assessment required."
             ),
         )
+        record_learning_loop_exchange(
+            loop=loop,
+            learner_message=request.response,
+            mentor_response=local_support_reply,
+        )
         database.save_workspace(
             workspace=workspace
         )
@@ -2417,7 +2513,17 @@ def respond_to_workspace_prepare_learning_loop(
             evaluation=evaluation,
             assistance_level=assistance_level,
             ui_context=request.ui_context,
-            learning_history=request.learning_history,
+            learning_history=[
+                *[
+                    item.model_dump()
+                    for item
+                    in loop.message_history[-6:]
+                ],
+                {
+                    "role": "user",
+                    "content": request.response,
+                },
+            ],
             mentor_context=mentor_context,
         )
     except (
@@ -2446,6 +2552,12 @@ def respond_to_workspace_prepare_learning_loop(
 
     if mentor_response is None:
         mentor_response = fallback_response
+
+    record_learning_loop_exchange(
+        loop=loop,
+        learner_message=request.response,
+        mentor_response=mentor_response,
+    )
 
     database.save_workspace(
         workspace=workspace
