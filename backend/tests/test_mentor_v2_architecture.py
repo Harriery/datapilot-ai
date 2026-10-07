@@ -16,6 +16,10 @@ from backend.app.mentor_product_registry import (
 from backend.app.mentor_action_planner_service import (
     plan_guided_next_action,
 )
+from backend.app.mentor_supervisor_service import (
+    build_issue_supervisor_context,
+    select_pattern_comparison_column,
+)
 from backend.app.models import (
     DataQualityFinding,
     WorkspaceLearningLoop,
@@ -528,3 +532,121 @@ def test_action_planner_teaches_code_without_switching_investigation():
     assert action["id"] == "explain_locked_investigation_code"
     assert action["comparison_column"] == "segment"
     assert loop.active_investigation["comparison_column"] == "segment"
+
+
+
+def test_supervisor_selects_pattern_column_without_dataset_specific_names():
+    profile_a = {
+        "row_count": 1000,
+        "columns": ["metric_x", "group_alpha", "entity_code"],
+        "data_types": {
+            "metric_x": "float64",
+            "group_alpha": "object",
+            "entity_code": "object",
+        },
+        "distinct_counts": {
+            "metric_x": 900,
+            "group_alpha": 4,
+            "entity_code": 1000,
+        },
+    }
+    profile_b = {
+        "row_count": 500,
+        "columns": ["measure_z", "segment_beta", "record_key"],
+        "data_types": {
+            "measure_z": "float64",
+            "segment_beta": "object",
+            "record_key": "object",
+        },
+        "distinct_counts": {
+            "measure_z": 400,
+            "segment_beta": 3,
+            "record_key": 500,
+        },
+    }
+
+    assert select_pattern_comparison_column(
+        profile=profile_a,
+        target_name="metric_x",
+    ) == "group_alpha"
+    assert select_pattern_comparison_column(
+        profile=profile_b,
+        target_name="measure_z",
+    ) == "segment_beta"
+
+
+def test_supervisor_stops_missing_value_exploration_after_minimum_evidence():
+    loop = _loop()
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": "age",
+        "comparison_column": "segment",
+        "step": "interpret",
+        "subset_output": "A 0.8\nB 0.2",
+        "baseline_output": "A 0.5\nB 0.5",
+    }
+
+    supervisor = build_issue_supervisor_context(
+        loop=loop,
+        finding=_finding(),
+        profile={
+            "row_count": 100,
+            "columns": ["age", "segment"],
+            "data_types": {
+                "age": "float64",
+                "segment": "object",
+            },
+            "distinct_counts": {
+                "age": 40,
+                "segment": 2,
+            },
+            "null_counts": {
+                "age": 7,
+                "segment": 0,
+            },
+        },
+        execution_diagnosis=None,
+    )
+
+    assert supervisor["external_evidence_complete"] is True
+    assert supervisor["stop_exploration"] is True
+    assert supervisor["status"] == "interpret_then_exit_reason"
+    assert supervisor["missing_evidence"] == []
+    assert supervisor["exploration_budget"]["remaining_targeted_checks"] == 0
+
+
+def test_supervisor_recommends_one_pattern_check_for_unrelated_dataset_names():
+    loop = _loop()
+    loop.active_investigation = {}
+
+    supervisor = build_issue_supervisor_context(
+        loop=loop,
+        finding=_finding(),
+        profile={
+            "row_count": 200,
+            "columns": ["age", "cohort_label", "row_identifier"],
+            "data_types": {
+                "age": "float64",
+                "cohort_label": "object",
+                "row_identifier": "object",
+            },
+            "distinct_counts": {
+                "age": 90,
+                "cohort_label": 5,
+                "row_identifier": 200,
+            },
+            "null_counts": {
+                "age": 12,
+                "cohort_label": 0,
+                "row_identifier": 0,
+            },
+        },
+        execution_diagnosis=None,
+    )
+
+    assert supervisor["recommended_investigation"] is not None
+    assert (
+        supervisor["recommended_investigation"]["comparison_column"]
+        == "cohort_label"
+    )
+    assert supervisor["exploration_budget"]["max_targeted_checks"] == 1
