@@ -83,6 +83,7 @@ def test_mentor_data_quality_attempt_returns_review():
                 "otomatik learning evidence olarak "
                 "değerlendirilmedi."
             ),
+            "misconception": None,
         },
     }
 
@@ -142,6 +143,7 @@ def test_mentor_data_quality_transformation_returns_validation_result():
                 "age kolonundaki null sayısı "
                 "2 değerinden 1 değerine değişti."
             ),
+            "misconception": None,
         },
     }
 
@@ -304,6 +306,7 @@ def test_mentor_task_transformation_returns_updated_task():
             "evidence_type": "application",
             "success": True,
             "note": "Null sayısı azaldı.",
+            "misconception": None,
         },
     }
 
