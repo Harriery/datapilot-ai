@@ -332,6 +332,7 @@ _LEARNING_UI_STRING_KEYS = {
     "active_prepare_stage",
     "workbench_view",
     "selected_notebook_id",
+    "selected_notebook_dataset_kind",
     "selected_workbench_column",
 }
 
@@ -670,6 +671,13 @@ def _direct_preview_frequency_navigation(
                 "Workbench içindesin; şimdi üstteki Notebook sekmesine geç. "
                 "Frekans sayımını orada yapacağız."
             )
+        if safe_context.get(
+            "selected_notebook_dataset_kind"
+        ) != "raw":
+            return (
+                "Notebook’taki Dataset menüsünden Raw source sample seç. "
+                "Working dataset temizlendiği için orijinal eksik Car satırları orada görünmez."
+            )
         return None
 
     if loop.language == "nl":
@@ -683,6 +691,13 @@ def _direct_preview_frequency_navigation(
                 "Je bent in Workbench; ga nu naar het tabblad Notebook. "
                 "Daar tellen we de frequenties."
             )
+        if safe_context.get(
+            "selected_notebook_dataset_kind"
+        ) != "raw":
+            return (
+                "Kies in Notebook bij Dataset voor Raw source sample. "
+                "De working dataset is al opgeschoond."
+            )
         return None
 
     if active_prepare_stage != "workbench":
@@ -694,6 +709,13 @@ def _direct_preview_frequency_navigation(
         return (
             "You are in Workbench; now open the Notebook tab. "
             "We will calculate the frequencies there."
+        )
+    if safe_context.get(
+        "selected_notebook_dataset_kind"
+    ) != "raw":
+        return (
+            "In Notebook, open the Dataset menu and select Raw source sample. "
+            "The working dataset has already been cleaned."
         )
     return None
 
@@ -783,6 +805,9 @@ def generate_prepare_mentor_reply(
     - Source Preview column headers are clickable only when
       source_preview_column_click_available=true. Never tell the learner to
       click a Source Preview column when that capability is false.
+    - For inspection of original missing-value rows, use a raw/source-backed
+      notebook. A working notebook may no longer contain those missing values
+      after cleaning.
     - If grouping/aggregation is actually needed but
       source_preview_grouping_available/source_preview_aggregation_available is
       false, do not tell the learner to perform it in Preview. If

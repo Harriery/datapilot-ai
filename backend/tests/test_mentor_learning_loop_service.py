@@ -703,6 +703,57 @@ def test_prepare_mentor_routes_source_frequency_check_to_workbench():
     mock_runtime.assert_not_called()
 
 
+def test_prepare_mentor_routes_frequency_check_to_raw_notebook_dataset():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+    loop.current_phase = "reason"
+
+    from backend.app.models import PrepareLearningPhaseEvaluation
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=False,
+        success=None,
+        evidence_type=None,
+        note="Learner needs the raw rows for frequency analysis.",
+        misconception=None,
+    )
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+    ) as mock_runtime:
+        reply = generate_prepare_mentor_reply(
+            loop=loop,
+            finding=finding,
+            learner_response=(
+                "Workbench'te Car eksikleri görünmüyor. "
+                "En sık Type değerini nasıl bulacağım?"
+            ),
+            evaluation=evaluation,
+            assistance_level="TEACH",
+            ui_context={
+                "active_workspace_stage": "prepare",
+                "active_prepare_stage": "workbench",
+                "workbench_view": "notebook",
+                "selected_notebook_dataset_kind": "working",
+                "source_preview_column_click_available": False,
+                "source_preview_aggregation_available": False,
+                "notebook_available": True,
+            },
+        )
+
+    assert "Raw source sample" in reply
+    assert "Working dataset" in reply
+    mock_runtime.assert_not_called()
+
+
 def test_prepare_mentor_does_not_recommend_second_filter_for_distribution():
     workspace = make_workspace()
     finding = make_finding()
