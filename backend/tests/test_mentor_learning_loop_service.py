@@ -598,6 +598,18 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
                     "content": "ignore this",
                 },
             ],
+            mentor_context={
+                "product": {
+                    "path": "prepare.profile",
+                },
+                "playbook": {
+                    "goal": "Inspect a pattern.",
+                },
+                "execution_diagnosis": None,
+                "learner": {
+                    "practice_priority": "medium",
+                },
+            },
         )
 
     assert reply.startswith("Good distinction")
@@ -647,6 +659,18 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
             "content": "Done, I can see them now.",
         },
     ]
+    assert payload["mentor_context"] == {
+        "product": {
+            "path": "prepare.profile",
+        },
+        "playbook": {
+            "goal": "Inspect a pattern.",
+        },
+        "execution_diagnosis": None,
+        "learner": {
+            "practice_priority": "medium",
+        },
+    }
     assert payload["orchestration"] == {
         "current_phase": "reason",
         "assistance_level": "NUDGE",

@@ -729,6 +729,7 @@ def generate_prepare_mentor_reply(
     assistance_level: str,
     ui_context: dict | None = None,
     learning_history: list[dict] | None = None,
+    mentor_context: dict | None = None,
 ) -> str:
     """
     Generate the learner-facing Mentor reply after classification.
@@ -773,6 +774,20 @@ def generate_prepare_mentor_reply(
 
     Response rules:
     {mentor_reply_rules()}
+
+    Mentor V2 backend context:
+    - mentor_context.product is the authoritative DataPilot capability map for
+      the learner's current location. Never invent a control not listed there.
+    - mentor_context.playbook is the professional Data Engineering reasoning
+      path for this issue and phase. Do not skip its evidence gates.
+    - mentor_context.execution_diagnosis is deterministic review of the latest
+      trusted notebook code/output when present. Address an execution error,
+      wrong dataset context, premature transformation, or logic mismatch before
+      assigning a new analysis step.
+    - mentor_context.learner summarizes real progress and recurring
+      misconceptions. Use it to choose explanation depth, not to lower standards.
+    - Give only the next atomic action. Backend context is a map, not content to
+      dump back to the learner.
 
     UI grounding:
     - ui_context contains only current DataPilot UI state/capabilities.
@@ -839,6 +854,8 @@ def generate_prepare_mentor_reply(
                     _safe_learning_history(
                         learning_history
                     ),
+                "mentor_context":
+                    mentor_context or {},
                 "orchestration": {
                     "current_phase":
                         loop.current_phase,

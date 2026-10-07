@@ -196,6 +196,12 @@ from backend.app.mentor_learning_loop_service import (
 from backend.app.workspace_notebook_mentor_service import (
     build_notebook_mentor_guidance,
 )
+from backend.app.mentor_context_service import (
+    build_guided_mentor_context,
+)
+from backend.app.mentor_learner_model_service import (
+    record_execution_signal,
+)
 
 router = APIRouter()
 
@@ -2345,6 +2351,34 @@ def respond_to_workspace_prepare_learning_loop(
         evaluation=evaluation,
     )
 
+    mentor_context = build_guided_mentor_context(
+        learner_id=learner_id,
+        workspace=workspace,
+        loop=loop,
+        finding=finding,
+        ui_context=request.ui_context,
+    )
+
+    record_execution_signal(
+        learner_id=learner_id,
+        workspace_id=workspace_id,
+        skill_name=loop.skill_name,
+        phase=loop.current_phase,
+        assistance_level=assistance_level,
+        diagnosis=mentor_context.get(
+            "execution_diagnosis"
+        ),
+    )
+
+    # Refresh learner state after any new deterministic execution signal.
+    mentor_context = build_guided_mentor_context(
+        learner_id=learner_id,
+        workspace=workspace,
+        loop=loop,
+        finding=finding,
+        ui_context=request.ui_context,
+    )
+
     try:
         mentor_response = generate_prepare_mentor_reply(
             loop=loop,
@@ -2354,6 +2388,7 @@ def respond_to_workspace_prepare_learning_loop(
             assistance_level=assistance_level,
             ui_context=request.ui_context,
             learning_history=request.learning_history,
+            mentor_context=mentor_context,
         )
     except (
         AIProviderConfigurationError,
