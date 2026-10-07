@@ -15,6 +15,9 @@ from backend.app.mentor_playbook_service import (
 from backend.app.mentor_product_registry import (
     resolve_product_context,
 )
+from backend.app.mentor_supervisor_service import (
+    build_issue_supervisor_context,
+)
 from backend.app.models import (
     DataQualityFinding,
     Workspace,
@@ -131,6 +134,21 @@ def build_guided_mentor_context(
         "null_counts": dict(profile.get("null_counts") or {}),
     }
 
+    execution_diagnosis = (
+        diagnose_notebook_execution(
+            loop=loop,
+            finding=finding,
+            ui_context=trusted_ui,
+        )
+    )
+
+    supervisor = build_issue_supervisor_context(
+        loop=loop,
+        finding=finding,
+        profile=profile_context,
+        execution_diagnosis=execution_diagnosis,
+    )
+
     context = {
         "product": resolve_product_context(
             trusted_ui
@@ -145,12 +163,9 @@ def build_guided_mentor_context(
             finding.issue_type,
             loop.current_phase,
         ),
+        "supervisor": supervisor,
         "execution_diagnosis":
-            diagnose_notebook_execution(
-                loop=loop,
-                finding=finding,
-                ui_context=trusted_ui,
-            ),
+            execution_diagnosis,
         "learner": build_learner_snapshot(
             learner_id=learner_id,
             skill_name=loop.skill_name,
