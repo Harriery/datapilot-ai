@@ -311,7 +311,7 @@ def test_orchestrator_increases_help_for_explicit_beginner_request():
         if item["id"] == "mentor_help_request_beginner"
     )
 
-    assert determine_orchestrated_assistance(scenario) == "GUIDE"
+    assert determine_orchestrated_assistance(scenario) == "TEACH"
 
 
 def test_orchestrator_increases_help_for_repeated_misconception():
@@ -588,7 +588,7 @@ def test_shared_orchestration_matches_benchmark_rules():
     assert determine_assistance_level(
         skill_status="comfortable",
         learner_message="Bilmiyorum, adım adım anlatır mısın?",
-    ) == "GUIDE"
+    ) == "TEACH"
 
     assert determine_next_learning_phase(
         current_phase="reason",
