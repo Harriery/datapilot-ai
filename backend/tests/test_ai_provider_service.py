@@ -77,3 +77,28 @@ def test_groq_practice_generator_default_stays_20b(monkeypatch):
     )
 
     assert runtime.model == "openai/gpt-oss-20b"
+
+
+
+def test_groq_guided_learning_defaults_to_20b(monkeypatch):
+    _configure_free_groq(monkeypatch)
+    monkeypatch.delenv(
+        "AI_GROQ_GUIDED_EVALUATOR_MODEL",
+        raising=False,
+    )
+    monkeypatch.delenv(
+        "AI_GROQ_GUIDED_TUTOR_MODEL",
+        raising=False,
+    )
+
+    evaluator = get_ai_runtime_config(
+        "guided_evaluator"
+    )
+    tutor = get_ai_runtime_config(
+        "guided_tutor"
+    )
+
+    assert evaluator.provider == "groq"
+    assert evaluator.model == "openai/gpt-oss-20b"
+    assert tutor.provider == "groq"
+    assert tutor.model == "openai/gpt-oss-20b"
