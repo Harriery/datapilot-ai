@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from backend.app.models import (
     DataQualityFinding,
     WorkspaceLearningLoop,
@@ -1164,3 +1166,157 @@ def render_planned_direct_reply(
 
     value = messages.get(language) or messages.get("en")
     return str(value).strip() if value else None
+
+
+
+def _normalized_series_items(
+    output: str | None,
+) -> list[tuple[str, float]]:
+    if not isinstance(output, str):
+        return []
+
+    items: list[tuple[str, float]] = []
+
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        lowered = line.casefold()
+        if (
+            lowered.startswith("name:")
+            or lowered.startswith("dtype:")
+            or "dtype:" in lowered
+        ):
+            continue
+
+        match = re.match(
+            r"^(.*?)\s+(-?\d+(?:\.\d+)?)$",
+            line,
+        )
+        if match is None:
+            continue
+
+        label = match.group(1).strip()
+        try:
+            value = float(match.group(2))
+        except ValueError:
+            continue
+
+        if not label or value < 0:
+            continue
+
+        items.append((label, value))
+
+    return items[:8]
+
+
+def _render_result_interpretation_locally(
+    *,
+    action: dict,
+    language: str,
+) -> str:
+    target = str(
+        action.get("target_column")
+        or "target"
+    )
+    comparison = str(
+        action.get("comparison_column")
+        or "comparison"
+    )
+    items = _normalized_series_items(
+        action.get("output")
+    )
+
+    if items:
+        top = items[:4]
+        if language == "tr":
+            values = ", ".join(
+                f"{label}: %{value * 100:.1f}"
+                for label, value in top
+            )
+            return (
+                f"Bu çıktı yalnızca {target} değeri eksik olan satırlardaki "
+                f"{comparison} dağılımını gösteriyor: {values}. "
+                f"Yani eksik grubun yapısını görüyoruz; ama bunun özel bir yoğunlaşma "
+                f"olup olmadığını söylemek için tüm verideki {comparison} dağılımıyla "
+                "karşılaştırmamız gerekir."
+            )
+        if language == "nl":
+            values = ", ".join(
+                f"{label}: {value * 100:.1f}%"
+                for label, value in top
+            )
+            return (
+                f"Deze output toont alleen de verdeling van {comparison} in rijen "
+                f"waar {target} ontbreekt: {values}. Om te weten of dit echt een "
+                "concentratie is, moeten we dit vergelijken met de totale verdeling."
+            )
+
+        values = ", ".join(
+            f"{label}: {value * 100:.1f}%"
+            for label, value in top
+        )
+        return (
+            f"This output shows only the {comparison} distribution in rows where "
+            f"{target} is missing: {values}. To know whether that is a real "
+            "concentration, we still need the overall distribution for comparison."
+        )
+
+    if language == "tr":
+        return (
+            f"Bu çıktı yalnızca {target} eksik olan satırlardaki {comparison} "
+            "dağılımını gösteriyor. Tek başına bir yoğunlaşma olduğunu kanıtlamaz; "
+            "genel dağılımla karşılaştırmak gerekir."
+        )
+    if language == "nl":
+        return (
+            f"Deze output toont alleen de verdeling van {comparison} waar {target} "
+            "ontbreekt. Voor een conclusie is vergelijking met de totale verdeling nodig."
+        )
+    return (
+        f"This output shows only the {comparison} distribution where {target} "
+        "is missing. It needs an overall baseline before drawing a conclusion."
+    )
+
+
+def render_planned_local_support_reply(
+    *,
+    action: dict | None,
+    language: str,
+) -> str | None:
+    """
+    Render support turns without external AI.
+
+    This is intentionally limited to actions whose semantics are already known
+    deterministically by the workflow engine. It does not assess learner
+    reasoning or advance a learning phase.
+    """
+    if not isinstance(action, dict):
+        return None
+
+    direct = render_planned_direct_reply(
+        action=action,
+        language=language,
+    )
+    if direct is not None:
+        return direct
+
+    if (
+        action.get("kind")
+        == "teaching_interpretation"
+    ):
+        return _render_result_interpretation_locally(
+            action=action,
+            language=language,
+        )
+
+    messages = action.get("messages")
+    if isinstance(messages, dict):
+        value = (
+            messages.get(language)
+            or messages.get("en")
+        )
+        if value:
+            return str(value).strip()
+
+    return None
