@@ -24,6 +24,7 @@ type WorkspaceLearningLoop = {
   completed_phases: Exclude<LearningPhase, "completed">[];
   status: "active" | "completed";
   trusted_validation: Record<string, unknown>;
+  message_history: MentorMessage[];
 };
 
 type Props = {
@@ -54,9 +55,9 @@ export default function WorkspaceMentorPanel({
   onOpenChange,
 }: Props) {
   const copy = {
-    en: { title:"DataPilot Mentor", subtitle:"Workspace-aware senior mentor", placeholder:"Ask about your current work...", learningPlaceholder:"Answer the current learning step...", send:"Send", empty:"I follow this workspace, its data-quality findings, notebook and pipeline. Ask me what to investigate or do next.", learningEmpty:"Start a guided learning step from a data-quality finding.", close:"Close", collapse:"Collapse", expand:"Open mentor", thinking:"Thinking...", chatMode:"Mentor Chat", learningMode:"Guided Learning", learningLoop:"Guided learning loop", learningLoopLoading:"Preparing learning step...", phase:"Phase", workbenchGate:"This phase advances only after a real Workbench transformation and deterministic validation.", completed:"Learning loop completed" },
-    nl: { title:"DataPilot Mentor", subtitle:"Senior mentor met werkruimtecontext", placeholder:"Vraag iets over je huidige werk...", learningPlaceholder:"Beantwoord de huidige leerstap...", send:"Versturen", empty:"Ik volg deze werkruimte, de datakwaliteitsbevindingen, het notebook en de pipeline. Vraag wat je nu moet onderzoeken of doen.", learningEmpty:"Start een begeleide leerstap vanuit een datakwaliteitsbevinding.", close:"Sluiten", collapse:"Inklappen", expand:"Mentor openen", thinking:"Nadenken...", chatMode:"Mentorchat", learningMode:"Begeleid leren", learningLoop:"Begeleide leerloop", learningLoopLoading:"Leerstap voorbereiden...", phase:"Fase", workbenchGate:"Deze fase gaat alleen verder na een echte Workbench-transformatie en deterministische validatie.", completed:"Leerloop voltooid" },
-    tr: { title:"DataPilot Mentor", subtitle:"Çalışma alanını bilen kıdemli mentor", placeholder:"Mevcut çalışman hakkında sor...", learningPlaceholder:"Mevcut öğrenme adımını cevapla...", send:"Gönder", empty:"Bu çalışma alanını, veri kalitesi bulgularını, notebook'u ve pipeline'ı takip ediyorum. Şimdi neyi incelemen veya yapman gerektiğini sorabilirsin.", learningEmpty:"Bir veri kalitesi bulgusundan yönlendirmeli öğrenme adımı başlat.", close:"Kapat", collapse:"Daralt", expand:"Mentoru aç", thinking:"Düşünüyor...", chatMode:"Mentor Chat", learningMode:"Yönlendirmeli Öğrenme", learningLoop:"Yönlendirmeli öğrenme döngüsü", learningLoopLoading:"Öğrenme adımı hazırlanıyor...", phase:"Aşama", workbenchGate:"Bu aşama yalnızca gerçek bir Workbench dönüşümü ve deterministik doğrulama sonrasında ilerler.", completed:"Öğrenme döngüsü tamamlandı" },
+    en: { title:"DataPilot Mentor", subtitle:"Workspace-aware senior mentor", placeholder:"Ask about your current work...", learningPlaceholder:"Answer the current learning step...", send:"Send", empty:"I follow this workspace, its data-quality findings, notebook and pipeline. Ask me what to investigate or do next.", learningEmpty:"Start a guided learning step from a data-quality finding.", close:"Close", collapse:"Collapse", expand:"Open mentor", thinking:"Thinking...", chatMode:"Mentor Chat", learningMode:"Guided Learning", learningLoop:"Guided learning loop", learningLoopLoading:"Preparing learning step...", phase:"Phase", workbenchGate:"This phase advances only after a real Workbench transformation and deterministic validation.", completed:"Learning loop completed", restart:"Restart learning loop" },
+    nl: { title:"DataPilot Mentor", subtitle:"Senior mentor met werkruimtecontext", placeholder:"Vraag iets over je huidige werk...", learningPlaceholder:"Beantwoord de huidige leerstap...", send:"Versturen", empty:"Ik volg deze werkruimte, de datakwaliteitsbevindingen, het notebook en de pipeline. Vraag wat je nu moet onderzoeken of doen.", learningEmpty:"Start een begeleide leerstap vanuit een datakwaliteitsbevinding.", close:"Sluiten", collapse:"Inklappen", expand:"Mentor openen", thinking:"Nadenken...", chatMode:"Mentorchat", learningMode:"Begeleid leren", learningLoop:"Begeleide leerloop", learningLoopLoading:"Leerstap voorbereiden...", phase:"Fase", workbenchGate:"Deze fase gaat alleen verder na een echte Workbench-transformatie en deterministische validatie.", completed:"Leerloop voltooid", restart:"Leerloop opnieuw starten" },
+    tr: { title:"DataPilot Mentor", subtitle:"Çalışma alanını bilen kıdemli mentor", placeholder:"Mevcut çalışman hakkında sor...", learningPlaceholder:"Mevcut öğrenme adımını cevapla...", send:"Gönder", empty:"Bu çalışma alanını, veri kalitesi bulgularını, notebook'u ve pipeline'ı takip ediyorum. Şimdi neyi incelemen veya yapman gerektiğini sorabilirsin.", learningEmpty:"Bir veri kalitesi bulgusundan yönlendirmeli öğrenme adımı başlat.", close:"Kapat", collapse:"Daralt", expand:"Mentoru aç", thinking:"Düşünüyor...", chatMode:"Mentor Chat", learningMode:"Yönlendirmeli Öğrenme", learningLoop:"Yönlendirmeli öğrenme döngüsü", learningLoopLoading:"Öğrenme adımı hazırlanıyor...", phase:"Aşama", workbenchGate:"Bu aşama yalnızca gerçek bir Workbench dönüşümü ve deterministik doğrulama sonrasında ilerler.", completed:"Öğrenme döngüsü tamamlandı", restart:"Öğrenme döngüsünü yeniden başlat" },
   }[language];
 
   const [messages,setMessages]=useState<MentorMessage[]>([]);
@@ -110,19 +111,34 @@ export default function WorkspaceMentorPanel({
         const prompt=String(data.mentor_prompt ?? "");
 
         setLearningLoop(nextLoop);
-        setLearningMessages(prev=>{
-          if(!prompt) return prev;
 
-          const last=prev.at(-1);
-          if(last?.role==="assistant" && last.content===prompt){
-            return prev;
-          }
+        const persistedHistory = Array.isArray(
+          nextLoop.message_history
+        )
+          ? nextLoop.message_history.filter(
+              (item): item is MentorMessage =>
+                (
+                  item?.role === "user" ||
+                  item?.role === "assistant"
+                ) &&
+                typeof item?.content === "string"
+            )
+          : [];
 
-          return [
-            ...prev,
-            { role:"assistant", content:prompt },
-          ];
-        });
+        setLearningMessages(
+          persistedHistory.length > 0
+            ? persistedHistory
+            : (
+                prompt
+                  ? [
+                      {
+                        role:"assistant",
+                        content:prompt,
+                      } as MentorMessage,
+                    ]
+                  : []
+              )
+        );
       })
       .catch(error=>{
         if(cancelled) return;
@@ -150,6 +166,52 @@ export default function WorkspaceMentorPanel({
   ]);
 
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[messages,learningMessages,loading,learningLoopLoading]);
+
+  async function restartLearningLoop(){
+    if(!learningLoop || learningLoopLoading) return;
+
+    setLearningLoopLoading(true);
+
+    try{
+      const response=await fetch(
+        `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/data/findings/${learningLoop.finding_index}/learning-loop/restart?language=${language}`,
+        { method:"POST" }
+      );
+
+      const data=await response.json();
+
+      if(!response.ok){
+        throw new Error(
+          data.detail ||
+          "Learning loop could not be restarted."
+        );
+      }
+
+      const nextLoop =
+        data.loop as WorkspaceLearningLoop;
+
+      setLearningLoop(nextLoop);
+      setLearningMessages(
+        Array.isArray(nextLoop.message_history)
+          ? nextLoop.message_history
+          : []
+      );
+      setInput("");
+    }catch(error){
+      setLearningMessages(prev=>[
+        ...prev,
+        {
+          role:"assistant",
+          content:error instanceof Error
+            ? error.message
+            : "Learning loop could not be restarted.",
+        },
+      ]);
+    }finally{
+      setLearningLoopLoading(false);
+    }
+  }
+
 
   async function submit(event?:FormEvent){
     event?.preventDefault();
@@ -199,17 +261,16 @@ export default function WorkspaceMentorPanel({
           );
         }
 
-        setLearningLoop(
-          data.loop as WorkspaceLearningLoop
-        );
+        const nextLoop =
+          data.loop as WorkspaceLearningLoop;
 
-        setLearningMessages(prev=>[
-          ...prev,
-          {
-            role:"assistant",
-            content:String(data.mentor_response ?? ""),
-          },
-        ]);
+        setLearningLoop(nextLoop);
+
+        setLearningMessages(
+          Array.isArray(nextLoop.message_history)
+            ? nextLoop.message_history
+            : []
+        );
       }catch(error){
         setLearningMessages(prev=>[
           ...prev,
@@ -329,6 +390,14 @@ export default function WorkspaceMentorPanel({
                   }[language][learningLoop.current_phase]
                 }`}
           </span>
+          <button
+            type="button"
+            className="mentor-learning-restart"
+            onClick={()=>{ void restartLearningLoop(); }}
+            disabled={learningLoopLoading}
+          >
+            {copy.restart}
+          </button>
         </div>
       )}
 
