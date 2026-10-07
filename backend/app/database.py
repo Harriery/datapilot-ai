@@ -2969,7 +2969,12 @@ def get_ai_usage_counts() -> dict:
                 THEN 1 ELSE 0 END) AS daily_requests,
             SUM(CASE WHEN strftime('%Y-%m', created_at, 'localtime')
                            = strftime('%Y-%m', 'now', 'localtime')
-                THEN 1 ELSE 0 END) AS monthly_requests
+                THEN 1 ELSE 0 END) AS monthly_requests,
+            SUM(CASE WHEN date(created_at, 'localtime') = date('now', 'localtime')
+                THEN input_chars ELSE 0 END) AS daily_input_chars,
+            SUM(CASE WHEN strftime('%Y-%m', created_at, 'localtime')
+                           = strftime('%Y-%m', 'now', 'localtime')
+                THEN input_chars ELSE 0 END) AS monthly_input_chars
         FROM ai_usage_events
         """
     ).fetchone()
@@ -2977,7 +2982,44 @@ def get_ai_usage_counts() -> dict:
     return {
         "daily_requests": int(row["daily_requests"] or 0),
         "monthly_requests": int(row["monthly_requests"] or 0),
+        "daily_input_chars": int(row["daily_input_chars"] or 0),
+        "monthly_input_chars": int(row["monthly_input_chars"] or 0),
     }
+
+
+def get_ai_usage_breakdown_today() -> list[dict]:
+    """
+    Aggregate today's external-AI reservations without storing prompt content.
+    """
+    connection = get_connection()
+    rows = connection.execute(
+        """
+        SELECT
+            provider,
+            model,
+            purpose,
+            COUNT(*) AS request_count,
+            SUM(input_chars) AS input_chars,
+            MAX(input_chars) AS max_input_chars
+        FROM ai_usage_events
+        WHERE date(created_at, 'localtime') = date('now', 'localtime')
+        GROUP BY provider, model, purpose
+        ORDER BY request_count DESC, input_chars DESC
+        """
+    ).fetchall()
+    connection.close()
+
+    return [
+        {
+            "provider": str(row["provider"]),
+            "model": str(row["model"]),
+            "purpose": str(row["purpose"]),
+            "request_count": int(row["request_count"] or 0),
+            "input_chars": int(row["input_chars"] or 0),
+            "max_input_chars": int(row["max_input_chars"] or 0),
+        }
+        for row in rows
+    ]
 
 
 def reserve_ai_usage_event(
