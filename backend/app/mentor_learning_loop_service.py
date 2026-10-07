@@ -834,7 +834,11 @@ def generate_prepare_mentor_reply(
     Response rules:
     {mentor_reply_rules()}
 
-    Mentor V2 backend context:
+    Mentor V2/V3 backend context:
+    - mentor_context.workflow is the authoritative deterministic technical
+      workflow state when present. The learner's wording does not change that
+      state. Use the learner message only to decide how to teach/explain the
+      current state; never infer that a technical step completed from prose.
     - mentor_context.product is the authoritative DataPilot capability map for
       the learner's current location. Never invent a control not listed there.
     - mentor_context.playbook is the professional Data Engineering reasoning
