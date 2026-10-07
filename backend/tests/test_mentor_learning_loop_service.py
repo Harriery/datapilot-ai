@@ -17,6 +17,8 @@ from backend.app.mentor_learning_loop_service import (
     record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
     render_zero_ai_prepare_support_reply,
+    restart_prepare_learning_loop,
+    record_learning_loop_exchange,
 )
 
 
@@ -952,3 +954,102 @@ def test_zero_ai_support_turn_uses_workflow_action():
     assert reply is not None
     assert "%80.0" in reply
     assert "%20.0" in reply
+
+
+
+def test_learning_loop_history_persists_and_resume_does_not_duplicate_prompt():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, prompt = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+
+    assert [
+        item.model_dump()
+        for item in loop.message_history
+    ] == [
+        {
+            "role": "assistant",
+            "content": prompt,
+        }
+    ]
+
+    record_learning_loop_exchange(
+        loop=loop,
+        learner_message="62 eksik değer var.",
+        mentor_response="Şimdi örüntüyü inceleyelim.",
+    )
+
+    resumed, resumed_prompt = (
+        start_or_resume_prepare_learning_loop(
+            workspace=workspace,
+            finding_index=0,
+            finding=finding,
+            skill_name="null_analysis",
+            language="tr",
+        )
+    )
+
+    assert resumed.loop_id == loop.loop_id
+    assert resumed_prompt
+    assert len(resumed.message_history) == 3
+    assert resumed.message_history[0].role == "assistant"
+    assert resumed.message_history[1].role == "user"
+    assert resumed.message_history[1].content == "62 eksik değer var."
+    assert resumed.message_history[2].role == "assistant"
+
+
+def test_restart_learning_loop_clears_stale_phase_and_history():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+
+    loop.current_phase = "decide"
+    loop.completed_phases = [
+        "observe",
+        "reason",
+    ]
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": "age",
+        "comparison_column": "segment",
+    }
+    loop.supervisor_state = {
+        "status": "stale"
+    }
+    loop.workflow_state = "READY_FOR_DECISION"
+
+    record_learning_loop_exchange(
+        loop=loop,
+        learner_message="eski mesaj",
+        mentor_response="eski cevap",
+    )
+
+    restarted, prompt = restart_prepare_learning_loop(
+        loop=loop,
+        finding=finding,
+        language="tr",
+    )
+
+    assert restarted.current_phase == "observe"
+    assert restarted.completed_phases == []
+    assert restarted.status == "active"
+    assert restarted.trusted_validation == {}
+    assert restarted.active_investigation == {}
+    assert restarted.supervisor_state == {}
+    assert restarted.workflow_state is None
+    assert len(restarted.message_history) == 1
+    assert restarted.message_history[0].role == "assistant"
+    assert restarted.message_history[0].content == prompt
