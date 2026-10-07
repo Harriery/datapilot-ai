@@ -184,3 +184,35 @@ def record_execution_signal(
             },
         },
     )
+
+    # A single typo should not create a new practice skill. When this skill is
+    # observer-only and not tracked yet, activate it after the same reliable
+    # misconception appears at least twice.
+    if database.get_skill_state(
+        learner_id,
+        skill_name,
+    ) is None:
+        repeated_count = 0
+
+        for item in database.get_learning_evidence_by_skill(
+            learner_id=learner_id,
+            skill_name=skill_name,
+        ):
+            context = _context_from_row(item)
+            metadata = context.get("metadata")
+
+            if (
+                context.get("misconception")
+                == misconception
+                and isinstance(metadata, dict)
+                and metadata.get("origin")
+                == "mentor_execution_observer"
+            ):
+                repeated_count += 1
+
+        if repeated_count >= 2:
+            database.insert_skill_state(
+                learner_id,
+                skill_name,
+                status="new",
+            )

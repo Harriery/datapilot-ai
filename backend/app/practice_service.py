@@ -340,6 +340,56 @@ def create_practice_challenge(
             solution=variant["solution"],
         )
        # --------------------------------------------------
+    # DEBUGGING
+    # --------------------------------------------------
+    elif skill_name == "debugging":
+
+        challenge = PracticeChallenge(
+            challenge_id=str(uuid4()),
+            skill_name=skill_name,
+            difficulty=difficulty,
+            challenge_type="code",
+            title="Hatalı pandas ifadesini düzelt",
+            instructions=(
+                "Aşağıdaki kod çalışmıyor. Hatanın nedenini bul, "
+                "sonra eksik age değerlerinin sayısını yazdıracak "
+                "şekilde yalnız hatalı ifadeyi düzelt."
+            ),
+            context_code=(
+                "import pandas as pd\n"
+                "df = pd.DataFrame({\n"
+                "    'age': [30, None, 41, None]\n"
+                "})\n"
+            ),
+            starter_code=(
+                "print(df['age'.isna()].sum())"
+            ),
+        )
+
+        expected_outcome = "2"
+
+        validation_spec = PracticeValidationSpec(
+            validation_type="exact_output",
+            expected_output="2",
+        )
+
+        support_spec = PracticeSupportSpec(
+            hints=[
+                (
+                    "isna() string metodu değil; önce DataFrame'den "
+                    "kolonu seçtiğinden emin ol."
+                ),
+                (
+                    "Önce df['age'] ifadesini oluştur, sonra "
+                    ".isna() ve .sum() zincirini uygula."
+                ),
+            ],
+            solution=(
+                "print(df['age'].isna().sum())"
+            ),
+        )
+
+       # --------------------------------------------------
     # NULL ANALYSIS
     # --------------------------------------------------
     elif skill_name == "null_analysis":

@@ -500,6 +500,9 @@ def generate_mentor_response(
     sınırı kabul et. Soruyla ilgisiz stage bilgisini cevapta dökme.
     Current Workspace içindeki artifacts yalnızca bu turla ilgili backend-retrieved
     artifact'lardır; görünmeyen artifact'ları varmış gibi varsayma.
+    mentor_stage_playbooks current/referenced stage için profesyonel işlem sırasını,
+    evidence gate'i ve kaçınılacak hataları verir. Kullanıcıya yol çizerken bu sırayı
+    koru; kanıt kapısı geçilmeden sonraki semantik karara atlama.
     execution_context seçili notebook'un güvenilir son code/output gözlemidir.
     status=error ise yeni görev vermeden önce mevcut hatayı açıkla ve yalnız o hücreyi
     düzeltmeye yardım et. status=executed olması tek başına mantıksal doğruluk kanıtı değildir.

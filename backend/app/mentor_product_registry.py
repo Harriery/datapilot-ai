@@ -779,3 +779,125 @@ def retrieve_product_context(
         "workspace_stage_order": WORKSPACE_STAGE_ORDER,
         "prepare_stage_order": PREPARE_STAGE_ORDER,
     }
+
+
+
+# Learning-support areas outside the workspace stage rail.
+PRODUCT_REGISTRY.update({
+    "practice": {
+        "label": "Practice V2",
+        "purpose": "Close diagnosed skill gaps through evidence-based practice.",
+        "controls": [
+            {
+                "id": "practice.recommended",
+                "label": "Recommended practice",
+                "type": "button",
+                "effect": "Starts practice based on current learner priority.",
+                "mutates_data": False,
+            },
+            {
+                "id": "practice.topic",
+                "label": "Topic",
+                "type": "selection",
+                "effect": "Chooses the skill family to practice.",
+                "mutates_data": False,
+            },
+            {
+                "id": "practice.focus_area",
+                "label": "Focus area",
+                "type": "select",
+                "effect": "Chooses a subtopic/focus area.",
+                "mutates_data": False,
+            },
+            {
+                "id": "practice.mode",
+                "label": "Practice mode",
+                "type": "select",
+                "effect": "Chooses an available mode such as code or theory.",
+                "mutates_data": False,
+            },
+            {
+                "id": "practice.difficulty",
+                "label": "Difficulty",
+                "type": "select",
+                "options": ["easy", "medium", "hard"],
+                "effect": "Sets practice difficulty.",
+                "mutates_data": False,
+            },
+            {
+                "id": "practice.start",
+                "label": "Start practice",
+                "type": "button",
+                "effect": "Loads the selected practice exercise/check.",
+                "mutates_data": False,
+            },
+        ],
+        "limits": [
+            "Practice should target diagnosed gaps, not random question quotas.",
+            "Mastery is evidence-based.",
+        ],
+    },
+    "progress": {
+        "label": "Progress",
+        "purpose": "Show skill performance, independence, misconceptions and readiness.",
+        "controls": [
+            {
+                "id": "progress.skill_performance",
+                "label": "Skill Performance",
+                "type": "panel",
+                "effect": "Shows attempts/success by skill.",
+                "mutates_data": False,
+            },
+            {
+                "id": "progress.independence",
+                "label": "Mentor Support & Independence",
+                "type": "panel",
+                "effect": "Shows assistance/dependency trend.",
+                "mutates_data": False,
+            },
+            {
+                "id": "progress.skill_details",
+                "label": "Skill Details",
+                "type": "panel",
+                "effect": "Shows phase counts, priority and misconception details.",
+                "mutates_data": False,
+            },
+        ],
+        "limits": [
+            "Observed Mentor V2 signals do not inflate assessed attempt counts.",
+        ],
+    },
+    "tasks": {
+        "label": "Tasks",
+        "purpose": "Review workspace task status and open the relevant workspace.",
+        "controls": [
+            {
+                "id": "tasks.refresh",
+                "label": "Refresh",
+                "type": "button",
+                "effect": "Reloads task status.",
+                "mutates_data": False,
+            },
+            {
+                "id": "tasks.open_workspace",
+                "label": "Open workspace",
+                "type": "button",
+                "effect": "Opens the workspace for that task.",
+                "mutates_data": False,
+            },
+        ],
+        "limits": [],
+    },
+})
+
+_STAGE_ALIASES.update({
+    "practice": (
+        "practice", "pratik", "exercise", "egzersiz",
+    ),
+    "progress": (
+        "progress", "ilerleme", "independence", "bağımsızlık", "bagimsizlik",
+    ),
+    "tasks": (
+        "tasks", "görevler", "gorevler", "task list",
+    ),
+})

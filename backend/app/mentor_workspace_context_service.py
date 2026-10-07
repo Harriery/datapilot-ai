@@ -11,6 +11,12 @@ from backend.app.mentor_execution_diagnosis_service import (
 from backend.app.mentor_product_registry import (
     retrieve_product_context,
 )
+from backend.app.mentor_stage_playbook_service import (
+    get_relevant_stage_playbooks,
+)
+from backend.app.mentor_learner_model_service import (
+    record_execution_signal,
+)
 from backend.app.models import Workspace
 
 
@@ -218,6 +224,20 @@ def build_chat_mentor_workspace_context(
         )
     )
 
+    if (
+        isinstance(execution_context, dict)
+        and execution_context.get("status")
+        == "error"
+    ):
+        record_execution_signal(
+            learner_id=learner_id,
+            workspace_id=workspace.workspace_id,
+            skill_name="debugging",
+            phase="notebook",
+            assistance_level="GUIDE",
+            diagnosis=execution_context,
+        )
+
     artifacts = build_relevant_workspace_artifacts(
         workspace=workspace,
         product_context=product_context,
@@ -242,6 +262,10 @@ def build_chat_mentor_workspace_context(
             workspace.active_processed_dataset_id,
         "ui_context": ui_context or {},
         "mentor_product_context": product_context,
+        "mentor_stage_playbooks":
+            get_relevant_stage_playbooks(
+                product_context
+            ),
         "mentor_execution_context": execution_context,
         "artifacts": artifacts,
         "learner_skills": [

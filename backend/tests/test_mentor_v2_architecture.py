@@ -5,6 +5,9 @@ from backend.app.mentor_execution_diagnosis_service import (
 from backend.app.mentor_playbook_service import (
     get_playbook_context,
 )
+from backend.app.mentor_stage_playbook_service import (
+    get_relevant_stage_playbooks,
+)
 from backend.app.mentor_product_registry import (
     PRODUCT_REGISTRY,
     resolve_product_context,
@@ -265,3 +268,23 @@ def test_generic_notebook_observer_reports_failed_execution():
     assert diagnosis["status"] == "error"
     assert diagnosis["issue_code"] == "AttributeError"
     assert diagnosis["misconception"] == "code_execution_error"
+
+
+
+def test_registry_covers_learning_support_areas():
+    for path in ("practice", "progress", "tasks"):
+        assert path in PRODUCT_REGISTRY
+
+
+def test_stage_playbook_keeps_data_model_grain_first():
+    playbooks = get_relevant_stage_playbooks({
+        "current": {
+            "path": "data_model",
+        },
+        "referenced": [],
+    })
+
+    assert len(playbooks) == 1
+    model = playbooks[0]
+    assert model["sequence"][0] == "lock fact grain"
+    assert "grain" in model["evidence_gate"].lower()

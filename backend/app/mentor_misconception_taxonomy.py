@@ -8,6 +8,15 @@ CANONICAL_MISCONCEPTIONS = (
     "assumes_unseen_column_exists",
     "explanation_without_validation_evidence",
     "copies_prior_model_without_current_grain",
+    "raw_working_dataset_confusion",
+    "filtering_equals_distribution",
+    "premature_transformation_before_reasoning",
+    "task_scope_filter_missing",
+    "grain_confusion",
+    "relationship_cardinality_confusion",
+    "aggregation_semantics_confusion",
+    "non_additive_measure_sum",
+    "raw_source_mutation_confusion",
 )
 
 MISCONCEPTION_ALIASES = {
