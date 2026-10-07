@@ -410,11 +410,18 @@ def generate_mentor_response(
     current_step = (workspace_context or {}).get("current_step")
     checkpoint = (workspace_context or {}).get("checkpoint") or {}
     ui_context = (workspace_context or {}).get("ui_context") or {}
+    artifacts = (
+        (workspace_context or {}).get("artifacts")
+        or {}
+    )
     workspace_has_dataset = bool(
         (workspace_context or {}).get("dataset_filename")
-        or (workspace_context or {}).get("dataset_profile")
+        or artifacts.get("dataset_profile")
     )
-    notebook_summaries = (workspace_context or {}).get("notebooks") or []
+    notebook_summaries = (
+        artifacts.get("notebooks")
+        or []
+    )
     mentor_state = {
         "workspace_has_dataset": workspace_has_dataset,
         "dataset_filename": (workspace_context or {}).get("dataset_filename"),
@@ -436,11 +443,15 @@ def generate_mentor_response(
             (workspace_context or {}).get(
                 "mentor_product_context"
             ),
+        "execution_context":
+            (workspace_context or {}).get(
+                "mentor_execution_context"
+            ),
         "has_validation_result": bool(
-            (workspace_context or {}).get("validation_result")
+            artifacts.get("validation_result")
         ),
         "has_analysis_plan": bool(
-            (workspace_context or {}).get("analysis_plan")
+            artifacts.get("analysis_plan")
         ),
         "active_processed_dataset_id":
             (workspace_context or {}).get("active_processed_dataset_id"),
@@ -487,6 +498,11 @@ def generate_mentor_response(
     stage'leri gösterir. UI hakkında bu kayıtlarla çelişen bir kontrol, buton,
     select seçeneği veya işlem uydurma. Her entry'nin limits alanını gerçek ürün
     sınırı kabul et. Soruyla ilgisiz stage bilgisini cevapta dökme.
+    Current Workspace içindeki artifacts yalnızca bu turla ilgili backend-retrieved
+    artifact'lardır; görünmeyen artifact'ları varmış gibi varsayma.
+    execution_context seçili notebook'un güvenilir son code/output gözlemidir.
+    status=error ise yeni görev vermeden önce mevcut hatayı açıkla ve yalnız o hücreyi
+    düzeltmeye yardım et. status=executed olması tek başına mantıksal doğruluk kanıtı değildir.
     Bunu varsayılan bağlam olarak kullan ama kullanıcının sorusunu o sekmeye zorla kilitleme.
     Önce sorunun niyetini ayırt et:
     - mevcut ekrandaki şeyi yorumlama/review,
@@ -498,8 +514,8 @@ def generate_mentor_response(
 
     current_step yalnızca aktif Workbench/data-quality öğretim akışında pedagojik sınırdır.
     Validate, Understand, Data Model, KPI, Analysis ve diğer üst aşamalarda eski current_step'e
-    takılı kalma; o aşamaya ait validation_result, analysis_plan, data_model_plan/studio,
-    KPI/analysis artifact'larını önceliklendir.
+    takılı kalma; o aşamaya ait artifacts içindeki validation/model/KPI/analysis
+    kayıtlarını önceliklendir.
     workspace_has_dataset=true ise kullanıcıya veri setini yüklemesini, dosyayı açmasını veya yeniden
     eklemesini söyleme. notebooks boş değilse notebook'un zaten workspace içinde bulunduğunu bil.
     Kullanıcı "şimdi ne yapacağım?" dediğinde sadece mevcut küçük işlemi tarif et; aynı anda hem eksik

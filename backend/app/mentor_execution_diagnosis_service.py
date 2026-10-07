@@ -182,3 +182,82 @@ def diagnose_notebook_execution(
         }
 
     return None
+
+
+
+def diagnose_generic_notebook_execution(
+    notebook_state: dict | None,
+) -> dict | None:
+    """
+    Generic trusted execution observation for normal Mentor Chat.
+    It can diagnose runtime/syntax failures without pretending to know the
+    semantic task. Task-specific alignment remains in Guided Learning.
+    """
+    if not isinstance(notebook_state, dict):
+        return None
+
+    latest = notebook_state.get("latest_cell")
+    if not isinstance(latest, dict):
+        return None
+
+    code = latest.get("code")
+    execution = latest.get("last_execution")
+
+    if not isinstance(code, str) or not isinstance(execution, dict):
+        return None
+
+    output = str(execution.get("output") or "")
+    success = bool(execution.get("success"))
+    executed_at = execution.get("executed_at")
+    cell_id = latest.get("cell_id")
+    notebook_id = notebook_state.get("notebook_id")
+
+    observation_id = ":".join(
+        str(item or "")
+        for item in (notebook_id, cell_id, executed_at)
+    )
+
+    base = {
+        "observation_id": observation_id,
+        "notebook_id": notebook_id,
+        "cell_id": cell_id,
+        "executed_at": executed_at,
+        "dataset_kind": notebook_state.get("dataset_kind"),
+        "code": code[:4000],
+        "output": output[:1200],
+    }
+
+    if not success:
+        error_kind = "execution_error"
+        for candidate in (
+            "SyntaxError",
+            "NameError",
+            "KeyError",
+            "TypeError",
+            "ValueError",
+            "AttributeError",
+        ):
+            if candidate.casefold() in output.casefold():
+                error_kind = candidate
+                break
+
+        return {
+            **base,
+            "status": "error",
+            "issue_code": error_kind,
+            "misconception": "code_execution_error",
+            "message": "The latest selected notebook cell failed to execute.",
+            "practice_tags": ["python_debugging"],
+        }
+
+    return {
+        **base,
+        "status": "executed",
+        "issue_code": "execution_observed",
+        "misconception": None,
+        "message": (
+            "The latest selected notebook cell executed successfully. "
+            "Execution success alone does not prove task correctness."
+        ),
+        "practice_tags": [],
+    }

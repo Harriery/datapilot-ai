@@ -1,5 +1,6 @@
 from backend.app.mentor_execution_diagnosis_service import (
     diagnose_notebook_execution,
+    diagnose_generic_notebook_execution,
 )
 from backend.app.mentor_playbook_service import (
     get_playbook_context,
@@ -241,3 +242,26 @@ def test_action_planner_prioritizes_notebook_execution_error():
     assert action is not None
     assert action["id"] == "repair_latest_notebook_error"
     assert action["priority"] == "blocking"
+
+
+
+def test_generic_notebook_observer_reports_failed_execution():
+    diagnosis = diagnose_generic_notebook_execution({
+        "notebook_id": "n1",
+        "dataset_kind": "raw",
+        "latest_cell": {
+            "cell_id": "c1",
+            "code": "df['age'.isna()]",
+            "last_execution": {
+                "success": False,
+                "expression_kind": "none",
+                "output": "AttributeError: bad expression",
+                "executed_at": "2026-10-07T11:00:00",
+            },
+        },
+    })
+
+    assert diagnosis is not None
+    assert diagnosis["status"] == "error"
+    assert diagnosis["issue_code"] == "AttributeError"
+    assert diagnosis["misconception"] == "code_execution_error"

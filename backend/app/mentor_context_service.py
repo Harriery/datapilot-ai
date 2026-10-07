@@ -22,7 +22,7 @@ from backend.app.models import (
 )
 
 
-def _trusted_notebook_state(
+def build_trusted_notebook_state(
     *,
     workspace: Workspace,
     ui_context: dict | None,
@@ -103,7 +103,7 @@ def build_guided_mentor_context(
         else {}
     )
 
-    notebook_state = _trusted_notebook_state(
+    notebook_state = build_trusted_notebook_state(
         workspace=workspace,
         ui_context=trusted_ui,
     )

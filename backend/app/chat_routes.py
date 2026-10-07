@@ -36,8 +36,8 @@ from backend.app.ai_usage_guard import (
 from backend.app.ai_provider_service import (
     get_ai_runtime_config,
 )
-from backend.app.mentor_product_registry import (
-    retrieve_product_context,
+from backend.app.mentor_workspace_context_service import (
+    build_chat_mentor_workspace_context,
 )
 
 import json
@@ -155,100 +155,16 @@ def chat(request: ChatRequest):
                     None,
                 )
 
-        workspace_context = {
-            "workspace_id": workspace.workspace_id,
-            "title": workspace.title,
-            "workspace_type": workspace.workspace_type,
-            "status": workspace.status,
-            "current_task_id": workspace.current_task_id,
-            "current_task": current_task,
-            "current_step": current_step,
-            "checkpoint": workspace.checkpoint.model_dump(),
-            "task_brief": workspace.task_brief,
-            "desired_outcome": workspace.desired_outcome,
-            "project_type": workspace.project_type,
-            "dataset_filename": workspace.dataset_filename,
-            "development_sample_size": workspace.development_sample_size,
-            "dataset_profile": (
-                workspace.dataset_profile.model_dump()
-                if hasattr(workspace.dataset_profile, "model_dump")
-                else workspace.dataset_profile
-            ),
-            "dataset_analysis": (
-                workspace.dataset_analysis.model_dump()
-                if hasattr(workspace.dataset_analysis, "model_dump")
-                else workspace.dataset_analysis
-            ),
-            "workbench_operations": [
-                item.model_dump() if hasattr(item, "model_dump") else item
-                for item in (workspace.workbench_operations or [])
-            ],
-            "notebooks": [
-                {
-                    "notebook_id": item.notebook_id,
-                    "name": item.name,
-                    "dataset_kind": item.dataset_kind,
-                    "cell_count": len(item.cells),
-                    "recent_cells": [
-                        {
-                            "cell_id": cell.cell_id,
-                            "code": cell.code[-4000:],
-                            "last_execution": cell.last_execution,
-                        }
-                        for cell in item.cells[-6:]
-                        if cell.code.strip() or cell.last_execution
-                    ],
-                }
-                for item in (workspace.notebooks or [])
-            ],
-            "processed_datasets": [
-                item.model_dump() if hasattr(item, "model_dump") else item
-                for item in (workspace.processed_datasets or [])
-            ],
-            "active_processed_dataset_id":
-                workspace.active_processed_dataset_id,
-            "validation_result": (
-                workspace.validation_result.model_dump()
-                if hasattr(workspace.validation_result, "model_dump")
-                else workspace.validation_result
-            ),
-            "analysis_plan": (
-                workspace.analysis_plan.model_dump()
-                if hasattr(workspace.analysis_plan, "model_dump")
-                else workspace.analysis_plan
-            ),
-            "data_model_plan": (
-                workspace.data_model_plan.model_dump()
-                if hasattr(workspace.data_model_plan, "model_dump")
-                else workspace.data_model_plan
-            ),
-            "data_model_studio": (
-                workspace.data_model_studio.model_dump()
-                if hasattr(workspace.data_model_studio, "model_dump")
-                else workspace.data_model_studio
-            ),
-            "kpi_candidates": [
-                item.model_dump() if hasattr(item, "model_dump") else item
-                for item in (workspace.kpi_candidates or [])
-            ],
-            "kpi_definitions": [
-                item.model_dump() if hasattr(item, "model_dump") else item
-                for item in (workspace.kpi_definitions or [])
-            ],
-            "ui_context": request.ui_context or {},
-            "mentor_product_context":
-                retrieve_product_context(
-                    ui_context=(
-                        request.ui_context
-                        or {}
-                    ),
-                    message=message,
-                ),
-            "learner_skills": [
-                dict(item)
-                for item in database.get_skill_states_by_learner(learner_id)
-            ],
-        }
+        workspace_context = (
+            build_chat_mentor_workspace_context(
+                workspace=workspace,
+                learner_id=learner_id,
+                ui_context=request.ui_context,
+                message=message,
+                current_task=current_task,
+                current_step=current_step,
+            )
+        )
 
     learner_profile = database.get_learner_profile_by_id(
     learner_id
