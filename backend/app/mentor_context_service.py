@@ -18,6 +18,9 @@ from backend.app.mentor_product_registry import (
 from backend.app.mentor_supervisor_service import (
     build_issue_supervisor_context,
 )
+from backend.app.mentor_guided_workflow_service import (
+    resolve_guided_workflow_state,
+)
 from backend.app.models import (
     DataQualityFinding,
     Workspace,
@@ -142,6 +145,37 @@ def build_guided_mentor_context(
         )
     )
 
+    live_state = {
+        "active_workspace_stage":
+            trusted_ui.get(
+                "active_workspace_stage"
+            ),
+        "active_prepare_stage":
+            trusted_ui.get(
+                "active_prepare_stage"
+            ),
+        "workbench_view":
+            trusted_ui.get(
+                "workbench_view"
+            ),
+        "selected_notebook":
+            notebook_state,
+        "notebook_count":
+            len(workspace.notebooks),
+        "source_preview_inspection":
+            trusted_ui.get(
+                "source_preview_inspection"
+            ),
+    }
+
+    workflow = resolve_guided_workflow_state(
+        loop=loop,
+        finding=finding,
+        profile=profile_context,
+        live_state=live_state,
+        execution_diagnosis=execution_diagnosis,
+    )
+
     supervisor = build_issue_supervisor_context(
         loop=loop,
         finding=finding,
@@ -164,34 +198,14 @@ def build_guided_mentor_context(
             loop.current_phase,
         ),
         "supervisor": supervisor,
+        "workflow": workflow,
         "execution_diagnosis":
             execution_diagnosis,
         "learner": build_learner_snapshot(
             learner_id=learner_id,
             skill_name=loop.skill_name,
         ),
-        "live_state": {
-            "active_workspace_stage":
-                trusted_ui.get(
-                    "active_workspace_stage"
-                ),
-            "active_prepare_stage":
-                trusted_ui.get(
-                    "active_prepare_stage"
-                ),
-            "workbench_view":
-                trusted_ui.get(
-                    "workbench_view"
-                ),
-            "selected_notebook":
-                notebook_state,
-            "notebook_count":
-                len(workspace.notebooks),
-            "source_preview_inspection":
-                trusted_ui.get(
-                    "source_preview_inspection"
-                ),
-        },
+        "live_state": live_state,
     }
 
     context["next_action"] = (
