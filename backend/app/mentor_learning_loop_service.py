@@ -506,6 +506,114 @@ def _safe_learning_history(
     return safe_history
 
 
+def _active_missing_filter_column(
+    ui_context: dict | None,
+) -> str | None:
+    safe_context = _safe_learning_ui_context(
+        ui_context
+    )
+    inspection = safe_context.get(
+        "source_preview_inspection"
+    )
+
+    if not isinstance(inspection, dict):
+        return None
+
+    for item in inspection.get(
+        "active_filters",
+        [],
+    ):
+        if (
+            isinstance(item, dict)
+            and item.get("operator")
+            == "is_missing"
+            and isinstance(
+                item.get("column"),
+                str,
+            )
+        ):
+            return item["column"]
+
+    return None
+
+
+def _direct_preview_filter_guidance(
+    *,
+    loop: WorkspaceLearningLoop,
+    learner_response: str,
+    ui_context: dict | None,
+) -> str | None:
+    """
+    Deterministic navigation guard for a common Guided Learning failure mode:
+    the learner already has the target missing-value filter active and asks
+    whether another filter is needed to inspect another column.
+
+    Filtering narrows rows; it does not compute a distribution. Keep this
+    behavior out of the LLM so UI guidance remains reliable.
+    """
+    if loop.current_phase not in {
+        "observe",
+        "reason",
+    }:
+        return None
+
+    target_column = (
+        _active_missing_filter_column(
+            ui_context
+        )
+    )
+    if target_column is None:
+        return None
+
+    message = learner_response.casefold()
+
+    filter_markers = (
+        "filtre",
+        "filter",
+    )
+    second_filter_markers = (
+        "yeni",
+        "ayrıca",
+        "ayrica",
+        "hangi",
+        "bir daha",
+        "another",
+        "new",
+        "which",
+    )
+
+    if not (
+        any(
+            marker in message
+            for marker in filter_markers
+        )
+        and any(
+            marker in message
+            for marker in second_filter_markers
+        )
+    ):
+        return None
+
+    language = loop.language
+
+    messages = {
+        "tr": (
+            f"Yeni filtre ekleme. {target_column} = Is missing filtresi açık "
+            "kalsın; ikinci filtre satırları daha da daraltır, dağılımı göstermez."
+        ),
+        "nl": (
+            f"Voeg geen nieuw filter toe. Laat {target_column} = Is missing "
+            "actief; een tweede filter beperkt alleen de rijen en toont geen verdeling."
+        ),
+        "en": (
+            f"Do not add another filter. Keep {target_column} = Is missing "
+            "active; a second filter only narrows rows and does not show a distribution."
+        ),
+    }
+
+    return messages[language]
+
+
 def generate_prepare_mentor_reply(
     *,
     loop: WorkspaceLearningLoop,
@@ -527,6 +635,16 @@ def generate_prepare_mentor_reply(
         is_evidence=evaluation.is_evidence,
         success=evaluation.success,
     )
+
+    direct_guidance = (
+        _direct_preview_filter_guidance(
+            loop=loop,
+            learner_response=learner_response,
+            ui_context=ui_context,
+        )
+    )
+    if direct_guidance is not None:
+        return direct_guidance
 
     runtime = get_ai_runtime(
         "mentor"

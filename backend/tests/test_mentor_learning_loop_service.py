@@ -654,6 +654,78 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
     }
 
 
+def test_prepare_mentor_does_not_recommend_second_filter_for_distribution():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+    loop.current_phase = "reason"
+
+    from backend.app.models import (
+        PrepareLearningPhaseEvaluation,
+    )
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=False,
+        success=None,
+        evidence_type=None,
+        note="Learner asks how to inspect the filtered rows.",
+        misconception=None,
+    )
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+    ) as mock_runtime:
+        reply = generate_prepare_mentor_reply(
+            loop=loop,
+            finding=finding,
+            learner_response=(
+                "Car is missing filtresi açık. Type için ayrıca "
+                "yeni bir filtre mi ekleyeceğim, hangi filtre?"
+            ),
+            evaluation=evaluation,
+            assistance_level="TEACH",
+            ui_context={
+                "source_preview_filter_builder_available": True,
+                "source_preview_grouping_available": False,
+                "source_preview_aggregation_available": False,
+                "source_preview_inspection": {
+                    "dataset": "source",
+                    "columns": [
+                        "age",
+                        "city",
+                    ],
+                    "column_types": {
+                        "age": "number",
+                        "city": "text",
+                    },
+                    "total_row_count": 100,
+                    "filtered_row_count": 7,
+                    "filter_logic": "and",
+                    "active_filters": [
+                        {
+                            "column": "age",
+                            "operator": "is_missing",
+                            "value": None,
+                            "value_to": None,
+                        }
+                    ],
+                },
+            },
+        )
+
+    assert "Yeni filtre ekleme." in reply
+    assert "ikinci filtre" in reply
+    assert "dağılımı göstermez" in reply
+    mock_runtime.assert_not_called()
+
+
 def test_mentor_reply_policy_reports_production_llm_integration():
     from backend.app.mentor_reply_policy import (
         mentor_pipeline_production_status,
