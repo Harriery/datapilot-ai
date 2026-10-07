@@ -184,6 +184,8 @@ export default function WorkspaceMentorPanel({
             body:JSON.stringify({
               response:message,
               ui_context:uiContext ?? null,
+              learning_history:
+                learningMessages.slice(-6),
             }),
           }
         );

@@ -367,7 +367,114 @@ def _safe_learning_ui_context(
         if isinstance(value, bool):
             safe_context[key] = value
 
+    inspection = ui_context.get(
+        "source_preview_inspection"
+    )
+
+    if isinstance(inspection, dict):
+        safe_inspection: dict = {}
+
+        dataset = inspection.get("dataset")
+        if dataset in {"source", "working"}:
+            safe_inspection["dataset"] = dataset
+
+        columns = inspection.get("columns")
+        if isinstance(columns, list):
+            safe_inspection["columns"] = [
+                item[:120]
+                for item in columns[:80]
+                if isinstance(item, str)
+            ]
+
+        for key in (
+            "total_row_count",
+            "filtered_row_count",
+        ):
+            value = inspection.get(key)
+            if isinstance(value, int) and value >= 0:
+                safe_inspection[key] = value
+
+        filter_logic = inspection.get(
+            "filter_logic"
+        )
+        if filter_logic in {"and", "or"}:
+            safe_inspection[
+                "filter_logic"
+            ] = filter_logic
+
+        active_filters = inspection.get(
+            "active_filters"
+        )
+        if isinstance(active_filters, list):
+            safe_filters = []
+
+            for item in active_filters[:8]:
+                if not isinstance(item, dict):
+                    continue
+
+                column = item.get("column")
+                operator = item.get("operator")
+
+                if (
+                    not isinstance(column, str)
+                    or not isinstance(operator, str)
+                ):
+                    continue
+
+                safe_filters.append({
+                    "column": column[:120],
+                    "operator": operator[:80],
+                    "value": (
+                        str(item.get("value"))[:160]
+                        if item.get("value") is not None
+                        else None
+                    ),
+                    "value_to": (
+                        str(item.get("value_to"))[:160]
+                        if item.get("value_to") is not None
+                        else None
+                    ),
+                })
+
+            safe_inspection[
+                "active_filters"
+            ] = safe_filters
+
+        if safe_inspection:
+            safe_context[
+                "source_preview_inspection"
+            ] = safe_inspection
+
     return safe_context
+
+
+def _safe_learning_history(
+    learning_history: list[dict] | None,
+) -> list[dict[str, str]]:
+    if not learning_history:
+        return []
+
+    safe_history = []
+
+    for item in learning_history[-6:]:
+        if not isinstance(item, dict):
+            continue
+
+        role = item.get("role")
+        content = item.get("content")
+
+        if (
+            role not in {"user", "assistant"}
+            or not isinstance(content, str)
+        ):
+            continue
+
+        safe_history.append({
+            "role": role,
+            "content": content[:1200],
+        })
+
+    return safe_history
 
 
 def generate_prepare_mentor_reply(
@@ -378,6 +485,7 @@ def generate_prepare_mentor_reply(
     evaluation: PrepareLearningPhaseEvaluation,
     assistance_level: str,
     ui_context: dict | None = None,
+    learning_history: list[dict] | None = None,
 ) -> str:
     """
     Generate the learner-facing Mentor reply after classification.
@@ -414,6 +522,16 @@ def generate_prepare_mentor_reply(
       capability is available, give exactly one concrete UI action.
     - Never invent buttons, filters, tabs, controls, or actions that are absent
       or unknown in ui_context.
+    - If source_preview_inspection shows that the relevant filter is already
+      active, treat that navigation step as completed and DO NOT ask the learner
+      to apply the same filter again.
+    - Use filtered_row_count and available column names only as inspection
+      context. Do not infer row values or business meaning that are not supplied.
+    - During observe/reason, do not jump to "validate the business rule" before
+      the learner has inspected a concrete pattern. Give one concrete inspection
+      target at a time, grounded in available columns.
+    - recent_learning_history records the last Guided Learning turns. Respect
+      completed actions stated there and do not loop back to the same instruction.
     """
 
     response_obj = guarded_responses_parse(
@@ -433,6 +551,10 @@ def generate_prepare_mentor_reply(
                 "ui_context":
                     _safe_learning_ui_context(
                         ui_context
+                    ),
+                "recent_learning_history":
+                    _safe_learning_history(
+                        learning_history
                     ),
                 "orchestration": {
                     "current_phase":

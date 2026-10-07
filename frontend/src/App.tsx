@@ -15,8 +15,9 @@ import PersonalAnalysisPlan, {
 } from "./PersonalAnalysisPlan";
 import PersonalDataUnderstanding
   from "./PersonalDataUnderstanding";
-import DataPreview
-  from "./DataPreview";
+import DataPreview, {
+  type DataPreviewInspectionState,
+} from "./DataPreview";
 import WorkbenchColumnInspector
   from "./WorkbenchColumnInspector";
 import {
@@ -848,6 +849,13 @@ function renderPracticeInstructions(markdown: string) {
 function App() {
   const [language, setLanguage] =
     useState<AppLanguage>("en");
+
+  const [
+    sourcePreviewInspection,
+    setSourcePreviewInspection,
+  ] = useState<DataPreviewInspectionState | null>(
+    null
+  );
 
   const t = translations[language];
 
@@ -8341,6 +8349,9 @@ async function restoreWorkspaceVersion(
                               dataset="source"
                               title={ui.rawPreview}
                               description={ui.rawPreviewDescription}
+                              onInspectionChange={
+                                setSourcePreviewInspection
+                              }
                             />
                             </>
                             )}
@@ -9736,6 +9747,8 @@ async function restoreWorkspaceVersion(
               activeWorkspaceStage === "prepare" &&
               activePrepareStage === "understand",
             source_preview_filter_builder_available: true,
+            source_preview_inspection:
+              sourcePreviewInspection,
           }}
           open={mentorPanelOpen}
           onOpenChange={setMentorPanelOpen}

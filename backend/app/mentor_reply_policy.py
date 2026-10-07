@@ -45,6 +45,11 @@ def mentor_reply_rules() -> str:
       claim that it exists.
     - When a confirmed UI action can unblock the learner, give only that one
       immediate action; wait for the learner before giving the next click.
+    - Do not repeat an action that current UI state or recent learning history
+      shows the learner has already completed.
+    - In observe/reason, replace vague instructions such as "inspect the rows"
+      or "validate the business rule" with one concrete evidence question the
+      learner can answer from the current inspection state.
     - Do not jump from grain to dimension design, from reasoning to implementation,
       or from a validation conclusion to a new analysis.
     - Do not invent columns, values, business rules, or prior-project facts.

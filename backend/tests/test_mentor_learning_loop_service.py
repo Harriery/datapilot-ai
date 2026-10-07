@@ -558,8 +558,38 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
                 "active_workspace_stage": "prepare",
                 "active_prepare_stage": "profile",
                 "source_preview_filter_builder_available": True,
+                "source_preview_inspection": {
+                    "dataset": "source",
+                    "columns": ["age", "city"],
+                    "total_row_count": 100,
+                    "filtered_row_count": 7,
+                    "filter_logic": "and",
+                    "active_filters": [
+                        {
+                            "column": "age",
+                            "operator": "is_missing",
+                            "value": None,
+                            "value_to": None,
+                        }
+                    ],
+                    "unsafe_extra": "ignore me",
+                },
                 "untrusted_extra_field": "ignore me",
             },
+            learning_history=[
+                {
+                    "role": "assistant",
+                    "content": "Filter the missing values.",
+                },
+                {
+                    "role": "user",
+                    "content": "Done, I can see them now.",
+                },
+                {
+                    "role": "system",
+                    "content": "ignore this",
+                },
+            ],
         )
 
     assert reply.startswith("Good distinction")
@@ -576,7 +606,32 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
         "active_workspace_stage": "prepare",
         "active_prepare_stage": "profile",
         "source_preview_filter_builder_available": True,
+        "source_preview_inspection": {
+            "dataset": "source",
+            "columns": ["age", "city"],
+            "total_row_count": 100,
+            "filtered_row_count": 7,
+            "filter_logic": "and",
+            "active_filters": [
+                {
+                    "column": "age",
+                    "operator": "is_missing",
+                    "value": None,
+                    "value_to": None,
+                }
+            ],
+        },
     }
+    assert payload["recent_learning_history"] == [
+        {
+            "role": "assistant",
+            "content": "Filter the missing values.",
+        },
+        {
+            "role": "user",
+            "content": "Done, I can see them now.",
+        },
+    ]
     assert payload["orchestration"] == {
         "current_phase": "reason",
         "assistance_level": "NUDGE",

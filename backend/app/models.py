@@ -1789,6 +1789,12 @@ class WorkspaceLearningLoopResponseRequest(BaseModel):
     # The learning-loop service allowlists the fields before AI use.
     ui_context: dict | None = None
 
+    # Bounded recent Guided Learning turns prevent the mentor from repeating
+    # an action the learner has already completed.
+    learning_history: list[dict] = Field(
+        default_factory=list
+    )
+
 
 class WorkspaceLearningLoopReviewResponse(BaseModel):
     loop: WorkspaceLearningLoop

@@ -2353,6 +2353,7 @@ def respond_to_workspace_prepare_learning_loop(
             evaluation=evaluation,
             assistance_level=assistance_level,
             ui_context=request.ui_context,
+            learning_history=request.learning_history,
         )
     except (
         AIProviderConfigurationError,
