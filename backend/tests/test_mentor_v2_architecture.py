@@ -463,3 +463,68 @@ def test_action_planner_requires_overall_baseline_after_missing_subset_frequency
     assert action["id"] == "run_locked_baseline_frequency"
     assert loop.active_investigation["step"] == "baseline_frequency"
     assert loop.active_investigation["subset_output"] == "A 0.8\nB 0.2"
+
+
+
+def test_action_planner_pauses_for_code_explanation():
+    loop = _loop()
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": "age",
+        "comparison_column": "segment",
+        "step": "baseline_frequency",
+        "subset_output": "A 0.8\nB 0.2",
+        "last_processed_observation_id": "n1:c1:t1",
+    }
+
+    action = plan_guided_next_action(
+        learner_message=(
+            "Bu kod ne anlama geliyor? normalize nedir, dropna nedir?"
+        ),
+        loop=loop,
+        finding=_finding(),
+        mentor_context={
+            "execution_diagnosis": {
+                "status": "aligned_success",
+                "issue_code": "missing_scoped_frequency_check",
+                "observation_id": "n1:c1:t1",
+                "output": "A 0.8\nB 0.2",
+            },
+            "profile": {},
+            "live_state": {},
+        },
+    )
+
+    assert action is not None
+    assert action["id"] == "explain_locked_investigation_code"
+    assert action["kind"] == "teaching"
+    assert action["enforce_direct_reply"] is True
+    assert "normalize=True" in action["messages"]["tr"]
+    assert "dropna=False" in action["messages"]["tr"]
+    assert loop.active_investigation["step"] == "baseline_frequency"
+
+
+def test_action_planner_teaches_code_without_switching_investigation():
+    loop = _loop()
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": "age",
+        "comparison_column": "segment",
+        "step": "subset_frequency",
+    }
+
+    action = plan_guided_next_action(
+        learner_message="Ben bu kodu kendim yazamam, bu kod ne demek?",
+        loop=loop,
+        finding=_finding(),
+        mentor_context={
+            "execution_diagnosis": None,
+            "profile": {},
+            "live_state": {},
+        },
+    )
+
+    assert action is not None
+    assert action["id"] == "explain_locked_investigation_code"
+    assert action["comparison_column"] == "segment"
+    assert loop.active_investigation["comparison_column"] == "segment"
