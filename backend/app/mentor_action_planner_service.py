@@ -1238,7 +1238,7 @@ def _render_result_interpretation_locally(
                 f"Bu çıktı yalnızca {target} değeri eksik olan satırlardaki "
                 f"{comparison} dağılımını gösteriyor: {values}. "
                 f"Yani eksik grubun yapısını görüyoruz; ama bunun özel bir yoğunlaşma "
-                f"olup olmadığını söylemek için tüm verideki {comparison} dağılımıyla "
+                f"olup olmadığını söylemek için tüm verideki genel {comparison} dağılımıyla "
                 "karşılaştırmamız gerekir."
             )
         if language == "nl":
