@@ -30,7 +30,7 @@ _CODE_HELP_MARKERS = (
 )
 _CODE_EXPLANATION_MARKERS = (
     "bu kod ne", "kod ne anlama", "kod ne demek",
-    "kodu anlam", "kodu bilmiyorum", "kodu kendim yazamam",
+    "kodu anlamıyorum", "kodu anlamiyorum",
     "normalize ne", "normalize nedir", "dropna ne", "dropna nedir",
     "value_counts ne", "value_counts nedir",
     "what does this code", "what is normalize", "what is dropna",
@@ -492,12 +492,42 @@ def plan_guided_next_action(
 
     diagnosis = mentor_context.get("execution_diagnosis")
 
+    supervisor = mentor_context.get("supervisor")
+    if not isinstance(supervisor, dict):
+        supervisor = {}
+
     teaching_action = _code_teaching_action(
         learner_message=learner_message,
         investigation=investigation,
     )
     if teaching_action is not None:
         return teaching_action
+
+    if loop.current_phase == "decide":
+        return {
+            "id": "make_evidence_based_issue_decision",
+            "kind": "reasoning",
+            "priority": "current",
+            "control_id": None,
+            "goal": supervisor.get(
+                "next_objective"
+            ) or (
+                "Choose the treatment from the evidence already collected; "
+                "do not restart exploration."
+            ),
+            "supervisor_status": supervisor.get(
+                "status"
+            ),
+            "enforce_direct_reply": False,
+        }
+
+    if loop.current_phase in {
+        "implement",
+        "validate",
+        "explain",
+        "completed",
+    }:
+        return None
 
     # The context is built twice during one request. Do not process the same
     # notebook execution twice; return the already-selected next investigation step.
