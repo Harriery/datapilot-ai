@@ -227,7 +227,7 @@ def test_evaluate_prepare_phase_response_uses_phase_rubric():
 
     assert evaluation.success is True
     mock_runtime.assert_called_once_with(
-        "classifier"
+        "guided_evaluator"
     )
     mock_parse.assert_called_once()
 
@@ -540,7 +540,7 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
     runtime = MagicMock()
     runtime.client = MagicMock()
     runtime.provider = "groq"
-    runtime.model = "openai/gpt-oss-120b"
+    runtime.model = "openai/gpt-oss-20b"
 
     with patch(
         "backend.app.mentor_learning_loop_service.get_ai_runtime",
@@ -614,11 +614,13 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
         )
 
     assert reply.startswith("Good distinction")
-    mock_runtime.assert_called_once_with("mentor")
+    mock_runtime.assert_called_once_with(
+        "guided_tutor"
+    )
 
     kwargs = mock_parse.call_args.kwargs
     assert kwargs["provider"] == "groq"
-    assert kwargs["model"] == "openai/gpt-oss-120b"
+    assert kwargs["model"] == "openai/gpt-oss-20b"
 
     payload = __import__("json").loads(
         kwargs["input"]
@@ -661,13 +663,9 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
         },
     ]
     assert payload["mentor_context"] == {
-        "product": {
-            "path": "prepare.profile",
-        },
         "playbook": {
             "goal": "Inspect a pattern.",
         },
-        "execution_diagnosis": None,
         "learner": {
             "practice_priority": "medium",
         },
@@ -920,7 +918,16 @@ def test_prepare_mentor_explicit_turkish_request_updates_loop_language():
 
 
 def test_zero_ai_support_turn_uses_workflow_action():
-    loop = _loop()
+    workspace = make_workspace()
+    finding = make_finding()
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+    loop.current_phase = "reason"
     loop.workflow_state = "SUBSET_RESULT_READY"
 
     reply = render_zero_ai_prepare_support_reply(
