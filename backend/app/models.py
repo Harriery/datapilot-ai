@@ -1783,6 +1783,12 @@ class WorkspaceLearningLoop(BaseModel):
         default_factory=dict
     )
 
+    # Mentor V3 project/issue supervisor snapshot. This stores only bounded
+    # control state; raw data and large outputs remain outside the model.
+    supervisor_state: dict = Field(
+        default_factory=dict
+    )
+
 
 class WorkspaceLearningLoopResponse(BaseModel):
     loop: WorkspaceLearningLoop
