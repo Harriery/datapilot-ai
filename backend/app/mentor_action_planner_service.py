@@ -28,6 +28,14 @@ _CODE_HELP_MARKERS = (
     "nasil yaz", "nasıl yaz", "what do i write", "what code",
     "show me the code",
 )
+_CODE_EXPLANATION_MARKERS = (
+    "bu kod ne", "kod ne anlama", "kod ne demek",
+    "kodu anlam", "kodu bilmiyorum", "kodu kendim yazamam",
+    "normalize ne", "normalize nedir", "dropna ne", "dropna nedir",
+    "value_counts ne", "value_counts nedir",
+    "what does this code", "what is normalize", "what is dropna",
+    "explain the code",
+)
 
 
 def _contains_any(message: str, markers: tuple[str, ...]) -> bool:
@@ -216,6 +224,88 @@ def _baseline_code(comparison: str) -> str:
     )
 
 
+def _code_teaching_action(
+    *,
+    learner_message: str,
+    investigation: dict | None,
+) -> dict | None:
+    if (
+        not isinstance(investigation, dict)
+        or not _contains_any(
+            learner_message,
+            _CODE_EXPLANATION_MARKERS,
+        )
+    ):
+        return None
+
+    target = str(
+        investigation.get("target_column")
+        or "target"
+    )
+    comparison = str(
+        investigation.get("comparison_column")
+        or "comparison"
+    )
+    step = investigation.get("step")
+
+    if step == "baseline_frequency":
+        code = _baseline_code(comparison)
+        tr = (
+            f"Bu kod tüm raw veride {comparison} dağılımını ölçüyor. "
+            f"value_counts() değerleri sayar; normalize=True sayıyı oran olarak verir "
+            f"(0.52 ≈ %52); dropna=False boş {comparison} değerlerini de sonuçta tutar. "
+            "Kodu ezberlemen gerekmiyor; şu an mantığını anlaman yeterli."
+        )
+        en = (
+            f"This code measures the overall {comparison} distribution in raw data. "
+            "value_counts() counts values, normalize=True returns proportions, and "
+            "dropna=False keeps missing values in the result."
+        )
+        nl = (
+            f"Deze code meet de totale verdeling van {comparison}. "
+            "value_counts() telt waarden, normalize=True geeft verhoudingen en "
+            "dropna=False houdt ontbrekende waarden in het resultaat."
+        )
+    else:
+        code = _subset_code(target, comparison)
+        tr = (
+            f"Bu kod önce {target} değeri eksik olan satırları seçiyor, sonra yalnızca "
+            f"o satırlardaki {comparison} dağılımını ölçüyor. value_counts() değerleri "
+            "sayar; normalize=True oran verir; dropna=False boş değerleri de sayımda tutar. "
+            "Kodu ezberlemen gerekmiyor."
+        )
+        en = (
+            f"This code first keeps rows where {target} is missing, then measures "
+            f"the {comparison} distribution inside that subset. normalize=True returns "
+            "proportions and dropna=False includes missing values."
+        )
+        nl = (
+            f"Deze code houdt eerst rijen waar {target} ontbreekt en meet daarna "
+            f"de verdeling van {comparison}. normalize=True geeft verhoudingen en "
+            "dropna=False telt ontbrekende waarden mee."
+        )
+
+    return {
+        "id": "explain_locked_investigation_code",
+        "kind": "teaching",
+        "priority": "blocking",
+        "control_id": None,
+        "goal": (
+            "Explain the current investigation code before assigning "
+            "another analysis action."
+        ),
+        "code_template": code,
+        "target_column": target,
+        "comparison_column": comparison,
+        "enforce_direct_reply": True,
+        "messages": {
+            "tr": tr,
+            "nl": nl,
+            "en": en,
+        },
+    }
+
+
 def _navigation_or_subset_action(
     *,
     learner_message: str,
@@ -383,6 +473,13 @@ def plan_guided_next_action(
     )
 
     diagnosis = mentor_context.get("execution_diagnosis")
+
+    teaching_action = _code_teaching_action(
+        learner_message=learner_message,
+        investigation=investigation,
+    )
+    if teaching_action is not None:
+        return teaching_action
 
     # The context is built twice during one request. Do not process the same
     # notebook execution twice; return the already-selected next investigation step.
