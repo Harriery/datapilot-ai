@@ -23,6 +23,7 @@ from backend.app.practice_service import (
     validate_practice_attempt,
     get_python_data_structure_variant,
     get_next_practice_hint,
+    get_practice_focus_misconception,
 )
 from backend.app.practice_catalog_service import (
     get_practice_catalog,
@@ -1129,3 +1130,101 @@ def test_practice_v2_catalog_has_no_fixed_question_quota():
             topic,
             "applied_target",
         )
+
+
+def test_practice_focus_uses_most_frequent_misconception():
+    evidence = [
+        {"context_json": '{"misconception":"filter_scope_confusion"}'},
+        {"context_json": '{"misconception":"dataset_context_confusion"}'},
+        {"context_json": '{"misconception":"filter_scope_confusion"}'},
+    ]
+    with patch(
+        "backend.app.practice_service.database.get_learning_evidence_by_skill",
+        return_value=evidence,
+    ):
+        result = get_practice_focus_misconception(
+            learner_id="learner-001",
+            skill_name="null_analysis",
+        )
+    assert result == "filter_scope_confusion"
+
+
+def test_null_analysis_practice_targets_filter_scope_confusion():
+    recommendation = PracticeRecommendationResponse(
+        learner_id="learner-001",
+        recommendation=PracticeRecommendation(
+            skill_name="null_analysis",
+            priority="high",
+            difficulty="easy",
+            reason="Repeated filter scope confusion.",
+        ),
+    )
+    progress = LearnerProgressResponse(
+        learner_id="learner-001",
+        skills=[
+            LearnerSkillProgress(
+                skill_name="null_analysis",
+                status="learning",
+                attempts=2,
+                successful_attempts=1,
+                success_rate=0.5,
+                last_assistance_level="GUIDE",
+                independence_trend="stable",
+                practice_priority="high",
+                misconceptions=["filter_scope_confusion"],
+            )
+        ],
+    )
+    with patch(
+        "backend.app.practice_service.get_practice_recommendation",
+        return_value=recommendation,
+    ), patch(
+        "backend.app.practice_service.get_practice_focus_misconception",
+        return_value="filter_scope_confusion",
+    ), patch(
+        "backend.app.practice_service.get_learner_progress",
+        return_value=progress,
+    ), patch(
+        "backend.app.practice_service.database.save_practice_challenge",
+    ) as mock_save:
+        result = create_practice_challenge(
+            learner_id="learner-001"
+        )
+    assert result.challenge.challenge_type == "code"
+    assert "Tüm dataset üzerinde sayım yapma" in result.challenge.instructions
+    record = mock_save.call_args.kwargs["record"]
+    assert record.validation_spec.validation_type == "exact_output"
+    assert record.validation_spec.expected_output == "2"
+
+
+def test_null_analysis_practice_targets_dataset_context_confusion():
+    recommendation = PracticeRecommendationResponse(
+        learner_id="learner-001",
+        recommendation=PracticeRecommendation(
+            skill_name="null_analysis",
+            priority="high",
+            difficulty="easy",
+            reason="Repeated dataset context confusion.",
+        ),
+    )
+    progress = LearnerProgressResponse(
+        learner_id="learner-001",
+        skills=[],
+    )
+    with patch(
+        "backend.app.practice_service.get_practice_recommendation",
+        return_value=recommendation,
+    ), patch(
+        "backend.app.practice_service.get_practice_focus_misconception",
+        return_value="dataset_context_confusion",
+    ), patch(
+        "backend.app.practice_service.get_learner_progress",
+        return_value=progress,
+    ), patch(
+        "backend.app.practice_service.database.save_practice_challenge",
+    ):
+        result = create_practice_challenge(
+            learner_id="learner-001"
+        )
+    assert "Raw ve working" in result.challenge.title
+    assert "raw_records" in (result.challenge.context_code or "")
