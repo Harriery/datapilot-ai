@@ -17,12 +17,20 @@ _SECOND_FILTER_MARKERS = (
     "yeni", "ayrıca", "ayrica", "ikinci", "bir daha",
     "another", "new", "second", "which", "hangi",
 )
+_NEXT_STEP_MARKERS = (
+    "ne yap", "nasil", "nasıl", "adim adim", "adım adım",
+    "nereden", "nerde", "nerede", "yonlendir", "yönlendir",
+    "kontrol edicem", "kontrol edeceğim", "inceleyecegim",
+    "inceleyeceğim", "what next", "how do", "where do",
+)
+_CODE_HELP_MARKERS = (
+    "ne yaz", "kodu bilmiyorum", "kod bilmiyorum", "kod ver",
+    "nasil yaz", "nasıl yaz", "what do i write", "what code",
+    "show me the code",
+)
 
 
-def _contains_any(
-    message: str,
-    markers: tuple[str, ...],
-) -> bool:
+def _contains_any(message: str, markers: tuple[str, ...]) -> bool:
     normalized = message.casefold()
     return any(marker in normalized for marker in markers)
 
@@ -46,6 +54,305 @@ def _active_missing_filter(
     return False
 
 
+def _profile_columns(profile: dict) -> list[str]:
+    columns = profile.get("columns")
+    if not isinstance(columns, list):
+        return []
+    return [str(item) for item in columns if isinstance(item, str)]
+
+
+def _mentioned_comparison_column(
+    message: str,
+    *,
+    profile: dict,
+    target_name: str | None,
+) -> str | None:
+    normalized = message.casefold()
+    for column in _profile_columns(profile):
+        if target_name is not None and column == target_name:
+            continue
+        if column.casefold() in normalized:
+            return column
+    return None
+
+
+def _choose_pattern_column(
+    *,
+    profile: dict,
+    target_name: str | None,
+) -> str | None:
+    """
+    Choose a dataset-agnostic pattern-check column from real profile metadata.
+
+    Prefer low-cardinality categorical/boolean columns. Numeric low-cardinality
+    columns are only a fallback. We never infer business meaning from names.
+    """
+    columns = _profile_columns(profile)
+    data_types = profile.get("data_types")
+    distinct_counts = profile.get("distinct_counts")
+    row_count = int(profile.get("row_count") or 0)
+
+    if not isinstance(data_types, dict):
+        data_types = {}
+    if not isinstance(distinct_counts, dict):
+        distinct_counts = {}
+
+    categorical = []
+    numeric_fallback = []
+
+    for index, column in enumerate(columns):
+        if column == target_name:
+            continue
+
+        distinct = distinct_counts.get(column)
+        if not isinstance(distinct, int) or distinct < 2:
+            continue
+
+        dtype = str(data_types.get(column) or "").casefold()
+        max_reasonable = min(30, max(8, int((row_count or 64) ** 0.5)))
+
+        if distinct > max_reasonable:
+            continue
+
+        if any(token in dtype for token in ("object", "string", "category", "bool")):
+            categorical.append((distinct, index, column))
+            continue
+
+        if any(token in dtype for token in ("int", "float", "number")) and distinct <= 12:
+            numeric_fallback.append((distinct, index, column))
+
+    pool = categorical or numeric_fallback
+    if not pool:
+        return None
+
+    pool.sort(key=lambda item: (item[0], item[1]))
+    return pool[0][2]
+
+
+def _locked_investigation(
+    loop: WorkspaceLearningLoop,
+    *,
+    finding: DataQualityFinding,
+) -> dict | None:
+    value = loop.active_investigation
+    if not isinstance(value, dict) or not value:
+        return None
+
+    if (
+        value.get("kind") != "missingness_pattern_frequency"
+        or value.get("target_column") != finding.column
+    ):
+        return None
+
+    return value
+
+
+def _start_investigation_if_needed(
+    *,
+    learner_message: str,
+    loop: WorkspaceLearningLoop,
+    finding: DataQualityFinding,
+    mentor_context: dict,
+    missing_filter_active: bool,
+) -> dict | None:
+    existing = _locked_investigation(
+        loop,
+        finding=finding,
+    )
+    if existing is not None:
+        return existing
+
+    if not missing_filter_active:
+        return None
+
+    wants_next_step = (
+        _contains_any(learner_message, _NEXT_STEP_MARKERS)
+        or _contains_any(learner_message, _FREQUENCY_MARKERS)
+    )
+    if not wants_next_step:
+        return None
+
+    profile = mentor_context.get("profile")
+    if not isinstance(profile, dict):
+        profile = {}
+
+    comparison = _mentioned_comparison_column(
+        learner_message,
+        profile=profile,
+        target_name=finding.column,
+    )
+    if comparison is None:
+        comparison = _choose_pattern_column(
+            profile=profile,
+            target_name=finding.column,
+        )
+
+    if comparison is None:
+        return None
+
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": finding.column,
+        "comparison_column": comparison,
+        "step": "subset_frequency",
+        "subset_output": None,
+        "baseline_output": None,
+        "last_processed_observation_id": None,
+    }
+    return loop.active_investigation
+
+
+def _subset_code(target: str, comparison: str) -> str:
+    return (
+        f"df.loc[df[{target!r}].isna(), {comparison!r}]"
+        ".value_counts(normalize=True, dropna=False)"
+    )
+
+
+def _baseline_code(comparison: str) -> str:
+    return (
+        f"df[{comparison!r}]"
+        ".value_counts(normalize=True, dropna=False)"
+    )
+
+
+def _navigation_or_subset_action(
+    *,
+    learner_message: str,
+    live_state: dict,
+    investigation: dict,
+) -> dict:
+    target = str(investigation["target_column"])
+    comparison = str(investigation["comparison_column"])
+
+    prepare_stage = live_state.get("active_prepare_stage")
+    workbench_view = live_state.get("workbench_view")
+    notebook = live_state.get("selected_notebook")
+    notebook_count = int(live_state.get("notebook_count", 0) or 0)
+
+    if prepare_stage != "workbench":
+        return {
+            "id": "open_workbench_for_locked_investigation",
+            "kind": "navigation",
+            "priority": "blocking",
+            "control_id": "workspace.prepare.workbench",
+            "goal": (
+                f"Keep the locked {target} missingness investigation using "
+                f"{comparison}; move to a tool that can calculate proportions."
+            ),
+            "enforce_direct_reply": True,
+            "messages": {
+                "tr": (
+                    f"Hedefimiz değişmiyor: {target} eksik satırlarında {comparison} "
+                    "değerlerinin yoğunlaşıp yoğunlaşmadığını kontrol edeceğiz. "
+                    "Source Preview oran hesaplamıyor; ilk adım olarak Prepare > Workbench’e geç."
+                ),
+                "nl": (
+                    f"Ons doel blijft hetzelfde: controleer de verdeling van {comparison} "
+                    f"binnen rijen waar {target} ontbreekt. Ga eerst naar Prepare > Workbench."
+                ),
+                "en": (
+                    f"Keep the same goal: check whether {comparison} is concentrated "
+                    f"where {target} is missing. First go to Prepare > Workbench."
+                ),
+            },
+        }
+
+    if workbench_view != "notebook":
+        return {
+            "id": "open_notebook_for_locked_investigation",
+            "kind": "navigation",
+            "priority": "blocking",
+            "control_id": "workbench.notebook",
+            "goal": "Open Notebook without changing the locked investigation target.",
+            "enforce_direct_reply": True,
+            "messages": {
+                "tr": (
+                    f"{target} → {comparison} araştırmasına devam ediyoruz. "
+                    "Şimdi Workbench içindeki Notebook görünümünü aç."
+                ),
+                "nl": f"We gaan verder met {target} → {comparison}. Open nu Notebook.",
+                "en": f"Continue the {target} → {comparison} check. Open Notebook now.",
+            },
+        }
+
+    if not isinstance(notebook, dict):
+        if notebook_count > 0:
+            message_tr = (
+                f"Yeni bir analiz hedefi seçme; {target} → {comparison} aynı kalıyor. "
+                "Notebook bölümünden mevcut notebook’lardan birini aç."
+            )
+            control_id = "artifact.notebook"
+        else:
+            message_tr = (
+                f"{target} → {comparison} kontrolü için Workbench’te New notebook düğmesine bas."
+            )
+            control_id = "artifact.new_notebook"
+
+        return {
+            "id": "select_or_create_notebook_for_locked_investigation",
+            "kind": "navigation",
+            "priority": "blocking",
+            "control_id": control_id,
+            "goal": "Open a notebook while preserving the current investigation.",
+            "enforce_direct_reply": True,
+            "messages": {
+                "tr": message_tr,
+                "nl": "Open een notebook en houd hetzelfde onderzoeksdoel aan.",
+                "en": "Open a notebook and keep the same investigation target.",
+            },
+        }
+
+    if notebook.get("dataset_kind") != "raw":
+        return {
+            "id": "select_raw_notebook_dataset",
+            "kind": "navigation",
+            "priority": "blocking",
+            "control_id": "notebook.dataset",
+            "value": "raw",
+            "goal": "Use original source rows for the locked missingness investigation.",
+            "enforce_direct_reply": True,
+            "messages": {
+                "tr": (
+                    f"Notebook’taki Dataset menüsünden Raw source sample seç. "
+                    f"{target} eksiklerini orijinal veride {comparison} ile karşılaştıracağız."
+                ),
+                "nl": "Kies in Notebook bij Dataset voor Raw source sample.",
+                "en": "In Notebook, set Dataset to Raw source sample.",
+            },
+        }
+
+    code = _subset_code(target, comparison)
+    explicit_code_help = _contains_any(
+        learner_message,
+        _CODE_HELP_MARKERS,
+    )
+
+    return {
+        "id": "run_locked_subset_frequency",
+        "kind": "analysis",
+        "priority": "current",
+        "control_id": "notebook.run_cell",
+        "goal": (
+            f"Calculate normalized {comparison} frequencies only in rows where "
+            f"{target} is missing. Do not change the comparison column."
+        ),
+        "target_column": target,
+        "comparison_column": comparison,
+        "code_template": code,
+        "enforce_direct_reply": explicit_code_help,
+        "messages": {
+            "tr": (
+                "Yeni notebook açmana gerek yok; açık notebook’u kullan. "
+                f"Bir Python hücresine şu kodu yaz ve Run cell’a bas: "
+                f"{code}"
+            ),
+            "nl": f"Gebruik het geopende notebook. Voer deze code uit: {code}",
+            "en": f"Use the open notebook. Run this code: {code}",
+        },
+    }
+
+
 def plan_guided_next_action(
     *,
     learner_message: str,
@@ -54,10 +361,78 @@ def plan_guided_next_action(
     mentor_context: dict,
 ) -> dict | None:
     """
-    Choose only deterministic product actions/blockers.
-    It never chooses the semantic data treatment for the learner.
+    Choose deterministic product actions and preserve the active investigation.
+    The LLM explains/interprets; it does not get to silently switch the task.
     """
+    live_state = mentor_context.get("live_state")
+    if not isinstance(live_state, dict):
+        live_state = {}
+
+    target_name = finding.column
+    missing_filter_active = _active_missing_filter(
+        live_state,
+        target_name,
+    )
+
+    investigation = _start_investigation_if_needed(
+        learner_message=learner_message,
+        loop=loop,
+        finding=finding,
+        mentor_context=mentor_context,
+        missing_filter_active=missing_filter_active,
+    )
+
     diagnosis = mentor_context.get("execution_diagnosis")
+
+    # The context is built twice during one request. Do not process the same
+    # notebook execution twice; return the already-selected next investigation step.
+    if (
+        isinstance(investigation, dict)
+        and isinstance(diagnosis, dict)
+        and diagnosis.get("observation_id")
+        and investigation.get("last_processed_observation_id")
+        == diagnosis.get("observation_id")
+    ):
+        if investigation.get("step") == "baseline_frequency":
+            comparison = str(investigation["comparison_column"])
+            code = _baseline_code(comparison)
+            return {
+                "id": "run_locked_baseline_frequency",
+                "kind": "analysis",
+                "priority": "current",
+                "control_id": "notebook.run_cell",
+                "goal": (
+                    f"Calculate the overall raw-data {comparison} proportions "
+                    "for a valid baseline comparison."
+                ),
+                "comparison_column": comparison,
+                "code_template": code,
+                "enforce_direct_reply": True,
+                "messages": {
+                    "tr": (
+                        f"İlk oran yalnızca eksik satırlara aitti. Şimdi karşılaştırma için "
+                        f"tüm raw veride {comparison} oranını çıkar. Bir Python hücresinde "
+                        f"şunu çalıştır: {code}"
+                    ),
+                    "nl": f"Bereken nu de totale {comparison}-verdeling met: {code}",
+                    "en": f"Now calculate the overall {comparison} distribution with: {code}",
+                },
+            }
+        if investigation.get("step") == "interpret":
+            return {
+                "id": "interpret_locked_pattern",
+                "kind": "reasoning",
+                "priority": "current",
+                "control_id": None,
+                "goal": (
+                    "Compare the missing-subset proportions with the overall baseline "
+                    "before choosing any treatment. Do not switch comparison columns."
+                ),
+                "comparison_column": investigation.get("comparison_column"),
+                "subset_output": investigation.get("subset_output"),
+                "baseline_output": investigation.get("baseline_output"),
+                "enforce_direct_reply": False,
+            }
 
     if isinstance(diagnosis, dict):
         status = diagnosis.get("status")
@@ -91,15 +466,85 @@ def plan_guided_next_action(
                         "Notebook’taki Dataset menüsünden Raw source sample seç. "
                         "Orijinal eksik kayıtları working dataset’te aramayacağız."
                     ),
-                    "nl": (
-                        "Kies in Notebook bij Dataset voor Raw source sample. "
-                        "Onderzoek de oorspronkelijke ontbrekende rijen niet in de working dataset."
-                    ),
-                    "en": (
-                        "In Notebook, set Dataset to Raw source sample. "
-                        "Do not investigate original missing rows in the working dataset."
-                    ),
+                    "nl": "Kies in Notebook bij Dataset voor Raw source sample.",
+                    "en": "In Notebook, set Dataset to Raw source sample.",
                 },
+            }
+
+        if issue_code == "investigation_target_mismatch":
+            comparison = (
+                investigation.get("comparison_column")
+                if isinstance(investigation, dict)
+                else None
+            )
+            return {
+                "id": "repair_locked_investigation_target",
+                "kind": "code_reasoning",
+                "priority": "blocking",
+                "control_id": None,
+                "goal": (
+                    f"Return to the locked comparison column {comparison}; "
+                    "do not silently switch to another attribute."
+                ),
+                "comparison_column": comparison,
+                "enforce_direct_reply": True,
+                "messages": {
+                    "tr": (
+                        f"Burada hedefi değiştirmeyelim. Şu anki araştırmamız "
+                        f"{target_name} eksikleri ile {comparison} arasındaki örüntü; "
+                        f"başka kolona geçmeden {comparison} kontrolünü tamamla."
+                    ),
+                    "nl": f"Blijf bij de vastgelegde vergelijking met {comparison}.",
+                    "en": f"Keep the locked comparison with {comparison}; do not switch columns yet.",
+                },
+            }
+
+        if issue_code == "missing_scoped_frequency_check" and isinstance(investigation, dict):
+            investigation["subset_output"] = diagnosis.get("output")
+            investigation["step"] = "baseline_frequency"
+            investigation["last_processed_observation_id"] = diagnosis.get("observation_id")
+            comparison = str(investigation["comparison_column"])
+            code = _baseline_code(comparison)
+            return {
+                "id": "run_locked_baseline_frequency",
+                "kind": "analysis",
+                "priority": "current",
+                "control_id": "notebook.run_cell",
+                "goal": (
+                    f"Calculate overall {comparison} proportions before interpreting "
+                    "whether the missing subset is concentrated."
+                ),
+                "comparison_column": comparison,
+                "code_template": code,
+                "enforce_direct_reply": True,
+                "messages": {
+                    "tr": (
+                        f"İlk sonucu aldık; ama tek başına yeterli değil. "
+                        f"Şimdi tüm raw veride {comparison} oranını karşılaştırma tabanı olarak çıkar. "
+                        f"Bir Python hücresinde şunu çalıştır: {code}"
+                    ),
+                    "nl": f"Bereken nu de totale {comparison}-verdeling met: {code}",
+                    "en": f"Now calculate the overall {comparison} distribution with: {code}",
+                },
+            }
+
+        if issue_code == "baseline_frequency_check" and isinstance(investigation, dict):
+            investigation["baseline_output"] = diagnosis.get("output")
+            investigation["step"] = "interpret"
+            investigation["last_processed_observation_id"] = diagnosis.get("observation_id")
+            return {
+                "id": "interpret_locked_pattern",
+                "kind": "reasoning",
+                "priority": "current",
+                "control_id": None,
+                "goal": (
+                    "Compare subset and baseline proportions. Explain concentration "
+                    "without claiming causality, then ask for the learner's interpretation."
+                ),
+                "comparison_column": investigation.get("comparison_column"),
+                "subset_output": investigation.get("subset_output"),
+                "baseline_output": investigation.get("baseline_output"),
+                "enforce_direct_reply": False,
             }
 
         if status in {"premature_action", "logic_mismatch", "off_task"}:
@@ -122,16 +567,6 @@ def plan_guided_next_action(
     ):
         return None
 
-    live_state = mentor_context.get("live_state")
-    if not isinstance(live_state, dict):
-        live_state = {}
-
-    target_name = finding.column
-    missing_filter_active = _active_missing_filter(
-        live_state,
-        target_name,
-    )
-
     if (
         missing_filter_active
         and _contains_any(learner_message, _FILTER_MARKERS)
@@ -150,24 +585,26 @@ def plan_guided_next_action(
                     f"Yeni filtre ekleme. {target_label} = Is missing filtresi açık "
                     "kalsın; ikinci filtre satırları daraltır, dağılımı hesaplamaz."
                 ),
-                "nl": (
-                    f"Voeg geen nieuw filter toe. Laat {target_label} = Is missing "
-                    "actief; een tweede filter beperkt rijen en berekent geen verdeling."
-                ),
-                "en": (
-                    f"Do not add another filter. Keep {target_label} = Is missing "
-                    "active; a second filter narrows rows and does not calculate a distribution."
-                ),
+                "nl": f"Voeg geen nieuw filter toe. Laat {target_label} = Is missing actief.",
+                "en": f"Do not add another filter. Keep {target_label} = Is missing active.",
             },
         }
+
+    if isinstance(investigation, dict):
+        return _navigation_or_subset_action(
+            learner_message=learner_message,
+            live_state=live_state,
+            investigation=investigation,
+        )
 
     if not _contains_any(learner_message, _FREQUENCY_MARKERS):
         return None
 
+    # Backward-compatible frequency navigation when a caller has no profile
+    # metadata to create a locked investigation.
     prepare_stage = live_state.get("active_prepare_stage")
     workbench_view = live_state.get("workbench_view")
     notebook = live_state.get("selected_notebook")
-    notebook_count = int(live_state.get("notebook_count", 0) or 0)
 
     if prepare_stage != "workbench":
         return {
@@ -199,33 +636,7 @@ def plan_guided_next_action(
             },
         }
 
-    if not isinstance(notebook, dict):
-        if notebook_count > 0:
-            messages = {
-                "tr": "Notebook bölümünden mevcut notebook’lardan birini aç.",
-                "nl": "Open een bestaand notebook in het Notebook-gedeelte.",
-                "en": "Open one of the existing notebooks in the Notebook section.",
-            }
-            control_id = "artifact.notebook"
-        else:
-            messages = {
-                "tr": "Workbench’te New notebook düğmesine bas.",
-                "nl": "Klik in Workbench op New notebook.",
-                "en": "In Workbench, click New notebook.",
-            }
-            control_id = "artifact.new_notebook"
-
-        return {
-            "id": "select_or_create_notebook",
-            "kind": "navigation",
-            "priority": "blocking",
-            "control_id": control_id,
-            "goal": "Open a notebook before doing the calculation.",
-            "enforce_direct_reply": True,
-            "messages": messages,
-        }
-
-    if notebook.get("dataset_kind") != "raw":
+    if isinstance(notebook, dict) and notebook.get("dataset_kind") != "raw":
         return {
             "id": "select_raw_notebook_dataset",
             "kind": "navigation",
@@ -235,34 +646,13 @@ def plan_guided_next_action(
             "goal": "Use original source rows for missing-value investigation.",
             "enforce_direct_reply": True,
             "messages": {
-                "tr": (
-                    "Notebook’taki Dataset menüsünden Raw source sample seç. "
-                    "Working dataset önceki cleaning adımlarını içeriyor."
-                ),
-                "nl": (
-                    "Kies in Notebook bij Dataset voor Raw source sample. "
-                    "De working dataset bevat al eerdere opschoningsstappen."
-                ),
-                "en": (
-                    "In Notebook, set Dataset to Raw source sample. "
-                    "The working dataset already contains prior cleaning steps."
-                ),
+                "tr": "Notebook’taki Dataset menüsünden Raw source sample seç.",
+                "nl": "Kies in Notebook bij Dataset voor Raw source sample.",
+                "en": "In Notebook, set Dataset to Raw source sample.",
             },
         }
 
-    return {
-        "id": "perform_scoped_frequency_check",
-        "kind": "analysis",
-        "priority": "current",
-        "control_id": "notebook.run_cell",
-        "goal": (
-            "Use the raw notebook to calculate the requested frequency only "
-            "within rows where the target column is missing. Teach the smallest "
-            "code step appropriate to the assistance level."
-        ),
-        "target_column": target_name,
-        "enforce_direct_reply": False,
-    }
+    return None
 
 
 def render_planned_direct_reply(
