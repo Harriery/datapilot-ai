@@ -34,6 +34,7 @@ from backend.app.ai_usage_guard import (
     guarded_responses_create,
 )
 from backend.app.ai_provider_service import (
+    get_ai_runtime,
     get_ai_runtime_config,
 )
 from backend.app.mentor_workspace_context_service import (
@@ -259,11 +260,15 @@ def chat(request: ChatRequest):
                     )
                 )
 
-            response = guarded_responses_create(
-                client,
-                purpose="chat_fallback",
+            runtime = get_ai_runtime(
+                "mentor"
+            )
 
-                model="gpt-5-mini",
+            response = guarded_responses_create(
+                runtime.client,
+                provider=runtime.provider,
+                purpose="chat_fallback",
+                model=runtime.model,
                 instructions=fallback_instructions,
                 input=history,
             )

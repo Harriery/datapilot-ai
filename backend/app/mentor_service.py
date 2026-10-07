@@ -1,5 +1,4 @@
 import json
-from openai import OpenAI
 from backend.app.models import (
     MentorDecision,
     SkillDetection,
@@ -15,9 +14,7 @@ from backend.app.models import (
     DataEngineeringTaskTransformationResponse,
 )
 import backend.app.database as database
-import os
 import pandas as pd
-from dotenv import load_dotenv
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
 )
@@ -25,28 +22,27 @@ from backend.app.ai_usage_guard import (
     guarded_responses_create,
     guarded_responses_parse,
 )
+from backend.app.ai_provider_service import (
+    get_ai_runtime,
+)
 
 from backend.app.task_service import (
     get_current_task_step,
     apply_validation_result_to_task,
 )
 from backend.app.mentor_classifier_policy import (
+    classifier_generation_kwargs,
     learning_evidence_classifier_rules,
+)
+from backend.app.mentor_orchestration_service import (
+    determine_assistance_level,
 )
 from backend.app.mentor_misconception_taxonomy import (
     normalize_misconception,
 )
 
 # MentorDecision bizim models.py dosyasında oluşturduğumuz Pydantic modelidir.
-# AI'dan gelecek mentor kararının hangi alanlara sahip olması gerektiğini tanımlar.
-
-load_dotenv()
-
-# OpenAI API anahtarını ortam değişkeninden alır.
-api_key = os.getenv("OPENAI_API_KEY")
-
-# OpenAI ile iletişim kuracak istemciyi oluşturur.
-client = OpenAI(api_key=api_key)
+# Provider/model selection is centralized in ai_provider_service.
 
 
 # Mentor sisteminin MVP'de takip ettiği skill'ler.
@@ -163,51 +159,34 @@ def generate_mentor_decision(
     learning_evidence: list[dict],
     current_message: str,
 ):
-    
-    prompt = build_mentor_decision_prompt(learner_profile, skill_state,learning_evidence, current_message)
+    """
+    Assistance level is deterministic in Mentor V2.
+    Historical evidence remains available to learner/progress systems, while
+    the current message can immediately increase support when the learner is
+    stuck.
+    """
+    skill_name = str(
+        skill_state.get("skill_name")
+        or ""
+    )
+    skill_status = str(
+        skill_state.get("status")
+        or "new"
+    )
 
-    instructions = """
-            You are an adaptive Data Engineering mentor.
+    assistance_level = determine_assistance_level(
+        skill_status=skill_status,
+        learner_message=current_message,
+    )
 
-            Choose the minimum assistance level needed for the learner's next correct step.
-
-            Assistance levels:
-            - NONE: learner can continue independently
-            - NUDGE: learner only needs a small hint
-            - GUIDE: learner needs step-by-step direction
-            - TEACH: learner needs the concept explained
-            - DEMONSTRATE: learner needs a concrete example
-
-            Base your decision on the learner profile, skill state,
-            learning evidence, and current message.
-
-            The current message is an immediate assistance signal:
-            if the learner explicitly says they do not understand, do not know
-            what to do, or asks to be taught step by step, do NOT choose NONE
-            or NUDGE merely because older evidence was strong. Choose GUIDE,
-            TEACH, or DEMONSTRATE as appropriate for this turn.
-            Older evidence describes capability; it must not override an explicit
-            request for more support in the current task.
-            """
-
-
-
-# parse():
-# AI cevabını düz metin olarak almak yerine,
-# verdiğimiz Pydantic modeline göre yapılandırılmış şekilde almamızı sağlar.
-#
-# text_format=MentorDecision:
-# "AI cevabı bizim MentorDecision modelimizin yapısına uygun olsun" demektir.
-    response = guarded_responses_parse(
-        client,
-        purpose="mentor",
-  # parse cevabi (basemodeldeki) sablona gore olusturdemek.
-    model="gpt-5-mini",
-    input=prompt,               # → AI NEYE BAKARAK karar versin?
-    instructions=instructions,  # → AI NASIL karar versin?
-    text_format=MentorDecision, # AI KARARI HANGİ ŞEKİLDE versin? model.py deki olusturdugumuz model
-)
-    return response.output_parsed   # MentorDecision modeline dönüştürülmüş asıl sonuç
+    return MentorDecision(
+        skill_name=skill_name,
+        assistance_level=assistance_level,
+        reason=(
+            "Deterministic Mentor V2 assistance policy based on "
+            f"skill_status={skill_status} and the current support request."
+        ),
+    )
 
 
 #  output_parsed Mesela prompt kabaca şöyle görünür:
@@ -314,6 +293,38 @@ def _workspace_product_path(
     return None
 
 
+def _is_contextual_stage_message(
+    message: str,
+) -> bool:
+    normalized = message.casefold()
+    markers = (
+        "burada",
+        "burda",
+        "şimdi",
+        "simdi",
+        "bunu",
+        "bunun",
+        "hangi buton",
+        "hangi seçenek",
+        "hangi secenek",
+        "ne yap",
+        "nasıl",
+        "nasil",
+        "doğru mu",
+        "dogru mu",
+        "here",
+        "this",
+        "what next",
+        "which button",
+        "which option",
+        "is this correct",
+    )
+    return any(
+        marker in normalized
+        for marker in markers
+    )
+
+
 def detect_relevant_skill(
     current_message: str,
     workspace_context: dict | None = None,
@@ -324,6 +335,24 @@ def detect_relevant_skill(
     product_path = _workspace_product_path(
         workspace_context
     )
+
+    if (
+        product_path in STAGE_SKILL_FALLBACK
+        and _is_contextual_stage_message(
+            current_message
+        )
+    ):
+        return SkillDetection(
+            skill_name=(
+                STAGE_SKILL_FALLBACK[
+                    product_path
+                ]
+            ),
+            reason=(
+                "Active DataPilot stage resolves this contextual message "
+                "without an AI classification call."
+            ),
+        )
 
     instructions = f"""
         Kullanıcının mesajına en uygun skill'i seç.
@@ -343,14 +372,19 @@ def detect_relevant_skill(
         Current Product Path:
         {product_path}
     """
+    runtime = get_ai_runtime(
+        "classifier"
+    )
+
     response = guarded_responses_parse(
-        client,
-        purpose="mentor",
-  # OpenAI cevabı için modeli kullanmasını parse() ile biz söyleriz.
-        model="gpt-5-mini",
-        input= current_message,
-        instructions= instructions,            
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_skill_detection",
+        model=runtime.model,
+        input=current_message,
+        instructions=instructions,
         text_format=SkillDetection,
+        **classifier_generation_kwargs(),
     )
 
     detection = response.output_parsed# modele gore olusturulmus sonuc (SkillDetection)
@@ -686,13 +720,17 @@ def generate_mentor_response(
 # → AI'dan junior'a gösterilecek normal metin cevabı isteriz.
 # → Burada belirli bir Pydantic şeması yok.
 # → Sonucu response.output_text ile alırız.
-    response = guarded_responses_create(
-     client,
-     purpose="mentor",
+    runtime = get_ai_runtime(
+        "mentor"
+    )
 
-     model="gpt-5-mini",
-     input=prompt,              
-     instructions=instructions, 
+    response = guarded_responses_create(
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_chat_reply",
+        model=runtime.model,
+        input=prompt,
+        instructions=instructions,
     )
 
     # Junior'a gösterilecek normal metin cevabı.
@@ -864,14 +902,19 @@ def classify_learning_evidence(
     {current_message}
     """
 
-    response = guarded_responses_parse(
-        client,
-        purpose="mentor",
+    runtime = get_ai_runtime(
+        "classifier"
+    )
 
-        model="gpt-5-mini",
+    response = guarded_responses_parse(
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_chat_evidence",
+        model=runtime.model,
         input=evidence_input,
         instructions=instructions,
         text_format=LearningEvidenceDecision,
+        **classifier_generation_kwargs(),
     )
 
     evidence = response.output_parsed
@@ -1150,17 +1193,30 @@ def evaluate_data_quality_attempt(
     Finding içinde olmayan kolon, veri veya metadata uydurma.
     """
 
-    response = guarded_responses_parse(
-        client,
-        purpose="mentor",
+    runtime = get_ai_runtime(
+        "classifier"
+    )
 
-        model="gpt-5-mini",
+    response = guarded_responses_parse(
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_data_quality_evidence",
+        model=runtime.model,
         input=evaluation_input,
-        instructions=instructions,
+        instructions=(
+            instructions
+            + "\n\nShared classifier policy:\n"
+            + learning_evidence_classifier_rules()
+        ),
         text_format=LearningEvidenceDecision,
+        **classifier_generation_kwargs(),
     )
 
     evidence = response.output_parsed
+    evidence.misconception = normalize_misconception(
+        success=evidence.success,
+        misconception=evidence.misconception,
+    )
 
     if evidence.is_evidence:
         if evidence.evidence_type is None or evidence.success is None:
@@ -1244,6 +1300,7 @@ def review_data_quality_attempt(
             target_name=finding.column,
             user_authored=True,
             deterministic_validation=False,
+            misconception=evidence.misconception,
             metadata={
                 "severity": finding.severity,
             },
@@ -1349,11 +1406,15 @@ def generate_data_quality_attempt_response(
     - Kısa, doğal bir cümle yaz.
     """
 
-    response = guarded_responses_parse(
-        client,
-        purpose="mentor",
+    runtime = get_ai_runtime(
+        "mentor"
+    )
 
-        model="gpt-5-mini",
+    response = guarded_responses_parse(
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_data_quality_next_step",
+        model=runtime.model,
         input=prompt,
         instructions=instructions,
         text_format=DataQualityNextStep,
