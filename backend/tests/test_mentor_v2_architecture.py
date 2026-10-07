@@ -7,6 +7,10 @@ from backend.app.mentor_playbook_service import (
 from backend.app.mentor_product_registry import (
     PRODUCT_REGISTRY,
     resolve_product_context,
+    retrieve_product_context,
+)
+from backend.app.mentor_action_planner_service import (
+    plan_guided_next_action,
 )
 from backend.app.models import (
     DataQualityFinding,
@@ -151,3 +155,89 @@ def test_execution_diagnosis_catches_failed_code():
     assert diagnosis is not None
     assert diagnosis["status"] == "error"
     assert diagnosis["issue_code"] == "AttributeError"
+
+
+
+def test_product_retrieval_returns_current_and_only_referenced_stage():
+    context = retrieve_product_context(
+        ui_context={"active_workspace_stage": "source"},
+        message="Dashboard'taki grid ve visual properties ne işe yarıyor?",
+    )
+
+    assert context["current"]["path"] == "source"
+    assert any(
+        item["path"] == "dashboard"
+        for item in context["referenced"]
+    )
+    assert len(context["referenced"]) <= 2
+
+
+def test_registry_has_detailed_model_kpi_dashboard_options():
+    roles = next(
+        item
+        for item in PRODUCT_REGISTRY["data_model"]["controls"]
+        if item["id"] == "model.column_role"
+    )
+    assert "foreign_key" in roles["options"]
+
+    functions = next(
+        item
+        for item in PRODUCT_REGISTRY["kpis"]["controls"]
+        if item["id"] == "kpi.custom_formula_functions"
+    )
+    assert "SAFE_DIVIDE" in functions["options"]
+
+    theme = next(
+        item
+        for item in PRODUCT_REGISTRY["dashboard"]["controls"]
+        if item["id"] == "dashboard.theme"
+    )
+    assert "slate" in theme["options"]
+
+
+def test_action_planner_routes_frequency_work_to_raw_notebook():
+    action = plan_guided_next_action(
+        learner_message="En sık city değerini nasıl bulacağım?",
+        loop=_loop(),
+        finding=_finding(),
+        mentor_context={
+            "execution_diagnosis": None,
+            "live_state": {
+                "active_prepare_stage": "workbench",
+                "workbench_view": "notebook",
+                "selected_notebook": {
+                    "notebook_id": "n1",
+                    "dataset_kind": "working",
+                },
+                "notebook_count": 1,
+                "source_preview_inspection": {
+                    "active_filters": [
+                        {"column": "age", "operator": "is_missing"}
+                    ]
+                },
+            },
+        },
+    )
+
+    assert action is not None
+    assert action["id"] == "select_raw_notebook_dataset"
+    assert action["value"] == "raw"
+
+
+def test_action_planner_prioritizes_notebook_execution_error():
+    action = plan_guided_next_action(
+        learner_message="Şimdi ne yapacağım?",
+        loop=_loop(),
+        finding=_finding(),
+        mentor_context={
+            "execution_diagnosis": {
+                "status": "error",
+                "issue_code": "SyntaxError",
+            },
+            "live_state": {},
+        },
+    )
+
+    assert action is not None
+    assert action["id"] == "repair_latest_notebook_error"
+    assert action["priority"] == "blocking"
