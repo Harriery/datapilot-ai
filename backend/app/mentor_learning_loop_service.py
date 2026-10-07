@@ -339,6 +339,9 @@ _LEARNING_UI_BOOL_KEYS = {
     "validation_visible",
     "understand_visible",
     "source_preview_filter_builder_available",
+    "source_preview_grouping_available",
+    "source_preview_aggregation_available",
+    "notebook_available",
 }
 
 
@@ -385,6 +388,32 @@ def _safe_learning_ui_context(
                 for item in columns[:80]
                 if isinstance(item, str)
             ]
+
+        column_types = inspection.get(
+            "column_types"
+        )
+        if isinstance(column_types, dict):
+            safe_column_types = {}
+
+            for key, value in list(
+                column_types.items()
+            )[:80]:
+                if (
+                    isinstance(key, str)
+                    and value in {
+                        "text",
+                        "number",
+                        "datetime",
+                        "boolean",
+                    }
+                ):
+                    safe_column_types[
+                        key[:120]
+                    ] = value
+
+            safe_inspection[
+                "column_types"
+            ] = safe_column_types
 
         for key in (
             "total_row_count",
@@ -530,6 +559,22 @@ def generate_prepare_mentor_reply(
     - During observe/reason, do not jump to "validate the business rule" before
       the learner has inspected a concrete pattern. Give one concrete inspection
       target at a time, grounded in available columns.
+    - For missing-value reasoning, do NOT propose mean/median/mode/zero filling,
+      deletion, or any other imputation before the learner has gathered evidence
+      and reached the decide phase.
+    - Do not infer business semantics from a column name alone. A name like
+      "Car", "Type", or "Rooms" is not sufficient evidence for what it means.
+    - When choosing the next manual preview check, prefer one EXISTING
+      non-target categorical/text/boolean column from
+      source_preview_inspection.column_types. Frame it as a pattern check, not
+      as a causal rule.
+    - Never invent a multi-column grouping rule. Only ask for grouping or
+      aggregation if the context justifies it.
+    - If grouping/aggregation is actually needed but
+      source_preview_grouping_available/source_preview_aggregation_available is
+      false, do not tell the learner to perform it in Preview. If
+      notebook_available=true and the learner asks where/how, guide them toward
+      the Notebook one navigation step at a time.
     - recent_learning_history records the last Guided Learning turns. Respect
       completed actions stated there and do not loop back to the same instruction.
     """

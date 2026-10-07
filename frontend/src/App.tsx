@@ -9747,6 +9747,10 @@ async function restoreWorkspaceVersion(
               activeWorkspaceStage === "prepare" &&
               activePrepareStage === "understand",
             source_preview_filter_builder_available: true,
+            source_preview_grouping_available: false,
+            source_preview_aggregation_available: false,
+            notebook_available:
+              (dashboardWorkspace.notebooks?.length ?? 0) > 0,
             source_preview_inspection:
               sourcePreviewInspection,
           }}

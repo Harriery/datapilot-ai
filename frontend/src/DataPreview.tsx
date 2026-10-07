@@ -51,6 +51,7 @@ type PreviewFilter = {
 export type DataPreviewInspectionState = {
   dataset: DataPreviewDataset;
   columns: string[];
+  column_types: Record<string, PreviewColumnType>;
   total_row_count: number;
   filtered_row_count: number;
   filter_logic: "and" | "or";
@@ -510,6 +511,7 @@ function DataPreview({
     onInspectionChange({
       dataset,
       columns: data.columns,
+      column_types: data.column_types,
       total_row_count: data.total_row_count,
       filtered_row_count: data.filtered_row_count,
       filter_logic: filterLogic,

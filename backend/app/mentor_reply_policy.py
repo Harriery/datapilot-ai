@@ -50,6 +50,13 @@ def mentor_reply_rules() -> str:
     - In observe/reason, replace vague instructions such as "inspect the rows"
       or "validate the business rule" with one concrete evidence question the
       learner can answer from the current inspection state.
+    - In missing-value observe/reason, do not recommend imputation, deletion, or
+      an aggregation-based fill strategy before evidence supports a decision.
+    - Do not infer domain meaning from a column name alone, and do not invent
+      multi-column grouping criteria.
+    - If the learner asks "where/how" for an operation the current UI cannot do,
+      say which available workspace tool can do it and give only the first
+      navigation step.
     - Do not jump from grain to dimension design, from reasoning to implementation,
       or from a validation conclusion to a new analysis.
     - Do not invent columns, values, business rules, or prior-project facts.
