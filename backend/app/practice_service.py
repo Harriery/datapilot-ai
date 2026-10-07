@@ -273,6 +273,196 @@ def get_practice_recommendation(
         recommendation=recommendation,
     )
 
+def get_reasoning_practice_variant(
+    *,
+    skill_name: str,
+    misconceptions: set[str],
+) -> dict | None:
+
+    if skill_name == "data_modeling":
+        if "relationship_cardinality_confusion" in misconceptions:
+            return {
+                "title": "İlişki cardinality'sini seç",
+                "instructions": (
+                    "fact_sales tablosunda aynı product_id birçok satırda bulunuyor. "
+                    "dim_product tablosunda her product_id yalnız bir kez bulunuyor. "
+                    "fact_sales -> dim_product ilişkisi için doğru cardinality hangisi?"
+                ),
+                "options": ["many_to_one", "one_to_many", "one_to_one"],
+                "answer": "many_to_one",
+                "hints": [
+                    "Her iki tarafta aynı key'in kaç kez tekrar ettiğini düşün.",
+                    "Fact tarafında product_id çok kez, dimension tarafında bir kez bulunuyor.",
+                ],
+            }
+
+        return {
+            "title": "Fact grain'i belirle",
+            "instructions": (
+                "Bir satış tablosunda her satır tek bir ürünün tek bir sipariş "
+                "satırını temsil ediyor. Modellemeye başlamadan önce doğru fact grain hangisi?"
+            ),
+            "options": [
+                "Bir satır = bir sipariş",
+                "Bir satır = bir sipariş satırı",
+                "Bir satır = bir müşteri",
+            ],
+            "answer": "Bir satır = bir sipariş satırı",
+            "hints": [
+                "Grain, fact tablosundaki tek satırın neyi temsil ettiğini söyler.",
+                "Soruda her satırın tek bir ürün-sipariş satırı olduğu belirtiliyor.",
+            ],
+        }
+
+    if skill_name == "semantic_modeling":
+        return {
+            "title": "Semantic model readiness kontrolü",
+            "instructions": (
+                "Fact ile dimension arasında ilişki kurulmuş fakat dimension key "
+                "benzersiz değil. Analysis aşamasına geçmeden önce ne yapmalısın?"
+            ),
+            "options": [
+                "Modeli onayla ve Analysis'e geç",
+                "Dimension key benzersizliğini düzelt/doğrula",
+                "İlişkiyi kaldırıp tüm kolonları fact'e taşı",
+            ],
+            "answer": "Dimension key benzersizliğini düzelt/doğrula",
+            "hints": [
+                "many-to-one ilişkinin 'one' tarafında key benzersiz olmalıdır.",
+                "Semantic readiness, ilişki mantığının güvenilir olmasını gerektirir.",
+            ],
+        }
+
+    if skill_name == "kpi_design":
+        if "non_additive_measure_sum" in misconceptions:
+            return {
+                "title": "Non-additive KPI aggregation",
+                "instructions": (
+                    "Her satırda zaten hesaplanmış bir yüzde oranı var. "
+                    "Bu oranları toplam KPI olarak SUM yapmak güvenilir mi?"
+                ),
+                "options": [
+                    "Evet, yüzdeler her zaman SUM edilir",
+                    "Hayır, önce oranın grain ve pay/payda mantığını kontrol et",
+                    "Evet, ama yalnız Top 10 kullanılırsa",
+                ],
+                "answer": "Hayır, önce oranın grain ve pay/payda mantığını kontrol et",
+                "hints": [
+                    "Her measure additive değildir.",
+                    "Oranlarda pay ve payda yeniden aggregate edilmeden SUM yanıltıcı olabilir.",
+                ],
+            }
+
+        return {
+            "title": "KPI aggregation seç",
+            "instructions": (
+                "Her satır bir satış işlemi ve revenue işlemin parasal tutarı. "
+                "Toplam gelir KPI'sı için hangi aggregation uygundur?"
+            ),
+            "options": ["SUM", "MEAN", "COUNT"],
+            "answer": "SUM",
+            "hints": [
+                "Measure'ın satır grain'inde ne ifade ettiğini düşün.",
+                "İşlem tutarları additive ise toplam gelir için birleştirilebilir.",
+            ],
+        }
+
+    if skill_name == "data_analysis":
+        return {
+            "title": "Analiz tanımını doğru kur",
+            "instructions": (
+                "'Hangi bölgenin ortalama sipariş değeri en yüksek?' sorusunu "
+                "cevaplamak için doğru tanım hangisi?"
+            ),
+            "options": [
+                "COUNT(order_id) + region",
+                "MEAN(order_value) + region",
+                "SUM(order_value) + customer_id",
+            ],
+            "answer": "MEAN(order_value) + region",
+            "hints": [
+                "Sorudaki metrik 'ortalama sipariş değeri'.",
+                "Karşılaştırma boyutu bölge olduğu için dimension region olmalı.",
+            ],
+        }
+
+    if skill_name == "dashboard_design":
+        return {
+            "title": "Doğru visual seç",
+            "instructions": (
+                "Aylara göre gelir trendini ve zaman içindeki yükseliş/düşüşü "
+                "göstermek istiyorsun. En uygun temel visual hangisi?"
+            ),
+            "options": ["Line chart", "Pie chart", "KPI card"],
+            "answer": "Line chart",
+            "hints": [
+                "Zaman sıralı değişim için sürekliliği gösteren visual düşün.",
+                "Pie chart parça-bütün; KPI card tek değer içindir.",
+            ],
+        }
+
+    if skill_name == "data_interpretation":
+        return {
+            "title": "Insight'ta nedensellik hatasını önle",
+            "instructions": (
+                "İki değişken birlikte yükseliyor fakat deneysel veya nedensel "
+                "kanıt yok. Hangi insight daha güvenilir?"
+            ),
+            "options": [
+                "A değişkeni kesin olarak B'ye neden oluyor",
+                "A ve B arasında birlikte hareket eden bir ilişki gözleniyor; nedensellik kanıtlanmadı",
+                "Bütün satırlar hatalıdır",
+            ],
+            "answer": (
+                "A ve B arasında birlikte hareket eden bir ilişki gözleniyor; "
+                "nedensellik kanıtlanmadı"
+            ),
+            "hints": [
+                "Correlation tek başına causation değildir.",
+                "Insight, kanıtın desteklediğinden daha güçlü iddia etmemeli.",
+            ],
+        }
+
+    if skill_name == "technical_documentation":
+        return {
+            "title": "Handoff dokümantasyonunu tamamla",
+            "instructions": (
+                "Bir cleaning kararını dokümante ederken hangisi en güçlü kayıt olur?"
+            ),
+            "options": [
+                "Sadece 'veri temizlendi' yazmak",
+                "Karar + neden + before/after validation sonucu + limitation yazmak",
+                "Yalnız kullanılan Python kodunu yapıştırmak",
+            ],
+            "answer": "Karar + neden + before/after validation sonucu + limitation yazmak",
+            "hints": [
+                "Handoff başka bir kişinin kararı doğrulayabilmesini sağlamalı.",
+                "Kod tek başına gerekçeyi ve validation'ı açıklamaz.",
+            ],
+        }
+
+    if skill_name == "data_validation":
+        return {
+            "title": "Validation kanıtını seç",
+            "instructions": (
+                "Null sayısı 20'den 0'a düştü ama row count da beklenmedik şekilde "
+                "1000'den 800'e düştü. Validation sonucu ne olmalı?"
+            ),
+            "options": [
+                "Passed; null sayısı 0 oldu",
+                "Başarılı sayma; beklenmedik row loss'u araştır",
+                "Schema değişmediyse otomatik passed",
+            ],
+            "answer": "Başarılı sayma; beklenmedik row loss'u araştır",
+            "hints": [
+                "Tek bir metriğin düzelmesi güvenli transformation kanıtı değildir.",
+                "Unexpected row loss önce açıklanmalıdır.",
+            ],
+        }
+
+    return None
+
+
 def create_practice_challenge(
     learner_id: str,
 ) -> PracticeChallengeResponse:
@@ -290,6 +480,24 @@ def create_practice_challenge(
 
     skill_name = recommendation.skill_name
     difficulty = recommendation.difficulty
+
+    learner_progress = get_learner_progress(
+        learner_id=learner_id
+    )
+    selected_progress = next(
+        (
+            item
+            for item in learner_progress.skills
+            if item.skill_name == skill_name
+        ),
+        None,
+    )
+    misconceptions = set(
+        selected_progress.misconceptions
+        if selected_progress is not None
+        else []
+    )
+
     # Her challenge'ın support sistemi olmak zorunda değil.
     # Destek tanımlanan challenge'larda aşağıda dolduracağız.
     support_spec = None
@@ -482,6 +690,55 @@ def create_practice_challenge(
 
         validation_spec = PracticeValidationSpec(
             validation_type="duplicate_count_reduction",
+        )
+
+    # --------------------------------------------------
+    # TARGETED STAGE REASONING
+    # --------------------------------------------------
+    elif skill_name in {
+        "data_modeling",
+        "semantic_modeling",
+        "kpi_design",
+        "data_analysis",
+        "dashboard_design",
+        "data_interpretation",
+        "technical_documentation",
+        "data_validation",
+    }:
+
+        variant = get_reasoning_practice_variant(
+            skill_name=skill_name,
+            misconceptions=misconceptions,
+        )
+
+        if variant is None:
+            raise ValueError(
+                "Targeted reasoning practice variant bulunamadı."
+            )
+
+        challenge = PracticeChallenge(
+            challenge_id=str(uuid4()),
+            skill_name=skill_name,
+            difficulty=difficulty,
+            challenge_type="multiple_choice",
+            title=variant["title"],
+            instructions=variant["instructions"],
+            starter_code=None,
+            options=variant["options"],
+        )
+
+        expected_outcome = (
+            "Doğru reasoning seçeneğini evidence'e göre seç."
+        )
+
+        validation_spec = PracticeValidationSpec(
+            validation_type="exact_answer",
+            expected_answer=variant["answer"],
+        )
+
+        support_spec = PracticeSupportSpec(
+            hints=variant["hints"],
+            solution=variant["answer"],
         )
 
     # --------------------------------------------------
