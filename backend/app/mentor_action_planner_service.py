@@ -333,6 +333,88 @@ def _code_teaching_action(
     }
 
 
+def _result_teaching_action(
+    *,
+    learner_message: str,
+    investigation: dict | None,
+    diagnosis: dict | None,
+) -> dict | None:
+    """
+    Explain the latest trusted investigation output without advancing state.
+
+    The workflow engine owns progression. This helper only shapes teaching for
+    the current state when the learner asks what the result means.
+    """
+    if (
+        not isinstance(investigation, dict)
+        or not _contains_any(
+            learner_message,
+            _RESULT_EXPLANATION_MARKERS,
+        )
+    ):
+        return None
+
+    target = str(
+        investigation.get("target_column")
+        or "target"
+    )
+    comparison = str(
+        investigation.get("comparison_column")
+        or "comparison"
+    )
+
+    issue_code = None
+    output = None
+
+    if isinstance(diagnosis, dict):
+        issue_code = diagnosis.get("issue_code")
+        if issue_code in {
+            "missing_scoped_frequency_check",
+            "baseline_frequency_check",
+        }:
+            output = diagnosis.get("output")
+
+    if not output:
+        if investigation.get("baseline_output"):
+            issue_code = "baseline_frequency_check"
+            output = investigation.get("baseline_output")
+        elif investigation.get("subset_output"):
+            issue_code = "missing_scoped_frequency_check"
+            output = investigation.get("subset_output")
+
+    if not output:
+        return None
+
+    if issue_code == "baseline_frequency_check":
+        goal = (
+            f"Explain the overall raw-data {comparison} distribution in simple "
+            f"language and compare it with the already collected {target}-missing "
+            "subset distribution. State only what the evidence supports; do not "
+            "claim causality or open a new comparison column."
+        )
+    else:
+        goal = (
+            f"Explain that this output describes the {comparison} proportions only "
+            f"inside rows where {target} is missing. Translate the proportions into "
+            "plain language and state that this result alone cannot show whether "
+            f"{target} missingness is concentrated by {comparison}; an overall "
+            "baseline is still needed. Do not assign the baseline command in the "
+            "same reply."
+        )
+
+    return {
+        "id": "explain_current_investigation_result",
+        "kind": "teaching_interpretation",
+        "priority": "blocking",
+        "control_id": None,
+        "goal": goal,
+        "target_column": target,
+        "comparison_column": comparison,
+        "output": output,
+        "enforce_direct_reply": False,
+    }
+
+
 def _navigation_or_subset_action(
     *,
     learner_message: str,
