@@ -37,6 +37,7 @@ from backend.app.models import (
     PrepareMentorReply,
     Workspace,
     WorkspaceLearningLoop,
+    WorkspaceLearningLoopMessage,
 )
 
 
@@ -168,10 +169,12 @@ def _append_learning_loop_message(
     ):
         return
 
-    loop.message_history.append({
-        "role": role,
-        "content": text[:4000],
-    })
+    loop.message_history.append(
+        WorkspaceLearningLoopMessage(
+            role=role,
+            content=text[:4000],
+        )
+    )
 
     if len(loop.message_history) > 200:
         loop.message_history = (
