@@ -551,9 +551,13 @@ function WorkspaceNotebook({
     success = true,
   ) {
     const compactOutput =
-      result.expressionKind === "scalar"
+      success === false
         ? result.output.slice(0, 1000)
-        : null;
+        : (
+            result.expressionKind === "scalar"
+              ? result.output.slice(0, 1000)
+              : null
+          );
     const previewRows =
       result.expressionKind === "dataframe"
         ? result.rows.slice(0, 5)
@@ -631,18 +635,27 @@ function WorkspaceNotebook({
       );
       await persistExecution(cell.cell_id, result, true);
     } catch (error) {
+      const failedResult: NotebookRunResult = {
+        rows: [],
+        output:
+          error instanceof Error
+            ? error.message
+            : "Notebook cell failed.",
+        expressionKind: "none",
+      };
+
       setResults(
         (previous) => ({
           ...previous,
-          [cell.cell_id]: {
-            rows: [],
-            output:
-              error instanceof Error
-                ? error.message
-                : "Notebook cell failed.",
-            expressionKind: "none",
-          },
+          [cell.cell_id]:
+            failedResult,
         })
+      );
+
+      await persistExecution(
+        cell.cell_id,
+        failedResult,
+        false,
       );
     } finally {
       setRunningCellId(

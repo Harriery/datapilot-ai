@@ -427,7 +427,15 @@ def generate_mentor_response(
         "active_prepare_stage": ui_context.get("active_prepare_stage"),
         "workbench_view": ui_context.get("workbench_view"),
         "selected_notebook_id": ui_context.get("selected_notebook_id"),
+        "selected_notebook_dataset_kind":
+            ui_context.get(
+                "selected_notebook_dataset_kind"
+            ),
         "selected_workbench_column": ui_context.get("selected_workbench_column"),
+        "product_context":
+            (workspace_context or {}).get(
+                "mentor_product_context"
+            ),
         "has_validation_result": bool(
             (workspace_context or {}).get("validation_result")
         ),
@@ -474,6 +482,9 @@ def generate_mentor_response(
     mevcut aşama/görev, checkpoint, veri profili ve bulgular, pipeline işlemleri,
     notebooklar ve işlenmiş datasetler birbiriyle çelişmeden değerlendirilmelidir.
     Current Mentor State içindeki ACTIVE UI STATE, kullanıcının o anda ekranda gördüğü yeri anlatır.
+    product_context DataPilot'ın o konumdaki gerçek capability registry'sidir.
+    UI hakkında product_context ile çelişen bir kontrol, buton, select seçeneği veya işlem uydurma.
+    product_context'teki limits alanını gerçek ürün sınırı kabul et.
     Bunu varsayılan bağlam olarak kullan ama kullanıcının sorusunu o sekmeye zorla kilitleme.
     Önce sorunun niyetini ayırt et:
     - mevcut ekrandaki şeyi yorumlama/review,

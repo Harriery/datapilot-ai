@@ -36,6 +36,9 @@ from backend.app.ai_usage_guard import (
 from backend.app.ai_provider_service import (
     get_ai_runtime_config,
 )
+from backend.app.mentor_product_registry import (
+    resolve_product_context,
+)
 
 import json
 
@@ -66,141 +69,13 @@ def _deterministic_workspace_guidance(
     message: str,
     conversation_history: list[dict] | None = None,
 ) -> str | None:
-    """Control beginner-help turns while advancing from evidence already reported."""
-    if workspace_context is None:
-        return None
-
-    ui_context = (
-        workspace_context.get("ui_context")
-        or {}
-    )
-
-    # Deterministic micro-guidance is intentionally limited to the
-    # hands-on Workbench screen. On Validate/Understand/Data Model/etc.
-    # the adaptive mentor must reason from the relevant stage artifacts
-    # rather than being trapped in an older data-quality step.
-    if not (
-        ui_context.get("active_workspace_stage") == "prepare"
-        and ui_context.get("active_prepare_stage") == "workbench"
-    ):
-        return None
-
-    step = workspace_context.get("current_step") or {}
-    task = workspace_context.get("current_task") or {}
-    checkpoint = workspace_context.get("checkpoint") or {}
-    step_text = " ".join(
-        str(value)
-        for value in (
-            step.get("title"),
-            step.get("instruction"),
-            step.get("description"),
-            task.get("title"),
-            checkpoint.get("current_focus"),
-        )
-        if value
-    )
-    normalized_step = step_text.casefold()
-    notebook_evidence = []
-    for notebook in workspace_context.get("notebooks", []):
-        for cell in notebook.get("recent_cells", []):
-            execution = cell.get("last_execution")
-            if execution:
-                notebook_evidence.append({
-                    "code": cell.get("code", ""),
-                    "execution": execution,
-                })
-
-    car_count_observed = any(
-        "car" in item["code"].casefold()
-        and ("isna" in item["code"].casefold() or "isnull" in item["code"].casefold())
-        and item["execution"].get("success")
-        and item["execution"].get("expression_kind") == "scalar"
-        for item in notebook_evidence
-    )
-    car_examples_observed = any(
-        "car" in item["code"].casefold()
-        and ("isna" in item["code"].casefold() or "isnull" in item["code"].casefold())
-        and item["execution"].get("success")
-        and item["execution"].get("expression_kind") == "dataframe"
-        and item["execution"].get("preview_rows")
-        for item in notebook_evidence
-    )
-    if not (
-        "car" in normalized_step
-        and ("eksik" in normalized_step or "missing" in normalized_step or "null" in normalized_step)
-    ):
-        if not _is_step_by_step_help_request(message):
-            return None
-        step_label = (
-            step.get("title")
-            or step.get("instruction")
-            or checkpoint.get("current_focus")
-            or task.get("title")
-        )
-        if step_label:
-            return (
-                f"Şu an üzerinde çalıştığımız adım: {step_label}. "
-                "Bu adımda yalnızca ilk küçük kontrolü yapalım. "
-                "Nasıl yapacağını bilmiyorsan söyle, birlikte yapalım."
-            )
-        return None
-
-    normalized_message = message.casefold()
-    history = conversation_history or []
-    recent_user_text = " ".join(
-        str(item.get("content", ""))
-        for item in history[-8:]
-        if item.get("role") == "user"
-    ).casefold()
-
-    count_reported = (
-        car_count_observed
-        or "np.int64(23)" in normalized_message
-        or "23 eksik" in normalized_message
-        or "np.int64(23)" in recent_user_text
-        or "23 eksik" in recent_user_text
-    )
-
-    direct_teaching_markers = (
-        "bilmiyorum", "ilk defa", "ilk kez", "tarif et", "birlikte yap",
-        "nasıl yap", "nasil yap", "göster", "goster",
-        "i don't know", "i dont know", "first time", "show me", "teach me",
-    )
-    asks_for_instruction = any(marker in normalized_message for marker in direct_teaching_markers)
-
-    if car_examples_observed:
-        # Observation is complete. Do not trap every later message in a canned
-        # acknowledgement; let the adaptive mentor inspect the compact preview
-        # and answer interpretation/teaching questions from the actual rows.
-        return None
-
-    if count_reported:
-        if asks_for_instruction:
-            return (
-                "23 eksik değer olduğunu zaten bulduk; aynı sayımı tekrar yapmayacağız. "
-                "Şimdi Notebook'ta yeni bir hücreye df[df['Car'].isna()][['Suburb','Type','Rooms','Price']].head(5) yazıp çalıştır. "
-                "Hücreyi çalıştırdıktan sonra sadece 'yaptım' de; çıktıyı Notebook'tan görebilirim."
-            )
-        return (
-            "Car sütununda 23 eksik değer olduğunu bulduk. "
-            "Şimdi yalnızca bu eksik kayıtlardan birkaç örneğe bakalım. "
-            "Nasıl yapacağını bilmiyorsan söyle, birlikte yapalım."
-        )
-
-    if asks_for_instruction:
-        return (
-            "Notebook'ta yeni bir hücreye df['Car'].isna().sum() yaz ve o hücreyi çalıştır. "
-            "Ekranda çıkan sayıyı bana gönder; şimdilik başka bir şey yapma."
-        )
-
-    if _is_step_by_step_help_request(message):
-        return (
-            "Şu an Car sütunundaki eksik değerleri inceliyoruz. "
-            "İlk olarak sadece kaç tane Car değerinin eksik olduğunu bulalım. "
-            "Bunu Notebook'ta nasıl kontrol edeceğini bilmiyorsan söyle; birlikte yapalım."
-        )
-
+    """
+    Kept as a narrow compatibility hook. Mentor V2 intentionally contains no
+    dataset-specific columns, counts, or notebook code here; semantic guidance
+    comes from the capability registry, workspace state and learning playbooks.
+    """
     return None
+
 
 @router.get("/chat/{session_id}/history")
 def chat_history(session_id: str):
@@ -361,6 +236,10 @@ def chat(request: ChatRequest):
                 for item in (workspace.kpi_definitions or [])
             ],
             "ui_context": request.ui_context or {},
+            "mentor_product_context":
+                resolve_product_context(
+                    request.ui_context or {}
+                ),
             "learner_skills": [
                 dict(item)
                 for item in database.get_skill_states_by_learner(learner_id)
