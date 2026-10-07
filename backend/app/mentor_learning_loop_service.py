@@ -723,6 +723,44 @@ def _direct_preview_frequency_navigation(
     return None
 
 
+def _update_loop_language_from_message(
+    loop: WorkspaceLearningLoop,
+    message: str,
+) -> None:
+    normalized = message.casefold()
+
+    if any(
+        marker in normalized
+        for marker in (
+            "türkçe cevap", "turkce cevap",
+            "türkçe yanıt", "turkce yanit",
+            "bana türkçe", "bana turkce",
+        )
+    ):
+        loop.language = "tr"
+        return
+
+    if any(
+        marker in normalized
+        for marker in (
+            "antwoord in het nederlands",
+            "in het nederlands",
+            "nederlands antwoorden",
+        )
+    ):
+        loop.language = "nl"
+        return
+
+    if any(
+        marker in normalized
+        for marker in (
+            "answer in english",
+            "reply in english",
+        )
+    ):
+        loop.language = "en"
+
+
 def generate_prepare_mentor_reply(
     *,
     loop: WorkspaceLearningLoop,
@@ -740,6 +778,11 @@ def generate_prepare_mentor_reply(
     The model does not choose success, assistance level, or the next learning
     phase. Those decisions are supplied by DataPilot's deterministic policy.
     """
+    _update_loop_language_from_message(
+        loop,
+        learner_response,
+    )
+
     next_phase = determine_next_learning_phase(
         current_phase=loop.current_phase,
         is_evidence=evaluation.is_evidence,
@@ -805,6 +848,12 @@ def generate_prepare_mentor_reply(
     - mentor_context.next_action is the backend's deterministic next-action
       recommendation. If present, do not assign a different task. If it describes
       a code repair, explain that repair before any new analysis.
+    - If the learner asks what current code means, what a parameter/function
+      means, or says they could not write the code independently, explain that
+      exact code/concept briefly before assigning another analysis step.
+      Do not redirect them to documentation unless they explicitly ask for sources.
+    - Respond in the loop's current language. An explicit learner language
+      request has already updated that state.
     - Give only the next atomic action. Backend context is a map, not content to
       dump back to the learner.
 
