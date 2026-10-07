@@ -16,6 +16,7 @@ from backend.app.mentor_learning_loop_service import (
     record_prepare_phase_evidence,
     record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
+    render_zero_ai_prepare_support_reply,
 )
 
 
@@ -915,3 +916,32 @@ def test_prepare_mentor_explicit_turkish_request_updates_loop_language():
 
     assert loop.language == "tr"
     assert reply == "normalize=True oran verir."
+
+
+
+def test_zero_ai_support_turn_uses_workflow_action():
+    loop = _loop()
+    loop.workflow_state = "SUBSET_RESULT_READY"
+
+    reply = render_zero_ai_prepare_support_reply(
+        loop=loop,
+        learner_response="bu output ne anlatıyor?",
+        mentor_context={
+            "workflow": {
+                "state": "SUBSET_RESULT_READY",
+                "blocker": None,
+            },
+            "next_action": {
+                "id": "explain_current_investigation_result",
+                "kind": "teaching_interpretation",
+                "target_column": "age",
+                "comparison_column": "segment",
+                "output": "A 0.8\nB 0.2",
+                "enforce_direct_reply": False,
+            },
+        },
+    )
+
+    assert reply is not None
+    assert "%80.0" in reply
+    assert "%20.0" in reply
