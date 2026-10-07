@@ -201,6 +201,9 @@ class LearningEvidenceDecision(BaseModel):
     # AI'nın kısa açıklaması
     note: str | None = None
 
+    # Reusable conceptual error when one is confidently identifiable.
+    misconception: str | None = None
+
 class LearningEvidenceContext(BaseModel):
     """
     Learning Evidence V2 context.

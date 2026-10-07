@@ -30,6 +30,12 @@ from backend.app.task_service import (
     get_current_task_step,
     apply_validation_result_to_task,
 )
+from backend.app.mentor_classifier_policy import (
+    learning_evidence_classifier_rules,
+)
+from backend.app.mentor_misconception_taxonomy import (
+    normalize_misconception,
+)
 
 # MentorDecision bizim models.py dosyasında oluşturduğumuz Pydantic modelidir.
 # AI'dan gelecek mentor kararının hangi alanlara sahip olması gerektiğini tanımlar.
@@ -85,6 +91,12 @@ SKILL_CATALOG = {
     "data_modeling",
     "file_formats",
     "medallion_architecture",
+    "semantic_modeling",
+    "kpi_design",
+    "data_analysis",
+    "dashboard_design",
+    "data_interpretation",
+    "technical_documentation",
 
     # Engineering Workflow
     "testing",
@@ -268,10 +280,50 @@ def get_mentor_decision_for_learner(
     return ai_decision
 
 
-def detect_relevant_skill(current_message:str):
+STAGE_SKILL_FALLBACK = {
+    "data_model": "data_modeling",
+    "kpis": "kpi_design",
+    "bi_dataset": "semantic_modeling",
+    "analysis": "data_analysis",
+    "dashboard": "dashboard_design",
+    "insights": "data_interpretation",
+    "docs": "technical_documentation",
+    "prepare.workbench": "data_transformation",
+    "prepare.workbench.notebook": "pandas_dataframe",
+    "prepare.workbench.pipeline": "pipeline_concepts",
+    "prepare.validate": "data_validation",
+}
+
+
+def _workspace_product_path(
+    workspace_context: dict | None,
+) -> str | None:
+    product = (
+        (workspace_context or {}).get(
+            "mentor_product_context"
+        )
+        or {}
+    )
+    current = product.get("current")
+
+    if isinstance(current, dict):
+        path = current.get("path")
+        if isinstance(path, str):
+            return path
+
+    return None
+
+
+def detect_relevant_skill(
+    current_message: str,
+    workspace_context: dict | None = None,
+):
 
 
     skills_text = ", ".join(SKILL_CATALOG)# skill katologiunu metne cevirdik ai in okumasi icin.
+    product_path = _workspace_product_path(
+        workspace_context
+    )
 
     instructions = f"""
         Kullanıcının mesajına en uygun skill'i seç.
@@ -283,7 +335,13 @@ def detect_relevant_skill(current_message:str):
         skill_name = null döndür.
 
         Yeni bir skill adı üretme.
+        Current Product Path yalnız bağlamdır; sırf bir ekranda bulunmak learning
+        evidence anlamına gelmez. Ancak kısa/bağlamsal mesajlarda doğru skill'i
+        seçmek için bu stage bilgisini kullanabilirsin.
         Neden bu kararı verdiğini kısa şekilde açıkla.
+
+        Current Product Path:
+        {product_path}
     """
     response = guarded_responses_parse(
         client,
@@ -298,17 +356,34 @@ def detect_relevant_skill(current_message:str):
     detection = response.output_parsed# modele gore olusturulmus sonuc (SkillDetection)
     if detection.skill_name is not None and detection.skill_name not in SKILL_CATALOG:
         raise ValueError("Geçersiz skill tespit edildi.")
-    
+
+    if (
+        detection.skill_name is None
+        and product_path in STAGE_SKILL_FALLBACK
+    ):
+        detection.skill_name = (
+            STAGE_SKILL_FALLBACK[
+                product_path
+            ]
+        )
+        detection.reason = (
+            "Active DataPilot stage provides the skill context."
+        )
+
     return detection
 
 def get_mentor_decision_from_message(
     learner_id: str,
     current_message: str,
+    workspace_context: dict | None = None,
     ):
 
     # Burada SkillDetection nesnesini aldık.
     # skill_name değerine skill_detection.skill_name ile ulaşırız.
-    skill_detection = detect_relevant_skill(current_message)
+    skill_detection = detect_relevant_skill(
+        current_message,
+        workspace_context=workspace_context,
+    )
     if skill_detection.skill_name is None:
         return None
     decision = get_mentor_decision_for_learner(
@@ -645,6 +720,7 @@ def get_mentor_response_from_message(
     mentor_decision = get_mentor_decision_from_message(
         learner_id=learner_id,
         current_message=current_message,
+        workspace_context=workspace_context,
     )
 
     # Explicit requests for beginner/step-by-step help are turn-level evidence
@@ -708,6 +784,7 @@ def classify_learning_evidence(
     skill_name: str,
     current_message: str,
     conversation_history: list[dict] | None = None,
+    workspace_context: dict | None = None,
 ) -> LearningEvidenceDecision:
     """
     Junior'ın mesajının gerçekten öğrenme evidence'ı olup olmadığını belirler.
@@ -730,25 +807,20 @@ def classify_learning_evidence(
     {skill_name}
 
     Kullanıcının mesajının gerçek learning evidence olup olmadığını belirle.
+    Workspace context yalnızca kullanıcının önerisini/cevabını mevcut görev ve
+    artifact'lara göre değerlendirmek içindir; workspace'in kendi bilgisi learner
+    evidence değildir.
 
-    Learning evidence sayılabilecek durumlar:
-    - application: junior bir çözüm veya kod deniyor
-    - explanation: junior bir kavramı kendi cümleleriyle açıklıyor
-    - debugging: junior bir hatayı analiz edip çözmeye çalışıyor
-    - validation: junior sonucunu kontrol ediyor veya doğruluyor
+    - Saf yardım, navigasyon, "hangi buton?", "nereden yapacağım?" soruları
+      learning evidence değildir ve misconception üretmemelidir.
+    - Kullanıcı bir çözüm, kod, açıklama, karar, hipotez veya validation kriteri
+      öneriyorsa bu genuine evidence olabilir; yanlışsa success=false.
+    - Data Model/KPI/Analysis/Dashboard gibi stage'lerde kullanıcı yanlış bir
+      semantik karar öneriyorsa uygun canonical misconception varsa onu döndür.
+    - Emin olmadığın durumda misconception=null.
 
-    Sadece soru sormak, yardım istemek, proje navigasyonu,
-    hatırlatma istemek veya genel konuşma learning evidence değildir.
-
-    Evidence değilse:
-    is_evidence=false
-    evidence_type=null
-    success=null
-
-    Evidence ise:
-    evidence_type belirle
-    success değerini belirle
-    note alanında kısa neden yaz.
+    Shared classifier policy:
+    {learning_evidence_classifier_rules()}
     """
 
     conversation_history_text = json.dumps(
@@ -757,9 +829,36 @@ def classify_learning_evidence(
     indent=2,
     )
 
+    workspace_evidence_context = {
+        "product":
+            (workspace_context or {}).get(
+                "mentor_product_context"
+            ),
+        "stage_playbooks":
+            (workspace_context or {}).get(
+                "mentor_stage_playbooks"
+            ),
+        "execution":
+            (workspace_context or {}).get(
+                "mentor_execution_context"
+            ),
+        "artifacts":
+            (workspace_context or {}).get(
+                "artifacts"
+            ),
+    }
+    workspace_evidence_text = json.dumps(
+        workspace_evidence_context,
+        ensure_ascii=False,
+        default=str,
+    )[:24000]
+
     evidence_input = f"""
     Previous Conversation:
     {conversation_history_text}
+
+    Relevant Workspace Context:
+    {workspace_evidence_text}
 
     Current Message:
     {current_message}
@@ -776,6 +875,14 @@ def classify_learning_evidence(
     )
 
     evidence = response.output_parsed
+    evidence.misconception = (
+        normalize_misconception(
+            success=evidence.success,
+            misconception=(
+                evidence.misconception
+            ),
+        )
+    )
 
     # AI evidence olduğunu söylüyorsa gerekli alanların da dolu olması gerekir.
     if evidence.is_evidence:
@@ -845,6 +952,7 @@ def process_learning_evidence(
         skill_name=mentor_decision.skill_name,
         current_message=current_message,
         conversation_history=conversation_history,
+        workspace_context=workspace_context,
     )
 
     # Mesaj genuine learning evidence değilse
@@ -871,6 +979,7 @@ def process_learning_evidence(
         target_name=ui_context.get("selected_workbench_column"),
         user_authored=True,
         deterministic_validation=False,
+        misconception=evidence.misconception,
         metadata={
             "current_focus": checkpoint.get("current_focus"),
             "selected_notebook_id": ui_context.get("selected_notebook_id"),
