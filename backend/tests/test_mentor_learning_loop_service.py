@@ -865,3 +865,53 @@ def test_mentor_reply_policy_reports_production_llm_integration():
         status["production_reply_mode"]
         == "llm_mentor_reply_with_deterministic_fallback"
     )
+
+
+
+def test_prepare_mentor_explicit_turkish_request_updates_loop_language():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="en",
+    )
+    loop.current_phase = "reason"
+
+    from backend.app.models import PrepareLearningPhaseEvaluation
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=False,
+        success=None,
+        evidence_type=None,
+        note="Learner asks for Turkish.",
+        misconception=None,
+    )
+
+    reply = generate_prepare_mentor_reply(
+        loop=loop,
+        finding=finding,
+        learner_response=(
+            "Bana Türkçe cevap ver. Bu kod ne anlama geliyor? "
+            "normalize nedir?"
+        ),
+        evaluation=evaluation,
+        assistance_level="TEACH",
+        mentor_context={
+            "next_action": {
+                "id": "explain_locked_investigation_code",
+                "kind": "teaching",
+                "enforce_direct_reply": True,
+                "messages": {
+                    "tr": "normalize=True oran verir.",
+                    "en": "normalize=True returns proportions.",
+                },
+            },
+        },
+    )
+
+    assert loop.language == "tr"
+    assert reply == "normalize=True oran verir."
