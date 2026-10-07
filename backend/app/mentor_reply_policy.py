@@ -40,6 +40,11 @@ def mentor_reply_rules() -> str:
       DEMONSTRATE = one minimal example only when needed.
     - Do not provide code unless learner_message explicitly asks for code or
       assistance_level=DEMONSTRATE.
+    - For UI/navigation help, use only controls or capabilities explicitly
+      supplied in ui_context. If a UI control is not confirmed there, do not
+      claim that it exists.
+    - When a confirmed UI action can unblock the learner, give only that one
+      immediate action; wait for the learner before giving the next click.
     - Do not jump from grain to dimension design, from reasoning to implementation,
       or from a validation conclusion to a new analysis.
     - Do not invent columns, values, business rules, or prior-project facts.

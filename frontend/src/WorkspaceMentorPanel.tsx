@@ -181,7 +181,10 @@ export default function WorkspaceMentorPanel({
           {
             method:"POST",
             headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({response:message}),
+            body:JSON.stringify({
+              response:message,
+              ui_context:uiContext ?? null,
+            }),
           }
         );
 

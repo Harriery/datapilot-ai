@@ -554,6 +554,12 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
             learner_response="I should distinguish the possible causes first.",
             evaluation=evaluation,
             assistance_level="NUDGE",
+            ui_context={
+                "active_workspace_stage": "prepare",
+                "active_prepare_stage": "profile",
+                "source_preview_filter_builder_available": True,
+                "untrusted_extra_field": "ignore me",
+            },
         )
 
     assert reply.startswith("Good distinction")
@@ -566,6 +572,11 @@ def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
     payload = __import__("json").loads(
         kwargs["input"]
     )
+    assert payload["ui_context"] == {
+        "active_workspace_stage": "prepare",
+        "active_prepare_stage": "profile",
+        "source_preview_filter_builder_available": True,
+    }
     assert payload["orchestration"] == {
         "current_phase": "reason",
         "assistance_level": "NUDGE",

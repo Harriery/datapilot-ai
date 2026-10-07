@@ -327,6 +327,49 @@ def evaluate_prepare_phase_response(
     return evaluation
 
 
+_LEARNING_UI_STRING_KEYS = {
+    "active_workspace_stage",
+    "active_prepare_stage",
+    "workbench_view",
+    "selected_notebook_id",
+    "selected_workbench_column",
+}
+
+_LEARNING_UI_BOOL_KEYS = {
+    "validation_visible",
+    "understand_visible",
+    "source_preview_filter_builder_available",
+}
+
+
+def _safe_learning_ui_context(
+    ui_context: dict | None,
+) -> dict:
+    """
+    Keep only bounded UI state/capability fields that Guided Learning needs.
+
+    UI context is navigation grounding, not learner evidence or dataset truth.
+    """
+    if not ui_context:
+        return {}
+
+    safe_context: dict = {}
+
+    for key in _LEARNING_UI_STRING_KEYS:
+        value = ui_context.get(key)
+
+        if isinstance(value, str):
+            safe_context[key] = value[:160]
+
+    for key in _LEARNING_UI_BOOL_KEYS:
+        value = ui_context.get(key)
+
+        if isinstance(value, bool):
+            safe_context[key] = value
+
+    return safe_context
+
+
 def generate_prepare_mentor_reply(
     *,
     loop: WorkspaceLearningLoop,
@@ -334,6 +377,7 @@ def generate_prepare_mentor_reply(
     learner_response: str,
     evaluation: PrepareLearningPhaseEvaluation,
     assistance_level: str,
+    ui_context: dict | None = None,
 ) -> str:
     """
     Generate the learner-facing Mentor reply after classification.
@@ -360,6 +404,16 @@ def generate_prepare_mentor_reply(
 
     Response rules:
     {mentor_reply_rules()}
+
+    UI grounding:
+    - ui_context contains only current DataPilot UI state/capabilities.
+    - Treat it as navigation grounding, not as dataset evidence.
+    - Name or tell the learner to use a specific UI control only when the
+      supplied ui_context confirms that capability exists.
+    - If the learner explicitly asks where/how to click and a relevant UI
+      capability is available, give exactly one concrete UI action.
+    - Never invent buttons, filters, tabs, controls, or actions that are absent
+      or unknown in ui_context.
     """
 
     response_obj = guarded_responses_parse(
@@ -376,6 +430,10 @@ def generate_prepare_mentor_reply(
                     learner_response,
                 "learning_evaluation":
                     evaluation.model_dump(),
+                "ui_context":
+                    _safe_learning_ui_context(
+                        ui_context
+                    ),
                 "orchestration": {
                     "current_phase":
                         loop.current_phase,

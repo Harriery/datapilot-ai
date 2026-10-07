@@ -9735,6 +9735,7 @@ async function restoreWorkspaceVersion(
             understand_visible:
               activeWorkspaceStage === "prepare" &&
               activePrepareStage === "understand",
+            source_preview_filter_builder_available: true,
           }}
           open={mentorPanelOpen}
           onOpenChange={setMentorPanelOpen}

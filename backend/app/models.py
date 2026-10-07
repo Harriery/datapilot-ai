@@ -1785,6 +1785,10 @@ class WorkspaceLearningLoopResponseRequest(BaseModel):
         max_length=4000,
     )
 
+    # Guided Learning receives the same current UI state as Mentor Chat.
+    # The learning-loop service allowlists the fields before AI use.
+    ui_context: dict | None = None
+
 
 class WorkspaceLearningLoopReviewResponse(BaseModel):
     loop: WorkspaceLearningLoop
