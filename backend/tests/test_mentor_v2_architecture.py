@@ -288,3 +288,178 @@ def test_stage_playbook_keeps_data_model_grain_first():
     model = playbooks[0]
     assert model["sequence"][0] == "lock fact grain"
     assert "grain" in model["evidence_gate"].lower()
+
+
+
+def test_action_planner_locks_pattern_target_across_help_turns():
+    loop = _loop()
+    context = {
+        "execution_diagnosis": None,
+        "profile": {
+            "row_count": 100,
+            "columns": ["age", "address", "city", "segment"],
+            "data_types": {
+                "age": "float64",
+                "address": "object",
+                "city": "object",
+                "segment": "object",
+            },
+            "distinct_counts": {
+                "age": 40,
+                "address": 100,
+                "city": 5,
+                "segment": 3,
+            },
+        },
+        "live_state": {
+            "active_prepare_stage": "profile",
+            "workbench_view": None,
+            "selected_notebook": None,
+            "notebook_count": 0,
+            "source_preview_inspection": {
+                "active_filters": [
+                    {"column": "age", "operator": "is_missing"}
+                ]
+            },
+        },
+    }
+
+    first = plan_guided_next_action(
+        learner_message=(
+            "7 eksik age buldum. Şimdi ne yapmam gerekiyor, "
+            "beni adım adım yönlendir."
+        ),
+        loop=loop,
+        finding=_finding(),
+        mentor_context=context,
+    )
+
+    assert first is not None
+    assert first["id"] == "open_workbench_for_locked_investigation"
+    assert loop.active_investigation["comparison_column"] == "segment"
+
+    second = plan_guided_next_action(
+        learner_message=(
+            "tamam anladım ama bunu nasıl yapacağım?"
+        ),
+        loop=loop,
+        finding=_finding(),
+        mentor_context=context,
+    )
+
+    assert second is not None
+    assert loop.active_investigation["comparison_column"] == "segment"
+    assert "segment" in second["goal"]
+
+
+def test_action_planner_gives_code_when_learner_explicitly_does_not_know_what_to_write():
+    loop = _loop()
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": "age",
+        "comparison_column": "segment",
+        "step": "subset_frequency",
+        "last_processed_observation_id": None,
+    }
+
+    action = plan_guided_next_action(
+        learner_message=(
+            "Yeni notebook mu açacağım? Ne yazmam gerek, kodu bilmiyorum."
+        ),
+        loop=loop,
+        finding=_finding(),
+        mentor_context={
+            "execution_diagnosis": None,
+            "profile": {},
+            "live_state": {
+                "active_prepare_stage": "workbench",
+                "workbench_view": "notebook",
+                "selected_notebook": {
+                    "notebook_id": "n1",
+                    "dataset_kind": "raw",
+                },
+                "notebook_count": 1,
+                "source_preview_inspection": {
+                    "active_filters": [
+                        {"column": "age", "operator": "is_missing"}
+                    ]
+                },
+            },
+        },
+    )
+
+    assert action is not None
+    assert action["id"] == "run_locked_subset_frequency"
+    assert action["enforce_direct_reply"] is True
+    assert "segment" in action["code_template"]
+    assert "age" in action["code_template"]
+
+
+def test_execution_diagnosis_rejects_switching_locked_comparison_column():
+    loop = _loop()
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": "age",
+        "comparison_column": "segment",
+        "step": "subset_frequency",
+    }
+
+    diagnosis = diagnose_notebook_execution(
+        loop=loop,
+        finding=_finding(),
+        ui_context={
+            "selected_notebook_state": {
+                "notebook_id": "n1",
+                "dataset_kind": "raw",
+                "latest_cell": {
+                    "cell_id": "c1",
+                    "code": (
+                        "df.loc[df['age'].isna(), 'city']"
+                        ".value_counts(normalize=True)"
+                    ),
+                    "last_execution": {
+                        "success": True,
+                        "expression_kind": "series",
+                        "output": "A 0.7\nB 0.3",
+                        "executed_at": "2026-10-07T12:00:00",
+                    },
+                },
+            }
+        },
+    )
+
+    assert diagnosis is not None
+    assert diagnosis["issue_code"] == "investigation_target_mismatch"
+    assert diagnosis["misconception"] == "investigation_target_drift"
+
+
+def test_action_planner_requires_overall_baseline_after_missing_subset_frequency():
+    loop = _loop()
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": "age",
+        "comparison_column": "segment",
+        "step": "subset_frequency",
+        "last_processed_observation_id": None,
+    }
+
+    action = plan_guided_next_action(
+        learner_message="çalıştırdım",
+        loop=loop,
+        finding=_finding(),
+        mentor_context={
+            "execution_diagnosis": {
+                "status": "aligned_success",
+                "issue_code": "missing_scoped_frequency_check",
+                "observation_id": "n1:c1:t1",
+                "output": "A 0.8\nB 0.2",
+            },
+            "profile": {},
+            "live_state": {},
+        },
+    )
+
+    assert action is not None
+    assert action["id"] == "run_locked_baseline_frequency"
+    assert loop.active_investigation["step"] == "baseline_frequency"
+    assert loop.active_investigation["subset_output"] == "A 0.8\nB 0.2"
