@@ -20,6 +20,9 @@ from backend.app.mentor_supervisor_service import (
     build_issue_supervisor_context,
     select_pattern_comparison_column,
 )
+from backend.app.mentor_guided_workflow_service import (
+    resolve_guided_workflow_state,
+)
 from backend.app.models import (
     DataQualityFinding,
     WorkspaceLearningLoop,
@@ -650,3 +653,227 @@ def test_supervisor_recommends_one_pattern_check_for_unrelated_dataset_names():
         == "cohort_label"
     )
     assert supervisor["exploration_budget"]["max_targeted_checks"] == 1
+
+
+
+def _generic_missing_profile(
+    target: str,
+    comparison: str,
+    identifier: str,
+) -> dict:
+    return {
+        "row_count": 100,
+        "columns": [
+            target,
+            comparison,
+            identifier,
+        ],
+        "data_types": {
+            target: "float64",
+            comparison: "object",
+            identifier: "object",
+        },
+        "distinct_counts": {
+            target: 40,
+            comparison: 3,
+            identifier: 100,
+        },
+        "null_counts": {
+            target: 7,
+            comparison: 0,
+            identifier: 0,
+        },
+    }
+
+
+def test_guided_workflow_state_is_message_independent_across_datasets():
+    cases = [
+        (
+            "metric_x",
+            "group_alpha",
+            "entity_code",
+        ),
+        (
+            "measure_z",
+            "segment_beta",
+            "record_key",
+        ),
+    ]
+
+    for target, comparison, identifier in cases:
+        loop = WorkspaceLearningLoop(
+            loop_id=f"loop-{target}",
+            language="tr",
+            stage="prepare",
+            finding_index=0,
+            skill_name="null_analysis",
+            target_type="column",
+            target_name=target,
+            current_phase="reason",
+            completed_phases=["observe"],
+            status="active",
+        )
+        finding = DataQualityFinding(
+            issue_type="missing_values",
+            column=target,
+            severity="medium",
+            observation="missing values",
+            suggested_action="Investigate",
+        )
+        profile = _generic_missing_profile(
+            target,
+            comparison,
+            identifier,
+        )
+        live = {
+            "active_prepare_stage": "workbench",
+            "workbench_view": "notebook",
+            "selected_notebook": {
+                "notebook_id": "n1",
+                "dataset_kind": "raw",
+            },
+            "notebook_count": 1,
+        }
+
+        start = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis=None,
+        )
+        assert start["state"] == "NEED_SUBSET_RESULT"
+        assert (
+            start["investigation"]["comparison_column"]
+            == comparison
+        )
+
+        subset = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis={
+                "status": "aligned_success",
+                "issue_code":
+                    "missing_scoped_frequency_check",
+                "observation_id": "n1:c1:t1",
+                "output": "A 0.8\nB 0.2",
+            },
+        )
+        assert subset["state"] == "SUBSET_RESULT_READY"
+        assert (
+            subset["investigation"]["comparison_column"]
+            == comparison
+        )
+
+        # User wording is intentionally absent from the workflow resolver:
+        # asking a question cannot move technical state.
+        same = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis={
+                "status": "aligned_success",
+                "issue_code":
+                    "missing_scoped_frequency_check",
+                "observation_id": "n1:c1:t1",
+                "output": "A 0.8\nB 0.2",
+            },
+        )
+        assert same["state"] == "SUBSET_RESULT_READY"
+
+        baseline = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis={
+                "status": "aligned_success",
+                "issue_code":
+                    "baseline_frequency_check",
+                "observation_id": "n1:c2:t2",
+                "output": "A 0.5\nB 0.5",
+            },
+        )
+        assert (
+            baseline["state"]
+            == "NEED_COMPARISON_INTERPRETATION"
+        )
+        assert (
+            baseline["investigation"]["subset_output"]
+            == "A 0.8\nB 0.2"
+        )
+        assert (
+            baseline["investigation"]["baseline_output"]
+            == "A 0.5\nB 0.5"
+        )
+
+
+def test_state_driven_planner_explains_result_without_advancing_state():
+    loop = _loop()
+    loop.workflow_state = "SUBSET_RESULT_READY"
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": "age",
+        "comparison_column": "segment",
+        "step": "subset_result_ready",
+        "subset_output": "A 0.8\nB 0.2",
+        "baseline_output": None,
+        "last_processed_observation_id": "n1:c1:t1",
+    }
+
+    workflow = {
+        "state": "SUBSET_RESULT_READY",
+        "investigation": dict(
+            loop.active_investigation
+        ),
+        "blocker": None,
+    }
+    base_context = {
+        "workflow": workflow,
+        "execution_diagnosis": {
+            "status": "aligned_success",
+            "issue_code":
+                "missing_scoped_frequency_check",
+            "observation_id": "n1:c1:t1",
+            "output": "A 0.8\nB 0.2",
+        },
+        "live_state": {},
+        "supervisor": {},
+    }
+
+    explain = plan_guided_next_action(
+        learner_message=(
+            "Bu output ne anlatıyor, buradan ne anlamalıyım?"
+        ),
+        loop=loop,
+        finding=_finding(),
+        mentor_context=base_context,
+    )
+    assert explain is not None
+    assert (
+        explain["id"]
+        == "explain_current_investigation_result"
+    )
+    assert (
+        loop.workflow_state
+        == "SUBSET_RESULT_READY"
+    )
+
+    advance = plan_guided_next_action(
+        learner_message="tamam, devam edelim",
+        loop=loop,
+        finding=_finding(),
+        mentor_context=base_context,
+    )
+    assert advance is not None
+    assert (
+        advance["id"]
+        == "run_locked_baseline_frequency"
+    )
+    assert (
+        loop.workflow_state
+        == "SUBSET_RESULT_READY"
+    )
