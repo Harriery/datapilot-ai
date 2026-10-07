@@ -252,6 +252,15 @@ def get_practice_recommendation(
         f"{selected_skill.practice_priority}."
     )
 
+    if selected_skill.misconceptions:
+        reason += (
+            " Tekrarlayan/gözlenen açıklar: "
+            + ", ".join(
+                selected_skill.misconceptions[:3]
+            )
+            + "."
+        )
+
     recommendation = PracticeRecommendation(
         skill_name=selected_skill.skill_name,
         priority=selected_skill.practice_priority,

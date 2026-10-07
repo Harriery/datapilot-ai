@@ -14,20 +14,109 @@ from backend.app.mentor_product_registry import (
 )
 from backend.app.models import (
     DataQualityFinding,
+    Workspace,
     WorkspaceLearningLoop,
 )
+
+
+def _trusted_notebook_state(
+    *,
+    workspace: Workspace,
+    ui_context: dict | None,
+) -> dict | None:
+    selected_id = (
+        (ui_context or {}).get(
+            "selected_notebook_id"
+        )
+    )
+
+    if not isinstance(selected_id, str):
+        return None
+
+    notebook = next(
+        (
+            item
+            for item in workspace.notebooks
+            if item.notebook_id == selected_id
+        ),
+        None,
+    )
+
+    if notebook is None:
+        return None
+
+    executed_cells = [
+        cell
+        for cell in notebook.cells
+        if isinstance(
+            cell.last_execution,
+            dict,
+        )
+    ]
+
+    latest_cell = None
+    if executed_cells:
+        latest = max(
+            executed_cells,
+            key=lambda cell: str(
+                (
+                    cell.last_execution
+                    or {}
+                ).get(
+                    "executed_at",
+                    "",
+                )
+            ),
+        )
+        latest_cell = {
+            "cell_id": latest.cell_id,
+            "code": latest.code[-4000:],
+            "last_execution": latest.last_execution,
+        }
+
+    return {
+        "notebook_id": notebook.notebook_id,
+        "name": notebook.name,
+        "dataset_kind": notebook.dataset_kind,
+        "processed_dataset_id":
+            notebook.processed_dataset_id,
+        "cell_count": len(notebook.cells),
+        "latest_cell": latest_cell,
+    }
 
 
 def build_guided_mentor_context(
     *,
     learner_id: str,
+    workspace: Workspace,
     loop: WorkspaceLearningLoop,
     finding: DataQualityFinding,
     ui_context: dict | None,
 ) -> dict:
+    trusted_ui = dict(
+        ui_context
+        if isinstance(ui_context, dict)
+        else {}
+    )
+
+    notebook_state = _trusted_notebook_state(
+        workspace=workspace,
+        ui_context=trusted_ui,
+    )
+
+    if notebook_state is not None:
+        trusted_ui[
+            "selected_notebook_state"
+        ] = notebook_state
+        trusted_ui[
+            "selected_notebook_dataset_kind"
+        ] = notebook_state[
+            "dataset_kind"
+        ]
+
     return {
         "product": resolve_product_context(
-            ui_context
+            trusted_ui
         ),
         "playbook": get_playbook_context(
             finding.issue_type,
@@ -37,10 +126,30 @@ def build_guided_mentor_context(
             diagnose_notebook_execution(
                 loop=loop,
                 finding=finding,
-                ui_context=ui_context,
+                ui_context=trusted_ui,
             ),
         "learner": build_learner_snapshot(
             learner_id=learner_id,
             skill_name=loop.skill_name,
         ),
+        "live_state": {
+            "active_workspace_stage":
+                trusted_ui.get(
+                    "active_workspace_stage"
+                ),
+            "active_prepare_stage":
+                trusted_ui.get(
+                    "active_prepare_stage"
+                ),
+            "workbench_view":
+                trusted_ui.get(
+                    "workbench_view"
+                ),
+            "selected_notebook":
+                notebook_state,
+            "source_preview_inspection":
+                trusted_ui.get(
+                    "source_preview_inspection"
+                ),
+        },
     }

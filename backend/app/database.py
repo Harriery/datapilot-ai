@@ -1773,6 +1773,32 @@ def record_practice_mastery_evidence(
         connection.close()
 
 
+
+def record_observed_learning_signal(
+    *,
+    learner_id: str,
+    skill_name: str,
+    assistance_level: str,
+    success: bool,
+    evidence_type: str,
+    note: str | None = None,
+    context: dict | None = None,
+):
+    """
+    Persist a Mentor V2 observation without incrementing assessed attempt
+    counters. These signals can raise practice priority without pretending
+    the learner submitted another assessed attempt.
+    """
+    record_practice_mastery_evidence(
+        learner_id=learner_id,
+        skill_name=skill_name,
+        assistance_level=assistance_level,
+        success=success,
+        evidence_type=evidence_type,
+        note=note,
+        context=context,
+    )
+
 def update_skill_status(
   learner_id: str,
   skill_name: str,
