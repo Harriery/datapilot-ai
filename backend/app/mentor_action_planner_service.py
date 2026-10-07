@@ -36,6 +36,15 @@ _CODE_EXPLANATION_MARKERS = (
     "what does this code", "what is normalize", "what is dropna",
     "explain the code",
 )
+_RESULT_EXPLANATION_MARKERS = (
+    "sonuç ne", "sonuc ne", "sonuçlar ne", "sonuclar ne",
+    "ne anlatıyor", "ne anlatiyor", "ne anlamalıyım", "ne anlamaliyim",
+    "çıktı ne", "cikti ne", "output ne", "outputtaki",
+    "buradan ne", "bu sonuçtan", "bu sonuctan",
+    "what does the result", "what does this result",
+    "what does the output", "what should i understand",
+    "explain the result", "explain the output",
+)
 
 
 def _contains_any(message: str, markers: tuple[str, ...]) -> bool:
