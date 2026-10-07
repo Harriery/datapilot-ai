@@ -188,6 +188,7 @@ from backend.app.mentor_learning_loop_service import (
     complete_prepare_learning_loop,
     evaluate_prepare_phase_response,
     generate_prepare_mentor_reply,
+    render_zero_ai_prepare_support_reply,
     record_prepare_phase_evidence,
     record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
@@ -2324,6 +2325,63 @@ def respond_to_workspace_prepare_learning_loop(
         learner_message=request.response,
     )
 
+    # Route deterministic technical support BEFORE any classifier call.
+    # Navigation/code-help/result-reading turns are not learning evidence.
+    mentor_context = build_guided_mentor_context(
+        learner_id=learner_id,
+        workspace=workspace,
+        loop=loop,
+        finding=finding,
+        ui_context=request.ui_context,
+        learner_message=request.response,
+    )
+
+    record_execution_signal(
+        learner_id=learner_id,
+        workspace_id=workspace_id,
+        skill_name=loop.skill_name,
+        phase=loop.current_phase,
+        assistance_level=assistance_level,
+        diagnosis=mentor_context.get(
+            "execution_diagnosis"
+        ),
+    )
+
+    mentor_context = build_guided_mentor_context(
+        learner_id=learner_id,
+        workspace=workspace,
+        loop=loop,
+        finding=finding,
+        ui_context=request.ui_context,
+        learner_message=request.response,
+    )
+
+    local_support_reply = (
+        render_zero_ai_prepare_support_reply(
+            loop=loop,
+            learner_response=request.response,
+            mentor_context=mentor_context,
+        )
+    )
+
+    if local_support_reply is not None:
+        evidence = LearningEvidenceDecision(
+            is_evidence=False,
+            note=(
+                "Deterministic technical support turn; "
+                "no external AI assessment required."
+            ),
+        )
+        database.save_workspace(
+            workspace=workspace
+        )
+        return WorkspaceLearningLoopReviewResponse(
+            loop=loop,
+            mentor_response=local_support_reply,
+            evidence=evidence,
+            assistance_level=assistance_level,
+        )
+
     try:
         evaluation = evaluate_prepare_phase_response(
             loop=loop,
@@ -2349,36 +2407,6 @@ def respond_to_workspace_prepare_learning_loop(
             assistance_level
         ),
         evaluation=evaluation,
-    )
-
-    mentor_context = build_guided_mentor_context(
-        learner_id=learner_id,
-        workspace=workspace,
-        loop=loop,
-        finding=finding,
-        ui_context=request.ui_context,
-        learner_message=request.response,
-    )
-
-    record_execution_signal(
-        learner_id=learner_id,
-        workspace_id=workspace_id,
-        skill_name=loop.skill_name,
-        phase=loop.current_phase,
-        assistance_level=assistance_level,
-        diagnosis=mentor_context.get(
-            "execution_diagnosis"
-        ),
-    )
-
-    # Refresh learner state after any new deterministic execution signal.
-    mentor_context = build_guided_mentor_context(
-        learner_id=learner_id,
-        workspace=workspace,
-        loop=loop,
-        finding=finding,
-        ui_context=request.ui_context,
-        learner_message=request.response,
     )
 
     try:
