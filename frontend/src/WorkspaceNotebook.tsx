@@ -21,6 +21,8 @@ import {
 import {
   runNotebookCells,
   runNotebookAllCells,
+  NotebookCellExecutionError,
+  type NotebookCellRunResult,
 } from "./pythonRunner";
 
 export type WorkspaceNotebookCellData = {
@@ -64,13 +66,8 @@ type ProcessedDataset = {
   name: string;
 };
 
-type NotebookRunResult = {
-  rows:
-    Record<string, unknown>[];
-
-  output: string;
-  expressionKind: "dataframe" | "scalar" | "none";
-};
+type NotebookRunResult =
+  NotebookCellRunResult;
 
 type Props = {
   workspaceId: string;
@@ -459,31 +456,71 @@ function WorkspaceNotebook({
 
       const nextResults: Record<string, NotebookRunResult> = {};
       draft.cells.forEach((cell, index) => {
-        if (allResults[index]) nextResults[cell.cell_id] = allResults[index];
+        if (allResults[index]) {
+          nextResults[cell.cell_id] =
+            allResults[index];
+        }
       });
       setResults(nextResults);
+
       const nextDraft: WorkspaceNotebookData = {
         ...draft,
         cells: draft.cells.map((cell, index) => {
           const result = allResults[index];
           if (!result) return cell;
-          const previewRows = result.expressionKind === "dataframe" ? result.rows.slice(0, 5) : [];
+
+          const previewRows =
+            result.expressionKind === "dataframe"
+              ? result.rows.slice(0, 5)
+              : [];
+          const success =
+            result.success !== false;
+
           return {
             ...cell,
             last_execution: {
-              success: true,
-              expression_kind: result.expressionKind,
-              output: result.expressionKind === "scalar" ? result.output.slice(0, 1000) : null,
-              row_count: result.rows.length || null,
-              columns: previewRows.length ? Object.keys(previewRows[0]).slice(0, 30) : [],
-              preview_rows: previewRows,
-              executed_at: new Date().toISOString(),
+              success,
+              expression_kind:
+                result.expressionKind,
+              output:
+                (
+                  !success ||
+                  result.expressionKind === "scalar"
+                )
+                  ? result.output.slice(0, 1000)
+                  : null,
+              row_count:
+                result.rows.length || null,
+              columns:
+                previewRows.length
+                  ? Object.keys(
+                      previewRows[0]
+                    ).slice(0, 30)
+                  : [],
+              preview_rows:
+                previewRows,
+              executed_at:
+                new Date().toISOString(),
             },
           };
         }),
       };
+
       setDraft(nextDraft);
       await saveDraft(nextDraft);
+
+      const failedIndex = allResults.findIndex(
+        (item) => item.success === false
+      );
+
+      if (failedIndex >= 0) {
+        setMessage(
+          "Cell " +
+          String(failedIndex + 1) +
+          " failed: " +
+          allResults[failedIndex].output
+        );
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Notebook run failed.");
     } finally {
@@ -635,25 +672,36 @@ function WorkspaceNotebook({
       );
       await persistExecution(cell.cell_id, result, true);
     } catch (error) {
-      const failedResult: NotebookRunResult = {
-        rows: [],
-        output:
-          error instanceof Error
-            ? error.message
-            : "Notebook cell failed.",
-        expressionKind: "none",
-      };
+      const failedIndex =
+        error instanceof NotebookCellExecutionError
+          ? error.failedIndex
+          : index;
+      const failedCell =
+        draft.cells[failedIndex]
+        ?? cell;
+      const failedResult: NotebookRunResult =
+        error instanceof NotebookCellExecutionError
+          ? error.result
+          : {
+              rows: [],
+              output:
+                error instanceof Error
+                  ? error.message
+                  : "Notebook cell failed.",
+              expressionKind: "none",
+              success: false,
+            };
 
       setResults(
         (previous) => ({
           ...previous,
-          [cell.cell_id]:
+          [failedCell.cell_id]:
             failedResult,
         })
       );
 
       await persistExecution(
-        cell.cell_id,
+        failedCell.cell_id,
         failedResult,
         false,
       );

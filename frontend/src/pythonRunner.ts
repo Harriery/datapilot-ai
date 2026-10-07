@@ -82,7 +82,23 @@ export type NotebookCellRunResult = {
   rows: Record<string, unknown>[];
   output: string;
   expressionKind: "dataframe" | "scalar" | "none";
+  success: boolean;
 };
+
+export class NotebookCellExecutionError extends Error {
+  failedIndex: number;
+  result: NotebookCellRunResult;
+
+  constructor(
+    failedIndex: number,
+    result: NotebookCellRunResult,
+  ) {
+    super(result.output || "Notebook cell failed.");
+    this.name = "NotebookCellExecutionError";
+    this.failedIndex = failedIndex;
+    this.result = result;
+  }
+}
 
 export async function runNotebookCells(
   codes: string[],
@@ -94,10 +110,22 @@ export async function runNotebookCells(
     inputRows,
   );
 
+  const failedIndex = results.findIndex(
+    (item) => item.success === false
+  );
+
+  if (failedIndex >= 0) {
+    throw new NotebookCellExecutionError(
+      failedIndex,
+      results[failedIndex],
+    );
+  }
+
   return results[targetIndex] ?? {
     rows: [],
     output: "",
     expressionKind: "none",
+    success: true,
   };
 }
 
@@ -132,38 +160,54 @@ for _code in _codes:
     _stdout = io.StringIO()
     _expression_kind = "none"
 
-    with contextlib.redirect_stdout(_stdout):
-        _tree = ast.parse(_code, mode="exec")
+    try:
+        with contextlib.redirect_stdout(_stdout):
+            _tree = ast.parse(_code, mode="exec")
 
-        if _tree.body and isinstance(_tree.body[-1], ast.Expr):
-            _prefix = ast.Module(body=_tree.body[:-1], type_ignores=[])
-            if _prefix.body:
-                exec(compile(_prefix, "<notebook>", "exec"), _env, _env)
+            if _tree.body and isinstance(_tree.body[-1], ast.Expr):
+                _prefix = ast.Module(body=_tree.body[:-1], type_ignores=[])
+                if _prefix.body:
+                    exec(compile(_prefix, "<notebook>", "exec"), _env, _env)
 
-            _value = eval(
-                compile(ast.Expression(_tree.body[-1].value), "<notebook>", "eval"),
-                _env,
-                _env,
-            )
-            if _value is not None:
-                print(repr(_value))
-                _expression_kind = (
-                    "dataframe"
-                    if isinstance(_value, pd.DataFrame)
-                    else "scalar"
+                _value = eval(
+                    compile(ast.Expression(_tree.body[-1].value), "<notebook>", "eval"),
+                    _env,
+                    _env,
                 )
-        else:
-            exec(compile(_tree, "<notebook>", "exec"), _env, _env)
+                if _value is not None:
+                    print(repr(_value))
+                    _expression_kind = (
+                        "dataframe"
+                        if isinstance(_value, pd.DataFrame)
+                        else "scalar"
+                    )
+            else:
+                exec(compile(_tree, "<notebook>", "exec"), _env, _env)
 
-    _df = _env.get("df")
-    if not isinstance(_df, pd.DataFrame):
-        raise TypeError("Notebook code must leave df as a pandas DataFrame.")
+        _df = _env.get("df")
+        if not isinstance(_df, pd.DataFrame):
+            raise TypeError("Notebook code must leave df as a pandas DataFrame.")
 
-    _results.append({
-        "rows": json.loads(_df.to_json(orient="records")),
-        "output": _stdout.getvalue(),
-        "expressionKind": _expression_kind,
-    })
+        _results.append({
+            "rows": json.loads(_df.to_json(orient="records")),
+            "output": _stdout.getvalue(),
+            "expressionKind": _expression_kind,
+            "success": True,
+        })
+    except Exception as _exc:
+        _current_df = _env.get("df")
+        _rows = (
+            json.loads(_current_df.to_json(orient="records"))
+            if isinstance(_current_df, pd.DataFrame)
+            else []
+        )
+        _results.append({
+            "rows": _rows,
+            "output": f"{type(_exc).__name__}: {_exc}",
+            "expressionKind": "none",
+            "success": False,
+        })
+        break
 
 json.dumps(_results)
 `);
