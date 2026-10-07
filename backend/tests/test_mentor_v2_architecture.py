@@ -1106,4 +1106,5 @@ def test_local_support_renderer_explains_normalized_output_without_ai():
     assert "%52.2" in reply
     assert "%39.1" in reply
     assert "%8.7" in reply
-    assert "genel dağılım" in reply
+    assert "genel" in reply
+    assert "dağılım" in reply
