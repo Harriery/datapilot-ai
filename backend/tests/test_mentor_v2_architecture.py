@@ -15,6 +15,7 @@ from backend.app.mentor_product_registry import (
 )
 from backend.app.mentor_action_planner_service import (
     plan_guided_next_action,
+    render_planned_local_support_reply,
 )
 from backend.app.mentor_supervisor_service import (
     build_issue_supervisor_context,
@@ -1079,3 +1080,30 @@ def test_state_machine_completes_missing_value_workflow_for_two_generic_datasets
         )
         assert complete_state["state"] == "COMPLETE"
         assert loop.status == "completed"
+
+
+
+def test_local_support_renderer_explains_normalized_output_without_ai():
+    reply = render_planned_local_support_reply(
+        action={
+            "id": "explain_current_investigation_result",
+            "kind": "teaching_interpretation",
+            "target_column": "metric_x",
+            "comparison_column": "group_alpha",
+            "output": (
+                "group_alpha\n"
+                "A    0.521739\n"
+                "B    0.391304\n"
+                "C    0.086957\n"
+                "Name: proportion, dtype: float64"
+            ),
+            "enforce_direct_reply": False,
+        },
+        language="tr",
+    )
+
+    assert reply is not None
+    assert "%52.2" in reply
+    assert "%39.1" in reply
+    assert "%8.7" in reply
+    assert "genel dağılım" in reply
