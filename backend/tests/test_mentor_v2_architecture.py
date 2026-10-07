@@ -23,8 +23,14 @@ from backend.app.mentor_supervisor_service import (
 from backend.app.mentor_guided_workflow_service import (
     resolve_guided_workflow_state,
 )
+from backend.app.mentor_learning_loop_service import (
+    apply_learning_phase_review,
+    apply_trusted_prepare_validation,
+    complete_prepare_learning_loop,
+)
 from backend.app.models import (
     DataQualityFinding,
+    LearningEvidenceDecision,
     WorkspaceLearningLoop,
 )
 
@@ -877,3 +883,199 @@ def test_state_driven_planner_explains_result_without_advancing_state():
         loop.workflow_state
         == "SUBSET_RESULT_READY"
     )
+
+
+
+def test_state_machine_completes_missing_value_workflow_for_two_generic_datasets():
+    cases = [
+        (
+            "metric_x",
+            "group_alpha",
+            "entity_code",
+        ),
+        (
+            "measure_z",
+            "segment_beta",
+            "record_key",
+        ),
+    ]
+
+    for target, comparison, identifier in cases:
+        loop = WorkspaceLearningLoop(
+            loop_id=f"e2e-{target}",
+            language="tr",
+            stage="prepare",
+            finding_index=0,
+            skill_name="null_analysis",
+            target_type="column",
+            target_name=target,
+            current_phase="observe",
+            completed_phases=[],
+            status="active",
+        )
+        finding = DataQualityFinding(
+            issue_type="missing_values",
+            column=target,
+            severity="medium",
+            observation="7 missing values",
+            suggested_action="Investigate",
+        )
+        profile = _generic_missing_profile(
+            target,
+            comparison,
+            identifier,
+        )
+        live = {
+            "active_prepare_stage": "workbench",
+            "workbench_view": "notebook",
+            "selected_notebook": {
+                "notebook_id": "n1",
+                "dataset_kind": "raw",
+            },
+            "notebook_count": 1,
+        }
+
+        observe_state = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis=None,
+        )
+        assert observe_state["state"] == "OBSERVE_SCOPE"
+
+        successful_reasoning = LearningEvidenceDecision(
+            is_evidence=True,
+            evidence_type="explanation",
+            success=True,
+            note="Relevant evidence was identified.",
+        )
+
+        apply_learning_phase_review(
+            loop=loop,
+            finding=finding,
+            evidence=successful_reasoning,
+        )
+        assert loop.current_phase == "reason"
+
+        reason_start = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis=None,
+        )
+        assert reason_start["state"] == "NEED_SUBSET_RESULT"
+        assert (
+            reason_start["investigation"]["comparison_column"]
+            == comparison
+        )
+
+        subset_ready = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis={
+                "status": "aligned_success",
+                "issue_code":
+                    "missing_scoped_frequency_check",
+                "observation_id": "n1:c1:t1",
+                "output": "A 0.8\nB 0.2",
+            },
+        )
+        assert (
+            subset_ready["state"]
+            == "SUBSET_RESULT_READY"
+        )
+
+        comparison_ready = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis={
+                "status": "aligned_success",
+                "issue_code":
+                    "baseline_frequency_check",
+                "observation_id": "n1:c2:t2",
+                "output": "A 0.5\nB 0.5",
+            },
+        )
+        assert (
+            comparison_ready["state"]
+            == "NEED_COMPARISON_INTERPRETATION"
+        )
+
+        apply_learning_phase_review(
+            loop=loop,
+            finding=finding,
+            evidence=successful_reasoning,
+        )
+        assert loop.current_phase == "decide"
+
+        decision_state = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis=None,
+        )
+        assert (
+            decision_state["state"]
+            == "READY_FOR_DECISION"
+        )
+
+        apply_learning_phase_review(
+            loop=loop,
+            finding=finding,
+            evidence=successful_reasoning,
+        )
+        assert loop.current_phase == "implement"
+
+        implementation_state = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis=None,
+        )
+        assert (
+            implementation_state["state"]
+            == "NEED_IMPLEMENTATION"
+        )
+
+        apply_trusted_prepare_validation(
+            loop=loop,
+            finding=finding,
+            success=True,
+        )
+        assert loop.current_phase == "explain"
+
+        explain_state = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis=None,
+        )
+        assert (
+            explain_state["state"]
+            == "NEED_EXPLANATION"
+        )
+
+        complete_prepare_learning_loop(
+            loop=loop,
+            finding=finding,
+            evidence=successful_reasoning,
+        )
+
+        complete_state = resolve_guided_workflow_state(
+            loop=loop,
+            finding=finding,
+            profile=profile,
+            live_state=live,
+            execution_diagnosis=None,
+        )
+        assert complete_state["state"] == "COMPLETE"
+        assert loop.status == "completed"
