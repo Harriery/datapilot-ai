@@ -291,7 +291,7 @@ def evaluate_prepare_phase_response(
     """
 
     runtime = get_ai_runtime(
-        "classifier"
+        "guided_evaluator"
     )
 
     response_obj = guarded_responses_parse(
@@ -813,6 +813,93 @@ def render_zero_ai_prepare_support_reply(
     )
 
 
+def _compact_mentor_reply_context(
+    mentor_context: dict | None,
+) -> dict:
+    if not isinstance(mentor_context, dict):
+        return {}
+
+    workflow = mentor_context.get("workflow")
+    next_action = mentor_context.get("next_action")
+    diagnosis = mentor_context.get("execution_diagnosis")
+    playbook = mentor_context.get("playbook")
+    learner = mentor_context.get("learner")
+    supervisor = mentor_context.get("supervisor")
+
+    compact: dict = {}
+
+    if isinstance(workflow, dict):
+        compact["workflow"] = {
+            "state": workflow.get("state"),
+            "phase": workflow.get("phase"),
+            "issue_type": workflow.get("issue_type"),
+            "target_name": workflow.get("target_name"),
+            "blocker": workflow.get("blocker"),
+            "investigation": workflow.get("investigation"),
+        }
+
+    if isinstance(next_action, dict):
+        compact["next_action"] = {
+            key: next_action.get(key)
+            for key in (
+                "id",
+                "kind",
+                "goal",
+                "control_id",
+                "code_template",
+                "workflow_state",
+                "target_column",
+                "comparison_column",
+                "subset_output",
+                "baseline_output",
+                "issue_code",
+            )
+            if key in next_action
+        }
+
+    if isinstance(diagnosis, dict):
+        compact["execution_diagnosis"] = {
+            key: diagnosis.get(key)
+            for key in (
+                "status",
+                "issue_code",
+                "misconception",
+                "output",
+            )
+            if key in diagnosis
+        }
+
+    if isinstance(playbook, dict):
+        compact["playbook"] = {
+            "phase": playbook.get("phase"),
+            "goal": playbook.get("goal"),
+            "evidence": playbook.get("evidence"),
+            "avoid": playbook.get("avoid"),
+        }
+
+    if isinstance(supervisor, dict):
+        compact["supervisor"] = {
+            "status": supervisor.get("status"),
+            "next_objective": supervisor.get("next_objective"),
+            "stop_exploration": supervisor.get("stop_exploration"),
+        }
+
+    if isinstance(learner, dict):
+        compact["learner"] = {
+            key: learner.get(key)
+            for key in (
+                "skill_name",
+                "status",
+                "success_rate",
+                "last_assistance_level",
+                "misconceptions",
+            )
+            if key in learner
+        }
+
+    return compact
+
+
 def generate_prepare_mentor_reply(
     *,
     loop: WorkspaceLearningLoop,
@@ -873,7 +960,7 @@ def generate_prepare_mentor_reply(
             return frequency_navigation
 
     runtime = get_ai_runtime(
-        "mentor"
+        "guided_tutor"
     )
 
     instructions = f"""
@@ -977,9 +1064,11 @@ def generate_prepare_mentor_reply(
                 "recent_learning_history":
                     _safe_learning_history(
                         learning_history
-                    ),
+                    )[-4:],
                 "mentor_context":
-                    mentor_context or {},
+                    _compact_mentor_reply_context(
+                        mentor_context
+                    ),
                 "orchestration": {
                     "current_phase":
                         loop.current_phase,
