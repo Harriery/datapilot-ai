@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pytest
 import backend.app.database as database
 
@@ -63,14 +63,25 @@ def test_chat_returns_ai_response():
     create_response = client.post("/sessions")
     session_id = create_response.json()["session_id"]
 
+    mock_response = MagicMock()
+    mock_response.output_text = "Test AI cevabı"
+
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
         "backend.app.chat_routes.get_mentor_response_from_message",
         return_value=None,
     ), patch(
-        "backend.app.chat_routes.client.responses.create"
-    ) as mock_create:
-
-        mock_create.return_value.output_text = "Test AI cevabı"
+        "backend.app.chat_routes.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.chat_routes.guarded_responses_create",
+        return_value=mock_response,
+    ):
 
         response = client.post(
             "/chat",
@@ -98,14 +109,22 @@ def test_chat_returns_500_when_openai_fails():
     create_response = client.post("/sessions")
     session_id = create_response.json()["session_id"]
 
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
         "backend.app.chat_routes.get_mentor_response_from_message",
         return_value=None,
     ), patch(
-        "backend.app.chat_routes.client.responses.create"
-    ) as mock_create:
-    
-        mock_create.side_effect = Exception("Test hatası")
+        "backend.app.chat_routes.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.chat_routes.guarded_responses_create",
+        side_effect=Exception("Test hatası"),
+    ):
     
         response = client.post(
             "/chat",
