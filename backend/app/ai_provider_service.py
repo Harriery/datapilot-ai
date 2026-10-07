@@ -14,6 +14,8 @@ from backend.app.ai_usage_guard import (
 AIRole = Literal[
     "mentor",
     "classifier",
+    "guided_evaluator",
+    "guided_tutor",
     "translator",
     "practice_generator",
 ]
@@ -56,6 +58,25 @@ def _configured_provider(
             os.getenv(
                 "AI_MENTOR_PROVIDER",
                 "groq",
+            ),
+        )
+    elif role in {
+        "guided_evaluator",
+        "guided_tutor",
+    }:
+        env_name = (
+            "AI_GUIDED_EVALUATOR_PROVIDER"
+            if role == "guided_evaluator"
+            else "AI_GUIDED_TUTOR_PROVIDER"
+        )
+        value = os.getenv(
+            env_name,
+            os.getenv(
+                "AI_CLASSIFIER_PROVIDER",
+                os.getenv(
+                    "AI_MENTOR_PROVIDER",
+                    "groq",
+                ),
             ),
         )
     elif role in {
@@ -102,6 +123,23 @@ def _configured_model(
             )
 
         if role in {
+            "guided_evaluator",
+            "guided_tutor",
+        }:
+            env_name = (
+                "AI_GROQ_GUIDED_EVALUATOR_MODEL"
+                if role == "guided_evaluator"
+                else "AI_GROQ_GUIDED_TUTOR_MODEL"
+            )
+            return (
+                os.getenv(
+                    env_name,
+                    "openai/gpt-oss-20b",
+                ).strip()
+                or "openai/gpt-oss-20b"
+            )
+
+        if role in {
             "translator",
             "practice_generator",
         }:
@@ -130,6 +168,26 @@ def _configured_model(
         return (
             os.getenv(
                 "AI_CLASSIFIER_MODEL",
+                os.getenv(
+                    "AI_MENTOR_MODEL",
+                    "gpt-5-mini",
+                ),
+            ).strip()
+            or "gpt-5-mini"
+        )
+
+    if role in {
+        "guided_evaluator",
+        "guided_tutor",
+    }:
+        env_name = (
+            "AI_GUIDED_EVALUATOR_MODEL"
+            if role == "guided_evaluator"
+            else "AI_GUIDED_TUTOR_MODEL"
+        )
+        return (
+            os.getenv(
+                env_name,
                 os.getenv(
                     "AI_MENTOR_MODEL",
                     "gpt-5-mini",
