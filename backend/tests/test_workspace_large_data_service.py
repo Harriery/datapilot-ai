@@ -415,6 +415,49 @@ def test_large_pipeline_mapping_fill_writes_silver_parquet(
     ]["label"] == 0
 
 
+
+def test_raw_preview_reuses_cache_and_invalidates_on_source_change(
+    tmp_path, monkeypatch,
+):
+    import backend.app.workspace_large_data_service as service
+
+    source_path = _write_csv(
+        tmp_path,
+        pd.DataFrame({"city": ["Delft", "Leiden"], "delay": [5, 7]}),
+    )
+    first = query_large_data_preview(
+        source_path=source_path, page=1, page_size=25
+    )
+    assert first["total_row_count"] == 2
+    assert len(list((tmp_path / "preview_cache").glob("*.parquet"))) == 1
+
+    original_source_sql = service._source_sql
+
+    def unexpected_csv_read(_):
+        raise AssertionError("Cached preview must not re-read raw CSV")
+
+    monkeypatch.setattr(service, "_source_sql", unexpected_csv_read)
+    second = query_large_data_preview(
+        source_path=source_path, page=1, page_size=25, search="Leiden"
+    )
+    assert second["filtered_row_count"] == 1
+    assert second["rows"].iloc[0]["city"] == "Leiden"
+
+    monkeypatch.setattr(service, "_source_sql", original_source_sql)
+    _write_csv(
+        tmp_path,
+        pd.DataFrame({
+            "city": ["Delft", "Leiden", "Den Haag"],
+            "delay": [5, 7, 9],
+        }),
+    )
+    third = query_large_data_preview(
+        source_path=source_path, page=1, page_size=25
+    )
+    assert third["total_row_count"] == 3
+    assert len(list((tmp_path / "preview_cache").glob("*.parquet"))) == 2
+
+
 def test_large_preview_filters_without_loading_full_dataframe(
     tmp_path,
 ):
