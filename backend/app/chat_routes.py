@@ -237,12 +237,27 @@ def chat(request: ChatRequest):
                 f"{item['present_rows']} dolu (%{item['missing_pct']} eksik)."
                 for item in evidence["groups"]
             )
-            if evidence["groups_truncated"]:
-                lines.append("Yalnızca en büyük gruplar gösterildi.")
-            lines.append(
-                "Bu sayılar doğrulanmıştır; iş kuralının nedeni henüz "
-                "doğrulanmamıştır. Sence bu ilişkiyi nasıl yorumlamalıyız?"
-            )
+            sufficiency = evidence.get("sufficiency") or {}
+            state = sufficiency.get("status")
+            if state in {"conflicting", "needs_verification"}:
+                lines = [
+                    "Hesaplanan ilişkide tutarsız veya doğrulanmamış kanıt var. "
+                    "Bu sayılardan henüz sonuç çıkarmayalım.",
+                    "Önce toplamların ve veri kaynağının doğrulanması gerekiyor.",
+                ]
+            elif state == "needs_more_evidence":
+                lines.append(
+                    "Bu inceleme henüz yeterli kanıt sağlamıyor "
+                    f"({sufficiency.get('reason', 'eksik kanıt')})."
+                )
+                lines.append(
+                    "Bu eksikliği gidermek için hangi ek kontrolü yapmalıyız?"
+                )
+            else:
+                lines.append(
+                    "Sayılar doğrulanmıştır; iş kuralının nedeni henüz "
+                    "doğrulanmamıştır. Sence bu ilişkiyi nasıl yorumlamalıyız?"
+                )
             reply = "\n".join(lines)
         else:
             reply = _deterministic_workspace_guidance(
