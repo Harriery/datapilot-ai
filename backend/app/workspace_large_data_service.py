@@ -447,6 +447,19 @@ def _categorical_scores(
             1,
         )
 
+        full_non_null_rows = max(
+            full_rows
+            - int(
+                profile[
+                    "null_counts"
+                ].get(
+                    column,
+                    0,
+                )
+            ),
+            1,
+        )
+
         total_variation = 0.0
 
         for item in full_items:
@@ -455,7 +468,7 @@ def _categorical_scores(
             )
             full_probability = (
                 int(item["count"])
-                / full_rows
+                / full_non_null_rows
             )
             sample_probability = (
                 int(
