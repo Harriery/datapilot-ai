@@ -16,6 +16,7 @@ from openai import (
     AuthenticationError,
     RateLimitError,
     APIConnectionError,
+    APIStatusError,
 )
 import backend.app.database as database
 from backend.app.models import ChatRequest, ChatResponse
@@ -305,6 +306,25 @@ def chat(request: ChatRequest):
             status_code=503,
             detail="AI servisine şu anda ulaşılamıyor.",
         )
+
+    except APIStatusError as exc:
+        logger.warning(
+            "Mentor AI provider rejected request (status=%d)",
+            exc.status_code,
+        )
+        delete_last_message(request.session_id)
+        if exc.status_code == 413:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "Mentor context exceeded the AI provider token limit. "
+                    "Try a shorter question or retry after context refresh."
+                ),
+            ) from exc
+        raise HTTPException(
+            status_code=503,
+            detail="Mentor AI provider request failed.",
+        ) from exc
 
     except Exception:
         logger.exception(
