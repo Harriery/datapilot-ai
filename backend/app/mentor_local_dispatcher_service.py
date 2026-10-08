@@ -19,6 +19,19 @@ from backend.app.mentor_local_investigation_service import (
 
 MISSING_OPERATORS = {"is_missing", "is_null", "is_empty"}
 
+def is_informal_missingness_question(message: str) -> bool:
+    """Recognize broad learner wording, without claiming a business meaning."""
+    normalized = message.casefold()
+    return any(term in normalized for term in (
+        "eksik", "boş", "bos", "null", "missing",
+        "bunlar", "böyle", "boyle",
+    )) and any(term in normalized for term in (
+        "normal", "neden", "niye", "nasıl", "nasil",
+        "mi", "mı", "mu", "mü", "baksana", "bakalım", "bakalim",
+        "oluyor", "acaba",
+    ))
+
+
 
 def _explicit_missingness_pair(message: str, available: list[str]) -> tuple[str, str] | None:
     """Use explicit column names only, never infer a business relationship."""
@@ -122,6 +135,7 @@ def dispatch_local_investigation(workspace, message: str, working_path: Path) ->
                 "reason": "request_one_group_column"
                 if active_target in available else "provide_explicit_missingness_pair",
                 "target_column": active_target if active_target in available else None,
+                "informal_question": is_informal_missingness_question(message),
             }
         target, group_column = pair
 
