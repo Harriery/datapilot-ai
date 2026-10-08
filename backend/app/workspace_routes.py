@@ -2272,10 +2272,12 @@ def refresh_workspace_duplicate_count(
 
     profile = dict(workspace.dataset_profile)
     profile["duplicate_count"] = duplicates
+    profile["duplicate_count_verified"] = True
     workspace.dataset_profile = profile
     if workspace.full_data_profile is not None:
         full_profile = dict(workspace.full_data_profile)
         full_profile["duplicate_count"] = duplicates
+        full_profile["duplicate_count_verified"] = True
         workspace.full_data_profile = full_profile
 
     if workspace.dataset_analysis is not None:
