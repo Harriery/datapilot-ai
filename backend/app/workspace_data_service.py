@@ -89,41 +89,43 @@ def save_workspace_dataset_stream(
     source_file,
     chunk_size: int = 1024 * 1024,
 ) -> int:
-    workspace_dir = (
-        _get_workspace_data_dir(
-            workspace_id
-        )
-    )
-    workspace_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    """Stream upload to disk, then replace the source with bounded Windows retries."""
+    import os
+    import time
+    from uuid import uuid4
 
-    source_path = (
-        workspace_dir / "source.csv"
-    )
-    temporary_path = (
-        workspace_dir / "source.tmp.csv"
-    )
-
+    workspace_dir = _get_workspace_data_dir(workspace_id)
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    source_path = workspace_dir / "source.csv"
+    # Unique staging name: overlapping uploads must not overwrite each other's temp.
+    temporary_path = workspace_dir / f"source.{uuid4().hex}.tmp.csv"
     total_bytes = 0
 
-    with temporary_path.open("wb") as target:
-        while True:
-            chunk = source_file.read(
-                chunk_size
-            )
-            if not chunk:
-                break
+    try:
+        with temporary_path.open("wb") as target:
+            while True:
+                chunk = source_file.read(chunk_size)
+                if not chunk:
+                    break
+                target.write(chunk)
+                total_bytes += len(chunk)
 
-            target.write(chunk)
-            total_bytes += len(chunk)
-
-    temporary_path.replace(
-        source_path
-    )
-
-    return total_bytes
+        # Windows can temporarily deny replacement while a scanner or
+        # another process holds the existing file open. Do not delete it.
+        for attempt in range(5):
+            try:
+                os.replace(temporary_path, source_path)
+                return total_bytes
+            except PermissionError as exc:
+                if attempt == 4:
+                    raise PermissionError(
+                        "Cannot replace workspace source.csv: Windows denied "
+                        "access. Close programs using this workspace file "
+                        "and retry; the previous source.csv was preserved."
+                    ) from exc
+                time.sleep(0.3 * (attempt + 1))
+    finally:
+        temporary_path.unlink(missing_ok=True)
 
 
 def save_workspace_dataset(
