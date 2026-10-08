@@ -135,6 +135,9 @@ def build_guided_mentor_context(
         "data_types": dict(profile.get("data_types") or {}),
         "distinct_counts": dict(profile.get("distinct_counts") or {}),
         "null_counts": dict(profile.get("null_counts") or {}),
+        "column_count": len(profile.get("columns") or []),
+        "duplicate_count": profile.get("duplicate_count"),
+        "duplicate_count_verified": profile.get("duplicate_count_verified", False),
     }
 
     execution_diagnosis = (
@@ -193,6 +196,7 @@ def build_guided_mentor_context(
             "desired_outcome": workspace.desired_outcome,
             "project_type": workspace.project_type,
             "mentor_setup": workspace.mentor_setup.model_dump() if workspace.mentor_setup else None,
+            "active_development_rows": workspace.development_sample_row_count,
         },
         "active_investigation": dict(
             loop.active_investigation
