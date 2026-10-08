@@ -237,6 +237,37 @@ def test_full_profile_large_csv_stages_parquet_and_cleans_up(
     assert list(tmp_path.glob("datapilot-profile-*")) == []
 
 
+
+def test_full_profile_duplicate_count_uses_all_columns(tmp_path):
+    source_path = _write_csv(
+        tmp_path,
+        pd.DataFrame(
+            {
+                "carrier": ["AA", "AA", "AA", "DL", "DL"],
+                "flight": [101, 101, 102, 205, 205],
+                "delay": [None, None, 5, 7, 7],
+            }
+        ),
+    )
+    profile = build_full_data_profile(source_path)
+    assert profile["row_count"] == 5
+    assert profile["duplicate_count"] == 2
+
+
+def test_full_profile_does_not_count_distinct_rows_as_duplicates(tmp_path):
+    source_path = _write_csv(
+        tmp_path,
+        pd.DataFrame(
+            {
+                "carrier": ["AA", "AA", "DL"],
+                "flight": [101, 102, 101],
+            }
+        ),
+    )
+    profile = build_full_data_profile(source_path)
+    assert profile["duplicate_count"] == 0
+
+
 def test_preflight_tracks_columns_after_rename(
     tmp_path,
 ):
