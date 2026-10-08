@@ -42,6 +42,8 @@ def test_dispatcher_verifies_explicit_relationship_without_llm(tmp_path):
     assert response["status"] == "verified"
     assert response["evidence"]["total_missing"] == 3
     assert response["evidence"]["business_rule_confirmed"] is False
+    assert response["evidence"]["sufficiency"]["status"] == "ready_for_interpretation"
+    assert response["evidence"]["sufficiency"]["can_transform"] is False
     assert len(workspace.action_evidence_events) == 2
     assert dispatch_local_investigation(
         workspace, "flag kolonuyla tekrar karşılaştır", path
