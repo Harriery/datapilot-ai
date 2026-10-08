@@ -8216,7 +8216,10 @@ async function restoreWorkspaceVersion(
                                       developmentSampleSize
                                     }
                                     disabled={
-                                      workspaceDataLoading
+                                      workspaceDataLoading ||
+                                      dashboardWorkspace
+                                        .dataset_storage_mode ===
+                                        "duckdb"
                                     }
                                     onChange={(event) => {
                                       void resizeDevelopmentSample(
