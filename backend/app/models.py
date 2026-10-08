@@ -699,6 +699,7 @@ class WorkspaceValidationCheck(BaseModel):
         "dataset_integrity",
         "schema_preserved",
         "pipeline_replay",
+        "full_data_preflight",
         "duplicate_rows",
         "missing_values",
     ] | None = None
