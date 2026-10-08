@@ -458,6 +458,46 @@ def test_raw_preview_reuses_cache_and_invalidates_on_source_change(
     assert len(list((tmp_path / "preview_cache").glob("*.parquet"))) == 2
 
 
+
+def test_simultaneous_raw_preview_requests_build_one_cache(
+    tmp_path, monkeypatch,
+):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    import backend.app.workspace_large_data_service as service
+
+    source_path = _write_csv(
+        tmp_path,
+        pd.DataFrame({"carrier": ["AA", "DL"], "delay": [5, 12]}),
+    )
+    original_source_sql = service._source_sql
+    calls = []
+    counter_lock = threading.Lock()
+
+    def tracked_source_sql(path):
+        with counter_lock:
+            calls.append(path)
+        return original_source_sql(path)
+
+    monkeypatch.setattr(service, "_source_sql", tracked_source_sql)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(
+            pool.map(
+                lambda _: query_large_data_preview(
+                    source_path=source_path,
+                    page=1,
+                    page_size=25,
+                ),
+                range(4),
+            )
+        )
+
+    assert all(item["total_row_count"] == 2 for item in results)
+    assert len(calls) == 1
+    assert len(list((tmp_path / "preview_cache").glob("*.parquet"))) == 1
+
+
 def test_large_preview_filters_without_loading_full_dataframe(
     tmp_path,
 ):
