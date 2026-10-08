@@ -1242,7 +1242,9 @@ def transform_workspace_workbench_data(
                     ),
                     row_count=len(after_df),
                     rows=dataframe_to_records(
-                        after_df
+                        after_df.head(
+                            5000
+                        )
                     ),
                 )
             ),
