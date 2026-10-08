@@ -420,3 +420,67 @@ def test_workspace_mentor_chat_enforces_discovery_preference():
         f'/chat/{workspace["mentor_session_id"]}/history'
     ).json()["messages"]
     assert stored[-1]["content"] == reply
+
+
+def test_verified_local_investigation_reply_skips_llm():
+    database.insert_learner_profile(
+        learner_id="local-evidence-learner",
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+    )
+    created = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "local-evidence-learner",
+            "title": "Generic Analysis",
+            "workspace_type": "data_engineering",
+        },
+    )
+    assert created.status_code == 200
+    workspace = created.json()
+    verified = {
+        "status": "verified",
+        "evidence": {
+            "target_column": "optional",
+            "group_column": "status",
+            "total_rows": 4,
+            "total_missing": 3,
+            "groups": [
+                {
+                    "value": "0", "rows": 2,
+                    "missing_rows": 2, "present_rows": 0,
+                    "missing_pct": 100.0,
+                },
+                {
+                    "value": "1", "rows": 2,
+                    "missing_rows": 1, "present_rows": 1,
+                    "missing_pct": 50.0,
+                },
+            ],
+            "groups_truncated": False,
+            "business_rule_confirmed": False,
+        },
+    }
+    with patch(
+        "backend.app.chat_routes.dispatch_local_investigation",
+        return_value=verified,
+    ), patch(
+        "backend.app.chat_routes.get_mentor_response_from_message"
+    ) as mentor_ai:
+        response = client.post(
+            "/chat",
+            json={
+                "session_id": workspace["mentor_session_id"],
+                "learner_id": "local-evidence-learner",
+                "workspace_id": workspace["workspace_id"],
+                "message": "optional ile status ilişkisini local engine üzerinden incele",
+            },
+        )
+    assert response.status_code == 200, response.text
+    mentor_ai.assert_not_called()
+    reply = response.json()["reply"]
+    assert "2 eksik" in reply
+    assert "1 eksik" in reply
+    assert "henüz" in reply
+    assert "\\n" not in reply
