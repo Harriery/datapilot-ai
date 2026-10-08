@@ -259,6 +259,22 @@ def chat(request: ChatRequest):
                     "doğrulanmamıştır. Sence bu ilişkiyi nasıl yorumlamalıyız?"
                 )
             reply = "\n".join(lines)
+        elif (
+            local_evidence.get("status") == "needs_clarification"
+            and local_evidence.get("reason") == "request_one_group_column"
+            and local_evidence.get("target_column")
+            and local_evidence.get("informal_question")
+        ):
+            # Natural learner follow-ups like "Bu boşlar normal mi?"
+            # should not trigger unsupported UI instructions or repeat work.
+            target = local_evidence["target_column"]
+            reply = (
+                f"{target} sütunundaki eksik kayıtları daha önce "
+                "incelediğini görüyorum. Ancak sadece boş kayıt sayısına "
+                "bakarak bunların hata mı, beklenen durum mu olduğunu "
+                "söyleyemeyiz. Sence bunu anlamak için hangi başka "
+                "bilgiyle karşılaştırmalıyız?"
+            )
         else:
             reply = _deterministic_workspace_guidance(
                 workspace_context=workspace_context,
