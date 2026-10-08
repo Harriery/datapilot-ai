@@ -11,6 +11,7 @@ import re
 import pandas as pd
 
 from backend.app.mentor_action_evidence_service import record_action_evidence
+from backend.app.mentor_evidence_sufficiency_service import assess_relationship_evidence
 from backend.app.mentor_local_investigation_service import (
     verify_missingness_relationship,
 )
@@ -78,6 +79,7 @@ def dispatch_local_investigation(workspace, message: str, working_path: Path) ->
     result = verify_missingness_relationship(
         df, target_column=target, group_column=group_column
     )
+    result["sufficiency"] = assess_relationship_evidence(result)
     record_action_evidence(
         workspace,
         action="missingness_relationship",
