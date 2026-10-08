@@ -871,7 +871,7 @@ def evaluate_sample(
     }
 
 
-def _build_rare_targeted_rows(
+def _build_targeted_rows(
     source_path: Path,
     profile: dict,
     limit: int,
@@ -930,6 +930,66 @@ def _build_rare_targeted_rows(
         if len(predicates) >= 6:
             break
 
+    # Preserve uncommon missingness patterns as investigation evidence.
+    # Very common missingness is already represented naturally, so target
+    # only columns where missing rows are relatively rare.
+    for column in profile.get(
+        "columns",
+        [],
+    ):
+        missing_count = int(
+            profile.get(
+                "null_counts",
+                {},
+            ).get(
+                column,
+                0,
+            )
+        )
+
+        missing_rate = (
+            missing_count
+            / row_count
+        )
+
+        if (
+            missing_count > 0
+            and missing_rate <= 0.05
+        ):
+            predicates.append(
+                f"{_q(column)} IS NULL"
+            )
+
+        if len(predicates) >= 9:
+            break
+
+    # Numeric tails are useful development evidence for transformations
+    # involving unusual or extreme values. p95 comes from the full profile,
+    # not from the sample itself.
+    for (
+        column,
+        summary,
+    ) in profile.get(
+        "numeric_summary",
+        {},
+    ).items():
+        p95 = summary.get(
+            "p95"
+        )
+
+        if p95 is None:
+            continue
+
+        predicates.append(
+            (
+                f"{_q(column)} >= "
+                f"{_lit(p95)}"
+            )
+        )
+
+        if len(predicates) >= 12:
+            break
+
     if not predicates:
         return pd.DataFrame()
 
@@ -951,7 +1011,7 @@ def _build_rare_targeted_rows(
                 "SELECT * FROM ("
                 f"SELECT * FROM {relation_sql} "
                 f"WHERE {predicate_sql}"
-                ") rare_rows "
+                ") targeted_rows "
                 "USING SAMPLE "
                 f"reservoir({limit} ROWS) "
                 f"REPEATABLE ({seed})"
@@ -1159,7 +1219,7 @@ def build_smart_development_sample(
         )
 
         targeted = (
-            _build_rare_targeted_rows(
+            _build_targeted_rows(
                 source_path=source_path,
                 profile=profile,
                 limit=targeted_limit,
@@ -1206,7 +1266,7 @@ def build_smart_development_sample(
 
             refinement = {
                 "strategy":
-                    "rare_group_hybrid",
+                    "rare_edge_hybrid",
                 "targeted_rows":
                     len(targeted),
                 "before":
@@ -1249,7 +1309,7 @@ def build_smart_development_sample(
         else (
             (
                 f"{selected_size:,} rows needed "
-                "rare-group refinement; the hybrid "
+                "rare/edge-case refinement; the hybrid "
                 "sample improved representation."
             )
             if strategy
