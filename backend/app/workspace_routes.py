@@ -3668,6 +3668,56 @@ def get_workspace_notebook_data(
             detail="Notebook bulunamadı.",
         )
 
+    notebook_limit = min(
+        (
+            workspace.development_sample_size
+            or workspace.development_sample_row_count
+            or workspace.development_sample_max_size
+            or 1000
+        ),
+        5000,
+    )
+
+    if (
+        workspace.dataset_storage_mode
+        == "duckdb"
+        and notebook.dataset_kind
+        == "raw"
+    ):
+        try:
+            (
+                df,
+                total_row_count,
+            ) = load_large_source_sample(
+                source_path=(
+                    get_workspace_source_path(
+                        workspace_id
+                    )
+                ),
+                limit=notebook_limit,
+                seed=42,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        return WorkspaceWorkingDataResponse(
+            columns=df.columns.tolist(),
+            row_count=len(df),
+            rows=dataframe_to_records(
+                df
+            ),
+            total_row_count=(
+                total_row_count
+            ),
+            sampled=(
+                total_row_count
+                > len(df)
+            ),
+        )
+
     try:
         if notebook.dataset_kind == "working":
             df = (
@@ -3709,16 +3759,6 @@ def get_workspace_notebook_data(
         ) from exc
 
     total_row_count = len(df)
-
-    notebook_limit = min(
-        (
-            workspace.development_sample_size
-            or workspace.development_sample_row_count
-            or workspace.development_sample_max_size
-            or 1000
-        ),
-        5000,
-    )
 
     sampled = (
         total_row_count > notebook_limit
