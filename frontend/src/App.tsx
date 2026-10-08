@@ -2946,7 +2946,11 @@ async function resizeDevelopmentSample(
         },
         body: JSON.stringify({
           sample_size: nextSize,
-          strategy: "random",
+          strategy:
+            dashboardWorkspace?.dataset_storage_mode ===
+            "duckdb"
+              ? "smart"
+              : "random",
           random_seed: 42,
         }),
       }
@@ -3057,6 +3061,41 @@ async function applyPipelineToFullDataset() {
   );
 
   try {
+    if (
+      dashboardWorkspace?.dataset_storage_mode ===
+      "duckdb"
+    ) {
+      const preflightResponse = await fetch(
+        (
+          "http://127.0.0.1:8000" +
+          `/workspaces/demo-learner/${workspaceId}` +
+          "/full-data-preflight"
+        ),
+        {
+          method: "POST",
+        }
+      );
+
+      if (!preflightResponse.ok) {
+        const errorData =
+          await preflightResponse.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Full-data preflight failed."
+        );
+      }
+
+      const preflight =
+        await preflightResponse.json();
+
+      if (!preflight.passed) {
+        throw new Error(
+          "Full-data preflight found issues. Review the pipeline before applying it to the full dataset."
+        );
+      }
+    }
+
     const response = await fetch(
       (
         "http://127.0.0.1:8000" +
