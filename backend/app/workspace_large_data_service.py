@@ -732,6 +732,94 @@ def evaluate_sample(
     }
 
 
+def _build_rare_targeted_rows(
+    source_path: Path,
+    profile: dict,
+    limit: int,
+    seed: int,
+) -> pd.DataFrame:
+    if limit <= 0:
+        return pd.DataFrame()
+
+    row_count = max(
+        int(profile["row_count"]),
+        1,
+    )
+
+    predicates: list[str] = []
+
+    for (
+        column,
+        items,
+    ) in profile.get(
+        "categorical_distributions",
+        {},
+    ).items():
+        rare_values = [
+            str(item["value"])
+            for item in items
+            if (
+                int(item["count"]) >= 2
+                and (
+                    int(item["count"])
+                    / row_count
+                )
+                <= 0.01
+            )
+        ]
+
+        if not rare_values:
+            continue
+
+        values_sql = ", ".join(
+            _lit(value)
+            for value in rare_values[
+                :50
+            ]
+        )
+
+        predicates.append(
+            (
+                "CAST("
+                f"{_q(column)} "
+                "AS VARCHAR) IN ("
+                f"{values_sql}"
+                ")"
+            )
+        )
+
+        if len(predicates) >= 6:
+            break
+
+    if not predicates:
+        return pd.DataFrame()
+
+    predicate_sql = (
+        " OR ".join(
+            predicates
+        )
+    )
+
+    with duckdb.connect() as connection:
+        relation_sql = (
+            _source_sql(
+                source_path
+            )
+        )
+
+        return connection.execute(
+            (
+                "SELECT * FROM ("
+                f"SELECT * FROM {relation_sql} "
+                f"WHERE {predicate_sql}"
+                ") rare_rows "
+                "USING SAMPLE "
+                f"reservoir({limit} ROWS) "
+                f"REPEATABLE ({seed})"
+            )
+        ).df()
+
+
 def build_smart_development_sample(
     source_path: Path,
     profile: dict,
@@ -749,12 +837,16 @@ def build_smart_development_sample(
     )
 
     bounded_sizes = tuple(
-        size
-        for size in candidate_sizes
-        if (
-            size > 0
-            and size
-            < source_row_count
+        sorted(
+            {
+                int(size)
+                for size in candidate_sizes
+                if (
+                    int(size) > 0
+                    and int(size)
+                    < source_row_count
+                )
+            }
         )
     )
 
@@ -769,13 +861,17 @@ def build_smart_development_sample(
                 )
             ).df()
 
+        full_evaluation = (
+            evaluate_sample(
+                full,
+                profile,
+            )
+        )
+
         report = {
             "candidate_evaluations": [
                 {
-                    **evaluate_sample(
-                        full,
-                        profile,
-                    ),
+                    **full_evaluation,
                     "sample_size":
                         len(full),
                 }
@@ -784,13 +880,19 @@ def build_smart_development_sample(
                 len(full),
             "selected_strategy":
                 "full_dataset",
+            "selected_evaluation":
+                full_evaluation,
+            "threshold":
+                REPRESENTATION_THRESHOLD,
+            "rare_coverage_threshold":
+                RARE_COVERAGE_THRESHOLD,
             "reason":
                 (
                     "Dataset is smaller than "
                     "the smart-sampling candidates."
                 ),
-            "threshold":
-                REPRESENTATION_THRESHOLD,
+            "full_data_preflight_required":
+                False,
         }
 
         return (
@@ -826,12 +928,16 @@ def build_smart_development_sample(
         )
     )
 
-    evaluations = []
-    selected_size = largest
+    # Evaluate every requested candidate. We deliberately do not stop
+    # after the first passing size: the UI should be able to compare
+    # 5k, 10k and 20k even when 5k already looks acceptable.
+    evaluations: list[dict] = []
+    candidates: dict[
+        int,
+        pd.DataFrame,
+    ] = {}
 
-    for size in sorted(
-        bounded_sizes
-    ):
+    for size in bounded_sizes:
         candidate = (
             pool.head(
                 size
@@ -841,6 +947,7 @@ def build_smart_development_sample(
                 drop=True
             )
         )
+
         result = evaluate_sample(
             candidate,
             profile,
@@ -849,20 +956,29 @@ def build_smart_development_sample(
             "sample_size"
         ] = size
 
+        candidates[
+            size
+        ] = candidate
         evaluations.append(
             result
         )
 
-        if result[
-            "sufficient"
-        ]:
-            selected_size = size
-            break
+    sufficient_sizes = [
+        int(item["sample_size"])
+        for item in evaluations
+        if item["sufficient"]
+    ]
+
+    selected_size = (
+        min(sufficient_sizes)
+        if sufficient_sizes
+        else largest
+    )
 
     selected = (
-        pool.head(
+        candidates[
             selected_size
-        )
+        ]
         .copy()
         .reset_index(
             drop=True
@@ -884,19 +1000,127 @@ def build_smart_development_sample(
         else "smart_best_available"
     )
 
+    refinement = None
+
+    # If even the largest normal candidate misses the thresholds, try a
+    # hybrid refinement instead of blindly asking for a larger sample.
+    # Keep most rows representative and reserve up to 10% for rare groups.
+    if not selected_eval[
+        "sufficient"
+    ]:
+        targeted_limit = min(
+            max(
+                int(
+                    selected_size
+                    * 0.10
+                ),
+                1,
+            ),
+            2_000,
+        )
+
+        targeted = (
+            _build_rare_targeted_rows(
+                source_path=source_path,
+                profile=profile,
+                limit=targeted_limit,
+                seed=seed + 1,
+            )
+        )
+
+        if not targeted.empty:
+            base_size = max(
+                selected_size
+                - len(targeted),
+                0,
+            )
+
+            hybrid = pd.concat(
+                [
+                    targeted,
+                    selected.head(
+                        base_size
+                    ),
+                ],
+                ignore_index=True,
+            )
+
+            hybrid = (
+                hybrid.sample(
+                    frac=1.0,
+                    random_state=seed,
+                )
+                .head(
+                    selected_size
+                )
+                .reset_index(
+                    drop=True
+                )
+            )
+
+            hybrid_eval = (
+                evaluate_sample(
+                    hybrid,
+                    profile,
+                )
+            )
+
+            refinement = {
+                "strategy":
+                    "rare_group_hybrid",
+                "targeted_rows":
+                    len(targeted),
+                "before":
+                    selected_eval,
+                "after":
+                    hybrid_eval,
+            }
+
+            # Use refinement only if it improves overall quality or turns
+            # the candidate into a sufficient one.
+            if (
+                hybrid_eval[
+                    "sufficient"
+                ]
+                or hybrid_eval[
+                    "overall_score"
+                ]
+                > selected_eval[
+                    "overall_score"
+                ]
+            ):
+                selected = hybrid
+                selected_eval = (
+                    hybrid_eval
+                )
+                strategy = (
+                    "smart_hybrid"
+                )
+
     reason = (
         (
             f"{selected_size:,} rows is the "
             "smallest candidate that met the "
             "representation thresholds."
         )
-        if selected_eval[
-            "sufficient"
-        ]
+        if (
+            strategy
+            == "smart_representative"
+        )
         else (
-            "No candidate met every threshold. "
-            "The largest candidate is kept and "
-            "full-data preflight remains mandatory."
+            (
+                f"{selected_size:,} rows needed "
+                "rare-group refinement; the hybrid "
+                "sample improved representation."
+            )
+            if strategy
+            == "smart_hybrid"
+            else (
+                "No candidate met every threshold. "
+                "The largest measured candidate is "
+                "kept; full-data preflight remains "
+                "mandatory before full apply."
+            )
         )
     )
 
@@ -915,6 +1139,8 @@ def build_smart_development_sample(
             RARE_COVERAGE_THRESHOLD,
         "reason":
             reason,
+        "refinement":
+            refinement,
         "full_data_preflight_required":
             True,
     }
