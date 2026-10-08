@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from time import perf_counter
 from typing import Any
+import logging
 
 import duckdb
 import pandas as pd
@@ -318,13 +321,43 @@ def build_full_data_profile(
             "Workspace source datası bulunamadı."
         )
 
+    logger = logging.getLogger(__name__)
+    started = perf_counter()
     with duckdb.connect() as connection:
-        return _relation_profile(
-            connection,
-            _source_sql(
-                source_path
-            ),
-        )
+        # Re-running every per-column aggregate against a large CSV
+        # repeatedly parses the entire text file and keeps it open
+        # for a long time. Materialize a temporary columnar copy once.
+        if source_path.stat().st_size >= 50 * 1024 * 1024:
+            with TemporaryDirectory(prefix="datapilot-profile-") as temp_dir:
+                stage_path = Path(temp_dir) / "profile.parquet"
+                connection.execute(
+                    "COPY (SELECT * FROM "
+                    + _source_sql(source_path)
+                    + ") TO "
+                    + _path_literal(stage_path)
+                    + " (FORMAT PARQUET, COMPRESSION ZSTD)"
+                )
+                logger.info(
+                    "Large CSV staging completed in %.1fs (source_bytes=%d)",
+                    perf_counter() - started,
+                    source_path.stat().st_size,
+                )
+                result = _relation_profile(
+                    connection,
+                    "read_parquet(" + _path_literal(stage_path) + ")",
+                )
+        else:
+            result = _relation_profile(
+                connection,
+                _source_sql(source_path),
+            )
+    logger.info(
+        "Full data profile completed in %.1fs (rows=%d, columns=%d)",
+        perf_counter() - started,
+        result["row_count"],
+        result["column_count"],
+    )
+    return result
 
 
 def _reservoir_sample(
