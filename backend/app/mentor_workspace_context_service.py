@@ -259,6 +259,11 @@ def build_chat_mentor_workspace_context(
         "task_brief": workspace.task_brief,
         "desired_outcome": workspace.desired_outcome,
         "project_type": workspace.project_type,
+        "mentor_setup": workspace.mentor_setup.model_dump() if workspace.mentor_setup else None,
+        "dataset_profile_summary": {
+            "row_count": (workspace.dataset_profile or {}).get("row_count"),
+            "columns": (workspace.dataset_profile or {}).get("columns", [])[:80],
+        },
         "dataset_filename": workspace.dataset_filename,
         "development_sample_size": workspace.development_sample_size,
         "active_processed_dataset_id":
