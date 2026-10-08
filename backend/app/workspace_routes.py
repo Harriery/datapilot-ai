@@ -2374,6 +2374,12 @@ def profile_workspace_data(
                 ),
             ) from exc
 
+        # Preserve the proven small-data profile contract so
+        # Melbourne/regression work keeps pandas dtype names and summaries.
+        full_profile = build_data_profile(
+            source_df
+        )
+
         local_analysis = (
             analyze_dataframe_locally(
                 source_df
