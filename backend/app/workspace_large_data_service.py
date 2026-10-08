@@ -303,6 +303,7 @@ def _relation_profile(
             column_examples,
         "duplicate_count":
             duplicate_count,
+        "duplicate_count_verified": True,
         "sample_rows": [],
         "numeric_columns":
             numeric_columns,
