@@ -188,6 +188,12 @@ def build_guided_mentor_context(
             trusted_ui
         ),
         "profile": profile_context,
+        "project_context": {
+            "goal": workspace.task_brief,
+            "desired_outcome": workspace.desired_outcome,
+            "project_type": workspace.project_type,
+            "mentor_setup": workspace.mentor_setup.model_dump() if workspace.mentor_setup else None,
+        },
         "active_investigation": dict(
             loop.active_investigation
             if isinstance(loop.active_investigation, dict)
