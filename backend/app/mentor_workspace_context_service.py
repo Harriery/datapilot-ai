@@ -77,12 +77,38 @@ def build_relevant_workspace_artifacts(
     artifacts: dict = {}
 
     if _has_prefix(paths, "source", "prepare.profile"):
-        artifacts["dataset_profile"] = _dump(
-            workspace.dataset_profile
-        )
-        artifacts["dataset_analysis"] = _dump(
-            workspace.dataset_analysis
-        )
+        # Only summaries belong in a chat prompt. Detailed per-column
+        # distributions and every finding can exceed free-tier TPM limits.
+        profile = workspace.dataset_profile or {}
+        artifacts["dataset_profile"] = {
+            "row_count": profile.get("row_count"),
+            "column_count": len(profile.get("columns") or []),
+            "columns": list(profile.get("columns") or [])[:80],
+            "null_counts": dict(profile.get("null_counts") or {}),
+            "duplicate_count": profile.get("duplicate_count"),
+            "duplicate_count_verified": profile.get(
+                "duplicate_count_verified", False
+            ),
+        }
+        analysis = workspace.dataset_analysis
+        findings = analysis.findings if analysis is not None else []
+        artifacts["dataset_analysis"] = {
+            "finding_count": len(findings),
+            "findings": [
+                {
+                    "issue_type": item.issue_type,
+                    "column": item.column,
+                    "severity": item.severity,
+                    "observation": item.observation[:180],
+                }
+                for item in findings[:8]
+                if (
+                    item.issue_type != "duplicate_rows"
+                    or profile.get("duplicate_count_verified", False)
+                )
+            ],
+            "truncated": len(findings) > 8,
+        }
 
     if _has_prefix(paths, "prepare.workbench"):
         artifacts["workbench_operations"] = [
