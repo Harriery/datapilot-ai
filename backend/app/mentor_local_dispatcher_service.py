@@ -95,6 +95,8 @@ def dispatch_local_investigation(workspace, message: str, working_path: Path) ->
     if target is None:
         pair = _explicit_missingness_pair(message, available)
         if pair is None:
+            if recent is not None and recent.get("data_version") != version:
+                return {"status": "stale", "reason": "dataset_version_changed"}
             return {
                 "status": "needs_clarification",
                 "reason": "provide_explicit_missingness_pair",
