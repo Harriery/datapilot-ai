@@ -2441,6 +2441,7 @@ def apply_full_pipeline_to_silver(
                     f"{next_view} AS "
                     f"SELECT {select_sql} "
                     f"FROM {current_view}"
+                    + (" AS src" if action.action == "fill_missing" and action.fill_strategy == "mapping" else "")
                 )
             )
 
