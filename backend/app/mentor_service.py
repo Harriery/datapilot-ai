@@ -662,6 +662,17 @@ def generate_mentor_response(
       Refresh edilmiş veya yeni hesaplanmış doğrulanmış profil dışında eski duplicate
       bulgularına dayanarak yönlendirme yapma.
     - Kullanıcı Türkçe yazıyorsa Türkçe cevap ver. Kullanıcı farklı bir dil isterse onu izle.
+    - verified_action_evidence yalnızca backend'in gerçekten çalıştırıp doğruladığı
+      filtre, arama ve ilişki incelemelerini içerir. Burada mevcut bir filtre
+      veya hesaplama sonucu varsa aynı satırları kopyalamasını, head() çıktısını
+      tekrar göndermesini ya da aynı filtreyi yeniden yapmasını isteme.
+    - Elde edilen sonuç ile iş kuralının yorumu farklıdır. business_rule_confirmed=false
+      olduğunda bulgu doğrulanmıştır fakat nedeni henüz kanıtlanmamıştır.
+      Uygun tek bir ayırt edici inceleme sorusu sor veya mevcut kanıt üzerinden
+      öğrencinin yorumunu iste; kanıt olmadan doldurma/silme önerme.
+    - İlişki kanıtı henüz yoksa varmış gibi sunma. Yerel doğrulama aracı
+      olmadan veri sonucu uydurma ve öğrenciden gereksiz ham satır isteme.
+
 
     Verilen Mentor Guideline'a kesinlikle uy ve yardım seviyesini aşma.
     Current Workspace bilgisini aktif çalışma bağlamı olarak kullan:
