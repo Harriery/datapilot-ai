@@ -43,6 +43,7 @@ from backend.app.mentor_workspace_context_service import (
     build_chat_mentor_workspace_context,
 )
 from backend.app.mentor_pedagogy_contract import enforce_discovery_contract
+from backend.app.mentor_local_dispatcher_service import dispatch_local_investigation
 
 import json
 
@@ -161,6 +162,18 @@ def chat(request: ChatRequest):
                     None,
                 )
 
+        # Run local verification before constructing the bounded AI context.
+        # Only explicit named-column investigations may dispatch; never
+        # infer business rules or spend model tokens on data counting.
+        from backend.app.workspace_data_service import get_workspace_data_dir
+        local_result = dispatch_local_investigation(
+            workspace,
+            message,
+            get_workspace_data_dir(workspace.workspace_id) / "working.csv",
+        )
+        if local_result.get("status") == "verified":
+            database.save_workspace(workspace=workspace)
+
         workspace_context = (
             build_chat_mentor_workspace_context(
                 workspace=workspace,
@@ -171,6 +184,7 @@ def chat(request: ChatRequest):
                 current_step=current_step,
             )
         )
+        workspace_context["local_investigation"] = local_result
 
     learner_profile = database.get_learner_profile_by_id(
     learner_id
