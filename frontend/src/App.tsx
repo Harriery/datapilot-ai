@@ -239,6 +239,7 @@ type DashboardWorkspace = {
       missingness_similarity: number;
       categorical_distribution_similarity: number;
       numeric_distribution_similarity: number;
+      datetime_coverage_similarity: number;
       rare_group_coverage: number;
       overall_score: number;
       sufficient: boolean;
@@ -250,6 +251,7 @@ type DashboardWorkspace = {
       missingness_similarity: number;
       categorical_distribution_similarity: number;
       numeric_distribution_similarity: number;
+      datetime_coverage_similarity: number;
       rare_group_coverage: number;
       overall_score: number;
       sufficient: boolean;
@@ -563,6 +565,7 @@ type WorkspaceDataProfileResponse = {
       missingness_similarity: number;
       categorical_distribution_similarity: number;
       numeric_distribution_similarity: number;
+      datetime_coverage_similarity: number;
       rare_group_coverage: number;
       overall_score: number;
       sufficient: boolean;
@@ -574,6 +577,7 @@ type WorkspaceDataProfileResponse = {
       missingness_similarity: number;
       categorical_distribution_similarity: number;
       numeric_distribution_similarity: number;
+      datetime_coverage_similarity: number;
       rare_group_coverage: number;
       overall_score: number;
       sufficient: boolean;
@@ -8349,6 +8353,10 @@ async function restoreWorkspaceVersion(
                                           <span>
                                             Numeric{" "}
                                             {candidate.numeric_distribution_similarity.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            Date/time{" "}
+                                            {candidate.datetime_coverage_similarity.toFixed(1)}%
                                           </span>
                                           <span>
                                             Rare coverage{" "}
