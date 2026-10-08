@@ -1981,6 +1981,9 @@ class Workspace(BaseModel):
         PersonalProjectDataModelStudio | None
     ) = None
 
+    # Verified, compact backend action history for zero-LLM mentoring.
+    action_evidence_events: list[dict] = Field(default_factory=list)
+
     workbench_operations: list[
         WorkspaceWorkbenchOperation
     ] = Field(default_factory=list)
