@@ -1886,6 +1886,13 @@ class WorkspaceLearningLoopReviewResponse(BaseModel):
     ]
 
 
+class ProjectMentorSetup(BaseModel):
+    intent: Literal["learning", "practice", "portfolio", "work"] = "learning"
+    experience_level: Literal["beginner", "intermediate", "advanced"] = "beginner"
+    approach: Literal["guided", "balanced", "direct"] = "guided"
+    learning_focus: list[Literal["python", "sql", "cleaning", "pipelines", "modeling", "quality", "bi"]] = Field(default_factory=list)
+
+
 class Workspace(BaseModel):
     workspace_id: str
     learner_id: str
@@ -1930,6 +1937,8 @@ class Workspace(BaseModel):
         "data_quality",
         "portfolio",
     ] | None = None
+
+    mentor_setup: ProjectMentorSetup | None = None
 
     project_deliverables: list[
         ProjectDeliverable
@@ -3244,6 +3253,7 @@ class WorkspaceCreateRequest(BaseModel):
         "unknown",
     ] | None = None
 
+    mentor_setup: ProjectMentorSetup | None = None
     task_brief: str | None = None
     desired_outcome: str | None = None
 
