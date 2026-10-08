@@ -20,6 +20,7 @@ from backend.app.mentor_learner_model_service import (
 from backend.app.mentor_supervisor_service import (
     build_workspace_supervisor_context,
 )
+from backend.app.mentor_action_evidence_service import concise_action_evidence
 from backend.app.models import Workspace
 
 
@@ -295,6 +296,7 @@ def build_chat_mentor_workspace_context(
             "duplicate_count": (workspace.dataset_profile or {}).get("duplicate_count"),
             "duplicate_count_verified": (workspace.dataset_profile or {}).get("duplicate_count_verified", False),
         },
+        "verified_action_evidence": concise_action_evidence(workspace),
         "sampling_context": {
             "active_development_rows": workspace.development_sample_row_count,
             "recommended_sample_size": (
