@@ -49,6 +49,9 @@ from backend.app.models import (
     WorkspaceWorkbenchDecisionRequest,
     WorkspaceDevelopmentSampleRequest,
     WorkspaceDevelopmentSampleResponse,
+    WorkspaceSmartSamplingRequest,
+    WorkspaceSmartSamplingResponse,
+    WorkspaceFullDataPreflightResponse,
     WorkspaceFullPipelineResponse,
     WorkspaceProcessedDatasetCreateRequest,
     WorkspaceProcessedDataset,
@@ -80,6 +83,9 @@ from backend.app.workspace_plan_service import (
 
 from backend.app.workspace_data_service import (
     save_workspace_dataset,
+    save_workspace_dataset_stream,
+    get_workspace_source_path,
+    get_workspace_silver_path,
     load_workspace_working_dataframe,
     dataframe_to_records,
     save_workspace_working_dataframe,
@@ -175,6 +181,16 @@ from backend.app.transformation_validation_service import (
 from backend.app.workspace_pipeline_service import (
     apply_pipeline_action,
     apply_replayable_workbench_pipeline,
+)
+
+from backend.app.workspace_large_data_service import (
+    SMART_SAMPLE_CANDIDATES,
+    build_full_data_profile,
+    build_full_quality_analysis,
+    build_smart_development_sample,
+    run_full_data_preflight,
+    apply_full_pipeline_to_silver,
+    profile_parquet,
 )
 from backend.app.workspace_preview_filter_service import (
     apply_preview_filters,
