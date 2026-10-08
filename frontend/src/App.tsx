@@ -8222,12 +8222,22 @@ async function restoreWorkspaceVersion(
                                       );
                                     }}
                                   >
-                                    {[
-                                      500,
-                                      1000,
-                                      2500,
-                                      5000,
-                                    ]
+                                    {(
+                                      dashboardWorkspace
+                                        .dataset_storage_mode ===
+                                      "duckdb"
+                                        ? [
+                                            5000,
+                                            10000,
+                                            20000,
+                                          ]
+                                        : [
+                                            500,
+                                            1000,
+                                            2500,
+                                            5000,
+                                          ]
+                                    )
                                       .filter(
                                         (size) =>
                                           size <=
@@ -8281,6 +8291,81 @@ async function restoreWorkspaceVersion(
                                   />
                                 </label>
                               </div>
+                              )}
+
+                              {dashboardWorkspace.smart_sampling_report && (
+                                <div className="workspace-smart-sampling">
+                                  <div className="workspace-smart-sampling-header">
+                                    <div>
+                                      <span className="workspace-overview-label">
+                                        Smart Sampling
+                                      </span>
+                                      <strong>
+                                        {dashboardWorkspace
+                                          .smart_sampling_report
+                                          .selected_size
+                                          .toLocaleString()}{" "}
+                                        rows selected
+                                      </strong>
+                                    </div>
+
+                                    <span>
+                                      Full-data preflight required
+                                    </span>
+                                  </div>
+
+                                  <div className="workspace-smart-sampling-grid">
+                                    {dashboardWorkspace
+                                      .smart_sampling_report
+                                      .candidate_evaluations
+                                      .map((candidate) => (
+                                        <div
+                                          key={candidate.sample_size}
+                                          className={
+                                            candidate.sample_size ===
+                                            dashboardWorkspace
+                                              .smart_sampling_report
+                                              ?.selected_size
+                                              ? "workspace-smart-sampling-candidate selected"
+                                              : "workspace-smart-sampling-candidate"
+                                          }
+                                        >
+                                          <strong>
+                                            {candidate.sample_size
+                                              .toLocaleString()} rows
+                                          </strong>
+                                          <span>
+                                            Overall{" "}
+                                            {candidate.overall_score.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            Missing{" "}
+                                            {candidate.missingness_similarity.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            Categories{" "}
+                                            {candidate.categorical_distribution_similarity.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            Numeric{" "}
+                                            {candidate.numeric_distribution_similarity.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            Rare coverage{" "}
+                                            {candidate.rare_group_coverage.toFixed(1)}%
+                                          </span>
+                                        </div>
+                                      ))}
+                                  </div>
+
+                                  <small>
+                                    {
+                                      dashboardWorkspace
+                                        .smart_sampling_report
+                                        .reason
+                                    }
+                                  </small>
+                                </div>
                               )}
                             </div>
 
