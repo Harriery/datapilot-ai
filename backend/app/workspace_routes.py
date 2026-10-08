@@ -4826,6 +4826,320 @@ def validate_workspace_result(
             ),
         )
 
+    if workspace.dataset_storage_mode == "duckdb":
+        source_profile = (
+            workspace.full_data_profile
+            or workspace.dataset_profile
+        )
+
+        if source_profile is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Full-data profile bulunamadı."
+                ),
+            )
+
+        if not workspace.silver_dataset_path:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Validation öncesinde full pipeline "
+                    "Silver dataset'e uygulanmalı."
+                ),
+            )
+
+        try:
+            working_profile = profile_parquet(
+                get_workspace_silver_path(
+                    workspace_id
+                )
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        checks: list[
+            WorkspaceValidationCheck
+        ] = []
+
+        working_row_count = int(
+            working_profile["row_count"]
+        )
+
+        checks.append(
+            WorkspaceValidationCheck(
+                name="Dataset integrity",
+                status=(
+                    "passed"
+                    if working_row_count > 0
+                    else "failed"
+                ),
+                message=(
+                    f"Silver dataset contains "
+                    f"{working_row_count} rows."
+                ),
+                code="dataset_integrity",
+                params={
+                    "row_count":
+                        working_row_count,
+                    "engine":
+                        "duckdb",
+                    "storage":
+                        "parquet",
+                },
+            )
+        )
+
+        preflight_passed = bool(
+            workspace.full_data_preflight
+            and workspace.full_data_preflight.get(
+                "passed",
+                False,
+            )
+        )
+
+        checks.append(
+            WorkspaceValidationCheck(
+                name="Full-data preflight",
+                status=(
+                    "passed"
+                    if preflight_passed
+                    else "failed"
+                ),
+                message=(
+                    "Sample-derived pipeline decisions "
+                    "were checked against the full source."
+                    if preflight_passed
+                    else (
+                        "A successful full-data preflight "
+                        "is missing."
+                    )
+                ),
+                code="full_data_preflight",
+                params={
+                    "passed":
+                        preflight_passed,
+                },
+            )
+        )
+
+        operations_by_finding_index = {
+            operation.finding_index:
+                operation
+            for operation
+            in workbench_operations
+            if (
+                operation.finding_index
+                is not None
+            )
+        }
+
+        for step_index, step in enumerate(
+            task.steps
+        ):
+            finding = step.finding
+            operation = (
+                operations_by_finding_index.get(
+                    step_index
+                )
+            )
+
+            accepted_as_is = (
+                operation is not None
+                and operation.decision
+                == "accepted_as_is"
+            )
+
+            if (
+                finding.issue_type
+                == "duplicate_rows"
+            ):
+                duplicate_count = int(
+                    working_profile[
+                        "duplicate_count"
+                    ]
+                )
+
+                checks.append(
+                    WorkspaceValidationCheck(
+                        name="Duplicate rows",
+                        status=(
+                            "warning"
+                            if accepted_as_is
+                            else (
+                                "passed"
+                                if duplicate_count == 0
+                                else "failed"
+                            )
+                        ),
+                        message=(
+                            f"{duplicate_count} "
+                            "duplicate rows remain."
+                        ),
+                        code="duplicate_rows",
+                        params={
+                            "duplicate_count":
+                                duplicate_count,
+                        },
+                    )
+                )
+
+            elif (
+                finding.issue_type
+                == "missing_values"
+                and finding.column
+            ):
+                missing_count = int(
+                    working_profile[
+                        "null_counts"
+                    ].get(
+                        finding.column,
+                        0,
+                    )
+                )
+
+                source_missing_count = int(
+                    source_profile[
+                        "null_counts"
+                    ].get(
+                        finding.column,
+                        0,
+                    )
+                )
+
+                pipeline_action = (
+                    operation.pipeline_action
+                    if operation is not None
+                    else None
+                )
+
+                partial_mapping_fill = (
+                    pipeline_action is not None
+                    and pipeline_action.action
+                    == "fill_missing"
+                    and pipeline_action.fill_strategy
+                    == "mapping"
+                    and pipeline_action
+                    .mapping_only_unambiguous
+                    and missing_count > 0
+                    and missing_count
+                    < source_missing_count
+                )
+
+                checks.append(
+                    WorkspaceValidationCheck(
+                        name=(
+                            "Missing values · "
+                            f"{finding.column}"
+                        ),
+                        status=(
+                            "warning"
+                            if (
+                                accepted_as_is
+                                or partial_mapping_fill
+                            )
+                            else (
+                                "passed"
+                                if missing_count == 0
+                                else "failed"
+                            )
+                        ),
+                        message=(
+                            f"{missing_count} missing "
+                            f"values remain in "
+                            f"{finding.column}."
+                        ),
+                        code="missing_values",
+                        params={
+                            "column":
+                                finding.column,
+                            "missing_count":
+                                missing_count,
+                            "source_missing_count":
+                                source_missing_count,
+                        },
+                    )
+                )
+
+        passed = all(
+            check.status != "failed"
+            for check in checks
+        )
+
+        if passed:
+            if workspace.usage_context == "personal":
+                complete_and_advance_personal_project_deliverable(
+                    workspace=workspace,
+                    code="clean_dataset",
+                )
+
+                workspace.analysis_plan = (
+                    build_personal_analysis_plan(
+                        working_profile,
+                        dataset_filename=(
+                            workspace.dataset_filename
+                        ),
+                    )
+                )
+
+                workspace.kpi_candidates = (
+                    build_personal_kpi_candidates_from_plan(
+                        workspace.analysis_plan
+                    )
+                )
+
+            if (
+                "Validation passed"
+                not in workspace.checkpoint.completed_items
+            ):
+                workspace.checkpoint.completed_items.append(
+                    "Validation passed"
+                )
+
+            workspace.checkpoint.current_focus = (
+                "Review transformed dataset"
+            )
+            workspace.checkpoint.next_actions = [
+                "Review final dataset and changes"
+            ]
+            workspace.checkpoint.last_error = None
+
+        else:
+            workspace.checkpoint.current_focus = (
+                "Resolve validation failures"
+            )
+            workspace.checkpoint.last_error = (
+                "Final validation failed."
+            )
+
+        validation_result = (
+            WorkspaceValidationResponse(
+                passed=passed,
+                source_row_count=int(
+                    source_profile[
+                        "row_count"
+                    ]
+                ),
+                working_row_count=(
+                    working_row_count
+                ),
+                checks=checks,
+            )
+        )
+
+        workspace.validation_result = (
+            validation_result
+        )
+
+        database.save_workspace(
+            workspace=workspace
+        )
+
+        return validation_result
+
     try:
         source_df = (
             load_workspace_source_dataframe(
