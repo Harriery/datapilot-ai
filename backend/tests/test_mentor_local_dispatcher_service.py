@@ -135,3 +135,32 @@ def test_explicit_pair_rejects_ambiguous_target(tmp_path):
     )
     assert result["status"] == "needs_clarification"
     assert not workspace.action_evidence_events
+
+
+def test_informal_followup_uses_active_verified_filter(tmp_path):
+    path = tmp_path / "working.csv"
+    pd.DataFrame({
+        "optional": [None, "yes", None],
+        "flag": [0, 1, 0],
+    }).to_csv(path, index=False)
+    workspace = _workspace_with_filter(path)
+    result = dispatch_local_investigation(
+        workspace, "flag'e göre de bi baksana, bunlar hep boş mu?", path
+    )
+    assert result["status"] == "verified"
+    assert result["evidence"]["total_missing"] == 2
+
+
+def test_informal_ambiguous_question_does_not_guess_dataset_columns(tmp_path):
+    path = tmp_path / "working.csv"
+    pd.DataFrame({
+        "optional": [None, "yes"],
+        "flag": [0, 1],
+        "other": [1, 1],
+    }).to_csv(path, index=False)
+    workspace = _workspace_with_filter(path)
+    result = dispatch_local_investigation(
+        workspace, "ya bu boşlar normal mi sence?", path
+    )
+    assert result["status"] == "needs_clarification"
+    assert len(workspace.action_evidence_events) == 1
