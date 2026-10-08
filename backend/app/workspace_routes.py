@@ -1252,6 +1252,108 @@ def transform_workspace_workbench_data(
 @router.post(
     (
         "/workspaces/{learner_id}/{workspace_id}"
+        "/full-data-preflight"
+    ),
+    response_model=(
+        WorkspaceFullDataPreflightResponse
+    ),
+)
+def run_workspace_full_data_preflight(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if not workspace.workbench_operations:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Preflight için tamamlanmış "
+                "Workbench pipeline gerekli."
+            ),
+        )
+
+    try:
+        result = run_full_data_preflight(
+            source_path=(
+                get_workspace_source_path(
+                    workspace_id
+                )
+            ),
+            operations=(
+                workspace.workbench_operations
+            ),
+        )
+    except (
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    workspace.full_data_preflight = result
+
+    workspace.checkpoint.current_focus = (
+        "Apply pipeline to full dataset"
+        if result["passed"]
+        else "Resolve full-data preflight failures"
+    )
+    workspace.checkpoint.next_actions = (
+        ["Apply pipeline to full dataset"]
+        if result["passed"]
+        else [
+            "Review preflight failures",
+            "Update the development pipeline",
+        ]
+    )
+    workspace.checkpoint.last_error = (
+        None
+        if result["passed"]
+        else "Full-data preflight failed."
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceFullDataPreflightResponse(
+        **result
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/full-data-preflight"
+    ),
+    response_model=(
+        WorkspaceFullDataPreflightResponse
+    ),
+)
+def full_data_preflight_endpoint(
+    learner_id: str,
+    workspace_id: str,
+):
+    return run_workspace_full_data_preflight(
+        learner_id=learner_id,
+        workspace_id=workspace_id,
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
         "/apply-pipeline-full"
     ),
     response_model=(
@@ -1273,19 +1375,6 @@ def apply_workspace_pipeline_to_full_dataset(
             detail="Workspace bulunamadı.",
         )
 
-    try:
-        source_df = (
-            load_workspace_source_dataframe(
-                workspace_id
-            )
-        )
-
-    except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        ) from exc
-
     if not workspace.workbench_operations:
         raise HTTPException(
             status_code=400,
@@ -1295,44 +1384,157 @@ def apply_workspace_pipeline_to_full_dataset(
             ),
         )
 
-    try:
-        (
-            full_df,
-            applied_operation_ids,
-        ) = apply_replayable_workbench_pipeline(
-            source_df=source_df,
-            operations=(
-                workspace.workbench_operations
-            ),
+    # Large-data workspaces must validate their sample-derived decisions
+    # against the immutable full source before materializing Silver.
+    if workspace.dataset_storage_mode == "duckdb":
+        preflight = (
+            workspace.full_data_preflight
         )
 
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc),
-        ) from exc
+        if (
+            preflight is None
+            or not preflight.get(
+                "passed",
+                False,
+            )
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Full dataset pipeline öncesinde "
+                    "başarılı Full-data Preflight gerekli."
+                ),
+            )
 
-    if full_df.empty:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Pipeline full dataset içindeki "
-                "bütün satırları silemez."
-            ),
+        try:
+            result = apply_full_pipeline_to_silver(
+                source_path=(
+                    get_workspace_source_path(
+                        workspace_id
+                    )
+                ),
+                silver_path=(
+                    get_workspace_silver_path(
+                        workspace_id
+                    )
+                ),
+                operations=(
+                    workspace.workbench_operations
+                ),
+            )
+
+            silver_profile = profile_parquet(
+                get_workspace_silver_path(
+                    workspace_id
+                )
+            )
+
+        except (
+            FileNotFoundError,
+            ValueError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        source_row_count = int(
+            (
+                workspace.full_data_profile
+                or workspace.dataset_profile
+                or {}
+            ).get(
+                "row_count",
+                preflight.get(
+                    "source_row_count",
+                    0,
+                ),
+            )
         )
 
-    save_workspace_working_dataframe(
-        workspace_id=workspace_id,
-        df=full_df,
-    )
+        working_row_count = int(
+            result[
+                "working_row_count"
+            ]
+        )
+        applied_operation_ids = list(
+            result[
+                "applied_operation_ids"
+            ]
+        )
+
+        workspace.silver_dataset_path = (
+            result["silver_path"]
+        )
+
+        # Keep browser/workbench state bounded. The full prepared data now
+        # lives in Silver parquet and is queried through DuckDB.
+        workspace.full_data_profile = (
+            workspace.full_data_profile
+            or workspace.dataset_profile
+        )
+        workspace.dataset_profile = (
+            workspace.dataset_profile
+            or workspace.full_data_profile
+        )
+
+    else:
+        try:
+            source_df = (
+                load_workspace_source_dataframe(
+                    workspace_id
+                )
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        try:
+            (
+                full_df,
+                applied_operation_ids,
+            ) = apply_replayable_workbench_pipeline(
+                source_df=source_df,
+                operations=(
+                    workspace.workbench_operations
+                ),
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        if full_df.empty:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Pipeline full dataset içindeki "
+                    "bütün satırları silemez."
+                ),
+            )
+
+        save_workspace_working_dataframe(
+            workspace_id=workspace_id,
+            df=full_df,
+        )
+
+        source_row_count = len(
+            source_df
+        )
+        working_row_count = len(
+            full_df
+        )
 
     clear_workspace_versions(
         workspace_id=workspace_id
     )
 
     workspace.development_sample_enabled = False
-    workspace.development_sample_row_count = len(
-        full_df
+    workspace.development_sample_row_count = (
+        working_row_count
     )
 
     workspace.validation_result = None
@@ -1340,10 +1542,8 @@ def apply_workspace_pipeline_to_full_dataset(
     workspace.analysis_result = None
     workspace.analysis_results = []
     workspace.dashboard_config.visuals = []
-
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
-
     workspace.data_model_plan = None
     workspace.data_model_studio = None
 
@@ -1361,11 +1561,9 @@ def apply_workspace_pipeline_to_full_dataset(
     workspace.checkpoint.current_focus = (
         "Validate full prepared dataset"
     )
-
     workspace.checkpoint.next_actions = [
         "Validate full prepared dataset"
     ]
-
     workspace.checkpoint.blocked_reason = None
     workspace.checkpoint.last_error = None
 
@@ -1375,8 +1573,13 @@ def apply_workspace_pipeline_to_full_dataset(
         for deliverable in (
             workspace.project_deliverables
         ):
-            if deliverable.code == "clean_dataset":
-                deliverable.status = "in_progress"
+            if (
+                deliverable.code
+                == "clean_dataset"
+            ):
+                deliverable.status = (
+                    "in_progress"
+                )
                 invalidate_started = True
                 continue
 
@@ -1388,11 +1591,11 @@ def apply_workspace_pipeline_to_full_dataset(
     )
 
     return WorkspaceFullPipelineResponse(
-        source_row_count=len(
-            source_df
+        source_row_count=(
+            source_row_count
         ),
-        working_row_count=len(
-            full_df
+        working_row_count=(
+            working_row_count
         ),
         applied_operation_ids=(
             applied_operation_ids
@@ -1402,7 +1605,6 @@ def apply_workspace_pipeline_to_full_dataset(
         ),
         development_sample_disabled=True,
     )
-
 
 @router.post(
     (
