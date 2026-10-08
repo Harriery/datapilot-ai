@@ -11710,6 +11710,91 @@
   gap: 4px;
 }
 
+.workspace-smart-sampling {
+  display: grid;
+  gap: 10px;
+
+  margin-top: 14px;
+  padding: 12px;
+
+  border: 1px solid #dce6f0;
+  border-radius: 10px;
+
+  background: #f8fbff;
+}
+
+.workspace-smart-sampling-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workspace-smart-sampling-header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.workspace-smart-sampling-header strong {
+  color: #2c425d;
+  font-size: 12px;
+}
+
+.workspace-smart-sampling-header > span {
+  padding: 4px 7px;
+
+  border-radius: 999px;
+
+  background: #fff5df;
+  color: #8b6419;
+
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.workspace-smart-sampling-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(130px, 1fr)
+    );
+  gap: 8px;
+}
+
+.workspace-smart-sampling-candidate {
+  display: grid;
+  gap: 3px;
+
+  padding: 9px 10px;
+
+  border: 1px solid #dfe7f0;
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+.workspace-smart-sampling-candidate.selected {
+  border-color: #9fc2ea;
+  background: #edf6ff;
+}
+
+.workspace-smart-sampling-candidate strong {
+  color: #30465f;
+  font-size: 10px;
+}
+
+.workspace-smart-sampling-candidate span {
+  color: #74869b;
+  font-size: 8px;
+}
+
+.workspace-smart-sampling > small {
+  color: #6f8197;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .workspace-sample-status {
   display: grid;
   gap: 3px;
