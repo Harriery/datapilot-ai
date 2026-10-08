@@ -194,6 +194,7 @@ from backend.app.workspace_large_data_service import (
     profile_parquet,
     load_large_source_sample,
     query_large_data_preview,
+    recalculate_source_duplicates,
 )
 from backend.app.workspace_preview_filter_service import (
     apply_preview_filters,
@@ -2234,6 +2235,84 @@ def create_workspace_execution_plan(
         task=task
     )
 
+
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/data/refresh-duplicates"
+)
+def refresh_workspace_duplicate_count(
+    learner_id: str,
+    workspace_id: str,
+):
+    """Recalculate old duplicate metadata without modifying the raw source."""
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Workspace bulunamadı.")
+    if workspace.dataset_storage_mode != "duckdb" or not workspace.dataset_profile:
+        raise HTTPException(
+            status_code=400,
+            detail="This operation requires a profiled large dataset.",
+        )
+
+    try:
+        duplicates = recalculate_source_duplicates(
+            get_workspace_source_path(workspace_id)
+        )
+    except (OSError, ValueError) as exc:
+        logging.getLogger(__name__).exception(
+            "Duplicate recount failed for workspace %s", workspace_id
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Duplicate recount failed; existing profile was preserved.",
+        ) from exc
+
+    profile = dict(workspace.dataset_profile)
+    profile["duplicate_count"] = duplicates
+    workspace.dataset_profile = profile
+    if workspace.full_data_profile is not None:
+        full_profile = dict(workspace.full_data_profile)
+        full_profile["duplicate_count"] = duplicates
+        workspace.full_data_profile = full_profile
+
+    if workspace.dataset_analysis is not None:
+        findings = [
+            finding for finding in workspace.dataset_analysis.findings
+            if finding.issue_type != "duplicate_rows"
+        ]
+        if duplicates:
+            from backend.app.models import DataQualityFinding
+            percent = round(duplicates / max(int(profile["row_count"]), 1) * 100, 2)
+            findings.append(DataQualityFinding(
+                issue_type="duplicate_rows",
+                severity="high" if percent >= 20 else "medium",
+                observation=f"{duplicates} duplicate rows found ({percent}%).",
+                suggested_action=(
+                    "Inspect duplicate rows and confirm whether they are true "
+                    "duplicates before removing."
+                ),
+            ))
+        workspace.dataset_analysis = workspace.dataset_analysis.model_copy(
+            update={"findings": findings}
+        )
+        (
+            workspace.workbench_operations,
+            workspace.workbench_active_operation_id,
+        ) = sync_data_quality_workbench_operations(
+            existing_operations=workspace.workbench_operations,
+            findings=findings,
+        )
+
+    database.save_workspace(workspace=workspace)
+    return {
+        "workspace_id": workspace_id,
+        "duplicate_count": duplicates,
+        "row_count": profile["row_count"],
+        "status": "refreshed",
+    }
 
 
 @router.post(
