@@ -42,6 +42,7 @@ from backend.app.ai_provider_service import (
 from backend.app.mentor_workspace_context_service import (
     build_chat_mentor_workspace_context,
 )
+from backend.app.mentor_pedagogy_contract import enforce_discovery_contract
 
 import json
 
@@ -336,6 +337,9 @@ def chat(request: ChatRequest):
             status_code=500,
             detail="Beklenmeyen bir sunucu hatası oluştu.",
         )
+
+    if workspace_context is not None:
+        reply = enforce_discovery_contract(message, reply)
 
     # Başarılı AI cevabını SQLite veritabanına kaydeder.
     insert_message(
