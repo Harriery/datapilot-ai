@@ -62,7 +62,7 @@ def dispatch_local_investigation(workspace, message: str, working_path: Path) ->
     candidates = [
         column for column in available if column != target
         and re.search(
-            r"(?<!\\w)" + re.escape(column) + r"(?!\\w)",
+            r"(?<!\w)" + re.escape(column) + r"(?!\w)",
             message,
             flags=re.IGNORECASE,
         )
