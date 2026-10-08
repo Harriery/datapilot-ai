@@ -7,6 +7,7 @@ a business relationship or executes arbitrary user-provided SQL.
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import pandas as pd
 
 from backend.app.mentor_action_evidence_service import record_action_evidence
@@ -60,7 +61,11 @@ def dispatch_local_investigation(workspace, message: str, working_path: Path) ->
     # when the learner explicitly mentions it, not merely because it exists.
     candidates = [
         column for column in available if column != target
-        and column.casefold() in message.casefold()
+        and re.search(
+            r"(?<!\\w)" + re.escape(column) + r"(?!\\w)",
+            message,
+            flags=re.IGNORECASE,
+        )
     ]
     if len(candidates) != 1:
         return {
