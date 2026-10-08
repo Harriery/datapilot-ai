@@ -53,6 +53,79 @@ def delete_workspace_data(
         )
 
 
+def get_workspace_data_dir(
+    workspace_id: str,
+) -> Path:
+    return _get_workspace_data_dir(
+        workspace_id
+    )
+
+
+def get_workspace_source_path(
+    workspace_id: str,
+) -> Path:
+    return (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+        / "source.csv"
+    )
+
+
+def get_workspace_silver_path(
+    workspace_id: str,
+) -> Path:
+    return (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+        / "silver"
+        / "cleaned.parquet"
+    )
+
+
+def save_workspace_dataset_stream(
+    workspace_id: str,
+    source_file,
+    chunk_size: int = 1024 * 1024,
+) -> int:
+    workspace_dir = (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+    )
+    workspace_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    source_path = (
+        workspace_dir / "source.csv"
+    )
+    temporary_path = (
+        workspace_dir / "source.tmp.csv"
+    )
+
+    total_bytes = 0
+
+    with temporary_path.open("wb") as target:
+        while True:
+            chunk = source_file.read(
+                chunk_size
+            )
+            if not chunk:
+                break
+
+            target.write(chunk)
+            total_bytes += len(chunk)
+
+    temporary_path.replace(
+        source_path
+    )
+
+    return total_bytes
+
+
 def save_workspace_dataset(
     workspace_id: str,
     content: bytes,
@@ -81,7 +154,9 @@ def save_workspace_dataset(
     # bu dosyaya yazmayacak.
     source_path.write_bytes(content)
 
-    # Junior'ın çalışacağı kopya.
+    # Legacy/small-data compatibility.
+    # Large-data ingestion overwrites this with a bounded
+    # development sample instead of duplicating the full source.
     working_path.write_bytes(content)
 
 
