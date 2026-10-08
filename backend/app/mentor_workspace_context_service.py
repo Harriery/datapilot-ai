@@ -262,7 +262,19 @@ def build_chat_mentor_workspace_context(
         "mentor_setup": workspace.mentor_setup.model_dump() if workspace.mentor_setup else None,
         "dataset_profile_summary": {
             "row_count": (workspace.dataset_profile or {}).get("row_count"),
+            "column_count": len(
+                (workspace.dataset_profile or {}).get("columns") or []
+            ),
             "columns": (workspace.dataset_profile or {}).get("columns", [])[:80],
+            "duplicate_count": (workspace.dataset_profile or {}).get("duplicate_count"),
+            "duplicate_count_verified": False,
+        },
+        "sampling_context": {
+            "active_development_rows": workspace.development_sample_row_count,
+            "recommended_sample_size": (
+                (workspace.smart_sampling_report or {}).get("selected_size")
+            ),
+            "sampling_report_scope": "last_sampling_run",
         },
         "dataset_filename": workspace.dataset_filename,
         "development_sample_size": workspace.development_sample_size,
