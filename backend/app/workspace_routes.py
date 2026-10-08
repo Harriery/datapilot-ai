@@ -4237,21 +4237,19 @@ def get_workspace_working_data(
             detail=str(exc),
         )
 
-    # MVP sırasında browser-side workbench için
-    # makul bir sınır koyuyoruz.
-    if len(df) > 5000:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                "Bu MVP workbench şu anda "
-                "en fazla 5000 satır destekliyor."
-            ),
-        )
+    # Browser only receives a bounded preview. The complete
+    # development sample remains on disk and structured Workbench
+    # transformations execute against that full sample in the backend.
+    preview_df = df.head(
+        5000
+    )
 
     return WorkspaceWorkingDataResponse(
         columns=df.columns.tolist(),
         row_count=len(df),
-        rows=dataframe_to_records(df),
+        rows=dataframe_to_records(
+            preview_df
+        ),
     )
 
 
