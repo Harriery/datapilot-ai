@@ -243,7 +243,7 @@ def chat(request: ChatRequest):
                 "Bu sayılar doğrulanmıştır; iş kuralının nedeni henüz "
                 "doğrulanmamıştır. Sence bu ilişkiyi nasıl yorumlamalıyız?"
             )
-            reply = "\\n".join(lines)
+            reply = "\n".join(lines)
         else:
             reply = _deterministic_workspace_guidance(
                 workspace_context=workspace_context,
