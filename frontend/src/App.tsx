@@ -1208,6 +1208,11 @@ function App() {
   const [newWorkspaceTaskBrief, setNewWorkspaceTaskBrief] =
     useState("");
 
+  const [projectMentorIntent, setProjectMentorIntent] = useState<"learning" | "practice" | "portfolio" | "work">("learning");
+  const [projectMentorLevel, setProjectMentorLevel] = useState<"beginner" | "intermediate" | "advanced">("beginner");
+  const [projectMentorApproach, setProjectMentorApproach] = useState<"guided" | "balanced" | "direct">("guided");
+  const [projectMentorFocus, setProjectMentorFocus] = useState<string[]>([]);
+
   const [newWorkspaceOutcome, setNewWorkspaceOutcome] =
     useState("");
 
@@ -3315,6 +3320,13 @@ async function createNewWorkspace() {
                 ? newWorkspaceDataSensitivity
                 : null,
 
+            mentor_setup: newWorkspaceUsageContext === "personal" ? {
+              intent: projectMentorIntent,
+              experience_level: projectMentorLevel,
+              approach: projectMentorApproach,
+              learning_focus: projectMentorFocus,
+            } : null,
+
             task_brief: taskBrief,
 
             desired_outcome:
@@ -3353,6 +3365,10 @@ async function createNewWorkspace() {
       setNewWorkspaceTitle("");
       setNewWorkspaceTaskBrief("");
       setNewWorkspaceOutcome("");
+      setProjectMentorIntent("learning");
+      setProjectMentorLevel("beginner");
+      setProjectMentorApproach("guided");
+      setProjectMentorFocus([]);
       setNewWorkspaceWorkflow("auto");
       setNewWorkspaceUsageContext("work");
       setNewPersonalProjectType("");
@@ -6804,6 +6820,56 @@ async function restoreWorkspaceVersion(
                   </div>
                     
                     
+                  {newWorkspaceUsageContext === "personal" && (
+                    <div className="workspace-form-section">
+                      <h3>Mentor Setup</h3>
+                      <p className="workspace-field-help">
+                        Set your goals and preferred guidance. Your mentor will adapt as you progress.
+                      </p>
+                      <label className="workspace-form-label" htmlFor="mentor-intent">Why are you starting this project?</label>
+                      <select id="mentor-intent" className="workspace-form-select" value={projectMentorIntent}
+                        onChange={(event) => setProjectMentorIntent(event.target.value as typeof projectMentorIntent)}>
+                        <option value="learning">Learn new data engineering skills</option>
+                        <option value="practice">Practice and improve my skills</option>
+                        <option value="portfolio">Build a professional portfolio</option>
+                        <option value="work">Solve a real-world data problem</option>
+                      </select>
+                      <label className="workspace-form-label" htmlFor="mentor-level">Experience level (self-reported)</label>
+                      <select id="mentor-level" className="workspace-form-select" value={projectMentorLevel}
+                        onChange={(event) => setProjectMentorLevel(event.target.value as typeof projectMentorLevel)}>
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                      </select>
+                      <label className="workspace-form-label" htmlFor="mentor-approach">Preferred mentoring approach</label>
+                      <select id="mentor-approach" className="workspace-form-select" value={projectMentorApproach}
+                        onChange={(event) => setProjectMentorApproach(event.target.value as typeof projectMentorApproach)}>
+                        <option value="guided">Ask questions so I can discover solutions</option>
+                        <option value="balanced">Balance hints and explanations</option>
+                        <option value="direct">Give concise technical guidance</option>
+                      </select>
+                      <label className="workspace-form-label">Learning focus (optional)</label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                        {([
+                          ["python", "Python"], ["sql", "SQL"],
+                          ["cleaning", "Data Cleaning"], ["pipelines", "ETL / Pipelines"],
+                          ["modeling", "Data Modeling"], ["quality", "Data Quality"],
+                          ["bi", "BI / Dashboard"],
+                        ] as const).map(([key, label]) => (
+                          <label key={key} style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                            <input type="checkbox" checked={projectMentorFocus.includes(key)}
+                              onChange={(event) => setProjectMentorFocus((previous) =>
+                                event.target.checked
+                                  ? [...previous, key]
+                                  : previous.filter((item) => item !== key)
+                              )} />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {workspaceCreateError && (
                     <div className="workspace-form-error">
                       {workspaceCreateError}
