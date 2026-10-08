@@ -1832,7 +1832,7 @@ def profile_workspace_data(
     development_sample_size: int = Form(
         default=1000,
         ge=1,
-        le=5000,
+        le=20000,
     ),
 ):
     workspace = database.get_workspace(
@@ -1852,60 +1852,185 @@ def profile_workspace_data(
             detail="Yalnızca CSV dosyası yükleyebilirsiniz.",
         )
 
+    # --------------------------------------------------
+    # STREAMING INGESTION
+    # --------------------------------------------------
+    # The upload is copied to immutable source.csv in chunks.
+    # We never read the complete upload into Python bytes/RAM.
     try:
-        content = file.file.read()
-
-        df = pd.read_csv(
-            BytesIO(content)
+        source_bytes = save_workspace_dataset_stream(
+            workspace_id=workspace_id,
+            source_file=file.file,
         )
 
-    except pd.errors.EmptyDataError:
+        source_path = get_workspace_source_path(
+            workspace_id
+        )
+
+        full_profile = build_full_data_profile(
+            source_path
+        )
+
+    except (OSError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "CSV dosyası geçersiz, bozuk veya "
+                "profil oluşturulamadı."
+            ),
+        ) from exc
+
+    source_row_count = int(
+        full_profile["row_count"]
+    )
+
+    if source_row_count == 0:
         raise HTTPException(
             status_code=400,
             detail="CSV dosyası boş.",
         )
 
-    except pd.errors.ParserError:
-        raise HTTPException(
-            status_code=400,
-            detail="CSV dosyası geçersiz veya bozuk.",
-        )
-
-    # ==================================================
-    # LOCAL DATA ANALYSIS
-    # ==================================================
-    #
-    # Raw dataset üzerinde deterministic kontroller
-    # HER ZAMAN local olarak çalışır.
-    #
-    # Bu işlem external AI izninden bağımsızdır.
-
-    local_analysis = (
-        analyze_dataframe_locally(
-            df
-        )
+    # Large sources use the new DuckDB path. Smaller sources keep the
+    # existing pandas learning flow so Melbourne/regression work remains
+    # unchanged.
+    large_dataset = (
+        source_row_count >= 100_000
+        or source_bytes >= 50 * 1024 * 1024
     )
 
-    # ==================================================
-    # SAFE PROFILE
-    # ==================================================
-    #
-    # Raw sample rows external AI context'ine
-    # dahil edilmez.
+    smart_sampling_report = None
 
-    profile = build_data_profile(
-        df
-    )
+    if large_dataset:
+        try:
+            (
+                working_df,
+                smart_sampling_report,
+            ) = build_smart_development_sample(
+                source_path=source_path,
+                profile=full_profile,
+                candidate_sizes=(
+                    SMART_SAMPLE_CANDIDATES
+                ),
+                seed=42,
+            )
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Smart development sample "
+                    "oluşturulamadı."
+                ),
+            ) from exc
 
+        local_analysis = build_full_quality_analysis(
+            profile=full_profile,
+            development_sample=working_df,
+        )
+
+        workspace.dataset_storage_mode = "duckdb"
+        workspace.development_sample_strategy = "smart"
+        workspace.development_sample_seed = 42
+        workspace.development_sample_size = len(
+            working_df
+        )
+        workspace.development_sample_max_size = min(
+            20_000,
+            source_row_count,
+        )
+        workspace.development_sample_row_count = len(
+            working_df
+        )
+        workspace.development_sample_enabled = (
+            len(working_df) < source_row_count
+        )
+        workspace.smart_sampling_report = (
+            smart_sampling_report
+        )
+
+    else:
+        try:
+            source_df = (
+                load_workspace_source_dataframe(
+                    workspace_id
+                )
+            )
+        except (
+            FileNotFoundError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "CSV dosyası geçersiz veya bozuk."
+                ),
+            ) from exc
+
+        local_analysis = (
+            analyze_dataframe_locally(
+                source_df
+            )
+        )
+
+        requested_sample_size = (
+            development_sample_size
+        )
+
+        development_sample_max_size = min(
+            requested_sample_size,
+            len(source_df),
+        )
+
+        use_full_working_dataset = (
+            development_sample_max_size
+            >= len(source_df)
+        )
+
+        if use_full_working_dataset:
+            working_df = (
+                source_df.copy()
+                .reset_index(drop=True)
+            )
+        else:
+            working_df = (
+                source_df.sample(
+                    n=development_sample_max_size,
+                    random_state=42,
+                )
+                .reset_index(drop=True)
+            )
+
+        workspace.dataset_storage_mode = "legacy_csv"
+        workspace.development_sample_size = (
+            development_sample_max_size
+        )
+        workspace.development_sample_max_size = (
+            development_sample_max_size
+        )
+        workspace.development_sample_strategy = (
+            None
+            if use_full_working_dataset
+            else "random"
+        )
+        workspace.development_sample_seed = (
+            None
+            if use_full_working_dataset
+            else 42
+        )
+        workspace.development_sample_row_count = len(
+            working_df
+        )
+        workspace.development_sample_enabled = (
+            not use_full_working_dataset
+        )
+        workspace.smart_sampling_report = None
+
+    # Raw sample rows are never sent to external AI.
     safe_profile = {
         key: value
-        for key, value in profile.items()
+        for key, value in full_profile.items()
         if key != "sample_rows"
     }
-
-    # ==================================================
-    # DATA SECURITY POLICY
-    # ==================================================
 
     security_decision = (
         evaluate_external_ai_policy(
@@ -1923,16 +2048,7 @@ def profile_workspace_data(
         )
     )
 
-
-    # ==================================================
-    # ANALYSIS STRATEGY
-    # ==================================================
-
-    if (
-        security_decision
-        .external_ai_allowed
-    ):
-
+    if security_decision.external_ai_allowed:
         try:
             ai_analysis = (
                 generate_data_recommendations(
@@ -1946,100 +2062,24 @@ def profile_workspace_data(
                     ai_analysis,
                 )
             )
-
-            analysis_source = (
-                "local_and_ai"
-            )
+            analysis_source = "local_and_ai"
 
         except Exception:
-
-            # External AI izinli olsa bile
-            # servis çalışmazsa junior'ın işi
-            # tamamen durmamalı.
-            #
-            # Local deterministic findings ile
-            # devam ediyoruz.
-
             analysis = local_analysis
-
             analysis_source = (
                 "local_ai_fallback"
             )
-
     else:
-
-        # Confidential / restricted / unknown
-        # veya organization policy izin vermiyorsa
-        # external AI çağrısı yapılmaz.
-
         analysis = local_analysis
-
         analysis_source = "local"
 
     workspace.dataset_filename = file.filename
-
-    requested_sample_size = (
-        development_sample_size
-    )
-
-    development_sample_max_size = min(
-        requested_sample_size,
-        len(df),
-    )
-
-    use_full_working_dataset = (
-        development_sample_max_size
-        >= len(df)
-    )
-
-    if use_full_working_dataset:
-        working_df = (
-            df.copy()
-            .reset_index(drop=True)
-        )
-    else:
-        working_df = (
-            df.sample(
-                n=development_sample_max_size,
-                random_state=42,
-            )
-            .reset_index(drop=True)
-        )
-
-    workspace.development_sample_size = (
-        development_sample_max_size
-    )
-
-    workspace.development_sample_max_size = (
-        development_sample_max_size
-    )
-
-    workspace.development_sample_strategy = (
-        None
-        if use_full_working_dataset
-        else "random"
-    )
-
-    workspace.development_sample_seed = (
-        None
-        if use_full_working_dataset
-        else 42
-    )
-
-    workspace.development_sample_row_count = (
-        len(working_df)
-    )
-
-    workspace.development_sample_enabled = (
-        not use_full_working_dataset
-    )
-
-    workspace.dataset_profile = (
-        safe_profile
-    )
+    workspace.dataset_source_bytes = source_bytes
+    workspace.dataset_profile = safe_profile
+    workspace.full_data_profile = safe_profile
 
     (
-    workspace.workbench_operations,
+        workspace.workbench_operations,
         workspace.workbench_active_operation_id,
     ) = sync_data_quality_workbench_operations(
         existing_operations=(
@@ -2048,17 +2088,25 @@ def profile_workspace_data(
         findings=analysis.findings,
     )
 
-    workspace.dataset_analysis = (
-        analysis
-    )
-
+    workspace.dataset_analysis = analysis
     workspace.dataset_ai_processing_status = (
-        security_decision
-        .ai_processing_status
+        security_decision.ai_processing_status
     )
-
     workspace.dataset_analysis_source = (
         analysis_source
+    )
+
+    # A new source invalidates full-data execution artefacts.
+    workspace.full_data_preflight = None
+    workspace.silver_dataset_path = None
+
+    save_workspace_working_dataframe(
+        workspace_id=workspace_id,
+        df=working_df,
+    )
+
+    clear_workspace_versions(
+        workspace_id=workspace_id
     )
 
     if workspace.usage_context == "personal":
@@ -2074,88 +2122,58 @@ def profile_workspace_data(
     workspace.dashboard_config.visuals = []
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
+    workspace.data_model_plan = None
+    workspace.data_model_studio = None
+    workspace.current_task_id = None
 
     workspace.checkpoint.completed_items = [
         item
         for item in workspace.checkpoint.completed_items
         if item not in {
+            "Execution plan created",
             "Validation passed",
             "Final review completed",
+            "Handoff completed",
         }
     ]
 
-    # Yeni dataset yüklendiyse eski execution plan
-    # artık güvenilir olmayabilir.
-    workspace.current_task_id = None
-
-    completed_items = [
-        item
-        for item in workspace.checkpoint.completed_items
-        if item != "Execution plan created"
-    ]
-
-    if "Dataset profile" not in completed_items:
-        completed_items.append("Dataset profile")
-
-    workspace.checkpoint.completed_items = (
-        completed_items
-    )
+    if (
+        "Dataset profile"
+        not in workspace.checkpoint.completed_items
+    ):
+        workspace.checkpoint.completed_items.append(
+            "Dataset profile"
+        )
 
     workspace.checkpoint.current_focus = (
-        (
-            "Review development sample and build execution plan"
-        )
+        "Review development sample and build execution plan"
         if workspace.development_sample_enabled
-        else (
-            "Review dataset profile and build execution plan"
-        )
+        else "Review dataset profile and build execution plan"
     )
-
     workspace.checkpoint.next_actions = [
         "Build execution plan"
     ]
-
     workspace.checkpoint.blocked_reason = None
     workspace.checkpoint.last_error = None
-
-    save_workspace_dataset(
-        workspace_id=workspace_id,
-        content=content,
-    )
-
-    if workspace.development_sample_enabled:
-        save_workspace_working_dataframe(
-            workspace_id=workspace_id,
-            df=working_df,
-        )
 
     database.save_workspace(
         workspace=workspace
     )
 
     return {
-        "workspace_id":
-            workspace_id,
-
-        "filename":
-            file.filename,
-
-        "profile":
-            safe_profile,
-
-        "analysis":
-            analysis.model_dump(),
-
+        "workspace_id": workspace_id,
+        "filename": file.filename,
+        "profile": safe_profile,
+        "analysis": analysis.model_dump(),
         "ai_processing_status":
-            security_decision
-            .ai_processing_status,
-
+            security_decision.ai_processing_status,
         "external_ai_allowed":
-            security_decision
-            .external_ai_allowed,
-
-        "analysis_source":
-            analysis_source,
+            security_decision.external_ai_allowed,
+        "analysis_source": analysis_source,
+        "dataset_storage_mode":
+            workspace.dataset_storage_mode,
+        "smart_sampling":
+            smart_sampling_report,
     }
 
 @router.post(
