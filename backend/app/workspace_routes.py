@@ -4101,6 +4101,97 @@ def get_workspace_data_preview(
             detail="Workspace bulunamadı.",
         )
 
+    use_large_preview = (
+        workspace.dataset_storage_mode
+        == "duckdb"
+        and (
+            dataset == "source"
+            or (
+                dataset == "working"
+                and workspace.development_sample_enabled
+                is False
+                and workspace.silver_dataset_path
+                is not None
+            )
+        )
+    )
+
+    if use_large_preview:
+        try:
+            preview_filters = (
+                parse_preview_filters(
+                    filters
+                )
+            )
+
+            result = (
+                query_large_data_preview(
+                    source_path=(
+                        get_workspace_source_path(
+                            workspace_id
+                        )
+                        if dataset
+                        == "source"
+                        else None
+                    ),
+                    parquet_path=(
+                        get_workspace_silver_path(
+                            workspace_id
+                        )
+                        if dataset
+                        == "working"
+                        else None
+                    ),
+                    page=page,
+                    page_size=page_size,
+                    search=(
+                        search
+                        or ""
+                    ),
+                    filters=(
+                        preview_filters
+                    ),
+                    filter_logic=(
+                        filter_logic
+                    ),
+                )
+            )
+
+        except (
+            FileNotFoundError,
+            ValueError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        return WorkspaceDataPreviewResponse(
+            dataset=dataset,
+            columns=result[
+                "columns"
+            ],
+            column_types=result[
+                "column_types"
+            ],
+            total_row_count=result[
+                "total_row_count"
+            ],
+            filtered_row_count=result[
+                "filtered_row_count"
+            ],
+            page=result["page"],
+            page_size=result[
+                "page_size"
+            ],
+            total_pages=result[
+                "total_pages"
+            ],
+            rows=dataframe_to_records(
+                result["rows"]
+            ),
+        )
+
     try:
         df = (
             load_workspace_source_dataframe(
