@@ -271,6 +271,9 @@ def _relation_profile(
                 for row in rows
             ]
 
+    # GROUP BY ALL only groups non-aggregated SELECT expressions.
+    # SELECT COUNT(*) alone therefore does not group source rows.
+    group_columns = ", ".join(_q(column) for column in columns)
     duplicate_count = int(
         connection.execute(
             (
@@ -278,7 +281,7 @@ def _relation_profile(
                 "FROM ("
                 "SELECT COUNT(*) AS n "
                 f"FROM {relation_sql} "
-                "GROUP BY ALL "
+                f"GROUP BY {group_columns} "
                 "HAVING COUNT(*) > 1"
                 ") duplicates"
             )
