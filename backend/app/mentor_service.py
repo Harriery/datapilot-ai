@@ -504,16 +504,56 @@ def generate_mentor_response(
         indent=2,
     )   
 
+    # Limit context to the current project and the evidence necessary for
+    # this turn. Full workspace artifacts are already stored server-side.
+    recent_history = (conversation_history or [])[-4:]
     conversation_history_text = json.dumps(
-    conversation_history or [],
-    ensure_ascii=False,
-    indent=2,
+        [
+            {
+                "role": item.get("role"),
+                "content": str(item.get("content") or "")[-1200:],
+            }
+            for item in recent_history
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
     )
 
+    source_context = workspace_context or {}
+    compact_workspace = {
+        key: source_context.get(key)
+        for key in (
+            "workspace_id", "title", "task_brief", "desired_outcome",
+            "project_type", "mentor_setup", "dataset_filename",
+            "dataset_profile_summary", "sampling_context",
+            "development_sample_size", "current_step", "checkpoint",
+            "mentor_execution_context",
+        )
+        if source_context.get(key) is not None
+    }
+    ui = source_context.get("ui_context") or {}
+    compact_workspace["ui_context"] = {
+        key: ui.get(key)
+        for key in (
+            "active_workspace_stage", "active_prepare_stage",
+            "workbench_view", "selected_workbench_column",
+        )
+        if ui.get(key) is not None
+    }
+    artifacts = source_context.get("artifacts") or {}
+    compact_workspace["artifacts"] = {
+        key: artifacts[key]
+        for key in (
+            "dataset_profile", "dataset_analysis", "selected_notebook",
+            "validation_result",
+        )
+        if key in artifacts
+    }
     workspace_context_text = json.dumps(
-    workspace_context or {},
-    ensure_ascii=False,
-    indent=2,
+        compact_workspace,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=str,
     )
 
     current_step = (workspace_context or {}).get("current_step")
