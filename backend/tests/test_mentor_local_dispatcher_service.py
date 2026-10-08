@@ -164,3 +164,31 @@ def test_informal_ambiguous_question_does_not_guess_dataset_columns(tmp_path):
     )
     assert result["status"] == "needs_clarification"
     assert len(workspace.action_evidence_events) == 1
+
+
+def test_informal_question_returns_active_subject_not_guessed_group(tmp_path):
+    path = tmp_path / "working.csv"
+    pd.DataFrame({"optional": [None, "yes"], "flag": [0, 1]}).to_csv(
+        path, index=False
+    )
+    workspace = _workspace_with_filter(path)
+    result = dispatch_local_investigation(
+        workspace, "ya bu boşlar normal mi sence?", path
+    )
+    assert result["status"] == "needs_clarification"
+    assert result["target_column"] == "optional"
+    assert result["reason"] == "request_one_group_column"
+    assert result["informal_question"] is True
+
+
+def test_informal_generic_next_step_does_not_trigger_missingness_response(tmp_path):
+    path = tmp_path / "working.csv"
+    pd.DataFrame({"optional": [None], "flag": [0]}).to_csv(
+        path, index=False
+    )
+    workspace = _workspace_with_filter(path)
+    result = dispatch_local_investigation(
+        workspace, "tamam şimdi ne yapalım?", path
+    )
+    assert result["status"] == "needs_clarification"
+    assert result["informal_question"] is False
