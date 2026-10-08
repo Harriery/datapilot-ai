@@ -313,6 +313,9 @@ def _relation_profile(
     }
 
 
+FULL_PROFILE_COLUMNAR_THRESHOLD_BYTES = 50 * 1024 * 1024
+
+
 def build_full_data_profile(
     source_path: Path,
 ) -> dict:
@@ -321,15 +324,21 @@ def build_full_data_profile(
             "Workspace source datası bulunamadı."
         )
 
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("uvicorn.error")
     started = perf_counter()
-    with duckdb.connect() as connection:
-        # Re-running every per-column aggregate against a large CSV
-        # repeatedly parses the entire text file and keeps it open
-        # for a long time. Materialize a temporary columnar copy once.
-        if source_path.stat().st_size >= 50 * 1024 * 1024:
-            with TemporaryDirectory(prefix="datapilot-profile-") as temp_dir:
-                stage_path = Path(temp_dir) / "profile.parquet"
+    source_bytes = source_path.stat().st_size
+
+    if source_bytes >= FULL_PROFILE_COLUMNAR_THRESHOLD_BYTES:
+        # Scan the CSV once into a bounded on-disk columnar intermediate.
+        # Finish the DuckDB connection before deleting the staged file:
+        # on Windows, open handles can prevent temporary directory cleanup.
+        logger.info(
+            "Full-data profile: staging large CSV (bytes=%d)",
+            source_bytes,
+        )
+        with TemporaryDirectory(prefix="datapilot-profile-") as temp_dir:
+            stage_path = Path(temp_dir) / "profile.parquet"
+            with duckdb.connect() as connection:
                 connection.execute(
                     "COPY (SELECT * FROM "
                     + _source_sql(source_path)
@@ -338,21 +347,22 @@ def build_full_data_profile(
                     + " (FORMAT PARQUET, COMPRESSION ZSTD)"
                 )
                 logger.info(
-                    "Large CSV staging completed in %.1fs (source_bytes=%d)",
+                    "Full-data profile: CSV staging finished in %.1fs",
                     perf_counter() - started,
-                    source_path.stat().st_size,
                 )
                 result = _relation_profile(
                     connection,
                     "read_parquet(" + _path_literal(stage_path) + ")",
                 )
-        else:
+    else:
+        with duckdb.connect() as connection:
             result = _relation_profile(
                 connection,
                 _source_sql(source_path),
             )
+
     logger.info(
-        "Full data profile completed in %.1fs (rows=%d, columns=%d)",
+        "Full-data profile finished in %.1fs (rows=%d, columns=%d)",
         perf_counter() - started,
         result["row_count"],
         result["column_count"],
