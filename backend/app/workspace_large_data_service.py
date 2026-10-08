@@ -1704,7 +1704,7 @@ def run_full_data_preflight(
                     "CREATE OR REPLACE TEMP VIEW "
                     f"{next_view} AS "
                     f"SELECT {select_sql} "
-                    f"FROM {current_view}"
+                    f"FROM {current_view} AS src"
                 )
             )
 
@@ -1961,28 +1961,87 @@ def apply_full_pipeline_to_silver(
                         ")"
                     )
 
+                elif (
+                    action.fill_strategy
+                    == "mapping"
+                ):
+                    if not action.mapping_source_column:
+                        raise ValueError(
+                            "Mapping fill requires "
+                            "mapping_source_column."
+                        )
+
+                    mapping_source = _q(
+                        action.mapping_source_column
+                    )
+
+                    if (
+                        action.mapping_source_column
+                        not in columns
+                    ):
+                        raise ValueError(
+                            (
+                                "Mapping source column "
+                                "not found during full "
+                                "apply: "
+                                f"{action.mapping_source_column}"
+                            )
+                        )
+
+                    expression = (
+                        "CASE WHEN "
+                        f"src.{column} IS NULL "
+                        "THEN ("
+                        "SELECT CASE "
+                        "WHEN COUNT(DISTINCT "
+                        f"m.{column}) = 1 "
+                        f"THEN MIN(m.{column}) "
+                        "ELSE NULL END "
+                        f"FROM {current_view} AS m "
+                        "WHERE "
+                        f"m.{mapping_source} "
+                        "IS NOT DISTINCT FROM "
+                        f"src.{mapping_source} "
+                        f"AND m.{column} IS NOT NULL"
+                        ") ELSE "
+                        f"src.{column} END"
+                    )
+
+                    select_sql = (
+                        _select_except(
+                            columns,
+                            action.column,
+                            expression,
+                        )
+                    )
+
+                    fill_expression = None
+
                 else:
                     raise ValueError(
                         (
-                            "Large-data full apply "
-                            "does not yet support "
-                            f"fill strategy: "
+                            "Unsupported fill strategy "
+                            "during large-data apply: "
                             f"{action.fill_strategy}"
                         )
                     )
 
-                expression = (
-                    f"COALESCE({column}, "
-                    f"{fill_expression})"
-                )
-
-                select_sql = (
-                    _select_except(
-                        columns,
-                        action.column,
-                        expression,
+                if (
+                    action.fill_strategy
+                    != "mapping"
+                ):
+                    expression = (
+                        f"COALESCE({column}, "
+                        f"{fill_expression})"
                     )
-                )
+
+                    select_sql = (
+                        _select_except(
+                            columns,
+                            action.column,
+                            expression,
+                        )
+                    )
 
             elif action.action == "replace_values":
                 column = _q(
