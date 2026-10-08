@@ -29,16 +29,21 @@ def _explicit_missingness_pair(message: str, available: list[str]) -> tuple[str,
         return None
     mentioned = [
         col for col in available
-        if re.search(r"(?<!\\w)" + re.escape(col) + r"(?!\\w)", message, re.IGNORECASE)
+        if re.search(r"(?<!\w)" + re.escape(col) + r"(?!\w)", message, re.IGNORECASE)
     ]
     # Avoid silently picking from three or more named columns.
     if len(mentioned) != 2:
         return None
-    # The missingness target is explicitly qualified in the message.
+    # Resolve the target only when the learner's wording is unambiguous.
+    # "first ve second eksik" does not identify which field is missing.
+    # Explicit constructions such as "reason sütunundaki eksikler" do.
     target_matches = [
         col for col in mentioned
         if re.search(
-            re.escape(col) + r"[^.!?\\n]{0,45}(?:eksik|missing|null|boş|bos|isna)",
+            r"(?<!\\w)" + re.escape(col)
+            + r"(?!\\w)\\s+(?:sütunundaki|kolonundaki|alanındaki|"
+            + r"sütununda|kolonunda|alanında)\\s+"
+            + r"(?:eksik\\w*|boş\\w*|bos\\w*|missing|null)",
             message, re.IGNORECASE,
         )
     ]
@@ -85,7 +90,7 @@ def dispatch_local_investigation(workspace, message: str, working_path: Path) ->
                 choices = [
                     col for col in available if col != candidate
                     and re.search(
-                        r"(?<!\\w)" + re.escape(col) + r"(?!\\w)",
+                        r"(?<!\w)" + re.escape(col) + r"(?!\w)",
                         message, re.IGNORECASE,
                     )
                 ]
