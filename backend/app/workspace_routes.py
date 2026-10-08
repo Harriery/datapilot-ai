@@ -1,3 +1,4 @@
+import logging
 import uuid
 from io import BytesIO
 from typing import Literal
@@ -2285,6 +2286,10 @@ def profile_workspace_data(
         )
 
     except (OSError, ValueError) as exc:
+        logging.getLogger(__name__).exception(
+            "Workspace CSV ingestion/profile failed (workspace_id=%s, stage=upload_or_full_profile)",
+            workspace_id,
+        )
         raise HTTPException(
             status_code=400,
             detail=(
