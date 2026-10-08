@@ -40,10 +40,10 @@ def _explicit_missingness_pair(message: str, available: list[str]) -> tuple[str,
     target_matches = [
         col for col in mentioned
         if re.search(
-            r"(?<!\\w)" + re.escape(col)
-            + r"(?!\\w)\\s+(?:sütunundaki|kolonundaki|alanındaki|"
-            + r"sütununda|kolonunda|alanında)\\s+"
-            + r"(?:eksik\\w*|boş\\w*|bos\\w*|missing|null)",
+            r"(?<!\w)" + re.escape(col)
+            + r"(?!\w)\s+(?:sütunundaki|kolonundaki|alanındaki|"
+            + r"sütununda|kolonunda|alanında)\s+"
+            + r"(?:eksik\w*|boş\w*|bos\w*|missing|null)",
             message, re.IGNORECASE,
         )
     ]
