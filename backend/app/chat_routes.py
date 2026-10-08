@@ -217,11 +217,39 @@ def chat(request: ChatRequest):
     try:
         # Explicit beginner-help turns are controlled before the LLM so one
         # learning turn cannot expand into several tasks or a solution dump.
-        reply = _deterministic_workspace_guidance(
-            workspace_context=workspace_context,
-            message=message,
-            conversation_history=previous_history,
+        # Trusted local query results are rendered without a second model call.
+        # This prevents the Mentor from overlooking verified counts and
+        # asking the learner to repeat the same calculation.
+        local_evidence = (
+            (workspace_context or {}).get("local_investigation") or {}
         )
+        if local_evidence.get("status") == "verified":
+            evidence = local_evidence["evidence"]
+            lines = [
+                f"{evidence['target_column']} eksikliği, "
+                f"{evidence['group_column']} sütununa göre incelendi.",
+                f"Çalışma örneklemi: {evidence['total_rows']} satır; "
+                f"eksik: {evidence['total_missing']} satır.",
+            ]
+            lines.extend(
+                f"{item['value']}: {item['rows']} satır, "
+                f"{item['missing_rows']} eksik, "
+                f"{item['present_rows']} dolu (%{item['missing_pct']} eksik)."
+                for item in evidence["groups"]
+            )
+            if evidence["groups_truncated"]:
+                lines.append("Yalnızca en büyük gruplar gösterildi.")
+            lines.append(
+                "Bu sayılar doğrulanmıştır; iş kuralının nedeni henüz "
+                "doğrulanmamıştır. Sence bu ilişkiyi nasıl yorumlamalıyız?"
+            )
+            reply = "\\n".join(lines)
+        else:
+            reply = _deterministic_workspace_guidance(
+                workspace_context=workspace_context,
+                message=message,
+                conversation_history=previous_history,
+            )
 
         # Other turns continue through the adaptive mentor.
         if reply is None:
