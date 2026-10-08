@@ -1335,25 +1335,6 @@ def run_workspace_full_data_preflight(
 @router.post(
     (
         "/workspaces/{learner_id}/{workspace_id}"
-        "/full-data-preflight"
-    ),
-    response_model=(
-        WorkspaceFullDataPreflightResponse
-    ),
-)
-def full_data_preflight_endpoint(
-    learner_id: str,
-    workspace_id: str,
-):
-    return run_workspace_full_data_preflight(
-        learner_id=learner_id,
-        workspace_id=workspace_id,
-    )
-
-
-@router.post(
-    (
-        "/workspaces/{learner_id}/{workspace_id}"
         "/apply-pipeline-full"
     ),
     response_model=(
@@ -1421,12 +1402,6 @@ def apply_workspace_pipeline_to_full_dataset(
                 operations=(
                     workspace.workbench_operations
                 ),
-            )
-
-            silver_profile = profile_parquet(
-                get_workspace_silver_path(
-                    workspace_id
-                )
             )
 
         except (
