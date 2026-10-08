@@ -194,6 +194,49 @@ def test_full_profile_uses_entire_csv(
     ] == "duckdb"
 
 
+
+def test_full_profile_large_csv_stages_parquet_and_cleans_up(
+    tmp_path,
+    monkeypatch,
+):
+    from tempfile import TemporaryDirectory
+
+    import backend.app.workspace_large_data_service as service
+
+    source_path = _write_csv(
+        tmp_path,
+        pd.DataFrame(
+            {
+                "carrier": ["AA", "DL", "AA", None],
+                "delay": [3, 12, None, 8],
+            }
+        ),
+    )
+    original_bytes = source_path.read_bytes()
+    baseline = service.build_full_data_profile(source_path)
+
+    # Exercise the exact large-file path with a small fixture.
+    monkeypatch.setattr(
+        service,
+        "FULL_PROFILE_COLUMNAR_THRESHOLD_BYTES",
+        1,
+    )
+    monkeypatch.setattr(
+        service,
+        "TemporaryDirectory",
+        lambda prefix: TemporaryDirectory(prefix=prefix, dir=tmp_path),
+    )
+
+    staged = service.build_full_data_profile(source_path)
+    assert staged["row_count"] == baseline["row_count"] == 4
+    assert staged["null_counts"] == baseline["null_counts"]
+    assert staged["distinct_counts"] == baseline["distinct_counts"]
+    assert staged["data_types"] == baseline["data_types"]
+    assert staged["numeric_summary"] == baseline["numeric_summary"]
+    assert source_path.read_bytes() == original_bytes
+    assert list(tmp_path.glob("datapilot-profile-*")) == []
+
+
 def test_preflight_tracks_columns_after_rename(
     tmp_path,
 ):
