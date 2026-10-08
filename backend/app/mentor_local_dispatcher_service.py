@@ -102,9 +102,26 @@ def dispatch_local_investigation(workspace, message: str, working_path: Path) ->
         if pair is None:
             if recent is not None and recent.get("data_version") != version:
                 return {"status": "stale", "reason": "dataset_version_changed"}
+            # The active verified investigation provides the subject of
+            # phrases like "these blanks". It does NOT supply a missing
+            # comparison column, which must never be guessed.
+            active_target = None
+            if (
+                recent is not None
+                and recent.get("dataset") == "working"
+                and recent.get("data_version") == version
+            ):
+                active_filters = [
+                    rule for rule in recent.get("parameters", {}).get("filters", [])
+                    if rule.get("operator") in MISSING_OPERATORS
+                ]
+                if len(active_filters) == 1:
+                    active_target = active_filters[0].get("column")
             return {
                 "status": "needs_clarification",
-                "reason": "provide_explicit_missingness_pair",
+                "reason": "request_one_group_column"
+                if active_target in available else "provide_explicit_missingness_pair",
+                "target_column": active_target if active_target in available else None,
             }
         target, group_column = pair
 
