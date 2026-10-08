@@ -216,10 +216,65 @@ type DashboardWorkspace = {
   development_sample_max_size?: number | null;
   development_sample_strategy?:
     | "random"
+    | "smart"
     | null;
   development_sample_seed?: number | null;
   development_sample_row_count?: number | null;
   development_sample_enabled?: boolean;
+
+  dataset_storage_mode?:
+    | "legacy_csv"
+    | "duckdb";
+
+  dataset_source_bytes?: number | null;
+
+  full_data_profile?: Record<
+    string,
+    unknown
+  > | null;
+
+  smart_sampling_report?: {
+    candidate_evaluations: Array<{
+      sample_size: number;
+      missingness_similarity: number;
+      categorical_distribution_similarity: number;
+      numeric_distribution_similarity: number;
+      rare_group_coverage: number;
+      overall_score: number;
+      sufficient: boolean;
+    }>;
+    selected_size: number;
+    selected_strategy: string;
+    selected_evaluation?: {
+      sample_size: number;
+      missingness_similarity: number;
+      categorical_distribution_similarity: number;
+      numeric_distribution_similarity: number;
+      rare_group_coverage: number;
+      overall_score: number;
+      sufficient: boolean;
+    } | null;
+    threshold: number;
+    rare_coverage_threshold?: number | null;
+    reason: string;
+    full_data_preflight_required?: boolean;
+  } | null;
+
+  full_data_preflight?: {
+    passed: boolean;
+    source_row_count: number;
+    checks: Array<{
+      operation_id: string;
+      title: string;
+      action: string;
+      passed: boolean;
+      missing_columns: string[];
+      affected_rows: number | null;
+    }>;
+    engine: "duckdb";
+  } | null;
+
+  silver_dataset_path?: string | null;
 
   processed_datasets?:
     ProcessedDatasetData[];
@@ -497,6 +552,37 @@ type WorkspaceDataProfileResponse = {
       suggested_action: string;
     }[];
   };
+
+  dataset_storage_mode?:
+    | "legacy_csv"
+    | "duckdb";
+
+  smart_sampling?: {
+    candidate_evaluations: Array<{
+      sample_size: number;
+      missingness_similarity: number;
+      categorical_distribution_similarity: number;
+      numeric_distribution_similarity: number;
+      rare_group_coverage: number;
+      overall_score: number;
+      sufficient: boolean;
+    }>;
+    selected_size: number;
+    selected_strategy: string;
+    selected_evaluation?: {
+      sample_size: number;
+      missingness_similarity: number;
+      categorical_distribution_similarity: number;
+      numeric_distribution_similarity: number;
+      rare_group_coverage: number;
+      overall_score: number;
+      sufficient: boolean;
+    } | null;
+    threshold: number;
+    rare_coverage_threshold?: number | null;
+    reason: string;
+    full_data_preflight_required?: boolean;
+  } | null;
 };
 
 type WorkspaceWorkingData = {
