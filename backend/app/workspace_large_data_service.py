@@ -3122,6 +3122,30 @@ def _preview_source_cache(source_path: Path) -> Path:
             temporary_path.unlink(missing_ok=True)
 
 
+
+def recalculate_source_duplicates(source_path: Path) -> int:
+    """Recount exact full-row duplicates using the cached columnar source."""
+    cached_path = _preview_source_cache(source_path)
+    relation = "read_parquet(" + _path_literal(cached_path) + ")"
+    with duckdb.connect() as connection:
+        describe = connection.execute(
+            f"DESCRIBE SELECT * FROM {relation}"
+        ).fetchall()
+        columns = [str(item[0]) for item in describe]
+        if not columns:
+            return 0
+        grouped_columns = ", ".join(_q(column) for column in columns)
+        return int(
+            connection.execute(
+                "SELECT COALESCE(SUM(n - 1), 0) FROM ("
+                "SELECT COUNT(*) AS n "
+                f"FROM {relation} "
+                f"GROUP BY {grouped_columns} HAVING COUNT(*) > 1"
+                ") duplicates"
+            ).fetchone()[0]
+        )
+
+
 def query_large_data_preview(
     *,
     source_path: Path | None = None,
