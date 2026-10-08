@@ -267,7 +267,7 @@ def build_chat_mentor_workspace_context(
             ),
             "columns": (workspace.dataset_profile or {}).get("columns", [])[:80],
             "duplicate_count": (workspace.dataset_profile or {}).get("duplicate_count"),
-            "duplicate_count_verified": False,
+            "duplicate_count_verified": (workspace.dataset_profile or {}).get("duplicate_count_verified", False),
         },
         "sampling_context": {
             "active_development_rows": workspace.development_sample_row_count,
