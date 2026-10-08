@@ -554,11 +554,41 @@ def _numeric_similarity(
 ) -> float:
     scores = []
 
+    full_row_count = max(
+        int(
+            profile.get(
+                "row_count",
+                0,
+            )
+        ),
+        1,
+    )
+
     for column in profile.get(
         "numeric_columns",
         [],
     ):
         if column not in sample:
+            continue
+
+        # High-cardinality numeric identifiers are fully profiled, but they
+        # should not drive sample representativeness. This keeps sampling
+        # dimensions focused on analytical distributions rather than row IDs.
+        distinct_count = int(
+            profile.get(
+                "distinct_counts",
+                {},
+            ).get(
+                column,
+                0,
+            )
+        )
+
+        if (
+            distinct_count
+            / full_row_count
+            >= 0.80
+        ):
             continue
 
         full = profile[
@@ -973,6 +1003,23 @@ def _build_targeted_rows(
         "numeric_summary",
         {},
     ).items():
+        distinct_count = int(
+            profile.get(
+                "distinct_counts",
+                {},
+            ).get(
+                column,
+                0,
+            )
+        )
+
+        if (
+            distinct_count
+            / row_count
+            >= 0.80
+        ):
+            continue
+
         p95 = summary.get(
             "p95"
         )
