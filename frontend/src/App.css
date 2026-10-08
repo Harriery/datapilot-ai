@@ -1643,6 +1643,86 @@
   line-height: 1.45;
 }
 
+/* Personal project mentor preferences: compact and consistent with setup form. */
+.workspace-mentor-setup {
+  margin: 22px 0 20px;
+  padding-top: 17px;
+  border-top: 1px solid #e5ebf2;
+}
+.workspace-mentor-setup-header { margin-bottom: 16px; }
+.workspace-mentor-setup-header h3 {
+  margin: 0 0 5px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #22324d;
+}
+.workspace-mentor-setup-header p {
+  margin: 0;
+  color: #7c8ba0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.workspace-mentor-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px 14px;
+}
+.workspace-mentor-setup-field { min-width: 0; }
+.workspace-mentor-setup-wide { grid-column: 1 / -1; }
+.workspace-mentor-setup-field .workspace-form-label { margin-bottom: 6px; }
+.workspace-mentor-setup-focus {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.workspace-mentor-setup-focus legend {
+  float: none;
+  width: auto;
+  padding: 0;
+}
+.workspace-mentor-setup-focus legend span {
+  font-weight: 400;
+  color: #7c8ba0;
+}
+.workspace-mentor-focus-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.workspace-mentor-focus-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid #dce5ef;
+  border-radius: 8px;
+  background: #fbfcfe;
+  color: #22324d;
+  font-size: 12px;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.workspace-mentor-focus-option:has(input:checked) {
+  background: #eef5ff;
+  border-color: #7daef3;
+}
+.workspace-mentor-focus-option:focus-within {
+  outline: 2px solid #2f80ed;
+  outline-offset: 2px;
+}
+.workspace-mentor-focus-option input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2f80ed;
+}
+@media (max-width: 600px) {
+  .workspace-mentor-setup-grid { grid-template-columns: minmax(0, 1fr); }
+  .workspace-mentor-setup-wide { grid-column: auto; }
+}
+
 .workspace-form-error {
   margin-bottom: 16px;
 
