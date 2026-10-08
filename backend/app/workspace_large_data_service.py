@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Lock
 from tempfile import TemporaryDirectory
 from time import perf_counter
 from typing import Any
@@ -3053,6 +3054,12 @@ def _preview_filter_sql(
     )
 
 
+# Serialize preview-cache generation within the backend process.
+# A single lock keeps simultaneous requests from converting the same
+# multi-million-row CSV several times.
+_preview_cache_build_lock = Lock()
+
+
 def _preview_source_cache(source_path: Path) -> Path:
     """Immutable, source-versioned Parquet cache for repeated raw previews."""
     import os
@@ -3061,57 +3068,58 @@ def _preview_source_cache(source_path: Path) -> Path:
     if not source_path.is_file():
         raise FileNotFoundError("Workspace source datası bulunamadı.")
 
-    initial = source_path.stat()
-    cache_dir = source_path.parent / "preview_cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    final_path = cache_dir / (
-        f"source_{initial.st_size}_{initial.st_mtime_ns}.parquet"
-    )
-    if final_path.is_file():
-        return final_path
-
-    temporary_path = cache_dir / f"source_{uuid4().hex}.tmp.parquet"
-    started = perf_counter()
-    logger = logging.getLogger("uvicorn.error")
-    logger.info(
-        "Raw preview: building columnar cache (source_bytes=%d)",
-        initial.st_size,
-    )
-    try:
-        # Close the DuckDB connection BEFORE making the cache visible.
-        # This also releases the source.csv handle on Windows.
-        with duckdb.connect() as connection:
-            connection.execute(
-                "COPY (SELECT * FROM "
-                + _source_sql(source_path)
-                + ") TO "
-                + _path_literal(temporary_path)
-                + " (FORMAT PARQUET, COMPRESSION ZSTD)"
-            )
-
-        latest = source_path.stat()
-        if (
-            latest.st_size != initial.st_size
-            or latest.st_mtime_ns != initial.st_mtime_ns
-        ):
-            raise ValueError(
-                "Source changed while building preview cache; retry preview."
-            )
-
-        if not final_path.is_file():
-            try:
-                os.replace(temporary_path, final_path)
-            except PermissionError:
-                # Another request may have published the same cache.
-                if not final_path.is_file():
-                    raise
-        logger.info(
-            "Raw preview: columnar cache ready in %.1fs",
-            perf_counter() - started,
+    with _preview_cache_build_lock:
+        initial = source_path.stat()
+        cache_dir = source_path.parent / "preview_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        final_path = cache_dir / (
+            f"source_{initial.st_size}_{initial.st_mtime_ns}.parquet"
         )
-        return final_path
-    finally:
-        temporary_path.unlink(missing_ok=True)
+        if final_path.is_file():
+            return final_path
+
+        temporary_path = cache_dir / f"source_{uuid4().hex}.tmp.parquet"
+        started = perf_counter()
+        logger = logging.getLogger("uvicorn.error")
+        logger.info(
+            "Raw preview: building columnar cache (source_bytes=%d)",
+            initial.st_size,
+        )
+        try:
+            # Close the DuckDB connection BEFORE making the cache visible.
+            # This also releases the source.csv handle on Windows.
+            with duckdb.connect() as connection:
+                connection.execute(
+                    "COPY (SELECT * FROM "
+                    + _source_sql(source_path)
+                    + ") TO "
+                    + _path_literal(temporary_path)
+                    + " (FORMAT PARQUET, COMPRESSION ZSTD)"
+                )
+
+            latest = source_path.stat()
+            if (
+                latest.st_size != initial.st_size
+                or latest.st_mtime_ns != initial.st_mtime_ns
+            ):
+                raise ValueError(
+                    "Source changed while building preview cache; retry preview."
+                )
+
+            if not final_path.is_file():
+                try:
+                    os.replace(temporary_path, final_path)
+                except PermissionError:
+                    # Another request may have published the same cache.
+                    if not final_path.is_file():
+                        raise
+            logger.info(
+                "Raw preview: columnar cache ready in %.1fs",
+                perf_counter() - started,
+            )
+            return final_path
+        finally:
+            temporary_path.unlink(missing_ok=True)
 
 
 def query_large_data_preview(
