@@ -8302,19 +8302,19 @@ async function restoreWorkspaceVersion(
                                   <div className="workspace-smart-sampling-header">
                                     <div>
                                       <span className="workspace-overview-label">
-                                        Smart Sampling
+                                        {t.workspace.smartSampling}
                                       </span>
                                       <strong>
                                         {dashboardWorkspace
                                           .smart_sampling_report
                                           .selected_size
                                           .toLocaleString()}{" "}
-                                        rows selected
+                                        {t.workspace.smartRowsSelected}
                                       </strong>
                                     </div>
 
                                     <span>
-                                      Full-data preflight required
+                                      {t.workspace.fullDataPreflightRequired}
                                     </span>
                                   </div>
 
@@ -8339,27 +8339,27 @@ async function restoreWorkspaceVersion(
                                               .toLocaleString()} rows
                                           </strong>
                                           <span>
-                                            Overall{" "}
+                                            {t.workspace.samplingOverall}{" "}
                                             {candidate.overall_score.toFixed(1)}%
                                           </span>
                                           <span>
-                                            Missing{" "}
+                                            {t.workspace.samplingMissing}{" "}
                                             {candidate.missingness_similarity.toFixed(1)}%
                                           </span>
                                           <span>
-                                            Categories{" "}
+                                            {t.workspace.samplingCategories}{" "}
                                             {candidate.categorical_distribution_similarity.toFixed(1)}%
                                           </span>
                                           <span>
-                                            Numeric{" "}
+                                            {t.workspace.samplingNumeric}{" "}
                                             {candidate.numeric_distribution_similarity.toFixed(1)}%
                                           </span>
                                           <span>
-                                            Date/time{" "}
+                                            {t.workspace.samplingDatetime}{" "}
                                             {candidate.datetime_coverage_similarity.toFixed(1)}%
                                           </span>
                                           <span>
-                                            Rare coverage{" "}
+                                            {t.workspace.samplingRareCoverage}{" "}
                                             {candidate.rare_group_coverage.toFixed(1)}%
                                           </span>
                                         </div>
