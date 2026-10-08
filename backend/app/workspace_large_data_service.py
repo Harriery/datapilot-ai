@@ -678,6 +678,121 @@ def _numeric_similarity(
     )
 
 
+def _datetime_similarity(
+    sample: pd.DataFrame,
+    profile: dict,
+) -> float:
+    scores = []
+
+    for (
+        column,
+        summary,
+    ) in profile.get(
+        "datetime_summary",
+        {},
+    ).items():
+        if column not in sample:
+            continue
+
+        full_min = pd.to_datetime(
+            summary.get("min"),
+            errors="coerce",
+        )
+        full_max = pd.to_datetime(
+            summary.get("max"),
+            errors="coerce",
+        )
+
+        values = pd.to_datetime(
+            sample[column],
+            errors="coerce",
+        ).dropna()
+
+        if (
+            pd.isna(full_min)
+            or pd.isna(full_max)
+            or values.empty
+        ):
+            continue
+
+        full_span = (
+            full_max
+            - full_min
+        ).total_seconds()
+
+        if full_span <= 0:
+            scores.append(100.0)
+            continue
+
+        sample_min = values.min()
+        sample_max = values.max()
+
+        sample_span = max(
+            0.0,
+            (
+                sample_max
+                - sample_min
+            ).total_seconds(),
+        )
+
+        span_coverage = min(
+            1.0,
+            sample_span
+            / full_span,
+        )
+
+        start_error = min(
+            1.0,
+            abs(
+                (
+                    sample_min
+                    - full_min
+                ).total_seconds()
+            )
+            / full_span,
+        )
+
+        end_error = min(
+            1.0,
+            abs(
+                (
+                    full_max
+                    - sample_max
+                ).total_seconds()
+            )
+            / full_span,
+        )
+
+        edge_score = max(
+            0.0,
+            1.0
+            - (
+                start_error
+                + end_error
+            )
+            / 2.0,
+        )
+
+        scores.append(
+            100.0
+            * (
+                span_coverage
+                * 0.6
+                + edge_score
+                * 0.4
+            )
+        )
+
+    if not scores:
+        return 100.0
+
+    return round(
+        sum(scores)
+        / len(scores),
+        2,
+    )
+
+
 def evaluate_sample(
     sample: pd.DataFrame,
     profile: dict,
@@ -704,10 +819,18 @@ def evaluate_sample(
         )
     )
 
+    datetime_score = (
+        _datetime_similarity(
+            sample,
+            profile,
+        )
+    )
+
     overall = (
-        missing_score * 0.25
-        + categorical_score * 0.30
-        + numeric_score * 0.25
+        missing_score * 0.20
+        + categorical_score * 0.25
+        + numeric_score * 0.20
+        + datetime_score * 0.15
         + rare_score * 0.20
     )
 
@@ -720,6 +843,7 @@ def evaluate_sample(
             missing_score,
             categorical_score,
             numeric_score,
+            datetime_score,
         )
         >= 90.0
     )
@@ -734,6 +858,8 @@ def evaluate_sample(
             categorical_score,
         "numeric_distribution_similarity":
             numeric_score,
+        "datetime_coverage_similarity":
+            datetime_score,
         "rare_group_coverage":
             rare_score,
         "overall_score": round(
