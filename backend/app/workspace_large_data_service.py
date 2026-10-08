@@ -3053,6 +3053,67 @@ def _preview_filter_sql(
     )
 
 
+def _preview_source_cache(source_path: Path) -> Path:
+    """Immutable, source-versioned Parquet cache for repeated raw previews."""
+    import os
+    from uuid import uuid4
+
+    if not source_path.is_file():
+        raise FileNotFoundError("Workspace source datası bulunamadı.")
+
+    initial = source_path.stat()
+    cache_dir = source_path.parent / "preview_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    final_path = cache_dir / (
+        f"source_{initial.st_size}_{initial.st_mtime_ns}.parquet"
+    )
+    if final_path.is_file():
+        return final_path
+
+    temporary_path = cache_dir / f"source_{uuid4().hex}.tmp.parquet"
+    started = perf_counter()
+    logger = logging.getLogger("uvicorn.error")
+    logger.info(
+        "Raw preview: building columnar cache (source_bytes=%d)",
+        initial.st_size,
+    )
+    try:
+        # Close the DuckDB connection BEFORE making the cache visible.
+        # This also releases the source.csv handle on Windows.
+        with duckdb.connect() as connection:
+            connection.execute(
+                "COPY (SELECT * FROM "
+                + _source_sql(source_path)
+                + ") TO "
+                + _path_literal(temporary_path)
+                + " (FORMAT PARQUET, COMPRESSION ZSTD)"
+            )
+
+        latest = source_path.stat()
+        if (
+            latest.st_size != initial.st_size
+            or latest.st_mtime_ns != initial.st_mtime_ns
+        ):
+            raise ValueError(
+                "Source changed while building preview cache; retry preview."
+            )
+
+        if not final_path.is_file():
+            try:
+                os.replace(temporary_path, final_path)
+            except PermissionError:
+                # Another request may have published the same cache.
+                if not final_path.is_file():
+                    raise
+        logger.info(
+            "Raw preview: columnar cache ready in %.1fs",
+            perf_counter() - started,
+        )
+        return final_path
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
 def query_large_data_preview(
     *,
     source_path: Path | None = None,
@@ -3075,10 +3136,13 @@ def query_large_data_preview(
         )
 
     if source_path is not None:
+        # Keep the raw CSV immutable; query a reusable, versioned Parquet
+        # representation so search, filters and pagination avoid CSV parsing.
+        cached_path = _preview_source_cache(source_path)
         relation_sql = (
-            _source_sql(
-                source_path
-            )
+            "read_parquet("
+            f"{_path_literal(cached_path)}"
+            ")"
         )
     else:
         assert parquet_path is not None
