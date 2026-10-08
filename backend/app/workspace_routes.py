@@ -225,6 +225,10 @@ from backend.app.mentor_context_service import (
 from backend.app.mentor_learner_model_service import (
     record_execution_signal,
 )
+from backend.app.mentor_action_evidence_service import (
+    record_action_evidence,
+)
+
 
 router = APIRouter()
 
@@ -4230,6 +4234,46 @@ def get_workspace_data_preview(
             detail="Workspace bulunamadı.",
         )
 
+    def record_preview_evidence(
+        *,
+        verified_filters: list[dict],
+        total: int,
+        filtered: int,
+    ) -> None:
+        # Record only meaningful user investigations. Initial page loads
+        # and pagination are not learning achievements.
+        if not verified_filters and not (search or "").strip():
+            return
+        from backend.app.workspace_data_service import get_workspace_data_dir
+
+        file_path = (
+            get_workspace_source_path(workspace_id)
+            if dataset == "source"
+            else get_workspace_data_dir(workspace_id) / "working.csv"
+        )
+        try:
+            stat = file_path.stat()
+            data_version = f"{stat.st_size}:{stat.st_mtime_ns}"
+        except OSError:
+            data_version = None
+
+        if record_action_evidence(
+            workspace,
+            action="preview_investigation",
+            dataset=dataset,
+            parameters={
+                "filters": verified_filters,
+                "logic": filter_logic,
+                "search": (search or "").strip(),
+            },
+            result={
+                "total_rows": total,
+                "matching_rows": filtered,
+            },
+            data_version=data_version,
+        ):
+            database.save_workspace(workspace=workspace)
+
     use_large_preview = (
         workspace.dataset_storage_mode
         == "duckdb"
@@ -4294,6 +4338,12 @@ def get_workspace_data_preview(
                 status_code=400,
                 detail=str(exc),
             ) from exc
+
+        record_preview_evidence(
+            verified_filters=preview_filters,
+            total=result["total_row_count"],
+            filtered=result["filtered_row_count"],
+        )
 
         return WorkspaceDataPreviewResponse(
             dataset=dataset,
@@ -4413,6 +4463,12 @@ def get_workspace_data_preview(
         start:
         start + page_size
     ]
+
+    record_preview_evidence(
+        verified_filters=preview_filters,
+        total=total_row_count,
+        filtered=filtered_row_count,
+    )
 
     return WorkspaceDataPreviewResponse(
         dataset=dataset,
