@@ -9,6 +9,7 @@ from backend.app.workspace_large_data_service import (
     build_full_data_profile,
     build_smart_development_sample,
     profile_parquet,
+    query_large_data_preview,
     run_full_data_preflight,
 )
 
@@ -338,3 +339,62 @@ def test_large_pipeline_mapping_fill_writes_silver_parquet(
     assert silver_profile[
         "null_counts"
     ]["label"] == 0
+
+
+def test_large_preview_filters_without_loading_full_dataframe(
+    tmp_path,
+):
+    source_path = _write_csv(
+        tmp_path,
+        pd.DataFrame(
+            {
+                "city": [
+                    "Den Haag",
+                    "Delft",
+                    "Den Haag",
+                    "Leiden",
+                ],
+                "delay": [
+                    5,
+                    25,
+                    45,
+                    10,
+                ],
+            }
+        ),
+    )
+
+    result = query_large_data_preview(
+        source_path=source_path,
+        page=1,
+        page_size=25,
+        filters=[
+            {
+                "column": "city",
+                "operator": "equals",
+                "value": "Den Haag",
+                "value_to": None,
+            },
+            {
+                "column": "delay",
+                "operator":
+                    "greater_than",
+                "value": "20",
+                "value_to": None,
+            },
+        ],
+        filter_logic="and",
+    )
+
+    assert result[
+        "total_row_count"
+    ] == 4
+
+    assert result[
+        "filtered_row_count"
+    ] == 1
+
+    assert result[
+        "rows"
+    ].iloc[0]["delay"] == 45
+
