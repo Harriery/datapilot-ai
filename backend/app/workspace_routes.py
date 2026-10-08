@@ -191,6 +191,8 @@ from backend.app.workspace_large_data_service import (
     run_full_data_preflight,
     apply_full_pipeline_to_silver,
     profile_parquet,
+    load_large_source_sample,
+    query_large_data_preview,
 )
 from backend.app.workspace_preview_filter_service import (
     apply_preview_filters,
