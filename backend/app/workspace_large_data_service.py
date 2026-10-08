@@ -1345,32 +1345,45 @@ def run_full_data_preflight(
     checks = []
 
     with duckdb.connect() as connection:
-        relation_sql = (
+        source_sql = (
             _source_sql(
                 source_path
             )
         )
 
-        columns = {
+        connection.execute(
+            (
+                "CREATE OR REPLACE TEMP VIEW "
+                "preflight_0 AS "
+                f"SELECT * FROM {source_sql}"
+            )
+        )
+
+        current_view = "preflight_0"
+
+        columns = [
             str(row[0])
             for row in connection.execute(
                 (
                     "DESCRIBE SELECT * "
-                    f"FROM {relation_sql}"
+                    f"FROM {current_view}"
                 )
             ).fetchall()
-        }
+        ]
 
         row_count = int(
             connection.execute(
                 (
                     "SELECT COUNT(*) "
-                    f"FROM {relation_sql}"
+                    f"FROM {current_view}"
                 )
             ).fetchone()[0]
         )
 
-        for operation in replayable:
+        for index, operation in enumerate(
+            replayable,
+            start=1,
+        ):
             action = (
                 operation.pipeline_action
             )
@@ -1400,10 +1413,11 @@ def run_full_data_preflight(
 
             missing = sorted(
                 required
-                - columns
+                - set(columns)
             )
 
             affected_rows = None
+            diagnostics: dict = {}
 
             if not missing:
                 quoted = _q(
@@ -1418,29 +1432,117 @@ def run_full_data_preflight(
                         connection.execute(
                             (
                                 "SELECT COUNT(*) "
-                                f"FROM {relation_sql} "
+                                f"FROM {current_view} "
                                 f"WHERE {quoted} "
                                 "IS NULL"
                             )
                         ).fetchone()[0]
                     )
 
+                    if (
+                        action.fill_strategy
+                        == "mapping"
+                        and action.mapping_source_column
+                    ):
+                        source_column = _q(
+                            action.mapping_source_column
+                        )
+
+                        mapping_stats = (
+                            connection.execute(
+                                (
+                                    "SELECT "
+                                    "COUNT(*) FILTER "
+                                    "(WHERE distinct_targets = 1) "
+                                    "AS safe_groups, "
+                                    "COUNT(*) FILTER "
+                                    "(WHERE distinct_targets > 1) "
+                                    "AS ambiguous_groups "
+                                    "FROM ("
+                                    "SELECT "
+                                    f"{source_column}, "
+                                    "COUNT(DISTINCT "
+                                    f"{quoted}) AS "
+                                    "distinct_targets "
+                                    f"FROM {current_view} "
+                                    f"WHERE {quoted} "
+                                    "IS NOT NULL AND "
+                                    f"{source_column} "
+                                    "IS NOT NULL "
+                                    f"GROUP BY {source_column}"
+                                    ") mapping_groups"
+                                )
+                            ).fetchone()
+                        )
+
+                        diagnostics[
+                            "safe_mapping_groups"
+                        ] = int(
+                            mapping_stats[0]
+                            or 0
+                        )
+                        diagnostics[
+                            "ambiguous_mapping_groups"
+                        ] = int(
+                            mapping_stats[1]
+                            or 0
+                        )
+
                 elif (
                     action.action
                     == "replace_values"
-                    and not action.replacements
                 ):
-                    affected_rows = int(
-                        connection.execute(
-                            (
-                                "SELECT COUNT(*) "
-                                f"FROM {relation_sql} "
-                                f"WHERE {quoted} "
-                                f"IS NOT DISTINCT FROM "
-                                f"{_lit(action.old_value)}"
+                    if action.replacements:
+                        affected_rows = 0
+
+                        for replacement in (
+                            action.replacements
+                        ):
+                            conditions = [
+                                (
+                                    f"{quoted} IS NOT "
+                                    "DISTINCT FROM "
+                                    f"{_lit(replacement.old_value)}"
+                                )
+                            ]
+
+                            for condition in (
+                                replacement.conditions
+                            ):
+                                conditions.append(
+                                    (
+                                        f"{_q(condition.column)} "
+                                        "IS NOT DISTINCT FROM "
+                                        f"{_lit(condition.value)}"
+                                    )
+                                )
+
+                            count = int(
+                                connection.execute(
+                                    (
+                                        "SELECT COUNT(*) "
+                                        f"FROM {current_view} "
+                                        "WHERE "
+                                        + " AND ".join(
+                                            conditions
+                                        )
+                                    )
+                                ).fetchone()[0]
                             )
-                        ).fetchone()[0]
-                    )
+                            affected_rows += count
+
+                    else:
+                        affected_rows = int(
+                            connection.execute(
+                                (
+                                    "SELECT COUNT(*) "
+                                    f"FROM {current_view} "
+                                    f"WHERE {quoted} "
+                                    "IS NOT DISTINCT FROM "
+                                    f"{_lit(action.old_value)}"
+                                )
+                            ).fetchone()[0]
+                        )
 
                 elif (
                     action.action
@@ -1453,54 +1555,162 @@ def run_full_data_preflight(
                 ):
                     affected_rows = row_count
 
+            check = {
+                "operation_id":
+                    operation.operation_id,
+                "title":
+                    operation.title,
+                "action":
+                    action.action,
+                "passed":
+                    len(missing) == 0,
+                "missing_columns":
+                    missing,
+                "affected_rows":
+                    affected_rows,
+            }
+
+            if diagnostics:
+                check[
+                    "diagnostics"
+                ] = diagnostics
+
             checks.append(
-                {
-                    "operation_id":
-                        operation.operation_id,
-                    "title":
-                        operation.title,
-                    "action":
-                        action.action,
-                    "passed":
-                        len(missing) == 0,
-                    "missing_columns":
-                        missing,
-                    "affected_rows":
-                        affected_rows,
-                }
+                check
+            )
+
+            if missing:
+                continue
+
+            # Keep preflight schema sequential. This matters when a later
+            # operation refers to a column created/renamed earlier.
+            next_view = (
+                f"preflight_{index}"
             )
 
             if (
-                not missing
-                and action.action
+                action.action
                 == "rename"
                 and action.new_name
             ):
-                columns.discard(
-                    action.column
+                select_sql = (
+                    _select_except(
+                        columns,
+                        action.column,
+                        _q(
+                            action.column
+                        ),
+                        action.new_name,
+                    )
                 )
-                columns.add(
-                    action.new_name
+                columns = [
+                    (
+                        action.new_name
+                        if column
+                        == action.column
+                        else column
+                    )
+                    for column in columns
+                ]
+
+            elif action.action == "remove":
+                columns = [
+                    column
+                    for column in columns
+                    if column
+                    != action.column
+                ]
+                select_sql = ", ".join(
+                    _q(column)
+                    for column in columns
                 )
 
             elif (
-                not missing
-                and action.action
-                == "remove"
-            ):
-                columns.discard(
-                    action.column
-                )
-
-            elif (
-                not missing
-                and action.action
+                action.action
                 == "derived"
                 and action.derived_name
+                and action.derived_operation
             ):
-                columns.add(
-                    action.derived_name
+                source = _q(
+                    action.column
                 )
+
+                if (
+                    action.derived_operation
+                    == "copy"
+                ):
+                    derived = source
+                elif (
+                    action.derived_operation
+                    == "uppercase"
+                ):
+                    derived = (
+                        f"UPPER(CAST({source} "
+                        "AS VARCHAR))"
+                    )
+                elif (
+                    action.derived_operation
+                    == "lowercase"
+                ):
+                    derived = (
+                        f"LOWER(CAST({source} "
+                        "AS VARCHAR))"
+                    )
+                elif (
+                    action.derived_operation
+                    == "add"
+                    and action.derived_value
+                    is not None
+                ):
+                    derived = (
+                        f"{source} + "
+                        f"{_lit(action.derived_value)}"
+                    )
+                elif (
+                    action.derived_operation
+                    == "multiply"
+                    and action.derived_value
+                    is not None
+                ):
+                    derived = (
+                        f"{source} * "
+                        f"{_lit(action.derived_value)}"
+                    )
+                else:
+                    derived = source
+
+                select_sql = (
+                    "*, "
+                    f"{derived} AS "
+                    f"{_q(action.derived_name)}"
+                )
+
+                if (
+                    action.derived_name
+                    not in columns
+                ):
+                    columns.append(
+                        action.derived_name
+                    )
+
+            else:
+                # Value-only transforms do not need to be materialized
+                # during preflight; their full-data affected counts above
+                # are the evidence we need before full execution.
+                continue
+
+            connection.execute(
+                (
+                    "CREATE OR REPLACE TEMP VIEW "
+                    f"{next_view} AS "
+                    f"SELECT {select_sql} "
+                    f"FROM {current_view}"
+                )
+            )
+
+            current_view = (
+                next_view
+            )
 
     passed = all(
         check["passed"]
