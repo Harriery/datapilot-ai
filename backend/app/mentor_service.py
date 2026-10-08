@@ -527,6 +527,7 @@ def generate_mentor_response(
             "project_type", "mentor_setup", "dataset_filename",
             "dataset_profile_summary", "sampling_context",
             "verified_action_evidence",
+            "local_investigation",
             "development_sample_size", "current_step", "checkpoint",
             "mentor_execution_context",
         )
