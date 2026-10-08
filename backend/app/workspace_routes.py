@@ -269,6 +269,7 @@ def create_workspace(
         usage_context=request.usage_context,
         organization_id=request.organization_id,
         data_sensitivity=request.data_sensitivity,
+        mentor_setup=request.mentor_setup if request.usage_context == "personal" else None,
         task_brief=request.task_brief,
         desired_outcome=request.desired_outcome,
         project_type=request.project_type,
