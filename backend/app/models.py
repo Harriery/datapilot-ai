@@ -1559,11 +1559,12 @@ class WorkspaceWorkbenchTransformationResponse(BaseModel):
 class WorkspaceDevelopmentSampleRequest(BaseModel):
     sample_size: int = Field(
         ge=1,
-        le=5000,
+        le=20000,
     )
 
     strategy: Literal[
         "random",
+        "smart",
     ] = "random"
 
     random_seed: int = 42
@@ -1577,11 +1578,49 @@ class WorkspaceDevelopmentSampleResponse(BaseModel):
 
     strategy: Literal[
         "random",
+        "smart",
     ]
 
     random_seed: int
 
     sampled: bool
+
+
+class WorkspaceSmartSamplingRequest(BaseModel):
+    candidate_sizes: list[int] = Field(
+        default_factory=lambda: [
+            5000,
+            10000,
+            20000,
+        ],
+        min_length=1,
+        max_length=3,
+    )
+
+    random_seed: int = 42
+
+
+class WorkspaceSmartSamplingResponse(BaseModel):
+    source_row_count: int
+    selected_size: int
+    selected_strategy: str
+    candidate_evaluations: list[dict] = Field(
+        default_factory=list
+    )
+    selected_evaluation: dict | None = None
+    threshold: float
+    rare_coverage_threshold: float | None = None
+    reason: str
+    full_data_preflight_required: bool = True
+
+
+class WorkspaceFullDataPreflightResponse(BaseModel):
+    passed: bool
+    source_row_count: int
+    checks: list[dict] = Field(
+        default_factory=list
+    )
+    engine: Literal["duckdb"] = "duckdb"
 
 
 class WorkspaceFullPipelineResponse(BaseModel):
@@ -1962,6 +2001,7 @@ class Workspace(BaseModel):
 
     development_sample_strategy: Literal[
         "random",
+        "smart",
     ] | None = None
 
     development_sample_seed: int | None = None
@@ -1969,6 +2009,24 @@ class Workspace(BaseModel):
     development_sample_row_count: int | None = None
 
     development_sample_enabled: bool = False
+
+    # Large-data execution metadata. Raw/source remains immutable,
+    # the active development sample stays bounded, and full-data
+    # results are materialized separately as Silver parquet.
+    dataset_storage_mode: Literal[
+        "legacy_csv",
+        "duckdb",
+    ] = "legacy_csv"
+
+    dataset_source_bytes: int | None = None
+
+    full_data_profile: dict | None = None
+
+    smart_sampling_report: dict | None = None
+
+    full_data_preflight: dict | None = None
+
+    silver_dataset_path: str | None = None
 
     processed_datasets: list[
         WorkspaceProcessedDataset
