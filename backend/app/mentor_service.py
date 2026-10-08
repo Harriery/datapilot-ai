@@ -541,14 +541,21 @@ def generate_mentor_response(
         if ui.get(key) is not None
     }
     artifacts = source_context.get("artifacts") or {}
-    compact_workspace["artifacts"] = {
-        key: artifacts[key]
-        for key in (
-            "dataset_profile", "dataset_analysis", "selected_notebook",
-            "validation_result",
+    # Preserve the stage-specific evidence contract (model, KPI, analysis,
+    # dashboard etc.), but do not send complete large artifacts.
+    compact_artifacts = {}
+    for key, value in artifacts.items():
+        if key in {"dataset_profile", "dataset_analysis", "selected_notebook"}:
+            compact_artifacts[key] = value
+            continue
+        serialized = json.dumps(
+            value, ensure_ascii=False, separators=(",", ":"), default=str
         )
-        if key in artifacts
-    }
+        compact_artifacts[key] = (
+            value if len(serialized) <= 1800
+            else {"preview": serialized[:1800], "truncated": True}
+        )
+    compact_workspace["artifacts"] = compact_artifacts
     workspace_context_text = json.dumps(
         compact_workspace,
         ensure_ascii=False,
