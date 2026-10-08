@@ -8,6 +8,7 @@ Bu dosya AI sohbetiyle ilgili API endpoint'lerini içerir.
 - OpenAI hatalarını uygun HTTP hatalarına dönüştürür.
 """
 import os
+import logging
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from openai import (
@@ -43,6 +44,8 @@ from backend.app.mentor_workspace_context_service import (
 
 import json
 
+
+logger = logging.getLogger('uvicorn.error')
 
 router = APIRouter()
 MAX_HISTORY_MESSAGES = 10 
@@ -304,6 +307,10 @@ def chat(request: ChatRequest):
         )
 
     except Exception:
+        logger.exception(
+            "Mentor chat request failed (workspace_attached=%s)",
+            workspace_context is not None,
+        )
         delete_last_message(request.session_id)
         raise HTTPException(
             status_code=500,
