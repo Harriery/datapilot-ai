@@ -80,3 +80,58 @@ def test_dispatcher_without_working_data_does_not_fail(tmp_path):
     assert dispatch_local_investigation(
         workspace, "hello", tmp_path / "none.csv"
     )["status"] == "unavailable"
+
+
+def test_explicit_pair_runs_without_prior_preview_filter(tmp_path):
+    path = tmp_path / "working.csv"
+    pd.DataFrame({
+        "CANCELLATION_REASON": [None, "A", None, None],
+        "CANCELLED": [0, 1, 0, 1],
+    }).to_csv(path, index=False)
+    workspace = SimpleNamespace(action_evidence_events=[])
+    message = (
+        "CANCELLATION_REASON sütunundaki eksik değerlerin "
+        "CANCELLED ile ilişkisini Local Engine üzerinden incele."
+    )
+    response = dispatch_local_investigation(workspace, message, path)
+    assert response["status"] == "verified"
+    assert response["evidence"]["total_missing"] == 3
+    assert response["evidence"]["sufficiency"]["status"] == "ready_for_interpretation"
+    assert len(workspace.action_evidence_events) == 1
+
+
+def test_explicit_pair_can_recalculate_after_stale_preview(tmp_path):
+    path = tmp_path / "working.csv"
+    pd.DataFrame({
+        "CANCELLATION_REASON": [None], "CANCELLED": [0],
+    }).to_csv(path, index=False)
+    workspace = SimpleNamespace(action_evidence_events=[])
+    stat = path.stat()
+    record_action_evidence(
+        workspace,
+        action="preview_investigation",
+        dataset="source",
+        parameters={
+            "filters": [{"column": "CANCELLATION_REASON", "operator": "is_missing"}],
+        },
+        result={"total_rows": 1, "matching_rows": 1},
+        data_version=f"{stat.st_size}:{stat.st_mtime_ns}",
+    )
+    response = dispatch_local_investigation(
+        workspace,
+        "CANCELLATION_REASON sütunundaki eksik değerlerin CANCELLED ile ilişkisini incele",
+        path,
+    )
+    assert response["status"] == "verified"
+    assert response["evidence"]["total_rows"] == 1
+
+
+def test_explicit_pair_rejects_ambiguous_target(tmp_path):
+    path = tmp_path / "working.csv"
+    pd.DataFrame({"first": [None], "second": [None]}).to_csv(path, index=False)
+    workspace = SimpleNamespace(action_evidence_events=[])
+    result = dispatch_local_investigation(
+        workspace, "first ve second eksik değer ilişkisini incele", path
+    )
+    assert result["status"] == "needs_clarification"
+    assert not workspace.action_evidence_events
