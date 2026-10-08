@@ -373,3 +373,50 @@ def test_chat_oversized_ai_request_returns_413_without_saving_message():
     assert "token limit" in response.json()["detail"]
     history = client.get(f"/chat/{session_id}/history").json()["messages"]
     assert history == []
+
+
+def test_workspace_mentor_chat_enforces_discovery_preference():
+    database.insert_learner_profile(
+        learner_id="mentor-discovery",
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+    )
+    created = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "mentor-discovery",
+            "title": "Demo Dataset",
+            "workspace_type": "data_engineering",
+            "usage_context": "personal",
+            "task_brief": "Learn to inspect missing values.",
+        },
+    )
+    assert created.status_code == 200
+    workspace = created.json()
+    with patch(
+        "backend.app.chat_routes.get_mentor_response_from_message",
+        return_value=(
+            "Eksik değer oranları veri kalitesini etkileyebilir.\n\n"
+            "1. `df[col].isnull().mean()` ile hesapla.\n"
+            "2. Sonuçları sırala."
+        ),
+    ):
+        response = client.post(
+            "/chat",
+            json={
+                "session_id": workspace["mentor_session_id"],
+                "learner_id": "mentor-discovery",
+                "workspace_id": workspace["workspace_id"],
+                "message": "Bana açıklayıp çözümü doğrudan vermeden yönlendir.",
+            },
+        )
+
+    assert response.status_code == 200
+    reply = response.json()["reply"]
+    assert "df[col]" not in reply
+    assert reply.count("?") == 1
+    stored = client.get(
+        f'/chat/{workspace["mentor_session_id"]}/history'
+    ).json()["messages"]
+    assert stored[-1]["content"] == reply
