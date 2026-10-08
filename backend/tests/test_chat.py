@@ -345,3 +345,31 @@ def test_ai_usage_reports_resolved_runtime_models(
         payload["current_model"]
         == "openai/gpt-oss-120b"
     )
+
+
+def test_chat_oversized_ai_request_returns_413_without_saving_message():
+    import httpx
+    from openai import APIStatusError
+
+    created = client.post("/sessions")
+    session_id = created.json()["session_id"]
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/responses")
+    error = APIStatusError(
+        "Request too large for the model",
+        response=httpx.Response(413, request=request),
+        body={"error": {"type": "tokens"}},
+    )
+    with patch(
+        "backend.app.chat_routes.get_mentor_response_from_message",
+        side_effect=error,
+    ):
+        response = client.post(
+            "/chat",
+            json={"session_id": session_id, "message": "Merhaba Mentor"},
+        )
+
+    assert response.status_code == 413
+    assert "token limit" in response.json()["detail"]
+    history = client.get(f"/chat/{session_id}/history").json()["messages"]
+    assert history == []
