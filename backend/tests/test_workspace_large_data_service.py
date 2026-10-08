@@ -498,6 +498,31 @@ def test_simultaneous_raw_preview_requests_build_one_cache(
     assert len(list((tmp_path / "preview_cache").glob("*.parquet"))) == 1
 
 
+
+def test_recalculate_source_duplicates_matches_full_profile(
+    tmp_path,
+):
+    from backend.app.workspace_large_data_service import (
+        recalculate_source_duplicates,
+    )
+
+    source_path = _write_csv(
+        tmp_path,
+        pd.DataFrame(
+            {
+                "airport": ["AMS", "AMS", "CDG", "CDG"],
+                "delay": [None, None, 10, 15],
+            }
+        ),
+    )
+    profile = build_full_data_profile(source_path)
+    assert profile["duplicate_count"] == 1
+    assert profile["duplicate_count_verified"] is True
+    assert recalculate_source_duplicates(source_path) == 1
+    assert source_path.is_file()
+
+
+
 def test_large_preview_filters_without_loading_full_dataframe(
     tmp_path,
 ):
