@@ -2464,3 +2464,709 @@ def profile_parquet(
                 ")"
             ),
         )
+
+def load_large_source_sample(
+    source_path: Path,
+    limit: int,
+    seed: int = 42,
+) -> tuple[
+    pd.DataFrame,
+    int,
+]:
+    if not source_path.exists():
+        raise FileNotFoundError(
+            "Workspace source datası bulunamadı."
+        )
+
+    with duckdb.connect() as connection:
+        relation_sql = (
+            _source_sql(
+                source_path
+            )
+        )
+
+        total_row_count = int(
+            connection.execute(
+                (
+                    "SELECT COUNT(*) "
+                    f"FROM {relation_sql}"
+                )
+            ).fetchone()[0]
+        )
+
+        bounded_limit = min(
+            max(
+                int(limit),
+                1,
+            ),
+            total_row_count,
+        )
+
+        if bounded_limit >= total_row_count:
+            df = connection.execute(
+                (
+                    "SELECT * FROM "
+                    f"{relation_sql}"
+                )
+            ).df()
+        else:
+            df = _reservoir_sample(
+                connection,
+                relation_sql,
+                bounded_limit,
+                seed,
+            )
+
+    return (
+        df.reset_index(
+            drop=True
+        ),
+        total_row_count,
+    )
+
+
+def _duckdb_preview_type(
+    duck_type: str,
+) -> str:
+    normalized = (
+        duck_type.upper()
+    )
+
+    if normalized == "BOOLEAN":
+        return "boolean"
+
+    if (
+        "DATE" in normalized
+        or "TIMESTAMP" in normalized
+    ):
+        return "datetime"
+
+    if normalized.startswith(
+        (
+            "TINYINT",
+            "SMALLINT",
+            "INTEGER",
+            "BIGINT",
+            "HUGEINT",
+            "UTINYINT",
+            "USMALLINT",
+            "UINTEGER",
+            "UBIGINT",
+            "FLOAT",
+            "DOUBLE",
+            "DECIMAL",
+        )
+    ):
+        return "number"
+
+    return "text"
+
+
+def _preview_filter_sql(
+    item: dict,
+    data_types: dict[
+        str,
+        str,
+    ],
+    relation_sql: str,
+) -> str:
+    column = str(
+        item["column"]
+    )
+
+    if column not in data_types:
+        raise ValueError(
+            (
+                "Preview filter column "
+                f"does not exist: {column}"
+            )
+        )
+
+    quoted = _q(
+        column
+    )
+    operator = str(
+        item["operator"]
+    )
+    value = item.get(
+        "value"
+    )
+    value_to = item.get(
+        "value_to"
+    )
+    kind = _duckdb_preview_type(
+        data_types[column]
+    )
+
+    text_expr = (
+        "LOWER(TRIM(COALESCE("
+        f"CAST({quoted} AS VARCHAR), "
+        "'')))"
+    )
+
+    def required(
+        raw,
+        label: str = "value",
+    ) -> str:
+        if (
+            raw is None
+            or not str(raw).strip()
+        ):
+            raise ValueError(
+                (
+                    "Preview filter "
+                    f"{label} is required."
+                )
+            )
+        return str(
+            raw
+        ).strip()
+
+    if operator == "is_missing":
+        return (
+            f"{quoted} IS NULL"
+        )
+
+    if operator == "is_not_missing":
+        return (
+            f"{quoted} IS NOT NULL"
+        )
+
+    if operator == "is_blank":
+        return (
+            f"{quoted} IS NOT NULL "
+            f"AND {text_expr} = ''"
+        )
+
+    if operator == "is_not_blank":
+        return (
+            "NOT ("
+            f"{quoted} IS NOT NULL "
+            f"AND {text_expr} = ''"
+            ")"
+        )
+
+    if operator in {
+        "is_duplicate",
+        "is_unique",
+    }:
+        duplicate_sql = (
+            f"{quoted} IS NOT NULL AND "
+            f"{quoted} IN ("
+            f"SELECT {_q(column)} "
+            f"FROM {relation_sql} "
+            f"WHERE {_q(column)} "
+            "IS NOT NULL "
+            f"GROUP BY {_q(column)} "
+            "HAVING COUNT(*) > 1"
+            ")"
+        )
+
+        return (
+            duplicate_sql
+            if operator
+            == "is_duplicate"
+            else (
+                f"{quoted} IS NOT NULL "
+                f"AND NOT ({duplicate_sql})"
+            )
+        )
+
+    if operator in {
+        "contains",
+        "not_contains",
+        "starts_with",
+        "ends_with",
+    }:
+        expected = (
+            required(value)
+            .casefold()
+        )
+
+        if operator in {
+            "contains",
+            "not_contains",
+        }:
+            expression = (
+                f"POSITION({_lit(expected)} "
+                f"IN {text_expr}) > 0"
+            )
+            return (
+                f"NOT ({expression})"
+                if operator
+                == "not_contains"
+                else expression
+            )
+
+        if operator == "starts_with":
+            return (
+                f"{text_expr} LIKE "
+                f"{_lit(expected + '%')}"
+            )
+
+        return (
+            f"{text_expr} LIKE "
+            f"{_lit('%' + expected)}"
+        )
+
+    if operator in {
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "between",
+    }:
+        first = required(
+            value
+        )
+
+        try:
+            first_number = float(
+                first
+            )
+        except ValueError as exc:
+            raise ValueError(
+                "Preview filter value must be numeric."
+            ) from exc
+
+        numeric = (
+            "TRY_CAST("
+            f"{quoted} AS DOUBLE)"
+        )
+
+        operators = {
+            "greater_than": ">",
+            "greater_than_or_equal":
+                ">=",
+            "less_than": "<",
+            "less_than_or_equal":
+                "<=",
+        }
+
+        if operator in operators:
+            return (
+                f"{numeric} "
+                f"{operators[operator]} "
+                f"{first_number}"
+            )
+
+        second = required(
+            value_to,
+            "value_to",
+        )
+
+        try:
+            second_number = float(
+                second
+            )
+        except ValueError as exc:
+            raise ValueError(
+                "Preview filter value_to "
+                "must be numeric."
+            ) from exc
+
+        lower = min(
+            first_number,
+            second_number,
+        )
+        upper = max(
+            first_number,
+            second_number,
+        )
+
+        return (
+            f"{numeric} BETWEEN "
+            f"{lower} AND {upper}"
+        )
+
+    if operator in {
+        "before",
+        "after",
+        "date_between",
+    }:
+        first = required(
+            value
+        )
+        first_literal = (
+            "TRY_CAST("
+            f"{_lit(first)} "
+            "AS TIMESTAMP)"
+        )
+        date_expr = (
+            "TRY_CAST("
+            f"{quoted} AS TIMESTAMP)"
+        )
+
+        if operator == "before":
+            return (
+                f"{date_expr} < "
+                f"{first_literal}"
+            )
+
+        if operator == "after":
+            return (
+                f"{date_expr} > "
+                f"{first_literal}"
+            )
+
+        second = required(
+            value_to,
+            "value_to",
+        )
+
+        return (
+            f"{date_expr} BETWEEN "
+            "LEAST("
+            f"{first_literal}, "
+            "TRY_CAST("
+            f"{_lit(second)} "
+            "AS TIMESTAMP)) "
+            "AND GREATEST("
+            f"{first_literal}, "
+            "TRY_CAST("
+            f"{_lit(second)} "
+            "AS TIMESTAMP))"
+        )
+
+    if operator in {
+        "in",
+        "not_in",
+    }:
+        raw = required(
+            value
+        )
+
+        values = [
+            item.strip().casefold()
+            for item in raw.split(",")
+            if item.strip()
+        ]
+
+        if not values:
+            raise ValueError(
+                (
+                    "Preview filter value must "
+                    "include at least one item."
+                )
+            )
+
+        values_sql = ", ".join(
+            _lit(item)
+            for item in values
+        )
+
+        expression = (
+            f"{text_expr} IN "
+            f"({values_sql})"
+        )
+
+        return (
+            f"NOT ({expression})"
+            if operator == "not_in"
+            else expression
+        )
+
+    if operator in {
+        "equals",
+        "not_equals",
+    }:
+        raw = required(
+            value
+        )
+
+        if kind == "number":
+            try:
+                expected = float(
+                    raw
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    (
+                        "Preview filter value "
+                        "must be numeric."
+                    )
+                ) from exc
+
+            expression = (
+                "TRY_CAST("
+                f"{quoted} AS DOUBLE) "
+                f"= {expected}"
+            )
+
+        elif kind == "boolean":
+            normalized = (
+                raw.casefold()
+            )
+
+            if normalized not in {
+                "true",
+                "false",
+                "1",
+                "0",
+                "yes",
+                "no",
+            }:
+                raise ValueError(
+                    (
+                        "Boolean preview filter "
+                        "value must be true or false."
+                    )
+                )
+
+            expected = (
+                "TRUE"
+                if normalized
+                in {
+                    "true",
+                    "1",
+                    "yes",
+                }
+                else "FALSE"
+            )
+
+            expression = (
+                f"{quoted} = "
+                f"{expected}"
+            )
+
+        elif kind == "datetime":
+            expression = (
+                "TRY_CAST("
+                f"{quoted} AS TIMESTAMP) "
+                "= TRY_CAST("
+                f"{_lit(raw)} "
+                "AS TIMESTAMP)"
+            )
+
+        else:
+            expression = (
+                f"{text_expr} = "
+                f"{_lit(raw.casefold())}"
+            )
+
+        return (
+            f"NOT ({expression})"
+            if operator
+            == "not_equals"
+            else expression
+        )
+
+    raise ValueError(
+        (
+            "Unsupported preview filter "
+            f"operator: {operator}"
+        )
+    )
+
+
+def query_large_data_preview(
+    *,
+    source_path: Path | None = None,
+    parquet_path: Path | None = None,
+    page: int = 1,
+    page_size: int = 25,
+    search: str = "",
+    filters: list[dict] | None = None,
+    filter_logic: str = "and",
+) -> dict:
+    if (
+        (source_path is None)
+        == (parquet_path is None)
+    ):
+        raise ValueError(
+            (
+                "Exactly one large preview "
+                "source is required."
+            )
+        )
+
+    if source_path is not None:
+        relation_sql = (
+            _source_sql(
+                source_path
+            )
+        )
+    else:
+        assert parquet_path is not None
+
+        if not parquet_path.exists():
+            raise FileNotFoundError(
+                "Silver dataset bulunamadı."
+            )
+
+        relation_sql = (
+            "read_parquet("
+            f"{_path_literal(parquet_path)}"
+            ")"
+        )
+
+    with duckdb.connect() as connection:
+        describe = connection.execute(
+            (
+                "DESCRIBE SELECT * "
+                f"FROM {relation_sql}"
+            )
+        ).fetchall()
+
+        columns = [
+            str(row[0])
+            for row in describe
+        ]
+
+        data_types = {
+            str(row[0]):
+                str(row[1])
+            for row in describe
+        }
+
+        predicates = []
+
+        normalized_search = (
+            search.strip()
+        )
+
+        if normalized_search:
+            needle = (
+                normalized_search
+                .casefold()
+            )
+
+            search_parts = [
+                (
+                    "POSITION("
+                    f"{_lit(needle)} IN "
+                    "LOWER(COALESCE("
+                    f"CAST({_q(column)} "
+                    "AS VARCHAR), ''))) "
+                    "> 0"
+                )
+                for column in columns
+            ]
+
+            predicates.append(
+                "("
+                + " OR ".join(
+                    search_parts
+                )
+                + ")"
+            )
+
+        filter_items = (
+            filters
+            or []
+        )
+
+        if filter_items:
+            filter_sql = [
+                _preview_filter_sql(
+                    item,
+                    data_types,
+                    relation_sql,
+                )
+                for item in filter_items
+            ]
+
+            connector = (
+                " AND "
+                if filter_logic == "and"
+                else " OR "
+            )
+
+            predicates.append(
+                "("
+                + connector.join(
+                    filter_sql
+                )
+                + ")"
+            )
+
+        where_sql = (
+            (
+                " WHERE "
+                + " AND ".join(
+                    predicates
+                )
+            )
+            if predicates
+            else ""
+        )
+
+        total_row_count = int(
+            connection.execute(
+                (
+                    "SELECT COUNT(*) "
+                    f"FROM {relation_sql}"
+                )
+            ).fetchone()[0]
+        )
+
+        filtered_row_count = int(
+            connection.execute(
+                (
+                    "SELECT COUNT(*) "
+                    f"FROM {relation_sql}"
+                    f"{where_sql}"
+                )
+            ).fetchone()[0]
+        )
+
+        total_pages = max(
+            1,
+            (
+                filtered_row_count
+                + page_size
+                - 1
+            )
+            // page_size,
+        )
+
+        effective_page = min(
+            max(
+                int(page),
+                1,
+            ),
+            total_pages,
+        )
+
+        offset = (
+            effective_page - 1
+        ) * page_size
+
+        page_df = (
+            connection.execute(
+                (
+                    "SELECT * "
+                    f"FROM {relation_sql}"
+                    f"{where_sql} "
+                    f"LIMIT {int(page_size)} "
+                    f"OFFSET {int(offset)}"
+                )
+            ).df()
+        )
+
+    return {
+        "columns":
+            columns,
+        "column_types": {
+            column:
+                _duckdb_preview_type(
+                    data_types[
+                        column
+                    ]
+                )
+            for column in columns
+        },
+        "total_row_count":
+            total_row_count,
+        "filtered_row_count":
+            filtered_row_count,
+        "page":
+            effective_page,
+        "page_size":
+            page_size,
+        "total_pages":
+            total_pages,
+        "rows":
+            page_df,
+    }
+
