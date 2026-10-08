@@ -12,6 +12,8 @@ from fastapi import (
     Response,
 )
 
+from pydantic import BaseModel, Field
+
 import backend.app.database as database
 
 from backend.app.models import (
@@ -228,6 +230,10 @@ from backend.app.mentor_learner_model_service import (
 from backend.app.mentor_action_evidence_service import (
     record_action_evidence,
 )
+from backend.app.mentor_local_investigation_service import (
+    verify_missingness_relationship,
+)
+
 
 
 router = APIRouter()
@@ -4186,6 +4192,71 @@ def export_workspace_processed_dataset(
             )
         },
     )
+
+
+class WorkspaceRelationshipInvestigationRequest(BaseModel):
+    target_column: str = Field(min_length=1, max_length=200)
+    group_column: str = Field(min_length=1, max_length=200)
+    max_groups: int = Field(default=12, ge=1, le=30)
+
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/mentor/investigate-missingness"
+)
+def investigate_workspace_missingness(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceRelationshipInvestigationRequest,
+):
+    """Read-only, no-LLM verification of missingness by a chosen column."""
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Workspace bulunamadı.")
+    from backend.app.workspace_data_service import get_workspace_data_dir
+    working_path = get_workspace_data_dir(workspace_id) / "working.csv"
+    try:
+        # Load only the two requested columns, not the entire raw source.
+        # Validate column names using CSV schema first to avoid silent inference.
+        available = pd.read_csv(working_path, nrows=0).columns
+        if (
+            request.target_column not in available
+            or request.group_column not in available
+        ):
+            raise ValueError("Both requested columns must exist.")
+        columns = [request.target_column, request.group_column]
+        df = pd.read_csv(working_path, usecols=columns)
+        result = verify_missingness_relationship(
+            df,
+            target_column=request.target_column,
+            group_column=request.group_column,
+            max_groups=request.max_groups,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="Working dataset not found."
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    stat = working_path.stat()
+    data_version = f"{stat.st_size}:{stat.st_mtime_ns}"
+    if record_action_evidence(
+        workspace,
+        action="missingness_relationship",
+        dataset="working",
+        parameters={
+            "target_column": request.target_column,
+            "group_column": request.group_column,
+            "max_groups": request.max_groups,
+        },
+        result=result,
+        data_version=data_version,
+    ):
+        database.save_workspace(workspace=workspace)
+    return result
 
 
 @router.get(
