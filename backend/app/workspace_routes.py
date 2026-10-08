@@ -1606,91 +1606,152 @@ def create_workspace_development_sample(
             detail="Workspace bulunamadı.",
         )
 
-    try:
-        source_df = (
-            load_workspace_source_dataframe(
-                workspace_id
-            )
+    if workspace.dataset_storage_mode == "duckdb":
+        profile = (
+            workspace.full_data_profile
+            or workspace.dataset_profile
         )
 
-    except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        ) from exc
-
-    source_row_count = len(
-        source_df
-    )
-
-    if source_row_count == 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Source dataset boş.",
-        )
-
-    sample_max_size = (
-        workspace.development_sample_max_size
-        or workspace.development_sample_size
-        or workspace.development_sample_row_count
-        or min(
-            1000,
-            source_row_count,
-        )
-    )
-
-    sample_max_size = min(
-        sample_max_size,
-        source_row_count,
-    )
-
-    if request.sample_size > sample_max_size:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Development sample üst sınırı "
-                f"{sample_max_size} satır."
-            ),
-        )
-
-    sample_size = min(
-        request.sample_size,
-        source_row_count,
-    )
-
-    sampled = (
-        sample_size
-        < source_row_count
-    )
-
-    if sampled:
-        working_df = (
-            source_df.sample(
-                n=sample_size,
-                random_state=(
-                    request.random_seed
+        if profile is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Full-data profile bulunamadı."
                 ),
             )
-            .reset_index(drop=True)
+
+        source_row_count = int(
+            profile["row_count"]
         )
+        sample_max_size = min(
+            int(
+                workspace.development_sample_max_size
+                or 20_000
+            ),
+            source_row_count,
+        )
+
+        if request.sample_size > sample_max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Development sample üst sınırı "
+                    f"{sample_max_size} satır."
+                ),
+            )
+
+        try:
+            (
+                working_df,
+                report,
+            ) = build_smart_development_sample(
+                source_path=(
+                    get_workspace_source_path(
+                        workspace_id
+                    )
+                ),
+                profile=profile,
+                candidate_sizes=(
+                    request.sample_size,
+                ),
+                seed=request.random_seed,
+            )
+        except (
+            FileNotFoundError,
+            ValueError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        if request.strategy == "smart":
+            workspace.smart_sampling_report = report
+
+        sampled = (
+            len(working_df)
+            < source_row_count
+        )
+
     else:
-        working_df = (
-            source_df.copy()
-            .reset_index(drop=True)
+        try:
+            source_df = (
+                load_workspace_source_dataframe(
+                    workspace_id
+                )
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        source_row_count = len(
+            source_df
         )
+
+        if source_row_count == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Source dataset boş.",
+            )
+
+        sample_max_size = (
+            workspace.development_sample_max_size
+            or workspace.development_sample_size
+            or workspace.development_sample_row_count
+            or min(
+                1000,
+                source_row_count,
+            )
+        )
+        sample_max_size = min(
+            sample_max_size,
+            source_row_count,
+        )
+
+        if request.sample_size > sample_max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Development sample üst sınırı "
+                    f"{sample_max_size} satır."
+                ),
+            )
+
+        sample_size = min(
+            request.sample_size,
+            source_row_count,
+        )
+        sampled = (
+            sample_size
+            < source_row_count
+        )
+
+        if sampled:
+            working_df = (
+                source_df.sample(
+                    n=sample_size,
+                    random_state=(
+                        request.random_seed
+                    ),
+                )
+                .reset_index(drop=True)
+            )
+        else:
+            working_df = (
+                source_df.copy()
+                .reset_index(drop=True)
+            )
 
     save_workspace_working_dataframe(
         workspace_id=workspace_id,
         df=working_df,
     )
-
     clear_workspace_versions(
         workspace_id=workspace_id
     )
 
-    # A different development sample invalidates
-    # previous transformation results and downstream
-    # state. Rebuild only trusted quality operations.
     findings = (
         workspace.dataset_analysis.findings
         if workspace.dataset_analysis
@@ -1707,44 +1768,35 @@ def create_workspace_development_sample(
     )
 
     workspace.workbench_preview = None
-
-    workspace.development_sample_size = (
-        sample_size
+    workspace.development_sample_size = len(
+        working_df
     )
-
     workspace.development_sample_max_size = (
         sample_max_size
     )
-
     workspace.development_sample_strategy = (
         request.strategy
     )
-
     workspace.development_sample_seed = (
         request.random_seed
     )
-
-    workspace.development_sample_row_count = (
-        len(working_df)
+    workspace.development_sample_row_count = len(
+        working_df
     )
+    workspace.development_sample_enabled = sampled
 
-    workspace.development_sample_enabled = (
-        sampled
-    )
-
+    # A new sample invalidates decisions made against the previous sample.
+    workspace.full_data_preflight = None
+    workspace.silver_dataset_path = None
     workspace.validation_result = None
-
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
     workspace.dashboard_config.visuals = []
-
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
-
     workspace.data_model_plan = None
     workspace.data_model_studio = None
-
     workspace.current_task_id = None
 
     workspace.checkpoint.completed_items = [
@@ -1758,15 +1810,12 @@ def create_workspace_development_sample(
             "Handoff completed",
         }
     ]
-
     workspace.checkpoint.current_focus = (
         "Review development sample and build execution plan"
     )
-
     workspace.checkpoint.next_actions = [
         "Build execution plan"
     ]
-
     workspace.checkpoint.blocked_reason = None
     workspace.checkpoint.last_error = None
 
@@ -1776,17 +1825,29 @@ def create_workspace_development_sample(
         for deliverable in (
             workspace.project_deliverables
         ):
-            if deliverable.code == "data_profile":
-                deliverable.status = "completed"
+            if (
+                deliverable.code
+                == "data_profile"
+            ):
+                deliverable.status = (
+                    "completed"
+                )
                 continue
 
-            if deliverable.code == "clean_dataset":
-                deliverable.status = "in_progress"
+            if (
+                deliverable.code
+                == "clean_dataset"
+            ):
+                deliverable.status = (
+                    "in_progress"
+                )
                 invalidate_started = True
                 continue
 
             if invalidate_started:
-                deliverable.status = "pending"
+                deliverable.status = (
+                    "pending"
+                )
 
     database.save_workspace(
         workspace=workspace
@@ -1805,6 +1866,176 @@ def create_workspace_development_sample(
         sampled=sampled,
     )
 
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/smart-sampling"
+    ),
+    response_model=(
+        WorkspaceSmartSamplingResponse
+    ),
+)
+def create_workspace_smart_sample(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceSmartSamplingRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    profile = (
+        workspace.full_data_profile
+        or workspace.dataset_profile
+    )
+
+    if profile is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Smart Sampling öncesinde "
+                "Full-data Profile gerekli."
+            ),
+        )
+
+    candidate_sizes = tuple(
+        sorted(
+            {
+                int(size)
+                for size in request.candidate_sizes
+                if 1 <= int(size) <= 20_000
+            }
+        )
+    )
+
+    if not candidate_sizes:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "En az bir geçerli candidate size gerekli."
+            ),
+        )
+
+    try:
+        (
+            working_df,
+            report,
+        ) = build_smart_development_sample(
+            source_path=(
+                get_workspace_source_path(
+                    workspace_id
+                )
+            ),
+            profile=profile,
+            candidate_sizes=(
+                candidate_sizes
+            ),
+            seed=request.random_seed,
+        )
+    except (
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    save_workspace_working_dataframe(
+        workspace_id=workspace_id,
+        df=working_df,
+    )
+    clear_workspace_versions(
+        workspace_id=workspace_id
+    )
+
+    workspace.dataset_storage_mode = (
+        "duckdb"
+        if int(profile["row_count"])
+        >= 100_000
+        else workspace.dataset_storage_mode
+    )
+    workspace.smart_sampling_report = (
+        report
+    )
+    workspace.development_sample_size = len(
+        working_df
+    )
+    workspace.development_sample_max_size = min(
+        max(candidate_sizes),
+        int(profile["row_count"]),
+    )
+    workspace.development_sample_strategy = (
+        "smart"
+    )
+    workspace.development_sample_seed = (
+        request.random_seed
+    )
+    workspace.development_sample_row_count = len(
+        working_df
+    )
+    workspace.development_sample_enabled = (
+        len(working_df)
+        < int(profile["row_count"])
+    )
+
+    workspace.full_data_preflight = None
+    workspace.silver_dataset_path = None
+    workspace.validation_result = None
+    workspace.current_task_id = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceSmartSamplingResponse(
+        source_row_count=int(
+            profile["row_count"]
+        ),
+        selected_size=int(
+            report["selected_size"]
+        ),
+        selected_strategy=str(
+            report["selected_strategy"]
+        ),
+        candidate_evaluations=list(
+            report[
+                "candidate_evaluations"
+            ]
+        ),
+        selected_evaluation=(
+            report.get(
+                "selected_evaluation"
+            )
+        ),
+        threshold=float(
+            report["threshold"]
+        ),
+        rare_coverage_threshold=(
+            float(
+                report[
+                    "rare_coverage_threshold"
+                ]
+            )
+            if report.get(
+                "rare_coverage_threshold"
+            )
+            is not None
+            else None
+        ),
+        reason=str(
+            report["reason"]
+        ),
+        full_data_preflight_required=True,
+    )
 
 @router.post(
     "/workspaces/{learner_id}/{workspace_id}/plan",
