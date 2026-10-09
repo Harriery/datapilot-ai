@@ -177,7 +177,11 @@ for _cell in _codes:
                 continue
             if _language == "sql":
                 _sql = _code.strip().rstrip(";").strip()
-                if not _sql.upper().startswith(("SELECT ", "WITH ", "SELECT\\n", "WITH\\n")):
+                # Ignore SQL single-line comments when checking the leading statement.
+                _statement = _sql.lstrip()
+                while _statement.startswith("--"):
+                    _statement = _statement.partition("\\n")[2].lstrip()
+                if not _statement.upper().startswith(("SELECT ", "WITH ", "SELECT(", "WITH(")):
                     raise ValueError("Only read-only SELECT and WITH queries are supported.")
                 _connection = sqlite3.connect(":memory:")
                 try:
