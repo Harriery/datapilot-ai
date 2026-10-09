@@ -176,7 +176,11 @@ for _cell in _codes:
                 })
                 continue
             if _language == "sql":
-                _sql = _code.strip().rstrip(";").strip()
+                # Legacy Python starter comments can remain after a cell type switch.
+                _sql_lines = _code.splitlines()
+                if _sql_lines and _sql_lines[0].strip() == "# Work with df":
+                    _sql_lines = _sql_lines[1:]
+                _sql = "\\n".join(_sql_lines).strip().rstrip(";").strip()
                 # Ignore SQL single-line comments when checking the leading statement.
                 _statement = _sql.lstrip()
                 while _statement.startswith("--"):
