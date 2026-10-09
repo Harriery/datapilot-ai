@@ -988,7 +988,14 @@ function WorkspaceNotebook({
                                 markDraftChanged({
                                   ...draft,
                                   cells: draft.cells.map((item) => item.cell_id === cell.cell_id
-                                    ? { ...item, cell_type: cellType, last_execution: null }
+                                    ? {
+                                        ...item,
+                                        cell_type: cellType,
+                                        code: item.code.trim() === "# Work with df"
+                                          ? (cellType === "sql" ? "SELECT * FROM df LIMIT 5;" : cellType === "markdown" ? "# Notes" : item.code)
+                                          : item.code,
+                                        last_execution: null,
+                                      }
                                     : item),
                                 });
                                 setResults((previous) => {
