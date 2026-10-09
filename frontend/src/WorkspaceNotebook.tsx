@@ -28,7 +28,7 @@ import {
 export type WorkspaceNotebookCellData = {
   cell_id: string;
   code: string;
-  cell_type: "python";
+  cell_type: "python" | "sql" | "markdown";
   section_title?: string | null;
   last_execution?: {
     success: boolean;
@@ -101,15 +101,15 @@ type Props = {
   dataRevision?: number;
 };
 
-function createCell():
+function createCell(cellType: "python" | "sql" | "markdown" = "python"):
   WorkspaceNotebookCellData {
   return {
     cell_id:
       crypto.randomUUID(),
     code:
-      "# Work with df\n",
+      cellType === "python" ? "# Work with df\n" : cellType === "sql" ? "SELECT * FROM df LIMIT 5;" : "# Notes\n",
     cell_type:
-      "python",
+      cellType,
   };
 }
 
@@ -133,7 +133,7 @@ function WorkspaceNotebook({
       sampledRows: "sampled rows", fromTotal: "from", totalRows: "total rows",
       columns: "columns", askMentor: "Ask mentor", reviewing: "Reviewing...",
       sendPipeline: "Send to pipeline", deleteCell: "Delete cell", output: "OUTPUT",
-      addCell: "Add Python cell", section: "Section", sectionPlaceholder: "Optional section title",
+      addCell: "Add cell", cellLanguage: "Language", section: "Section", sectionPlaceholder: "Optional section title",
     },
     nl: {
       notebook: "Notebook", dataset: "Dataset", working: "Ontwikkeldata / werkset",
@@ -143,7 +143,7 @@ function WorkspaceNotebook({
       sampledRows: "steekproefrijen", fromTotal: "van", totalRows: "totale rijen",
       columns: "kolommen", askMentor: "Vraag mentor", reviewing: "Beoordelen...",
       sendPipeline: "Naar pipeline", deleteCell: "Cel verwijderen", output: "UITVOER",
-      addCell: "Python-cel toevoegen", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
+      addCell: "Cel toevoegen", cellLanguage: "Taal", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
     },
     tr: {
       notebook: "Not defteri", dataset: "Veri seti", working: "Geliştirme / çalışma verisi",
@@ -153,7 +153,7 @@ function WorkspaceNotebook({
       sampledRows: "örnek satır", fromTotal: "/", totalRows: "toplam satır",
       columns: "sütun", askMentor: "Mentora sor", reviewing: "İnceleniyor...",
       sendPipeline: "Pipeline'a gönder", deleteCell: "Cell'i sil", output: "ÇIKTI",
-      addCell: "Python cell ekle", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
+      addCell: "Hücre ekle", cellLanguage: "Dil", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
     },
   }[language];
 
@@ -421,9 +421,9 @@ function WorkspaceNotebook({
         },
       },
       cells: draft.cells.map((cell) => ({
-        cell_type: "code",
+        cell_type: cell.cell_type === "markdown" ? "markdown" : "code",
         execution_count: null,
-        metadata: { datapilot_cell_id: cell.cell_id },
+        metadata: { datapilot_cell_id: cell.cell_id, language: cell.cell_type ?? "python" },
         outputs: [],
         source: cell.code.split(/(?<=\n)/),
       })),
@@ -450,7 +450,7 @@ function WorkspaceNotebook({
       if (!saved) return;
 
       const allResults = await runNotebookAllCells(
-        draft.cells.map((item) => item.code),
+        draft.cells.map((item) => ({ code: item.code, cell_type: item.cell_type ?? "python" })),
         inputRows,
       );
 
@@ -656,8 +656,7 @@ function WorkspaceNotebook({
       const result =
         await runNotebookCells(
           draft.cells.map(
-            (item) =>
-              item.code
+            (item) => ({ code: item.code, cell_type: item.cell_type ?? "python" })
           ),
           inputRows,
           index,
@@ -964,6 +963,32 @@ function WorkspaceNotebook({
                 </div>
 
                 <div className="notebook-cell-body">
+                  <div className="notebook-cell-language" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <label htmlFor={`cell-type-${cell.cell_id}`}>{ui.cellLanguage}</label>
+                    <select
+                      id={`cell-type-${cell.cell_id}`}
+                      value={cell.cell_type ?? "python"}
+                      disabled={runningCellId !== null}
+                      onChange={(event) => {
+                        const cellType = event.target.value as "python" | "sql" | "markdown";
+                        markDraftChanged({
+                          ...draft,
+                          cells: draft.cells.map((item) => item.cell_id === cell.cell_id
+                            ? { ...item, cell_type: cellType, last_execution: null }
+                            : item),
+                        });
+                        setResults((previous) => {
+                          const next = { ...previous };
+                          delete next[cell.cell_id];
+                          return next;
+                        });
+                      }}
+                    >
+                      <option value="python">Python</option>
+                      <option value="sql">SQL (read-only)</option>
+                      <option value="markdown">Markdown</option>
+                    </select>
+                  </div>
                   <div className="notebook-cell-section-editor">
                     <label>
                       <span>{ui.section}</span>
