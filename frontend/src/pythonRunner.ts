@@ -185,7 +185,6 @@ for _cell in _codes:
                     if not isinstance(_working, pd.DataFrame):
                         raise TypeError("df must be a pandas DataFrame.")
                     _working.to_sql("df", _connection, index=False, if_exists="replace")
-                    _working.to_sql("flights", _connection, index=False, if_exists="replace")
                     _connection.set_authorizer(
                         lambda action, arg1, arg2, db, source:
                         sqlite3.SQLITE_OK if action in (
