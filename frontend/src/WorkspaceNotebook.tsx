@@ -422,9 +422,8 @@ function WorkspaceNotebook({
       },
       cells: draft.cells.map((cell) => ({
         cell_type: cell.cell_type === "markdown" ? "markdown" : "code",
-        execution_count: null,
+        ...(cell.cell_type === "markdown" ? {} : { execution_count: null, outputs: [] }),
         metadata: { datapilot_cell_id: cell.cell_id, language: cell.cell_type ?? "python" },
-        outputs: [],
         source: cell.code.split(/(?<=\n)/),
       })),
     };
@@ -1069,6 +1068,8 @@ function WorkspaceNotebook({
                     <button
                       type="button"
                       className="secondary-button"
+                      disabled={(cell.cell_type ?? "python") !== "python"}
+                      title={(cell.cell_type ?? "python") === "python" ? ui.sendPipeline : "Only Python cells can be sent to the pipeline"}
                       onClick={() => {
                         void onPromoteCode(
                           cell.code
