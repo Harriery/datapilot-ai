@@ -208,6 +208,7 @@ function WorkspaceNotebook({
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [collapsedOutputs, setCollapsedOutputs] = useState<Record<string, boolean>>({});
+  const [openLanguageMenu, setOpenLanguageMenu] = useState<string | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(
     Object.fromEntries(
       notebook.cells
@@ -876,14 +877,21 @@ function WorkspaceNotebook({
 
       <div className="notebook-cells">
         {(() => {
-          let activeSection = "";
-          return draft.cells.map(
-            (cell, index) => {
-              if (cell.section_title?.trim()) {
-                activeSection = cell.section_title.trim();
-              }
-
-              const sectionTitle = activeSection;
+          // Consolidate same-name sections visually; retain original cell indices for Run.
+          let currentSection = "";
+          const grouped = new Map<string, Array<{ cell: WorkspaceNotebookCellData; index: number; sectionTitle: string }>>();
+          draft.cells.forEach((cell, index) => {
+            if (cell.section_title?.trim()) currentSection = cell.section_title.trim();
+            const sectionKey = currentSection || `__ungrouped_${index}`;
+            if (!grouped.has(sectionKey)) grouped.set(sectionKey, []);
+            grouped.get(sectionKey)!.push({ cell, index, sectionTitle: currentSection });
+          });
+          const displayCells = Array.from(grouped.values()).flat();
+          const renderedHeadings = new Set<string>();
+          return displayCells.map(
+            ({ cell, index, sectionTitle }) => {
+              const showSectionHeader = Boolean(sectionTitle && !renderedHeadings.has(sectionTitle));
+              if (showSectionHeader) renderedHeadings.add(sectionTitle);
               const sectionCollapsed =
                 Boolean(
                   sectionTitle &&
@@ -895,19 +903,14 @@ function WorkspaceNotebook({
                   cell.cell_id
                 ];
 
-              if (
-                sectionCollapsed &&
-                !cell.section_title?.trim()
-              ) {
-                return null;
-              }
+              if (sectionCollapsed && !showSectionHeader) return null;
 
               return (
                 <div
                   className="notebook-cell-section-wrap"
                   key={cell.cell_id}
                 >
-                  {cell.section_title?.trim() && (
+                  {showSectionHeader && (
                     <div className="notebook-section-header">
                       <button
                         type="button"
@@ -962,31 +965,47 @@ function WorkspaceNotebook({
                 </div>
 
                 <div className="notebook-cell-body">
-                  <div className="notebook-cell-language" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <label htmlFor={`cell-type-${cell.cell_id}`}>{ui.cellLanguage}</label>
-                    <select
-                      id={`cell-type-${cell.cell_id}`}
-                      value={cell.cell_type ?? "python"}
-                      disabled={runningCellId !== null}
-                      onChange={(event) => {
-                        const cellType = event.target.value as "python" | "sql" | "markdown";
-                        markDraftChanged({
-                          ...draft,
-                          cells: draft.cells.map((item) => item.cell_id === cell.cell_id
-                            ? { ...item, cell_type: cellType, last_execution: null }
-                            : item),
-                        });
-                        setResults((previous) => {
-                          const next = { ...previous };
-                          delete next[cell.cell_id];
-                          return next;
-                        });
-                      }}
-                    >
-                      <option value="python">Python</option>
-                      <option value="sql">SQL (read-only)</option>
-                      <option value="markdown">Markdown</option>
-                    </select>
+                  <div className="notebook-cell-language" onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenLanguageMenu(null);
+                  }}>
+                    <span className="notebook-language-label">{ui.cellLanguage}</span>
+                    <div className="notebook-language-select">
+                      <button type="button" className="notebook-language-trigger"
+                        aria-haspopup="listbox" aria-expanded={openLanguageMenu === cell.cell_id}
+                        aria-label={ui.cellLanguage} disabled={runningCellId !== null}
+                        onClick={() => setOpenLanguageMenu((current) => current === cell.cell_id ? null : cell.cell_id)}>
+                        <span className="notebook-language-dot" data-language={cell.cell_type ?? "python"} />
+                        {cell.cell_type === "sql" ? "SQL" : cell.cell_type === "markdown" ? "Markdown" : "Python"}
+                        <ChevronDown size={14} />
+                      </button>
+                      {openLanguageMenu === cell.cell_id && (
+                        <div className="notebook-language-menu" role="listbox" aria-label={ui.cellLanguage}>
+                          {(["python", "sql", "markdown"] as const).map((cellType) => (
+                            <button key={cellType} type="button" role="option"
+                              aria-selected={(cell.cell_type ?? "python") === cellType}
+                              className={(cell.cell_type ?? "python") === cellType ? "selected" : ""}
+                              onClick={() => {
+                                markDraftChanged({
+                                  ...draft,
+                                  cells: draft.cells.map((item) => item.cell_id === cell.cell_id
+                                    ? { ...item, cell_type: cellType, last_execution: null }
+                                    : item),
+                                });
+                                setResults((previous) => {
+                                  const next = { ...previous };
+                                  delete next[cell.cell_id];
+                                  return next;
+                                });
+                                setOpenLanguageMenu(null);
+                              }}>
+                              <span className="notebook-language-dot" data-language={cellType} />
+                              <span>{cellType === "python" ? "Python" : cellType === "sql" ? "SQL (read-only)" : "Markdown"}</span>
+                              {(cell.cell_type ?? "python") === cellType && <span className="notebook-language-check">✓</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="notebook-cell-section-editor">
                     <label>
