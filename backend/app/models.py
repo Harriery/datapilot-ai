@@ -1643,6 +1643,8 @@ class WorkspaceNotebookCell(BaseModel):
 
     cell_type: Literal[
         "python",
+        "sql",
+        "markdown",
     ] = "python"
 
     # Optional user-defined notebook section. Existing notebooks remain
