@@ -84,6 +84,9 @@ def get_ai_usage_status() -> dict:
     limits = get_ai_usage_limits()
     billing_policy = get_ai_billing_policy()
     usage = database.get_ai_usage_counts()
+    breakdown = (
+        database.get_ai_usage_breakdown_today()
+    )
 
     current_provider = os.getenv(
         "AI_MENTOR_PROVIDER",
@@ -118,6 +121,36 @@ def get_ai_usage_status() -> dict:
         "usage_scope": "local_safety_budget",
         "provider_quota_known": False,
         **usage,
+        # Character-based estimate for observability only. It is not provider
+        # billing/quota truth because tokenization differs by model/content.
+        "estimated_daily_input_tokens":
+            round(
+                usage["daily_input_chars"]
+                / 4
+            ),
+        "estimated_monthly_input_tokens":
+            round(
+                usage["monthly_input_chars"]
+                / 4
+            ),
+        "today_by_model_purpose": [
+            {
+                **item,
+                "estimated_input_tokens":
+                    round(
+                        item["input_chars"]
+                        / 4
+                    ),
+                "estimated_max_input_tokens":
+                    round(
+                        item["max_input_chars"]
+                        / 4
+                    ),
+            }
+            for item in breakdown
+        ],
+        "token_estimate_method":
+            "input_chars_divided_by_4",
         **limits,
         "daily_remaining": max(limits["daily_request_limit"] - usage["daily_requests"], 0),
         "monthly_remaining": max(limits["monthly_request_limit"] - usage["monthly_requests"], 0),
@@ -201,6 +234,56 @@ def guarded_responses_parse(client, *, provider: str = "openai", purpose: str, *
     if max_output_tokens > 0 and "max_output_tokens" not in kwargs:
         kwargs["max_output_tokens"] = max_output_tokens
     return client.responses.parse(**kwargs)
+
+
+def guarded_chat_completions_create(
+    client,
+    *,
+    provider: str = "openai",
+    purpose: str,
+    **kwargs,
+):
+    reserve_ai_request(
+        provider=provider,
+        model=str(
+            kwargs.get(
+                "model",
+                "unknown",
+            )
+        ),
+        purpose=purpose,
+        input_value=kwargs.get(
+            "messages"
+        ),
+    )
+
+    max_output_tokens = (
+        get_ai_usage_limits()[
+            "max_output_tokens_per_request"
+        ]
+    )
+
+    if max_output_tokens > 0:
+        if "max_completion_tokens" in kwargs:
+            kwargs["max_completion_tokens"] = min(
+                int(kwargs["max_completion_tokens"]),
+                max_output_tokens,
+            )
+        elif "max_tokens" in kwargs:
+            kwargs["max_tokens"] = min(
+                int(kwargs["max_tokens"]),
+                max_output_tokens,
+            )
+        else:
+            kwargs["max_completion_tokens"] = (
+                max_output_tokens
+            )
+
+    return (
+        client.chat.completions.create(
+            **kwargs
+        )
+    )
 
 
 def guarded_embeddings_create(client, *, provider: str = "openai", purpose: str = "embedding", **kwargs):

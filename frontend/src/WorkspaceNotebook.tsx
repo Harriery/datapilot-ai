@@ -21,12 +21,14 @@ import {
 import {
   runNotebookCells,
   runNotebookAllCells,
+  NotebookCellExecutionError,
+  type NotebookCellRunResult,
 } from "./pythonRunner";
 
 export type WorkspaceNotebookCellData = {
   cell_id: string;
   code: string;
-  cell_type: "python";
+  cell_type: "python" | "sql" | "markdown";
   section_title?: string | null;
   last_execution?: {
     success: boolean;
@@ -64,13 +66,8 @@ type ProcessedDataset = {
   name: string;
 };
 
-type NotebookRunResult = {
-  rows:
-    Record<string, unknown>[];
-
-  output: string;
-  expressionKind: "dataframe" | "scalar" | "none";
-};
+type NotebookRunResult =
+  NotebookCellRunResult;
 
 type Props = {
   workspaceId: string;
@@ -104,15 +101,15 @@ type Props = {
   dataRevision?: number;
 };
 
-function createCell():
+function createCell(cellType: "python" | "sql" | "markdown" = "python"):
   WorkspaceNotebookCellData {
   return {
     cell_id:
       crypto.randomUUID(),
     code:
-      "# Work with df\n",
+      cellType === "python" ? "# Work with df\n" : cellType === "sql" ? "SELECT * FROM df LIMIT 5;" : "# Notes\n",
     cell_type:
-      "python",
+      cellType,
   };
 }
 
@@ -136,7 +133,7 @@ function WorkspaceNotebook({
       sampledRows: "sampled rows", fromTotal: "from", totalRows: "total rows",
       columns: "columns", askMentor: "Ask mentor", reviewing: "Reviewing...",
       sendPipeline: "Send to pipeline", deleteCell: "Delete cell", output: "OUTPUT",
-      addCell: "Add Python cell", section: "Section", sectionPlaceholder: "Optional section title",
+      addCell: "Add cell", cellLanguage: "Language", section: "Section", sectionPlaceholder: "Optional section title",
     },
     nl: {
       notebook: "Notebook", dataset: "Dataset", working: "Ontwikkeldata / werkset",
@@ -146,7 +143,7 @@ function WorkspaceNotebook({
       sampledRows: "steekproefrijen", fromTotal: "van", totalRows: "totale rijen",
       columns: "kolommen", askMentor: "Vraag mentor", reviewing: "Beoordelen...",
       sendPipeline: "Naar pipeline", deleteCell: "Cel verwijderen", output: "UITVOER",
-      addCell: "Python-cel toevoegen", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
+      addCell: "Cel toevoegen", cellLanguage: "Taal", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
     },
     tr: {
       notebook: "Not defteri", dataset: "Veri seti", working: "Geliştirme / çalışma verisi",
@@ -156,7 +153,7 @@ function WorkspaceNotebook({
       sampledRows: "örnek satır", fromTotal: "/", totalRows: "toplam satır",
       columns: "sütun", askMentor: "Mentora sor", reviewing: "İnceleniyor...",
       sendPipeline: "Pipeline'a gönder", deleteCell: "Cell'i sil", output: "ÇIKTI",
-      addCell: "Python cell ekle", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
+      addCell: "Hücre ekle", cellLanguage: "Dil", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
     },
   }[language];
 
@@ -424,10 +421,9 @@ function WorkspaceNotebook({
         },
       },
       cells: draft.cells.map((cell) => ({
-        cell_type: "code",
-        execution_count: null,
-        metadata: { datapilot_cell_id: cell.cell_id },
-        outputs: [],
+        cell_type: cell.cell_type === "markdown" ? "markdown" : "code",
+        ...(cell.cell_type === "markdown" ? {} : { execution_count: null, outputs: [] }),
+        metadata: { datapilot_cell_id: cell.cell_id, language: cell.cell_type ?? "python" },
         source: cell.code.split(/(?<=\n)/),
       })),
     };
@@ -453,37 +449,77 @@ function WorkspaceNotebook({
       if (!saved) return;
 
       const allResults = await runNotebookAllCells(
-        draft.cells.map((item) => item.code),
+        draft.cells.map((item) => ({ code: item.code, cell_type: item.cell_type ?? "python" })),
         inputRows,
       );
 
       const nextResults: Record<string, NotebookRunResult> = {};
       draft.cells.forEach((cell, index) => {
-        if (allResults[index]) nextResults[cell.cell_id] = allResults[index];
+        if (allResults[index]) {
+          nextResults[cell.cell_id] =
+            allResults[index];
+        }
       });
       setResults(nextResults);
+
       const nextDraft: WorkspaceNotebookData = {
         ...draft,
         cells: draft.cells.map((cell, index) => {
           const result = allResults[index];
           if (!result) return cell;
-          const previewRows = result.expressionKind === "dataframe" ? result.rows.slice(0, 5) : [];
+
+          const previewRows =
+            result.expressionKind === "dataframe"
+              ? result.rows.slice(0, 5)
+              : [];
+          const success =
+            result.success !== false;
+
           return {
             ...cell,
             last_execution: {
-              success: true,
-              expression_kind: result.expressionKind,
-              output: result.expressionKind === "scalar" ? result.output.slice(0, 1000) : null,
-              row_count: result.rows.length || null,
-              columns: previewRows.length ? Object.keys(previewRows[0]).slice(0, 30) : [],
-              preview_rows: previewRows,
-              executed_at: new Date().toISOString(),
+              success,
+              expression_kind:
+                result.expressionKind,
+              output:
+                (
+                  !success ||
+                  result.expressionKind === "scalar"
+                )
+                  ? result.output.slice(0, 1000)
+                  : null,
+              row_count:
+                result.rows.length || null,
+              columns:
+                previewRows.length
+                  ? Object.keys(
+                      previewRows[0]
+                    ).slice(0, 30)
+                  : [],
+              preview_rows:
+                previewRows,
+              executed_at:
+                new Date().toISOString(),
             },
           };
         }),
       };
+
       setDraft(nextDraft);
       await saveDraft(nextDraft);
+
+      const failedIndex = allResults.findIndex(
+        (item) => item.success === false
+      );
+
+      if (failedIndex >= 0) {
+        setMessage(
+          "Cell " +
+          String(failedIndex + 1) +
+          " failed: " +
+          allResults[failedIndex].output
+        );
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Notebook run failed.");
     } finally {
@@ -551,9 +587,13 @@ function WorkspaceNotebook({
     success = true,
   ) {
     const compactOutput =
-      result.expressionKind === "scalar"
+      success === false
         ? result.output.slice(0, 1000)
-        : null;
+        : (
+            result.expressionKind === "scalar"
+              ? result.output.slice(0, 1000)
+              : null
+          );
     const previewRows =
       result.expressionKind === "dataframe"
         ? result.rows.slice(0, 5)
@@ -615,8 +655,7 @@ function WorkspaceNotebook({
       const result =
         await runNotebookCells(
           draft.cells.map(
-            (item) =>
-              item.code
+            (item) => ({ code: item.code, cell_type: item.cell_type ?? "python" })
           ),
           inputRows,
           index,
@@ -631,18 +670,38 @@ function WorkspaceNotebook({
       );
       await persistExecution(cell.cell_id, result, true);
     } catch (error) {
+      const failedIndex =
+        error instanceof NotebookCellExecutionError
+          ? error.failedIndex
+          : index;
+      const failedCell =
+        draft.cells[failedIndex]
+        ?? cell;
+      const failedResult: NotebookRunResult =
+        error instanceof NotebookCellExecutionError
+          ? error.result
+          : {
+              rows: [],
+              output:
+                error instanceof Error
+                  ? error.message
+                  : "Notebook cell failed.",
+              expressionKind: "none",
+              success: false,
+            };
+
       setResults(
         (previous) => ({
           ...previous,
-          [cell.cell_id]: {
-            rows: [],
-            output:
-              error instanceof Error
-                ? error.message
-                : "Notebook cell failed.",
-            expressionKind: "none",
-          },
+          [failedCell.cell_id]:
+            failedResult,
         })
+      );
+
+      await persistExecution(
+        failedCell.cell_id,
+        failedResult,
+        false,
       );
     } finally {
       setRunningCellId(
@@ -903,6 +962,32 @@ function WorkspaceNotebook({
                 </div>
 
                 <div className="notebook-cell-body">
+                  <div className="notebook-cell-language" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <label htmlFor={`cell-type-${cell.cell_id}`}>{ui.cellLanguage}</label>
+                    <select
+                      id={`cell-type-${cell.cell_id}`}
+                      value={cell.cell_type ?? "python"}
+                      disabled={runningCellId !== null}
+                      onChange={(event) => {
+                        const cellType = event.target.value as "python" | "sql" | "markdown";
+                        markDraftChanged({
+                          ...draft,
+                          cells: draft.cells.map((item) => item.cell_id === cell.cell_id
+                            ? { ...item, cell_type: cellType, last_execution: null }
+                            : item),
+                        });
+                        setResults((previous) => {
+                          const next = { ...previous };
+                          delete next[cell.cell_id];
+                          return next;
+                        });
+                      }}
+                    >
+                      <option value="python">Python</option>
+                      <option value="sql">SQL (read-only)</option>
+                      <option value="markdown">Markdown</option>
+                    </select>
+                  </div>
                   <div className="notebook-cell-section-editor">
                     <label>
                       <span>{ui.section}</span>
@@ -983,6 +1068,8 @@ function WorkspaceNotebook({
                     <button
                       type="button"
                       className="secondary-button"
+                      disabled={(cell.cell_type ?? "python") !== "python"}
+                      title={(cell.cell_type ?? "python") === "python" ? ui.sendPipeline : "Only Python cells can be sent to the pipeline"}
                       onClick={() => {
                         void onPromoteCode(
                           cell.code

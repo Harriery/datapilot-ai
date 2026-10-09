@@ -8,6 +8,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from backend.app.mentor_orchestration_service import (
+    determine_assistance_level,
+    determine_next_learning_phase,
+)
+
 from backend.app.ai_provider_service import (
     AIProviderConfigurationError,
 )
@@ -139,42 +144,6 @@ def select_scenarios(
     return scenarios
 
 
-ASSISTANCE_BY_SKILL_STATUS = {
-    "new": "GUIDE",
-    "learning": "GUIDE",
-    "practicing": "NUDGE",
-    "comfortable": "NONE",
-}
-
-EXPLICIT_HELP_MARKERS = (
-    "adım adım",
-    "adim adim",
-    "anlamadım",
-    "anlamadim",
-    "bilmiyorum",
-    "ne yapmam gerekiyor",
-    "nasıl yapacağım",
-    "nasil yapacagim",
-    "öğretir misin",
-    "ogretir misin",
-    "step by step",
-    "i don't understand",
-    "i dont understand",
-    "i don't know",
-    "i dont know",
-    "teach me",
-)
-
-LEARNING_PHASES = (
-    "observe",
-    "reason",
-    "decide",
-    "implement",
-    "validate",
-    "explain",
-)
-
-
 def determine_orchestrated_assistance(
     scenario: dict[str, Any],
 ) -> str:
@@ -182,33 +151,21 @@ def determine_orchestrated_assistance(
         "learner_profile",
         {},
     )
-    message = str(
-        scenario.get(
-            "learner_message",
-            "",
-        )
-    ).casefold()
 
-    if any(
-        marker in message
-        for marker in EXPLICIT_HELP_MARKERS
-    ):
-        return "GUIDE"
-
-    misconceptions = learner_profile.get(
-        "misconceptions",
-        [],
-    )
-    if len(misconceptions) != len(
-        set(misconceptions)
-    ):
-        return "GUIDE"
-
-    return ASSISTANCE_BY_SKILL_STATUS.get(
-        learner_profile.get(
+    return determine_assistance_level(
+        skill_status=learner_profile.get(
             "skill_status"
         ),
-        "GUIDE",
+        learner_message=str(
+            scenario.get(
+                "learner_message",
+                "",
+            )
+        ),
+        misconceptions=learner_profile.get(
+            "misconceptions",
+            [],
+        ),
     )
 
 
@@ -218,30 +175,11 @@ def determine_orchestrated_next_phase(
     is_evidence: bool,
     success: bool | None,
 ) -> str:
-    if (
-        not is_evidence
-        or success is not True
-    ):
-        return current_phase
-
-    if current_phase == "completed":
-        return "completed"
-
-    if current_phase not in LEARNING_PHASES:
-        return current_phase
-
-    current_index = LEARNING_PHASES.index(
-        current_phase
+    return determine_next_learning_phase(
+        current_phase=current_phase,
+        is_evidence=is_evidence,
+        success=success,
     )
-
-    if current_index == (
-        len(LEARNING_PHASES) - 1
-    ):
-        return "completed"
-
-    return LEARNING_PHASES[
-        current_index + 1
-    ]
 
 
 def build_orchestration_context(

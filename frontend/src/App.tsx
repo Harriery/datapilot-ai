@@ -15,8 +15,9 @@ import PersonalAnalysisPlan, {
 } from "./PersonalAnalysisPlan";
 import PersonalDataUnderstanding
   from "./PersonalDataUnderstanding";
-import DataPreview
-  from "./DataPreview";
+import DataPreview, {
+  type DataPreviewInspectionState,
+} from "./DataPreview";
 import WorkbenchColumnInspector
   from "./WorkbenchColumnInspector";
 import {
@@ -35,6 +36,13 @@ import WorkspaceNotebook, {
   type WorkspaceNotebookData,
 } from "./WorkspaceNotebook";
 import WorkspaceMentorPanel from "./WorkspaceMentorPanel";
+import LearnerNotebookPanel from "./LearnerNotebookPanel";
+import PracticeCatalogPage, {
+  type ExternalPracticeContent,
+  type ExternalPracticeExercise,
+  type PracticeCatalogData,
+  type PracticeTheoryCheckData,
+} from "./PracticeCatalogPage";
 import {
   WorkspaceLineageView,
   WorkspacePipelineView,
@@ -43,6 +51,11 @@ import {
 import {
   runPythonCode,
 } from "./pythonRunner";
+import {
+  runPracticeValidationSandbox,
+  type PracticeSandboxResult,
+  type PracticeValidationBundle,
+} from "./practiceValidationSandbox";
 
 
 
@@ -203,10 +216,67 @@ type DashboardWorkspace = {
   development_sample_max_size?: number | null;
   development_sample_strategy?:
     | "random"
+    | "smart"
     | null;
   development_sample_seed?: number | null;
   development_sample_row_count?: number | null;
   development_sample_enabled?: boolean;
+
+  dataset_storage_mode?:
+    | "legacy_csv"
+    | "duckdb";
+
+  dataset_source_bytes?: number | null;
+
+  full_data_profile?: Record<
+    string,
+    unknown
+  > | null;
+
+  smart_sampling_report?: {
+    candidate_evaluations: Array<{
+      sample_size: number;
+      missingness_similarity: number;
+      categorical_distribution_similarity: number;
+      numeric_distribution_similarity: number;
+      datetime_coverage_similarity: number;
+      rare_group_coverage: number;
+      overall_score: number;
+      sufficient: boolean;
+    }>;
+    selected_size: number;
+    selected_strategy: string;
+    selected_evaluation?: {
+      sample_size: number;
+      missingness_similarity: number;
+      categorical_distribution_similarity: number;
+      numeric_distribution_similarity: number;
+      datetime_coverage_similarity: number;
+      rare_group_coverage: number;
+      overall_score: number;
+      sufficient: boolean;
+    } | null;
+    threshold: number;
+    rare_coverage_threshold?: number | null;
+    reason: string;
+    full_data_preflight_required?: boolean;
+  } | null;
+
+  full_data_preflight?: {
+    passed: boolean;
+    source_row_count: number;
+    checks: Array<{
+      operation_id: string;
+      title: string;
+      action: string;
+      passed: boolean;
+      missing_columns: string[];
+      affected_rows: number | null;
+    }>;
+    engine: "duckdb";
+  } | null;
+
+  silver_dataset_path?: string | null;
 
   processed_datasets?:
     ProcessedDatasetData[];
@@ -484,6 +554,39 @@ type WorkspaceDataProfileResponse = {
       suggested_action: string;
     }[];
   };
+
+  dataset_storage_mode?:
+    | "legacy_csv"
+    | "duckdb";
+
+  smart_sampling?: {
+    candidate_evaluations: Array<{
+      sample_size: number;
+      missingness_similarity: number;
+      categorical_distribution_similarity: number;
+      numeric_distribution_similarity: number;
+      datetime_coverage_similarity: number;
+      rare_group_coverage: number;
+      overall_score: number;
+      sufficient: boolean;
+    }>;
+    selected_size: number;
+    selected_strategy: string;
+    selected_evaluation?: {
+      sample_size: number;
+      missingness_similarity: number;
+      categorical_distribution_similarity: number;
+      numeric_distribution_similarity: number;
+      datetime_coverage_similarity: number;
+      rare_group_coverage: number;
+      overall_score: number;
+      sufficient: boolean;
+    } | null;
+    threshold: number;
+    rare_coverage_threshold?: number | null;
+    reason: string;
+    full_data_preflight_required?: boolean;
+  } | null;
 };
 
 type WorkspaceWorkingData = {
@@ -542,9 +645,19 @@ type WorkspaceTask = {
 type PracticeChallengeData = {
   challenge_id: string;
   skill_name: string;
+  topic_id?: string | null;
+  subtopic_id?: string | null;
+  practice_mode?: string | null;
+  source_id?: string | null;
+  source_exercise_id?: string | null;
+  source_attribution?: string | null;
+  source_revision?: string | null;
+  source_content_hash?: string | null;
+  external_validation_pending?: boolean;
   difficulty: "foundation" | "easy" | "medium" | "hard";
   challenge_type:
     | "code"
+    | "multiple_choice"
     | "debug"
     | "output_prediction"
     | "sql"
@@ -577,6 +690,36 @@ type PracticeAttemptReviewData = {
   } | null;
 };
 
+type PracticeTheoryAnswerData = {
+  learner_id: string;
+  challenge_id: string;
+  concept_id: string;
+  success: boolean;
+  feedback: string;
+  mastery: {
+    learner_id: string;
+    topic_id: string;
+    subtopic_id: string;
+    practice_mode: string;
+    difficulty: "easy" | "medium" | "hard";
+    status:
+      | "not_started"
+      | "building"
+      | "demonstrated";
+    signals: Array<{
+      signal:
+        | "concept_coverage"
+        | "correct_application"
+        | "transfer_to_new_context"
+        | "independent_completion";
+      demonstrated: boolean;
+      evidence_count: number;
+    }>;
+    successful_evidence_count: number;
+    independent_success_count: number;
+  };
+};
+
 type PracticeHintData = {
   challenge_id: string;
   hint: string | null;
@@ -604,6 +747,10 @@ type AIUsageStatus = {
   allow_paid_provider: boolean;
   current_provider: string;
   current_model: string;
+  mentor_provider: string;
+  mentor_model: string;
+  classifier_provider: string;
+  classifier_model: string;
   current_provider_allowed: boolean;
   usage_scope: "local_safety_budget";
   provider_quota_known: boolean;
@@ -616,9 +763,189 @@ type PracticeSolutionData = {
 };
 
 
+function renderPracticeInlineText(text: string) {
+  const parts = text.split(
+    /(\*\*[^*]+\*\*|_[^_]+_|\`[^\`]+\`)/g
+  );
+
+  return parts.map((part, index) => {
+    if (
+      part.startsWith("**") &&
+      part.endsWith("**")
+    ) {
+      return (
+        <strong key={index}>
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    if (
+      part.startsWith("_") &&
+      part.endsWith("_")
+    ) {
+      return (
+        <em key={index}>
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
+
+    if (
+      part.startsWith("`") &&
+      part.endsWith("`")
+    ) {
+      return (
+        <code key={index}>
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+
+    return part;
+  });
+}
+
+
+function renderPracticeInstructions(markdown: string) {
+  const cleaned = markdown
+    .replace(/^#\s+Instructions\s*/i, "")
+    .replace(/~~~~exercism\/caution\s*/g, "")
+    .replace(/~~~~\s*/g, "")
+    .trim();
+
+  const blocks = cleaned
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  return blocks.map((block, index) => {
+    const lines = block.split("\n");
+
+    if (
+      block.startsWith("```") &&
+      block.endsWith("```")
+    ) {
+      const codeLines = lines.slice(1, -1);
+      const firstLine = lines[0]
+        .replace(/^```/, "")
+        .trim();
+
+      return (
+        <pre
+          key={index}
+          className="practice-instruction-code"
+        >
+          <code>
+            {[
+              firstLine &&
+              !["text", "python", "py"].includes(
+                firstLine.toLowerCase()
+              )
+                ? firstLine
+                : null,
+              ...codeLines,
+            ]
+              .filter(Boolean)
+              .join("\n")}
+          </code>
+        </pre>
+      );
+    }
+
+    const tableLines = lines.filter(
+      (line) => line.trim().startsWith("|")
+    );
+
+    if (
+      tableLines.length >= 2 &&
+      tableLines.length === lines.length &&
+      /^\|?\s*:?-+/.test(
+        tableLines[1].replace(/\|/g, " ")
+      )
+    ) {
+      const parseRow = (line: string) =>
+        line
+          .trim()
+          .replace(/^\|/, "")
+          .replace(/\|$/, "")
+          .split("|")
+          .map((cell) => cell.trim());
+
+      const header = parseRow(tableLines[0]);
+      const rows = tableLines
+        .slice(2)
+        .map(parseRow);
+
+      return (
+        <div
+          key={index}
+          className="practice-instruction-table-wrap"
+        >
+          <table className="practice-instruction-table">
+            <thead>
+              <tr>
+                {header.map((cell, cellIndex) => (
+                  <th key={cellIndex}>
+                    {renderPracticeInlineText(cell)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {row.map((cell, cellIndex) => (
+                    <td key={cellIndex}>
+                      {renderPracticeInlineText(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (
+      lines.every((line) =>
+        line.trim().startsWith("- ")
+      )
+    ) {
+      return (
+        <ul key={index}>
+          {lines.map((line, itemIndex) => (
+            <li key={itemIndex}>
+              {renderPracticeInlineText(
+                line
+                  .trim()
+                  .replace(/^-\s+/, "")
+              )}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    return (
+      <p key={index}>
+        {renderPracticeInlineText(block)}
+      </p>
+    );
+  });
+}
+
 function App() {
   const [language, setLanguage] =
     useState<AppLanguage>("en");
+
+  const [
+    sourcePreviewInspection,
+    setSourcePreviewInspection,
+  ] = useState<DataPreviewInspectionState | null>(
+    null
+  );
 
   const t = translations[language];
 
@@ -880,6 +1207,11 @@ function App() {
 
   const [newWorkspaceTaskBrief, setNewWorkspaceTaskBrief] =
     useState("");
+
+  const [projectMentorIntent, setProjectMentorIntent] = useState<"learning" | "practice" | "portfolio" | "work">("learning");
+  const [projectMentorLevel, setProjectMentorLevel] = useState<"beginner" | "intermediate" | "advanced">("beginner");
+  const [projectMentorApproach, setProjectMentorApproach] = useState<"guided" | "balanced" | "direct">("guided");
+  const [projectMentorFocus, setProjectMentorFocus] = useState<string[]>([]);
 
   const [newWorkspaceOutcome, setNewWorkspaceOutcome] =
     useState("");
@@ -1152,6 +1484,21 @@ function App() {
   const [practiceChallenge, setPracticeChallenge] =
   useState<PracticeChallengeData | null>(null);
 
+  const [practiceCatalog, setPracticeCatalog] =
+    useState<PracticeCatalogData | null>(null);
+
+  const [practiceCatalogLoading, setPracticeCatalogLoading] =
+    useState(false);
+
+  const [practiceCatalogError, setPracticeCatalogError] =
+    useState<string | null>(null);
+
+  const [practiceRunnerOpen, setPracticeRunnerOpen] =
+    useState(false);
+
+  const [practiceExternalValidationPending, setPracticeExternalValidationPending] =
+    useState(false);
+
   const [practiceLoading, setPracticeLoading] =
     useState(false);
 
@@ -1175,6 +1522,41 @@ function App() {
 
   const [practiceReview, setPracticeReview] =
     useState<PracticeAttemptReviewData | null>(null);
+
+  const [
+    practiceTheorySelectedAnswer,
+    setPracticeTheorySelectedAnswer,
+  ] = useState<string | null>(null);
+
+  const [
+    practiceTheoryResult,
+    setPracticeTheoryResult,
+  ] = useState<PracticeTheoryAnswerData | null>(null);
+
+  const [
+    practiceSandboxResult,
+    setPracticeSandboxResult,
+  ] = useState<PracticeSandboxResult | null>(null);
+
+  const [
+    practiceInstructionLanguage,
+    setPracticeInstructionLanguage,
+  ] = useState<"en" | "tr" | "nl">("en");
+
+  const [
+    practiceTranslatedInstructions,
+    setPracticeTranslatedInstructions,
+  ] = useState<string | null>(null);
+
+  const [
+    practiceTranslationLoading,
+    setPracticeTranslationLoading,
+  ] = useState(false);
+
+  const [
+    practiceTranslationError,
+    setPracticeTranslationError,
+  ] = useState<string | null>(null);
 
   const [practiceHint, setPracticeHint] =
   useState<PracticeHintData | null>(null);
@@ -1533,10 +1915,136 @@ function App() {
   }, []);  
 
   async function openPractice() {
-    // Zaten bir challenge yüklenmişse
-    // yeni challenge oluşturma, sadece Practice ekranını aç.
+    setCurrentView("practice");
+    setPracticeRunnerOpen(false);
+
+    if (practiceCatalog) {
+      return;
+    }
+
+    setPracticeCatalogLoading(true);
+    setPracticeCatalogError(null);
+
+    try {
+      const learnerId = "demo-learner";
+      const response = await fetch(
+        `http://127.0.0.1:8000/mentor/practice/catalog/${learnerId}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            "Practice catalog yüklenemedi."
+        );
+      }
+
+      setPracticeCatalog(data);
+    } catch (error) {
+      console.error(error);
+
+      setPracticeCatalogError(
+        error instanceof Error
+          ? error.message
+          : "Practice catalog yüklenemedi."
+      );
+    } finally {
+      setPracticeCatalogLoading(false);
+    }
+  }
+
+  function openTheoryPracticeChallenge(
+    data: PracticeTheoryCheckData
+  ) {
+    const challenge: PracticeChallengeData = {
+      ...data.challenge,
+      source_attribution: data.attribution,
+      source_revision: null,
+      source_content_hash: null,
+      external_validation_pending: false,
+      context_code: null,
+      starter_code: null,
+      input_rows: null,
+    };
+
+    setPracticeChallenge(challenge);
+    setPracticeCode("");
+    setPracticeOutput(null);
+    setPracticeExecutionError(null);
+    setPracticeReview(null);
+    setPracticeSandboxResult(null);
+    setPracticeTheorySelectedAnswer(null);
+    setPracticeTheoryResult(null);
+    setPracticeHint(null);
+    setPracticeHintError(null);
+    setPracticeSolution(null);
+    setPracticeSolutionError(null);
+    setPracticeExternalValidationPending(false);
+    setPracticeError(null);
+    setPracticeRunnerOpen(true);
+  }
+
+  function openExternalPracticeChallenge(data: {
+    topicId: string;
+    subtopicId: string;
+    mode: string;
+    difficulty: "easy" | "medium" | "hard";
+    exercise: ExternalPracticeExercise;
+    content: ExternalPracticeContent;
+  }) {
+    const challenge: PracticeChallengeData = {
+      challenge_id:
+        `external:${data.exercise.source_id}:${data.exercise.source_exercise_id}`,
+      skill_name:
+        `${data.topicId} · ${data.subtopicId}`,
+      topic_id: data.topicId,
+      subtopic_id: data.subtopicId,
+      practice_mode: data.mode,
+      source_id: data.exercise.source_id,
+      source_exercise_id:
+        data.exercise.source_exercise_id,
+      source_attribution:
+        data.content.attribution,
+      source_revision:
+        data.content.source_revision,
+      source_content_hash:
+        data.content.content_hash,
+      external_validation_pending: true,
+      difficulty: data.difficulty,
+      challenge_type: "code",
+      title: data.content.title,
+      instructions: data.content.instructions,
+      context_code: null,
+      options: null,
+      starter_code:
+        data.content.starter_code ?? "",
+      input_rows: null,
+    };
+
+    setPracticeChallenge(challenge);
+    setPracticeCode(
+      challenge.starter_code ?? ""
+    );
+    setPracticeOutput(null);
+    setPracticeExecutionError(null);
+    setPracticeReview(null);
+    setPracticeSandboxResult(null);
+    setPracticeTheorySelectedAnswer(null);
+    setPracticeTheoryResult(null);
+    setPracticeHint(null);
+    setPracticeHintError(null);
+    setPracticeSolution(null);
+    setPracticeSolutionError(null);
+    setPracticeExternalValidationPending(true);
+    setPracticeError(null);
+    setPracticeRunnerOpen(true);
+  }
+
+  async function openRecommendedPracticeChallenge() {
+    setPracticeRunnerOpen(true);
+
     if (practiceChallenge) {
-      setCurrentView("practice");
       return;
     }
 
@@ -1565,6 +2073,7 @@ function App() {
       const data = await response.json();
 
       setPracticeChallenge(data.challenge);
+      setPracticeExternalValidationPending(false);
 
       setPracticeCode(
         data.challenge.starter_code ?? ""
@@ -1572,10 +2081,11 @@ function App() {
 
       setPracticeOutput(null);
       setPracticeExecutionError(null);
+      setPracticeSandboxResult(null);
+      setPracticeTheorySelectedAnswer(null);
+      setPracticeTheoryResult(null);
       setPracticeHint(null);
       setPracticeHintError(null);
-
-      setCurrentView("practice");
     } catch (error) {
       console.error(error);
 
@@ -1586,6 +2096,88 @@ function App() {
       );
     } finally {
       setPracticeLoading(false);
+    }
+  }
+
+  async function changePracticeInstructionLanguage(
+    language: "en" | "tr" | "nl"
+  ) {
+    if (!practiceChallenge) {
+      return;
+    }
+
+    setPracticeInstructionLanguage(language);
+    setPracticeTranslationError(null);
+
+    if (language === "en") {
+      setPracticeTranslatedInstructions(null);
+      return;
+    }
+
+    if (
+      !practiceChallenge.source_id ||
+      !practiceChallenge.source_exercise_id ||
+      !practiceChallenge.source_content_hash
+    ) {
+      setPracticeTranslationError(
+        "This exercise cannot be translated yet."
+      );
+      return;
+    }
+
+    setPracticeTranslationLoading(true);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/mentor/practice/translate",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            learner_id: "demo-learner",
+            source_id:
+              practiceChallenge.source_id,
+            source_exercise_id:
+              practiceChallenge.source_exercise_id,
+            content_hash:
+              practiceChallenge.source_content_hash,
+            target_language: language,
+            source_text:
+              practiceChallenge.instructions,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => null);
+
+        throw new Error(
+          errorData?.detail ||
+          "Translation could not be loaded."
+        );
+      }
+
+      const data = await response.json() as {
+        translated_text: string;
+      };
+
+      setPracticeTranslatedInstructions(
+        data.translated_text
+      );
+    } catch (error) {
+      console.error(error);
+
+      setPracticeTranslationError(
+        error instanceof Error
+          ? error.message
+          : "Translation could not be loaded."
+      );
+    } finally {
+      setPracticeTranslationLoading(false);
     }
   }
 
@@ -1638,8 +2230,195 @@ function App() {
     }
   }
 
+  async function submitPracticeTheoryAnswer() {
+    if (
+      !practiceChallenge ||
+      practiceChallenge.challenge_type !== "multiple_choice" ||
+      !practiceTheorySelectedAnswer
+    ) {
+      return;
+    }
+
+    setPracticeSubmitting(true);
+    setPracticeExecutionError(null);
+    setPracticeTheoryResult(null);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/mentor/practice/theory/answer",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            learner_id: "demo-learner",
+            challenge_id:
+              practiceChallenge.challenge_id,
+            answer:
+              practiceTheorySelectedAnswer,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => null);
+
+        throw new Error(
+          errorData?.detail ||
+          "Theory answer could not be checked."
+        );
+      }
+
+      const data =
+        await response.json() as PracticeTheoryAnswerData;
+
+      setPracticeTheoryResult(data);
+    } catch (error) {
+      console.error(error);
+
+      setPracticeExecutionError(
+        error instanceof Error
+          ? error.message
+          : "Theory answer could not be checked."
+      );
+    } finally {
+      setPracticeSubmitting(false);
+    }
+  }
+
   async function submitPracticeAnswer() {
     if (!practiceChallenge) {
+      return;
+    }
+
+    if (practiceExternalValidationPending) {
+      if (
+        !practiceChallenge.source_exercise_id ||
+        !practiceCode.trim()
+      ) {
+        return;
+      }
+
+      setPracticeSubmitting(true);
+      setPracticeSandboxResult(null);
+      setPracticeExecutionError(null);
+
+      try {
+        const revisionParams =
+          practiceChallenge.source_revision
+            ? new URLSearchParams({
+                source_revision:
+                  practiceChallenge.source_revision,
+              })
+            : new URLSearchParams();
+
+        const suffix = revisionParams.toString()
+          ? `?${revisionParams.toString()}`
+          : "";
+
+        const response = await fetch(
+          (
+            "http://127.0.0.1:8000/mentor/practice/" +
+            "source/exercism/python/demo-learner/" +
+            `exercise/${encodeURIComponent(
+              practiceChallenge.source_exercise_id
+            )}/validation${suffix}`
+          )
+        );
+
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => null);
+
+          throw new Error(
+            errorData?.detail ||
+            "Validation bundle could not be loaded."
+          );
+        }
+
+        const bundle =
+          await response.json() as PracticeValidationBundle;
+
+        const result =
+          await runPracticeValidationSandbox(
+            bundle,
+            practiceCode
+          );
+
+        setPracticeSandboxResult(result);
+
+        if (
+          practiceChallenge.topic_id &&
+          practiceChallenge.subtopic_id &&
+          practiceChallenge.practice_mode &&
+          practiceChallenge.source_id &&
+          practiceChallenge.source_exercise_id &&
+          practiceChallenge.source_content_hash
+        ) {
+          try {
+            const eventResponse = await fetch(
+              "http://127.0.0.1:8000/mentor/practice/external-validation-event",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  learner_id: "demo-learner",
+                  source_id:
+                    practiceChallenge.source_id,
+                  source_exercise_id:
+                    practiceChallenge.source_exercise_id,
+                  topic_id:
+                    practiceChallenge.topic_id,
+                  subtopic_id:
+                    practiceChallenge.subtopic_id,
+                  practice_mode:
+                    practiceChallenge.practice_mode,
+                  difficulty:
+                    practiceChallenge.difficulty,
+                  content_hash:
+                    practiceChallenge.source_content_hash,
+                  validation_bundle_hash:
+                    bundle.content_hash,
+                  client_reported_success:
+                    result.success,
+                  tests_run:
+                    result.testsRun,
+                  answer:
+                    practiceCode,
+                }),
+              }
+            );
+
+            if (!eventResponse.ok) {
+              console.error(
+                "Practice validation activity could not be saved."
+              );
+            }
+          } catch (activityError) {
+            console.error(
+              "Practice validation activity could not be saved.",
+              activityError
+            );
+          }
+        }
+      } catch (error) {
+        console.error(error);
+
+        setPracticeExecutionError(
+          error instanceof Error
+            ? error.message
+            : "Practice validation failed."
+        );
+      } finally {
+        setPracticeSubmitting(false);
+      }
+
       return;
     }
 
@@ -1709,7 +2488,10 @@ function App() {
   }
 
   async function requestPracticeHint() {
-    if (!practiceChallenge) {
+    if (
+      !practiceChallenge ||
+      practiceExternalValidationPending
+    ) {
       return;
     }
 
@@ -1759,7 +2541,10 @@ function App() {
   }
 
   async function requestPracticeSolution() {
-    if (!practiceChallenge) {
+    if (
+      !practiceChallenge ||
+      practiceExternalValidationPending
+    ) {
       return;
     }
 
@@ -2170,7 +2955,11 @@ async function resizeDevelopmentSample(
         },
         body: JSON.stringify({
           sample_size: nextSize,
-          strategy: "random",
+          strategy:
+            dashboardWorkspace?.dataset_storage_mode ===
+            "duckdb"
+              ? "smart"
+              : "random",
           random_seed: 42,
         }),
       }
@@ -2281,6 +3070,41 @@ async function applyPipelineToFullDataset() {
   );
 
   try {
+    if (
+      dashboardWorkspace?.dataset_storage_mode ===
+      "duckdb"
+    ) {
+      const preflightResponse = await fetch(
+        (
+          "http://127.0.0.1:8000" +
+          `/workspaces/demo-learner/${workspaceId}` +
+          "/full-data-preflight"
+        ),
+        {
+          method: "POST",
+        }
+      );
+
+      if (!preflightResponse.ok) {
+        const errorData =
+          await preflightResponse.json();
+
+        throw new Error(
+          errorData.detail ||
+            "Full-data preflight failed."
+        );
+      }
+
+      const preflight =
+        await preflightResponse.json();
+
+      if (!preflight.passed) {
+        throw new Error(
+          "Full-data preflight found issues. Review the pipeline before applying it to the full dataset."
+        );
+      }
+    }
+
     const response = await fetch(
       (
         "http://127.0.0.1:8000" +
@@ -2496,6 +3320,13 @@ async function createNewWorkspace() {
                 ? newWorkspaceDataSensitivity
                 : null,
 
+            mentor_setup: newWorkspaceUsageContext === "personal" ? {
+              intent: projectMentorIntent,
+              experience_level: projectMentorLevel,
+              approach: projectMentorApproach,
+              learning_focus: projectMentorFocus,
+            } : null,
+
             task_brief: taskBrief,
 
             desired_outcome:
@@ -2534,6 +3365,10 @@ async function createNewWorkspace() {
       setNewWorkspaceTitle("");
       setNewWorkspaceTaskBrief("");
       setNewWorkspaceOutcome("");
+      setProjectMentorIntent("learning");
+      setProjectMentorLevel("beginner");
+      setProjectMentorApproach("guided");
+      setProjectMentorFocus([]);
       setNewWorkspaceWorkflow("auto");
       setNewWorkspaceUsageContext("work");
       setNewPersonalProjectType("");
@@ -4954,12 +5789,15 @@ async function restoreWorkspaceVersion(
               : "nav-item"
           }
           onClick={openPractice}
-          disabled={practiceLoading}
+          disabled={
+            practiceLoading ||
+            practiceCatalogLoading
+          }
         >
           <span className="nav-icon">◉</span>
         
           <span className="nav-label">
-            {practiceLoading
+            {practiceLoading || practiceCatalogLoading
               ? "Loading..."
               : t.sidebar.practice}
           </span>
@@ -5528,14 +6366,28 @@ async function restoreWorkspaceVersion(
                                       <div>
                                         <span>Mentor provider</span>
                                         <strong>
-                                          {aiUsageStatus.current_provider}
+                                          {aiUsageStatus.mentor_provider}
                                         </strong>
                                       </div>
 
                                       <div>
                                         <span>Mentor model</span>
                                         <strong>
-                                          {aiUsageStatus.current_model}
+                                          {aiUsageStatus.mentor_model}
+                                        </strong>
+                                      </div>
+
+                                      <div>
+                                        <span>Classifier provider</span>
+                                        <strong>
+                                          {aiUsageStatus.classifier_provider}
+                                        </strong>
+                                      </div>
+
+                                      <div>
+                                        <span>Classifier model</span>
+                                        <strong>
+                                          {aiUsageStatus.classifier_model}
                                         </strong>
                                       </div>
 
@@ -5968,6 +6820,66 @@ async function restoreWorkspaceVersion(
                   </div>
                     
                     
+                  {newWorkspaceUsageContext === "personal" && (
+                    <section className="workspace-mentor-setup" aria-labelledby="workspace-mentor-setup-title">
+                      <div className="workspace-mentor-setup-header">
+                        <h3 id="workspace-mentor-setup-title">Mentor Setup</h3>
+                        <p>Help your mentor adapt to your goals and preferred learning style.</p>
+                      </div>
+                      <div className="workspace-mentor-setup-grid">
+                        <div className="workspace-mentor-setup-field">
+                          <label className="workspace-form-label" htmlFor="mentor-intent">Why are you starting this project?</label>
+                          <select id="mentor-intent" className="workspace-form-select" value={projectMentorIntent}
+                            onChange={(event) => setProjectMentorIntent(event.target.value as typeof projectMentorIntent)}>
+                            <option value="learning">Learn new data engineering skills</option>
+                            <option value="practice">Practice and improve my skills</option>
+                            <option value="portfolio">Build a professional portfolio</option>
+                            <option value="work">Solve a real-world data problem</option>
+                          </select>
+                        </div>
+                        <div className="workspace-mentor-setup-field">
+                          <label className="workspace-form-label" htmlFor="mentor-level">Experience level (self-reported)</label>
+                          <select id="mentor-level" className="workspace-form-select" value={projectMentorLevel}
+                            onChange={(event) => setProjectMentorLevel(event.target.value as typeof projectMentorLevel)}>
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                          </select>
+                        </div>
+                        <div className="workspace-mentor-setup-field workspace-mentor-setup-wide">
+                          <label className="workspace-form-label" htmlFor="mentor-approach">Preferred mentoring approach</label>
+                          <select id="mentor-approach" className="workspace-form-select" value={projectMentorApproach}
+                            onChange={(event) => setProjectMentorApproach(event.target.value as typeof projectMentorApproach)}>
+                            <option value="guided">Ask questions so I can discover solutions</option>
+                            <option value="balanced">Balance hints and explanations</option>
+                            <option value="direct">Give concise technical guidance</option>
+                          </select>
+                        </div>
+                        <fieldset className="workspace-mentor-setup-focus workspace-mentor-setup-wide">
+                          <legend className="workspace-form-label">Learning focus <span>(optional)</span></legend>
+                          <div className="workspace-mentor-focus-options">
+                            {([
+                              ["python", "Python"], ["sql", "SQL"],
+                              ["cleaning", "Data Cleaning"], ["pipelines", "ETL / Pipelines"],
+                              ["modeling", "Data Modeling"], ["quality", "Data Quality"],
+                              ["bi", "BI / Dashboard"],
+                            ] as const).map(([key, label]) => (
+                              <label key={key} className="workspace-mentor-focus-option">
+                                <input type="checkbox" checked={projectMentorFocus.includes(key)}
+                                  onChange={(event) => setProjectMentorFocus((previous) =>
+                                    event.target.checked
+                                      ? [...previous, key]
+                                      : previous.filter((item) => item !== key)
+                                  )} />
+                                <span>{label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      </div>
+                    </section>
+                  )}
+
                   {workspaceCreateError && (
                     <div className="workspace-form-error">
                       {workspaceCreateError}
@@ -6069,25 +6981,57 @@ async function restoreWorkspaceVersion(
 
 
           ) : currentView === "practice" ? (
+            practiceRunnerOpen ? (
           <section className="workspace-page practice-page">
             <div className="workspace-header">
               <div>
                 <button
                   className="back-button"
                   onClick={() =>
-                    setCurrentView("dashboard")
+                    setPracticeRunnerOpen(false)
                   }
                 >
-                  ← Dashboard
+                  ← Practice
                 </button>
 
                 <h2>Practice</h2>
 
                 <p>
-                  Adaptive challenge based on your
-                  learning progress.
+                  {practiceChallenge?.challenge_type === "multiple_choice"
+                    ? "Source-grounded theory check · deterministic validation."
+                    : practiceExternalValidationPending
+                      ? "External exercise · isolated validation sandbox."
+                      : "Adaptive challenge based on your learning progress."}
                 </p>
               </div>
+
+              {practiceChallenge?.topic_id &&
+                practiceChallenge?.subtopic_id && (
+                  <LearnerNotebookPanel
+                    learnerId="demo-learner"
+                    contextType="practice"
+                    contextKey={
+                      `${practiceChallenge.topic_id}:${practiceChallenge.subtopic_id}`
+                    }
+                    contextLabel={
+                      `${practiceChallenge.topic_id} · ${practiceChallenge.subtopic_id}`
+                    }
+                    resumeState={{
+                      topic_id:
+                        practiceChallenge.topic_id,
+                      subtopic_id:
+                        practiceChallenge.subtopic_id,
+                      practice_mode:
+                        practiceChallenge.practice_mode,
+                      difficulty:
+                        practiceChallenge.difficulty,
+                      source_id:
+                        practiceChallenge.source_id,
+                      source_exercise_id:
+                        practiceChallenge.source_exercise_id,
+                    }}
+                  />
+                )}
             </div>
 
             {practiceError ? (
@@ -6111,18 +7055,237 @@ async function restoreWorkspaceVersion(
                   {practiceChallenge.skill_name}
                 </p>
 
-                <p>
-                  {practiceChallenge.instructions}
-                </p>
+                {!practiceExternalValidationPending &&
+                  practiceChallenge.challenge_type !== "multiple_choice" && (
+                    <p>
+                      {practiceChallenge.instructions}
+                    </p>
+                  )}
 
                 <div className="badge-row">
                   <span className="priority-badge">
                     {practiceChallenge.challenge_type}
                   </span>
                 </div>
+
+                {practiceChallenge.source_attribution && (
+                  <p className="practice-source-attribution">
+                    {practiceChallenge.source_attribution}
+                  </p>
+                )}
                 
-                <div className="practice-workbench">
-                  {practiceChallenge.context_code && (
+                {practiceChallenge.challenge_type === "multiple_choice" ? (
+                  <div className="practice-theory-workbench">
+                    <div className="practice-theory-question">
+                      <div className="panel-title">
+                        Theory check
+                      </div>
+
+                      <h4>
+                        {practiceChallenge.instructions}
+                      </h4>
+
+                      <div className="practice-theory-options">
+                        {(practiceChallenge.options ?? []).map(
+                          (option, index) => {
+                            const selected =
+                              practiceTheorySelectedAnswer === option;
+
+                            return (
+                              <button
+                                type="button"
+                                key={option}
+                                className={
+                                  selected
+                                    ? "practice-theory-option selected"
+                                    : "practice-theory-option"
+                                }
+                                disabled={
+                                  practiceSubmitting ||
+                                  practiceTheoryResult !== null
+                                }
+                                onClick={() => {
+                                  setPracticeTheorySelectedAnswer(
+                                    option
+                                  );
+                                  setPracticeTheoryResult(null);
+                                  setPracticeExecutionError(null);
+                                }}
+                              >
+                                <span>
+                                  {String.fromCharCode(
+                                    65 + index
+                                  )}
+                                </span>
+
+                                <strong>{option}</strong>
+                              </button>
+                            );
+                          }
+                        )}
+                      </div>
+
+                      <div className="workspace-actions">
+                        <button
+                          className="submit-button"
+                          onClick={() => {
+                            void submitPracticeTheoryAnswer();
+                          }}
+                          disabled={
+                            practiceSubmitting ||
+                            !practiceTheorySelectedAnswer ||
+                            practiceTheoryResult !== null
+                          }
+                        >
+                          {practiceSubmitting
+                            ? "Checking..."
+                            : practiceTheoryResult
+                              ? "Answer checked"
+                              : "✓ Check answer"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="practice-theory-feedback">
+                      <div className="panel-title">
+                        Feedback & mastery
+                      </div>
+
+                      {practiceExecutionError ? (
+                        <div className="python-error">
+                          {practiceExecutionError}
+                        </div>
+                      ) : practiceTheoryResult ? (
+                        <>
+                          <div
+                            className={
+                              practiceTheoryResult.success
+                                ? "practice-feedback success"
+                                : "practice-feedback failure"
+                            }
+                          >
+                            <strong>
+                              {practiceTheoryResult.success
+                                ? "✓ Correct"
+                                : "Not quite"}
+                            </strong>
+
+                            <p>
+                              {practiceTheoryResult.feedback}
+                            </p>
+                          </div>
+
+                          <div className="practice-mastery-signals">
+                            {practiceTheoryResult.mastery.signals.map(
+                              (signal) => (
+                                <div
+                                  key={signal.signal}
+                                  className={
+                                    signal.demonstrated
+                                      ? "demonstrated"
+                                      : ""
+                                  }
+                                >
+                                  <span>
+                                    {signal.demonstrated
+                                      ? "✓"
+                                      : "○"}
+                                  </span>
+
+                                  <div>
+                                    <strong>
+                                      {signal.signal
+                                        .replaceAll("_", " ")}
+                                    </strong>
+
+                                    <small>
+                                      Evidence: {signal.evidence_count}
+                                    </small>
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="muted">
+                          Choose the answer that best matches
+                          the concept. DataPilot tracks evidence,
+                          not a fixed question count.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                <div
+                  className={
+                    practiceExternalValidationPending
+                      ? "practice-workbench practice-external-workbench"
+                      : "practice-workbench"
+                  }
+                >
+                  {practiceExternalValidationPending ? (
+                    <div className="practice-external-instructions">
+                      <div className="practice-instructions-header">
+                        <div className="panel-title">
+                          Instructions
+                        </div>
+
+                        <div
+                          className="practice-language-switcher"
+                          aria-label="Exercise language"
+                        >
+                          {(["en", "tr", "nl"] as const).map(
+                            (language) => (
+                              <button
+                                key={language}
+                                type="button"
+                                className={
+                                  practiceInstructionLanguage === language
+                                    ? "active"
+                                    : ""
+                                }
+                                disabled={
+                                  practiceTranslationLoading
+                                }
+                                onClick={() => {
+                                  void changePracticeInstructionLanguage(
+                                    language
+                                  );
+                                }}
+                              >
+                                {language.toUpperCase()}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="practice-instructions-scroll">
+                        {practiceTranslationLoading ? (
+                          <p className="muted">
+                            Translating…
+                          </p>
+                        ) : (
+                          renderPracticeInstructions(
+                            practiceInstructionLanguage === "en"
+                              ? practiceChallenge.instructions
+                              : (
+                                  practiceTranslatedInstructions ??
+                                  practiceChallenge.instructions
+                                )
+                          )
+                        )}
+                      </div>
+
+                      {practiceTranslationError && (
+                        <p className="practice-translation-error">
+                          {practiceTranslationError}
+                        </p>
+                      )}
+                    </div>
+                  ) : practiceChallenge.context_code ? (
                     <div className="practice-context-section">
                       <div className="panel-title">
                         Given data
@@ -6132,7 +7295,7 @@ async function restoreWorkspaceVersion(
                         {practiceChallenge.context_code}
                       </pre>
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="practice-editor-section">
                     <div className="panel-title">
@@ -6164,15 +7327,18 @@ async function restoreWorkspaceVersion(
                         className="hint-button"
                         onClick={requestPracticeHint}
                         disabled={
+                          practiceExternalValidationPending ||
                           practiceHintLoading ||
                           practiceHint?.solution_available === true
                         }
                       >
-                        {practiceHintLoading
-                          ? "Loading hint..."
-                          : practiceHint?.solution_available
-                            ? "Hints completed"
-                            : "💡 Hint"}
+                        {practiceExternalValidationPending
+                          ? "Hint coming with mentor integration"
+                          : practiceHintLoading
+                            ? "Loading hint..."
+                            : practiceHint?.solution_available
+                              ? "Hints completed"
+                              : "💡 Hint"}
                       </button>
                         
                       <button
@@ -6181,16 +7347,30 @@ async function restoreWorkspaceVersion(
                         disabled={
                           practiceSubmitting ||
                           (
-                            practiceOutput === null &&
-                            practiceExecutionError === null
+                            practiceExternalValidationPending
+                              ? !practiceCode.trim()
+                              : (
+                                  practiceOutput === null &&
+                                  practiceExecutionError === null
+                                )
                           )
                         }
                       >
                         {practiceSubmitting
-                          ? "Checking..."
-                          : "✓ Submit answer"}
+                          ? "Validating..."
+                          : practiceExternalValidationPending
+                            ? "✓ Validate solution"
+                            : "✓ Submit answer"}
                       </button>
                     </div>
+
+                    {practiceExternalValidationPending && (
+                      <p className="practice-execution-note">
+                        Run executes your code only. Validate solution
+                        runs the selected exercise tests in a disposable
+                        isolated worker.
+                      </p>
+                    )}
                   </div>
                 </div>
                         
@@ -6290,6 +7470,37 @@ async function restoreWorkspaceVersion(
                         </div>
                       )}
 
+                      {practiceSandboxResult && (
+                        <div
+                          className={
+                            practiceSandboxResult.success
+                              ? "practice-feedback success"
+                              : "practice-feedback failure"
+                          }
+                        >
+                          <strong>
+                            {practiceSandboxResult.success
+                              ? "✓ All tests passed"
+                              : "Some tests failed"}
+                          </strong>
+
+                          <p>
+                            {practiceSandboxResult.testsRun}
+                            {" tests run in the isolated sandbox."}
+                          </p>
+
+                          {!practiceSandboxResult.success && (
+                            <pre className="practice-sandbox-detail">
+                              {
+                                practiceSandboxResult.errors[0] ??
+                                practiceSandboxResult.failures[0] ??
+                                "The solution did not pass all tests."
+                              }
+                            </pre>
+                          )}
+                        </div>
+                      )}
+
                       {practiceReview && (
                         <div
                           className={
@@ -6335,8 +7546,8 @@ async function restoreWorkspaceVersion(
                     </div>
                   </div>
                 </div>
-                
-                  
+                  </>
+                )}
 
                 </div>
               
@@ -6346,7 +7557,22 @@ async function restoreWorkspaceVersion(
               </p>
             )}
           </section>
-                ) : dashboardWorkspace ? (
+            ) : (
+              <PracticeCatalogPage
+                catalog={practiceCatalog}
+                loading={practiceCatalogLoading}
+                error={practiceCatalogError}
+                onBack={() =>
+                  setCurrentView("dashboard")
+                }
+                onStartRecommended={() => {
+                  void openRecommendedPracticeChallenge();
+                }}
+                onStartExternal={openExternalPracticeChallenge}
+                onStartTheory={openTheoryPracticeChallenge}
+              />
+            )
+          ) : dashboardWorkspace ? (
                   <section className="workspace-page workspace-overview-page">
                     <div className="workspace-sticky-shell">
                       <header className="workspace-compact-header">
@@ -6411,19 +7637,48 @@ async function restoreWorkspaceVersion(
                           </div>
                         </div>
                               
-                        <span
-                          className={
-                            dashboardWorkspace.status === "completed"
-                              ? "workspace-list-status completed"
-                              : "workspace-list-status active"
-                          }
-                        >
-                          {dashboardWorkspace.status === "completed"
-                            ? t.workspace.completed
-                            : dashboardWorkspace.status === "paused"
-                              ? t.workspace.paused
-                              : t.workspace.active}
-                        </span>
+                        <div className="workspace-compact-actions">
+                          <LearnerNotebookPanel
+                            learnerId="demo-learner"
+                            contextType="workspace"
+                            contextKey={
+                              dashboardWorkspace.workspace_id
+                            }
+                            contextLabel={
+                              dashboardWorkspace.title
+                            }
+                            resumeState={{
+                              workspace_id:
+                                dashboardWorkspace.workspace_id,
+                              stage:
+                                dashboardWorkspace.usage_context === "personal"
+                                  ? activeWorkspaceStage
+                                  : "workspace",
+                              current_view:
+                                dashboardWorkspace.usage_context === "personal"
+                                  ? (
+                                      activeWorkspaceStage === "prepare"
+                                        ? activePrepareStage
+                                        : activeWorkspaceStage
+                                    )
+                                  : "workspace",
+                            }}
+                          />
+
+                          <span
+                            className={
+                              dashboardWorkspace.status === "completed"
+                                ? "workspace-list-status completed"
+                                : "workspace-list-status active"
+                            }
+                          >
+                            {dashboardWorkspace.status === "completed"
+                              ? t.workspace.completed
+                              : dashboardWorkspace.status === "paused"
+                                ? t.workspace.paused
+                                : t.workspace.active}
+                          </span>
+                        </div>
                       </header>
 
 
@@ -7036,9 +8291,7 @@ async function restoreWorkspaceVersion(
                                     value={
                                       developmentSampleSize
                                     }
-                                    disabled={
-                                      workspaceDataLoading
-                                    }
+                                    disabled={workspaceDataLoading}
                                     onChange={(event) => {
                                       void resizeDevelopmentSample(
                                         Number(
@@ -7047,12 +8300,22 @@ async function restoreWorkspaceVersion(
                                       );
                                     }}
                                   >
-                                    {[
-                                      500,
-                                      1000,
-                                      2500,
-                                      5000,
-                                    ]
+                                    {(
+                                      dashboardWorkspace
+                                        .dataset_storage_mode ===
+                                      "duckdb"
+                                        ? [
+                                            5000,
+                                            10000,
+                                            20000,
+                                          ]
+                                        : [
+                                            500,
+                                            1000,
+                                            2500,
+                                            5000,
+                                          ]
+                                    )
                                       .filter(
                                         (size) =>
                                           size <=
@@ -7106,6 +8369,85 @@ async function restoreWorkspaceVersion(
                                   />
                                 </label>
                               </div>
+                              )}
+
+                              {dashboardWorkspace.smart_sampling_report && (
+                                <div className="workspace-smart-sampling">
+                                  <div className="workspace-smart-sampling-header">
+                                    <div>
+                                      <span className="workspace-overview-label">
+                                        {t.workspace.smartSampling}
+                                      </span>
+                                      <strong>
+                                        {dashboardWorkspace
+                                          .smart_sampling_report
+                                          .selected_size
+                                          .toLocaleString()}{" "}
+                                        {t.workspace.smartRowsSelected}
+                                      </strong>
+                                    </div>
+
+                                    <span>
+                                      {t.workspace.fullDataPreflightRequired}
+                                    </span>
+                                  </div>
+
+                                  <div className="workspace-smart-sampling-grid">
+                                    {dashboardWorkspace
+                                      .smart_sampling_report
+                                      .candidate_evaluations
+                                      .map((candidate) => (
+                                        <div
+                                          key={candidate.sample_size}
+                                          className={
+                                            candidate.sample_size ===
+                                            dashboardWorkspace
+                                              .smart_sampling_report
+                                              ?.selected_size
+                                              ? "workspace-smart-sampling-candidate selected"
+                                              : "workspace-smart-sampling-candidate"
+                                          }
+                                        >
+                                          <strong>
+                                            {candidate.sample_size
+                                              .toLocaleString()} rows
+                                          </strong>
+                                          <span>
+                                            {t.workspace.samplingOverall}{" "}
+                                            {candidate.overall_score.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            {t.workspace.samplingMissing}{" "}
+                                            {candidate.missingness_similarity.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            {t.workspace.samplingCategories}{" "}
+                                            {candidate.categorical_distribution_similarity.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            {t.workspace.samplingNumeric}{" "}
+                                            {candidate.numeric_distribution_similarity.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            {t.workspace.samplingDatetime}{" "}
+                                            {candidate.datetime_coverage_similarity.toFixed(1)}%
+                                          </span>
+                                          <span>
+                                            {t.workspace.samplingRareCoverage}{" "}
+                                            {candidate.rare_group_coverage.toFixed(1)}%
+                                          </span>
+                                        </div>
+                                      ))}
+                                  </div>
+
+                                  <small>
+                                    {
+                                      dashboardWorkspace
+                                        .smart_sampling_report
+                                        .reason
+                                    }
+                                  </small>
+                                </div>
                               )}
                             </div>
 
@@ -7299,6 +8641,9 @@ async function restoreWorkspaceVersion(
                               dataset="source"
                               title={ui.rawPreview}
                               description={ui.rawPreviewDescription}
+                              onInspectionChange={
+                                setSourcePreviewInspection
+                              }
                             />
                             </>
                             )}
@@ -8682,6 +10027,18 @@ async function restoreWorkspaceVersion(
               activePrepareStage === "workbench"
                 ? selectedNotebookId
                 : null,
+            selected_notebook_dataset_kind:
+              activeWorkspaceStage === "prepare" &&
+              activePrepareStage === "workbench"
+                ? (
+                    (dashboardWorkspace.notebooks ?? [])
+                      .find(
+                        (item) =>
+                          item.notebook_id ===
+                          selectedNotebookId
+                      )?.dataset_kind ?? null
+                  )
+                : null,
             selected_workbench_column:
               activeWorkspaceStage === "prepare" &&
               activePrepareStage === "workbench"
@@ -8693,6 +10050,14 @@ async function restoreWorkspaceVersion(
             understand_visible:
               activeWorkspaceStage === "prepare" &&
               activePrepareStage === "understand",
+            source_preview_filter_builder_available: true,
+            source_preview_column_click_available: false,
+            source_preview_grouping_available: false,
+            source_preview_aggregation_available: false,
+            notebook_available:
+              (dashboardWorkspace.notebooks?.length ?? 0) > 0,
+            source_preview_inspection:
+              sourcePreviewInspection,
           }}
           open={mentorPanelOpen}
           onOpenChange={setMentorPanelOpen}

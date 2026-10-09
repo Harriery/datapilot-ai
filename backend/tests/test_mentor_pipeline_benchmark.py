@@ -1,12 +1,20 @@
 from pathlib import Path
 
+import json
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from backend.benchmarks.run_mentor_pipeline_benchmark import (
+    BenchmarkCheckpointError,
     ClassifierResponse,
     build_classifier_instructions,
+    checkpoint_path_for_output,
     build_mentor_reply_instructions,
     build_orchestration,
     build_plan,
     deterministic_reply_checks,
+    run_suite,
     scenario_without_expected,
 )
 from backend.benchmarks.run_mentor_benchmark import (
@@ -61,6 +69,17 @@ def test_pipeline_mentor_consumes_upstream_state():
     assert "Do not reclassify the learner" in instructions
 
 
+def test_pipeline_mentor_decide_transition_stays_outcome_neutral():
+    instructions = " ".join(
+        build_mentor_reply_instructions().split()
+    )
+
+    assert "next_phase=decide" in instructions
+    assert "decision criterion" in instructions
+    assert "not to a predetermined outcome" in instructions
+    assert "must not choose the transformation" in instructions
+
+
 def test_pipeline_reply_checks_completed_question():
     scenario = {
         "learner_message": "Bunu anlamadım, neye bakmalıyım?",
@@ -101,11 +120,19 @@ def test_pipeline_plan_counts_three_requests_per_scenario():
 
 
 
-def test_pipeline_classifier_treats_question_shaped_decision_as_evidence_rule():
+def test_pipeline_classifier_treats_question_shaped_reasoning_as_evidence_rule():
     instructions = build_classifier_instructions()
 
-    assert "Interrogative wording does not make a proposed decision non-evidence" in instructions
+    assert (
+        "Interrogative wording does not make learner reasoning non-evidence"
+        in instructions
+    )
     assert "Should I fill missing values with 0?" in instructions
+    assert (
+        "distinguishes two possible interpretations"
+        in instructions
+    )
+    assert "demonstrates reasoning" in instructions
 
 
 def test_pipeline_mentor_repairs_premise_before_replacement():
@@ -160,3 +187,351 @@ def test_pipeline_mentor_has_one_cognitive_target():
 
     assert "one cognitive target only" in instructions
     assert "Do not combine two checks" in instructions
+
+
+
+def test_pipeline_classifier_has_strict_validation_rules():
+    instructions = " ".join(
+        build_classifier_instructions().split()
+    )
+
+    assert "code running without error is NOT sufficient validation" in instructions
+    assert "Compare before/after evidence" in instructions
+    assert "Unexpected row loss" in instructions
+    assert "checking only one metric" in instructions
+
+
+def test_pipeline_classifier_uses_canonical_misconception_taxonomy():
+    instructions = build_classifier_instructions()
+
+    assert "missing_value_means_fill_zero" in instructions
+    assert "execution_success_equals_validation" in instructions
+    assert "single_metric_validation" in instructions
+    assert "Do not invent a new label" in instructions
+    assert "If success=true, misconception must be null" in instructions
+
+
+
+def test_pipeline_checkpoint_path_uses_output_stem():
+    output = Path(
+        "backend/benchmarks/results/example.json"
+    )
+
+    assert checkpoint_path_for_output(output) == Path(
+        "backend/benchmarks/results/example.checkpoint.json"
+    )
+
+
+def test_pipeline_resume_skips_completed_scenario(tmp_path):
+    output = tmp_path / "resume-test.json"
+    checkpoint = checkpoint_path_for_output(
+        output
+    )
+
+    suite = load_suite()
+    selected = suite["scenarios"][:2]
+
+    config = {
+        "suite_id": suite["suite_id"],
+        "suite_version": suite["version"],
+        "scenario_ids": [
+            scenario["id"]
+            for scenario in selected
+        ],
+        "classifier_provider": "groq",
+        "classifier_model": "classifier",
+        "mentor_provider": "groq",
+        "mentor_model": "mentor",
+        "judge_provider": "groq",
+        "judge_model": "judge",
+    }
+
+    first_row = {
+        "scenario_id": selected[0]["id"],
+        "stage": selected[0]["stage"],
+        "classification": {
+            "is_evidence": True,
+            "success": True,
+            "misconception": None,
+        },
+        "orchestration": {
+            "current_phase": selected[0]["phase"],
+            "assistance_level": "GUIDE",
+            "next_phase": "reason",
+        },
+        "mentor_reply": "Devam edin.",
+        "classifier_matches": {
+            "evidence_expected_match": True,
+            "success_expected_match": True,
+            "misconception_match": True,
+        },
+        "orchestration_matches": {
+            "assistance_allowed_match": True,
+            "next_phase_match": True,
+        },
+        "reply_checks": {
+            "compact_reply": True,
+            "code_policy_ok": True,
+            "completed_without_new_question": True,
+        },
+        "evaluation": {
+            "technical_correctness": 5,
+            "pedagogy": 5,
+            "assistance_calibration": 5,
+            "context_fidelity": 5,
+            "non_hallucination": 5,
+            "learning_loop_discipline": 5,
+            "transfer_reasoning": 5,
+            "concise_stepwise_guidance": 5,
+            "learner_level_fit": 5,
+            "language_match": 5,
+            "notes": "ok",
+        },
+        "classifier_latency_ms": 10.0,
+        "mentor_latency_ms": 20.0,
+    }
+
+    checkpoint.write_text(
+        json.dumps(
+            {
+                "checkpoint_version": 1,
+                "status": "in_progress",
+                "run_config": config,
+                "completed_scenario_ids": [
+                    selected[0]["id"]
+                ],
+                "completed_scenario_count": 1,
+                "estimated_completed_requests": 3,
+                "last_error": None,
+                "results": [
+                    first_row
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    classifier_result = ClassifierResponse(
+        is_evidence=True,
+        success=True,
+        misconception=None,
+    )
+    mentor_result = MagicMock()
+    mentor_result.mentor_reply = "Kısa cevap."
+    judge_result = MagicMock()
+    judge_result.model_dump.return_value = {
+        "technical_correctness": 5,
+        "pedagogy": 5,
+        "assistance_calibration": 5,
+        "context_fidelity": 5,
+        "non_hallucination": 5,
+        "learning_loop_discipline": 5,
+        "transfer_reasoning": 5,
+        "concise_stepwise_guidance": 5,
+        "learner_level_fit": 5,
+        "language_match": 5,
+        "notes": "ok",
+    }
+
+    with patch(
+        "backend.benchmarks.run_mentor_pipeline_benchmark."
+        "select_scenarios",
+        return_value=selected,
+    ), patch(
+        "backend.benchmarks.run_mentor_pipeline_benchmark."
+        "run_classifier",
+        return_value=(
+            classifier_result,
+            11.0,
+        ),
+    ) as mock_classifier, patch(
+        "backend.benchmarks.run_mentor_pipeline_benchmark."
+        "run_mentor_reply",
+        return_value=(
+            mentor_result,
+            21.0,
+        ),
+    ), patch(
+        "backend.benchmarks.run_mentor_pipeline_benchmark."
+        "run_judge",
+        return_value=judge_result,
+    ):
+        result = run_suite(
+            suite_path=Path(
+                "backend/benchmarks/mentor_benchmark_v1.json"
+            ),
+            classifier_provider="groq",
+            classifier_model="classifier",
+            mentor_provider="groq",
+            mentor_model="mentor",
+            judge_provider="groq",
+            judge_model="judge",
+            scenario_limit=2,
+            scenario_ids=None,
+            output_path=output,
+            resume=True,
+        )
+
+    assert mock_classifier.call_count == 1
+    assert result["scenario_count"] == 2
+    assert result["resume_metadata"]["resumed"] is True
+    assert (
+        result["resume_metadata"]["resumed_scenario_count"]
+        == 1
+    )
+    assert result["resume_metadata"]["estimated_requests_saved"] == 3
+    assert not checkpoint.exists()
+
+
+def test_pipeline_checkpoint_config_mismatch_fails_closed(tmp_path):
+    output = tmp_path / "resume-test.json"
+    checkpoint = checkpoint_path_for_output(
+        output
+    )
+
+    checkpoint.write_text(
+        json.dumps(
+            {
+                "checkpoint_version": 1,
+                "status": "in_progress",
+                "run_config": {
+                    "suite_id": "wrong-suite",
+                },
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        BenchmarkCheckpointError
+    ):
+        run_suite(
+            suite_path=Path(
+                "backend/benchmarks/mentor_benchmark_v1.json"
+            ),
+            classifier_provider="groq",
+            classifier_model="classifier",
+            mentor_provider="groq",
+            mentor_model="mentor",
+            judge_provider="groq",
+            judge_model="judge",
+            scenario_limit=1,
+            scenario_ids=None,
+            output_path=output,
+            resume=True,
+        )
+
+
+def test_pipeline_partial_failure_keeps_completed_checkpoint(tmp_path):
+    output = tmp_path / "partial.json"
+    checkpoint = checkpoint_path_for_output(
+        output
+    )
+
+    suite = load_suite()
+    selected = suite["scenarios"][:2]
+
+    classifications = [
+        (
+            ClassifierResponse(
+                is_evidence=True,
+                success=True,
+                misconception=None,
+            ),
+            10.0,
+        ),
+        RuntimeError("boom"),
+    ]
+
+    mentor_result = MagicMock()
+    mentor_result.mentor_reply = "Kısa cevap."
+    judge_result = MagicMock()
+    judge_result.model_dump.return_value = {
+        "technical_correctness": 5,
+        "pedagogy": 5,
+        "assistance_calibration": 5,
+        "context_fidelity": 5,
+        "non_hallucination": 5,
+        "learning_loop_discipline": 5,
+        "transfer_reasoning": 5,
+        "concise_stepwise_guidance": 5,
+        "learner_level_fit": 5,
+        "language_match": 5,
+        "notes": "ok",
+    }
+
+    with patch(
+        "backend.benchmarks.run_mentor_pipeline_benchmark."
+        "select_scenarios",
+        return_value=selected,
+    ), patch(
+        "backend.benchmarks.run_mentor_pipeline_benchmark."
+        "run_classifier",
+        side_effect=classifications,
+    ), patch(
+        "backend.benchmarks.run_mentor_pipeline_benchmark."
+        "run_mentor_reply",
+        return_value=(
+            mentor_result,
+            20.0,
+        ),
+    ), patch(
+        "backend.benchmarks.run_mentor_pipeline_benchmark."
+        "run_judge",
+        return_value=judge_result,
+    ):
+        with pytest.raises(RuntimeError):
+            run_suite(
+                suite_path=Path(
+                    "backend/benchmarks/mentor_benchmark_v1.json"
+                ),
+                classifier_provider="groq",
+                classifier_model="classifier",
+                mentor_provider="groq",
+                mentor_model="mentor",
+                judge_provider="groq",
+                judge_model="judge",
+                scenario_limit=2,
+                scenario_ids=None,
+                output_path=output,
+                resume=False,
+            )
+
+    saved = json.loads(
+        checkpoint.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert saved["completed_scenario_count"] == 1
+    assert saved["completed_scenario_ids"] == [
+        selected[0]["id"]
+    ]
+    assert saved["last_error"]["scenario_id"] == selected[1]["id"]
+
+
+def test_pipeline_reports_production_integration_status():
+    from backend.app.mentor_reply_policy import (
+        mentor_pipeline_production_status,
+        mentor_reply_rules,
+    )
+
+    status = mentor_pipeline_production_status()
+
+    assert status["classifier_policy_shared"] is True
+    assert status["orchestration_policy_shared"] is True
+    assert status["misconception_taxonomy_shared"] is True
+    assert status["guided_learning_llm_reply_integrated"] is True
+    assert (
+        status["production_reply_mode"]
+        == "llm_mentor_reply_with_deterministic_fallback"
+    )
+    assert status["benchmark_reply_mode"] == "llm_mentor_reply"
+
+    rules = mentor_reply_rules()
+    assert "Give only ONE small next step" in rules
+    assert "target <= 20 words" in rules
+    assert "Challenge the faulty premise" in rules
+    assert "If next_phase=completed" in rules
+    assert "Do not provide code unless" in rules

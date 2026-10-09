@@ -105,31 +105,16 @@ def test_generate_mentor_decision_returns_parsed_model():
         }
     ]
 
-    current_message = "Dictionary nasıl oluşturuyorduk?"
-
-    expected_decision = MentorDecision(
-        skill_name="python_dict",
-        assistance_level="GUIDE",
-        reason="Kullanıcı yönlendirmeye ihtiyaç duyuyor.",
+    decision = generate_mentor_decision(
+        learner_profile,
+        skill_state,
+        learning_evidence,
+        "Dictionary nasıl oluşturuyorduk?",
     )
 
-    # Gerçek OpenAI response nesnesi yerine sahte response oluşturuyoruz.
-    mock_response = MagicMock()
-    mock_response.output_parsed = expected_decision
-
-    with patch(
-        "backend.app.mentor_service.client.responses.parse",
-        return_value=mock_response,
-    ):
-        decision = generate_mentor_decision(
-            learner_profile,
-            skill_state,
-            learning_evidence,
-            current_message,
-        )
-
-    assert decision == expected_decision
+    assert decision.skill_name == "python_dict"
     assert decision.assistance_level == "GUIDE"
+    assert "Deterministic Mentor V2" in decision.reason
 
 
 # ==================================================
@@ -155,26 +140,15 @@ def test_get_mentor_decision_for_learner(tmp_path):
         status="learning",
     )
 
-    expected_decision = MentorDecision(
+    decision = get_mentor_decision_for_learner(
+        learner_id="learner-001",
         skill_name="python_data_structures",
-        assistance_level="GUIDE",
-        reason="Kullanıcı yönlendirmeye ihtiyaç duyuyor.",
+        current_message="Dictionary nasıl oluşturuyorduk?",
     )
 
-    mock_response = MagicMock()
-    mock_response.output_parsed = expected_decision
-
-    with patch(
-        "backend.app.mentor_service.client.responses.parse",
-        return_value=mock_response,
-    ):
-        decision = get_mentor_decision_for_learner(
-            learner_id="learner-001",
-            skill_name="python_data_structures",
-            current_message="Dictionary nasıl oluşturuyorduk?",
-        )
-
-    assert decision == expected_decision
+    assert decision.skill_name == "python_data_structures"
+    assert decision.assistance_level == "GUIDE"
+    assert "Deterministic Mentor V2" in decision.reason
 
 
 
@@ -248,8 +222,17 @@ def test_detect_relevant_skill_returns_catalog_skill():
     mock_response = MagicMock()
     mock_response.output_parsed = expected_detection
 
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
-        "backend.app.mentor_service.client.responses.parse",
+        "backend.app.mentor_service.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.mentor_service.guarded_responses_parse",
         return_value=mock_response,
     ):
         detection = detect_relevant_skill(
@@ -269,8 +252,17 @@ def test_detect_relevant_skill_returns_none_for_non_skill_message():
     mock_response = MagicMock()
     mock_response.output_parsed = expected_detection
 
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
-        "backend.app.mentor_service.client.responses.parse",
+        "backend.app.mentor_service.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.mentor_service.guarded_responses_parse",
         return_value=mock_response,
     ):
         detection = detect_relevant_skill(
@@ -364,8 +356,17 @@ def test_generate_mentor_response_returns_text():
         "Önce boş bir dictionary oluşturmayı dene."
     )
 
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
-        "backend.app.mentor_service.client.responses.create",
+        "backend.app.mentor_service.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.mentor_service.guarded_responses_create",
         return_value=mock_response,
     ):
         mentor_response = generate_mentor_response(
@@ -390,8 +391,17 @@ def test_classify_learning_evidence_returns_non_evidence():
     mock_response = MagicMock()
     mock_response.output_parsed = expected
 
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
-        "backend.app.mentor_service.client.responses.parse",
+        "backend.app.mentor_service.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.mentor_service.guarded_responses_parse",
         return_value=mock_response,
     ):
         evidence = classify_learning_evidence(
@@ -414,8 +424,17 @@ def test_classify_learning_evidence_returns_application():
     mock_response = MagicMock()
     mock_response.output_parsed = expected
 
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
-        "backend.app.mentor_service.client.responses.parse",
+        "backend.app.mentor_service.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.mentor_service.guarded_responses_parse",
         return_value=mock_response,
     ):
         evidence = classify_learning_evidence(
@@ -572,11 +591,22 @@ def test_evaluate_data_quality_attempt_returns_evidence():
         note="Junior null kontrolü için uygun bir adım önerdi.",
     )
 
-    with patch(
-        "backend.app.mentor_service.client.responses.parse"
-    ) as mock_parse:
+    mock_response = MagicMock()
+    mock_response.output_parsed = fake_evidence
 
-        mock_parse.return_value.output_parsed = fake_evidence
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
+    with patch(
+        "backend.app.mentor_service.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.mentor_service.guarded_responses_parse",
+        return_value=mock_response,
+    ) as mock_parse:
 
         result = evaluate_data_quality_attempt(
             skill_name="null_analysis",
@@ -707,8 +737,17 @@ def test_generate_data_quality_attempt_response_returns_text():
         "Eksik age değerlerinin bulunduğu örnek satırları inceleyin."
     )
 
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
-        "backend.app.mentor_service.client.responses.parse",
+        "backend.app.mentor_service.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.mentor_service.guarded_responses_parse",
         return_value=mock_response,
     ) as mock_parse:
 

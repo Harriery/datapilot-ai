@@ -10,9 +10,63 @@ export type DataPreviewDataset =
   | "source"
   | "working";
 
+type PreviewColumnType =
+  | "text"
+  | "number"
+  | "datetime"
+  | "boolean";
+
+type PreviewFilterOperator =
+  | "is_missing"
+  | "is_not_missing"
+  | "is_blank"
+  | "is_not_blank"
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "not_contains"
+  | "starts_with"
+  | "ends_with"
+  | "greater_than"
+  | "greater_than_or_equal"
+  | "less_than"
+  | "less_than_or_equal"
+  | "between"
+  | "before"
+  | "after"
+  | "date_between"
+  | "in"
+  | "not_in"
+  | "is_duplicate"
+  | "is_unique";
+
+type PreviewFilter = {
+  id: string;
+  column: string;
+  operator: PreviewFilterOperator;
+  value: string;
+  value_to: string;
+};
+
+export type DataPreviewInspectionState = {
+  dataset: DataPreviewDataset;
+  columns: string[];
+  column_types: Record<string, PreviewColumnType>;
+  total_row_count: number;
+  filtered_row_count: number;
+  filter_logic: "and" | "or";
+  active_filters: Array<{
+    column: string;
+    operator: PreviewFilterOperator;
+    value: string | null;
+    value_to: string | null;
+  }>;
+};
+
 type DataPreviewResponse = {
   dataset: DataPreviewDataset;
   columns: string[];
+  column_types: Record<string, PreviewColumnType>;
   total_row_count: number;
   filtered_row_count: number;
   page: number;
@@ -34,7 +88,176 @@ type Props = {
   onColumnClick?: (
     column: string
   ) => void;
+  onInspectionChange?: (
+    state: DataPreviewInspectionState
+  ) => void;
 };
+
+const OPERATOR_LABELS: Record<
+  AppLanguage,
+  Record<PreviewFilterOperator, string>
+> = {
+  en: {
+    is_missing: "Is missing",
+    is_not_missing: "Is not missing",
+    is_blank: "Is blank",
+    is_not_blank: "Is not blank",
+    equals: "Equals",
+    not_equals: "Does not equal",
+    contains: "Contains",
+    not_contains: "Does not contain",
+    starts_with: "Starts with",
+    ends_with: "Ends with",
+    greater_than: "Greater than",
+    greater_than_or_equal: "Greater than or equal",
+    less_than: "Less than",
+    less_than_or_equal: "Less than or equal",
+    between: "Between",
+    before: "Before",
+    after: "After",
+    date_between: "Date between",
+    in: "Is one of",
+    not_in: "Is not one of",
+    is_duplicate: "Is duplicate",
+    is_unique: "Is unique",
+  },
+  nl: {
+    is_missing: "Ontbreekt",
+    is_not_missing: "Ontbreekt niet",
+    is_blank: "Is leeg",
+    is_not_blank: "Is niet leeg",
+    equals: "Is gelijk aan",
+    not_equals: "Is niet gelijk aan",
+    contains: "Bevat",
+    not_contains: "Bevat niet",
+    starts_with: "Begint met",
+    ends_with: "Eindigt met",
+    greater_than: "Groter dan",
+    greater_than_or_equal: "Groter dan of gelijk aan",
+    less_than: "Kleiner dan",
+    less_than_or_equal: "Kleiner dan of gelijk aan",
+    between: "Tussen",
+    before: "Voor",
+    after: "Na",
+    date_between: "Datum tussen",
+    in: "Is een van",
+    not_in: "Is niet een van",
+    is_duplicate: "Is dubbel",
+    is_unique: "Is uniek",
+  },
+  tr: {
+    is_missing: "Eksik (null)",
+    is_not_missing: "Eksik değil",
+    is_blank: "Boş metin",
+    is_not_blank: "Boş metin değil",
+    equals: "Eşittir",
+    not_equals: "Eşit değildir",
+    contains: "İçerir",
+    not_contains: "İçermez",
+    starts_with: "İle başlar",
+    ends_with: "İle biter",
+    greater_than: "Büyüktür",
+    greater_than_or_equal: "Büyük veya eşittir",
+    less_than: "Küçüktür",
+    less_than_or_equal: "Küçük veya eşittir",
+    between: "Arasında",
+    before: "Tarihinden önce",
+    after: "Tarihinden sonra",
+    date_between: "Tarih aralığında",
+    in: "Değerlerden biri",
+    not_in: "Değerlerden biri değil",
+    is_duplicate: "Tekrarlanan değer",
+    is_unique: "Benzersiz değer",
+  },
+};
+
+const COMMON_OPERATORS: PreviewFilterOperator[] = [
+  "is_missing",
+  "is_not_missing",
+  "is_duplicate",
+  "is_unique",
+  "equals",
+  "not_equals",
+  "in",
+  "not_in",
+];
+
+function operatorsForType(
+  type: PreviewColumnType | undefined,
+): PreviewFilterOperator[] {
+  if (type === "number") {
+    return [
+      ...COMMON_OPERATORS,
+      "greater_than",
+      "greater_than_or_equal",
+      "less_than",
+      "less_than_or_equal",
+      "between",
+    ];
+  }
+
+  if (type === "datetime") {
+    return [
+      ...COMMON_OPERATORS,
+      "before",
+      "after",
+      "date_between",
+    ];
+  }
+
+  if (type === "boolean") {
+    return [
+      "is_missing",
+      "is_not_missing",
+      "equals",
+      "not_equals",
+    ];
+  }
+
+  return [
+    ...COMMON_OPERATORS,
+    "is_blank",
+    "is_not_blank",
+    "contains",
+    "not_contains",
+    "starts_with",
+    "ends_with",
+  ];
+}
+
+function operatorNeedsValue(
+  operator: PreviewFilterOperator,
+) {
+  return ![
+    "is_missing",
+    "is_not_missing",
+    "is_blank",
+    "is_not_blank",
+    "is_duplicate",
+    "is_unique",
+  ].includes(operator);
+}
+
+function operatorNeedsSecondValue(
+  operator: PreviewFilterOperator,
+) {
+  return [
+    "between",
+    "date_between",
+  ].includes(operator);
+}
+
+function newFilter(
+  columns: string[],
+): PreviewFilter {
+  return {
+    id: crypto.randomUUID(),
+    column: columns[0] ?? "",
+    operator: "is_missing",
+    value: "",
+    value_to: "",
+  };
+}
 
 function DataPreview({
   language,
@@ -47,12 +270,83 @@ function DataPreview({
   selectedColumn = null,
   refreshToken = 0,
   onColumnClick,
+  onInspectionChange,
 }: Props) {
   const ui = {
-    en: { label:"DATA PREVIEW", search:"Search preview...", searchButton:"Search", clear:"Clear", page:"Page", of:"of", rows:"rows", loading:"Loading preview...", previous:"← Previous", next:"Next →", showing:"Showing up to" },
-    nl: { label:"DATA VOORBEELD", search:"Zoek in voorbeeld...", searchButton:"Zoeken", clear:"Wissen", page:"Pagina", of:"van", rows:"rijen", loading:"Voorbeeld laden...", previous:"← Vorige", next:"Volgende →", showing:"Maximaal weergegeven" },
-    tr: { label:"VERİ ÖNİZLEME", search:"Önizlemede ara...", searchButton:"Ara", clear:"Temizle", page:"Sayfa", of:"/", rows:"satır", loading:"Önizleme yükleniyor...", previous:"← Önceki", next:"Sonraki →", showing:"En fazla gösterilen" },
+    en: {
+      label:"DATA PREVIEW",
+      search:"Search preview...",
+      searchButton:"Search",
+      clear:"Clear",
+      page:"Page",
+      of:"of",
+      rows:"rows",
+      loading:"Loading preview...",
+      previous:"← Previous",
+      next:"Next →",
+      showing:"Showing up to",
+      filters:"Filters",
+      addFilter:"+ Add filter",
+      clearFilters:"Clear filters",
+      filterLogic:"Match",
+      all:"All conditions (AND)",
+      any:"Any condition (OR)",
+      value:"Value",
+      secondValue:"To",
+      readOnly:"Preview filters are read-only and never modify the dataset.",
+      remove:"Remove filter",
+      empty:"No rows match the current preview filters.",
+    },
+    nl: {
+      label:"DATA VOORBEELD",
+      search:"Zoek in voorbeeld...",
+      searchButton:"Zoeken",
+      clear:"Wissen",
+      page:"Pagina",
+      of:"van",
+      rows:"rijen",
+      loading:"Voorbeeld laden...",
+      previous:"← Vorige",
+      next:"Volgende →",
+      showing:"Maximaal weergegeven",
+      filters:"Filters",
+      addFilter:"+ Filter toevoegen",
+      clearFilters:"Filters wissen",
+      filterLogic:"Overeenkomst",
+      all:"Alle voorwaarden (AND)",
+      any:"Een voorwaarde (OR)",
+      value:"Waarde",
+      secondValue:"Tot",
+      readOnly:"Voorbeeldfilters zijn alleen-lezen en wijzigen de dataset nooit.",
+      remove:"Filter verwijderen",
+      empty:"Geen rijen voldoen aan de huidige voorbeeldfilters.",
+    },
+    tr: {
+      label:"VERİ ÖNİZLEME",
+      search:"Önizlemede ara...",
+      searchButton:"Ara",
+      clear:"Temizle",
+      page:"Sayfa",
+      of:"/",
+      rows:"satır",
+      loading:"Önizleme yükleniyor...",
+      previous:"← Önceki",
+      next:"Sonraki →",
+      showing:"En fazla gösterilen",
+      filters:"Filtreler",
+      addFilter:"+ Filtre ekle",
+      clearFilters:"Filtreleri temizle",
+      filterLogic:"Eşleştirme",
+      all:"Tüm koşullar (AND)",
+      any:"Herhangi bir koşul (OR)",
+      value:"Değer",
+      secondValue:"Bitiş",
+      readOnly:"Önizleme filtreleri salt okunurdur; veri setini değiştirmez.",
+      remove:"Filtreyi kaldır",
+      empty:"Mevcut önizleme filtrelerine uyan satır yok.",
+    },
   }[language];
+
   const [data, setData] =
     useState<DataPreviewResponse | null>(null);
 
@@ -62,6 +356,12 @@ function DataPreview({
   const [search, setSearch] =
     useState("");
 
+  const [filters, setFilters] =
+    useState<PreviewFilter[]>([]);
+
+  const [filterLogic, setFilterLogic] =
+    useState<"and" | "or">("and");
+
   const [page, setPage] =
     useState(1);
 
@@ -70,6 +370,32 @@ function DataPreview({
 
   const [error, setError] =
     useState<string | null>(null);
+
+  const activeFilters = useMemo(
+    () =>
+      filters.filter(
+        (filter) => {
+          if (
+            operatorNeedsValue(filter.operator) &&
+            !filter.value.trim()
+          ) {
+            return false;
+          }
+
+          if (
+            operatorNeedsSecondValue(filter.operator) &&
+            !filter.value_to.trim()
+          ) {
+            return false;
+          }
+
+          return Boolean(
+            filter.column
+          );
+        }
+      ),
+    [filters]
+  );
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
@@ -85,12 +411,39 @@ function DataPreview({
       );
     }
 
+    if (activeFilters.length > 0) {
+      params.set(
+        "filters",
+        JSON.stringify(
+          activeFilters.map((filter) => ({
+            column: filter.column,
+            operator: filter.operator,
+            value:
+              operatorNeedsValue(filter.operator)
+                ? filter.value
+                : null,
+            value_to:
+              operatorNeedsSecondValue(filter.operator)
+                ? filter.value_to
+                : null,
+          }))
+        )
+      );
+
+      params.set(
+        "filter_logic",
+        filterLogic
+      );
+    }
+
     return params.toString();
   }, [
     dataset,
     page,
     pageSize,
     search,
+    activeFilters,
+    filterLogic,
     refreshToken,
   ]);
 
@@ -150,6 +503,41 @@ function DataPreview({
     refreshToken,
   ]);
 
+  useEffect(() => {
+    if (!data || !onInspectionChange) {
+      return;
+    }
+
+    onInspectionChange({
+      dataset,
+      columns: data.columns,
+      column_types: data.column_types,
+      total_row_count: data.total_row_count,
+      filtered_row_count: data.filtered_row_count,
+      filter_logic: filterLogic,
+      active_filters: activeFilters.map(
+        (filter) => ({
+          column: filter.column,
+          operator: filter.operator,
+          value:
+            operatorNeedsValue(filter.operator)
+              ? filter.value
+              : null,
+          value_to:
+            operatorNeedsSecondValue(filter.operator)
+              ? filter.value_to
+              : null,
+        })
+      ),
+    });
+  }, [
+    data,
+    dataset,
+    activeFilters,
+    filterLogic,
+    onInspectionChange,
+  ]);
+
   function submitSearch() {
     setPage(1);
     setSearch(
@@ -160,6 +548,79 @@ function DataPreview({
   function clearSearch() {
     setSearchDraft("");
     setSearch("");
+    setPage(1);
+  }
+
+  function addFilter() {
+    const columns =
+      data?.columns ?? [];
+
+    if (columns.length === 0) {
+      return;
+    }
+
+    setFilters((previous) => [
+      ...previous,
+      newFilter(columns),
+    ]);
+    setPage(1);
+  }
+
+  function updateFilter(
+    id: string,
+    changes: Partial<PreviewFilter>,
+  ) {
+    setFilters((previous) =>
+      previous.map((filter) => {
+        if (filter.id !== id) {
+          return filter;
+        }
+
+        const updated = {
+          ...filter,
+          ...changes,
+        };
+
+        if (changes.column) {
+          const type =
+            data?.column_types[
+              changes.column
+            ];
+
+          const allowed =
+            operatorsForType(type);
+
+          if (
+            !allowed.includes(
+              updated.operator
+            )
+          ) {
+            updated.operator =
+              allowed[0];
+          }
+        }
+
+        return updated;
+      })
+    );
+    setPage(1);
+  }
+
+  function removeFilter(
+    id: string,
+  ) {
+    setFilters((previous) =>
+      previous.filter(
+        (filter) =>
+          filter.id !== id
+      )
+    );
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setFilters([]);
+    setFilterLogic("and");
     setPage(1);
   }
 
@@ -237,6 +698,205 @@ function DataPreview({
         )}
       </div>
 
+      {data && (
+        <div className="data-preview-filter-panel">
+          <div className="data-preview-filter-heading">
+            <div>
+              <strong>{ui.filters}</strong>
+              <span>{ui.readOnly}</span>
+            </div>
+
+            <div className="data-preview-filter-actions">
+              <button
+                type="button"
+                onClick={addFilter}
+              >
+                {ui.addFilter}
+              </button>
+
+              {filters.length > 0 && (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={clearFilters}
+                >
+                  {ui.clearFilters}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {filters.length > 1 && (
+            <label className="data-preview-filter-logic">
+              <span>{ui.filterLogic}</span>
+              <select
+                value={filterLogic}
+                onChange={(event) => {
+                  setFilterLogic(
+                    event.target.value as
+                      "and" | "or"
+                  );
+                  setPage(1);
+                }}
+              >
+                <option value="and">
+                  {ui.all}
+                </option>
+                <option value="or">
+                  {ui.any}
+                </option>
+              </select>
+            </label>
+          )}
+
+          {filters.map((filter) => {
+            const columnType =
+              data.column_types[
+                filter.column
+              ];
+            const operators =
+              operatorsForType(
+                columnType
+              );
+            const needsValue =
+              operatorNeedsValue(
+                filter.operator
+              );
+            const needsSecondValue =
+              operatorNeedsSecondValue(
+                filter.operator
+              );
+
+            return (
+              <div
+                className="data-preview-filter-row"
+                key={filter.id}
+              >
+                <select
+                  value={filter.column}
+                  onChange={(event) => {
+                    updateFilter(
+                      filter.id,
+                      {
+                        column:
+                          event.target.value,
+                      }
+                    );
+                  }}
+                >
+                  {data.columns.map(
+                    (column) => (
+                      <option
+                        key={column}
+                        value={column}
+                      >
+                        {column}
+                      </option>
+                    )
+                  )}
+                </select>
+
+                <select
+                  value={filter.operator}
+                  onChange={(event) => {
+                    updateFilter(
+                      filter.id,
+                      {
+                        operator:
+                          event.target.value as
+                            PreviewFilterOperator,
+                        value: "",
+                        value_to: "",
+                      }
+                    );
+                  }}
+                >
+                  {operators.map(
+                    (operator) => (
+                      <option
+                        key={operator}
+                        value={operator}
+                      >
+                        {
+                          OPERATOR_LABELS[
+                            language
+                          ][
+                            operator
+                          ]
+                        }
+                      </option>
+                    )
+                  )}
+                </select>
+
+                {needsValue && (
+                  <input
+                    type={
+                      columnType === "datetime"
+                        ? "date"
+                        : columnType === "number"
+                          ? "number"
+                          : "text"
+                    }
+                    value={filter.value}
+                    placeholder={
+                      filter.operator === "in" ||
+                      filter.operator === "not_in"
+                        ? "A, B, C"
+                        : ui.value
+                    }
+                    onChange={(event) => {
+                      updateFilter(
+                        filter.id,
+                        {
+                          value:
+                            event.target.value,
+                        }
+                      );
+                    }}
+                  />
+                )}
+
+                {needsSecondValue && (
+                  <input
+                    type={
+                      columnType === "datetime"
+                        ? "date"
+                        : "number"
+                    }
+                    value={filter.value_to}
+                    placeholder={ui.secondValue}
+                    onChange={(event) => {
+                      updateFilter(
+                        filter.id,
+                        {
+                          value_to:
+                            event.target.value,
+                        }
+                      );
+                    }}
+                  />
+                )}
+
+                <button
+                  type="button"
+                  className="data-preview-filter-remove"
+                  title={ui.remove}
+                  aria-label={ui.remove}
+                  onClick={() => {
+                    removeFilter(
+                      filter.id
+                    );
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {loading ? (
         <p className="muted">
           {ui.loading}
@@ -311,7 +971,7 @@ function DataPreview({
 
           {data.rows.length === 0 && (
             <p className="data-preview-empty">
-              No rows match this preview search.
+              {ui.empty}
             </p>
           )}
 
@@ -332,7 +992,7 @@ function DataPreview({
             </button>
 
             <span>
-              Showing up to {data.page_size} rows
+              {ui.showing} {data.page_size} {ui.rows}
             </span>
 
             <button

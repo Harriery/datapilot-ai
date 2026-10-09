@@ -53,6 +53,81 @@ def delete_workspace_data(
         )
 
 
+def get_workspace_data_dir(
+    workspace_id: str,
+) -> Path:
+    return _get_workspace_data_dir(
+        workspace_id
+    )
+
+
+def get_workspace_source_path(
+    workspace_id: str,
+) -> Path:
+    return (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+        / "source.csv"
+    )
+
+
+def get_workspace_silver_path(
+    workspace_id: str,
+) -> Path:
+    return (
+        _get_workspace_data_dir(
+            workspace_id
+        )
+        / "silver"
+        / "cleaned.parquet"
+    )
+
+
+def save_workspace_dataset_stream(
+    workspace_id: str,
+    source_file,
+    chunk_size: int = 1024 * 1024,
+) -> int:
+    """Stream upload to disk, then replace the source with bounded Windows retries."""
+    import os
+    import time
+    from uuid import uuid4
+
+    workspace_dir = _get_workspace_data_dir(workspace_id)
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    source_path = workspace_dir / "source.csv"
+    # Unique staging name: overlapping uploads must not overwrite each other's temp.
+    temporary_path = workspace_dir / f"source.{uuid4().hex}.tmp.csv"
+    total_bytes = 0
+
+    try:
+        with temporary_path.open("wb") as target:
+            while True:
+                chunk = source_file.read(chunk_size)
+                if not chunk:
+                    break
+                target.write(chunk)
+                total_bytes += len(chunk)
+
+        # Windows can temporarily deny replacement while a scanner or
+        # another process holds the existing file open. Do not delete it.
+        for attempt in range(5):
+            try:
+                os.replace(temporary_path, source_path)
+                return total_bytes
+            except PermissionError as exc:
+                if attempt == 4:
+                    raise PermissionError(
+                        "Cannot replace workspace source.csv: Windows denied "
+                        "access. Close programs using this workspace file "
+                        "and retry; the previous source.csv was preserved."
+                    ) from exc
+                time.sleep(0.3 * (attempt + 1))
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
 def save_workspace_dataset(
     workspace_id: str,
     content: bytes,
@@ -81,7 +156,9 @@ def save_workspace_dataset(
     # bu dosyaya yazmayacak.
     source_path.write_bytes(content)
 
-    # Junior'ın çalışacağı kopya.
+    # Legacy/small-data compatibility.
+    # Large-data ingestion overwrites this with a bounded
+    # development sample instead of duplicating the full source.
     working_path.write_bytes(content)
 
 

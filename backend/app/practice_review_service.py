@@ -70,6 +70,42 @@ def get_practice_attempt_assistance_level(
 # ==================================================
 
 
+def _practice_evidence_context(
+    challenge,
+) -> dict | None:
+    context = {
+        "stage": "practice",
+        "task_type": "practice_challenge",
+        "topic_id": challenge.topic_id,
+        "subtopic_id": challenge.subtopic_id,
+        "practice_mode": challenge.practice_mode,
+        "difficulty": challenge.difficulty,
+        "source_id": challenge.source_id,
+        "source_exercise_id": challenge.source_exercise_id,
+        "mastery_signals": challenge.mastery_signals,
+        "challenge_id": challenge.challenge_id,
+        "challenge_type": challenge.challenge_type,
+        "deterministic_validation": True,
+    }
+
+    meaningful = {
+        key: value
+        for key, value in context.items()
+        if value is not None
+    }
+
+    if (
+        challenge.topic_id is None
+        and challenge.subtopic_id is None
+        and challenge.practice_mode is None
+        and challenge.source_id is None
+        and challenge.source_exercise_id is None
+    ):
+        return None
+
+    return meaningful
+
+
 PRACTICE_EVIDENCE_TYPE_MAP = {
     "code": "application",
     "sql": "application",
@@ -96,6 +132,38 @@ def get_practice_evidence_type(
     )
 
 
+def _record_challenge_learning_evidence(
+    *,
+    learner_id: str,
+    challenge,
+    success: bool,
+    assistance_level: str,
+) -> str:
+    practice_context = (
+        _practice_evidence_context(
+            challenge
+        )
+    )
+
+    kwargs = {
+        "learner_id": learner_id,
+        "skill_name": challenge.skill_name,
+        "challenge_id": challenge.challenge_id,
+        "challenge_type": challenge.challenge_type,
+        "success": success,
+        "assistance_level": assistance_level,
+    }
+
+    if practice_context is not None:
+        kwargs["practice_context"] = (
+            practice_context
+        )
+
+    return record_practice_learning_evidence(
+        **kwargs
+    )
+
+
 def record_practice_learning_evidence(
     learner_id: str,
     skill_name: str,
@@ -103,6 +171,7 @@ def record_practice_learning_evidence(
     challenge_type: str,
     success: bool,
     assistance_level: str,
+    practice_context: dict | None = None,
 ) -> str:
     """
     Deterministic practice validation sonucunu
@@ -115,18 +184,27 @@ def record_practice_learning_evidence(
         challenge_type
     )
 
-    database.record_learning_evidence(
-        learner_id=learner_id,
-        skill_name=skill_name,
-        assistance_level=assistance_level,
-        success=success,
-        evidence_type=evidence_type,
-        note=(
+    evidence_kwargs = {
+        "learner_id": learner_id,
+        "skill_name": skill_name,
+        "assistance_level": assistance_level,
+        "success": success,
+        "evidence_type": evidence_type,
+        "note": (
             f"Practice challenge {challenge_id} "
             f"deterministic validation sonucu: "
             f"{'success' if success else 'failure'}."
         ),
-        session_id=None,
+        "session_id": None,
+    }
+
+    if practice_context is not None:
+        evidence_kwargs["context"] = (
+            practice_context
+        )
+
+    database.record_learning_evidence(
+        **evidence_kwargs
     )
 
     return refresh_skill_status(
@@ -211,11 +289,9 @@ def review_practice_attempt(
         )
 
         # Deterministic success artık learner progress'e yazılır.
-        record_practice_learning_evidence(
+        _record_challenge_learning_evidence(
             learner_id=attempt.learner_id,
-            skill_name=challenge.skill_name,
-            challenge_id=attempt.challenge_id,
-            challenge_type=challenge.challenge_type,
+            challenge=challenge,
             success=True,
             assistance_level=assistance_level,
         )
@@ -357,11 +433,9 @@ def review_practice_attempt(
         )
     )
 
-    record_practice_learning_evidence(
+    _record_challenge_learning_evidence(
         learner_id=attempt.learner_id,
-        skill_name=challenge.skill_name,
-        challenge_id=attempt.challenge_id,
-        challenge_type=challenge.challenge_type,
+        challenge=challenge,
         success=False,
         assistance_level=assistance_level,
     )

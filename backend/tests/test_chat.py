@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pytest
 import backend.app.database as database
 
@@ -63,14 +63,25 @@ def test_chat_returns_ai_response():
     create_response = client.post("/sessions")
     session_id = create_response.json()["session_id"]
 
+    mock_response = MagicMock()
+    mock_response.output_text = "Test AI cevabı"
+
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
         "backend.app.chat_routes.get_mentor_response_from_message",
         return_value=None,
     ), patch(
-        "backend.app.chat_routes.client.responses.create"
-    ) as mock_create:
-
-        mock_create.return_value.output_text = "Test AI cevabı"
+        "backend.app.chat_routes.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.chat_routes.guarded_responses_create",
+        return_value=mock_response,
+    ):
 
         response = client.post(
             "/chat",
@@ -98,14 +109,22 @@ def test_chat_returns_500_when_openai_fails():
     create_response = client.post("/sessions")
     session_id = create_response.json()["session_id"]
 
+    fake_runtime = MagicMock(
+        provider="groq",
+        model="test-model",
+        client=MagicMock(),
+    )
+
     with patch(
         "backend.app.chat_routes.get_mentor_response_from_message",
         return_value=None,
     ), patch(
-        "backend.app.chat_routes.client.responses.create"
-    ) as mock_create:
-    
-        mock_create.side_effect = Exception("Test hatası")
+        "backend.app.chat_routes.get_ai_runtime",
+        return_value=fake_runtime,
+    ), patch(
+        "backend.app.chat_routes.guarded_responses_create",
+        side_effect=Exception("Test hatası"),
+    ):
     
         response = client.post(
             "/chat",
@@ -271,3 +290,197 @@ def test_chat_rejects_session_from_another_workspace():
     assert response.json()["detail"] == (
         "Session bu workspace'e ait değil."
     )
+
+def test_ai_usage_reports_resolved_runtime_models(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "AI_FREE_ONLY",
+        "true",
+    )
+    monkeypatch.setenv(
+        "AI_FREE_PROVIDER_ALLOWLIST",
+        "groq",
+    )
+    monkeypatch.setenv(
+        "AI_ALLOW_PAID_PROVIDER",
+        "false",
+    )
+    monkeypatch.setenv(
+        "AI_MENTOR_PROVIDER",
+        "groq",
+    )
+    monkeypatch.setenv(
+        "AI_CLASSIFIER_PROVIDER",
+        "groq",
+    )
+    monkeypatch.setenv(
+        "AI_GROQ_MENTOR_MODEL",
+        "openai/gpt-oss-120b",
+    )
+    monkeypatch.setenv(
+        "AI_GROQ_CLASSIFIER_MODEL",
+        "openai/gpt-oss-20b",
+    )
+
+    response = client.get(
+        "/ai/usage"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["mentor_provider"] == "groq"
+    assert (
+        payload["mentor_model"]
+        == "openai/gpt-oss-120b"
+    )
+    assert payload["classifier_provider"] == "groq"
+    assert (
+        payload["classifier_model"]
+        == "openai/gpt-oss-20b"
+    )
+    assert payload["current_provider"] == "groq"
+    assert (
+        payload["current_model"]
+        == "openai/gpt-oss-120b"
+    )
+
+
+def test_chat_oversized_ai_request_returns_413_without_saving_message():
+    import httpx
+    from openai import APIStatusError
+
+    created = client.post("/sessions")
+    session_id = created.json()["session_id"]
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/responses")
+    error = APIStatusError(
+        "Request too large for the model",
+        response=httpx.Response(413, request=request),
+        body={"error": {"type": "tokens"}},
+    )
+    with patch(
+        "backend.app.chat_routes.get_mentor_response_from_message",
+        side_effect=error,
+    ):
+        response = client.post(
+            "/chat",
+            json={"session_id": session_id, "message": "Merhaba Mentor"},
+        )
+
+    assert response.status_code == 413
+    assert "token limit" in response.json()["detail"]
+    history = client.get(f"/chat/{session_id}/history").json()["messages"]
+    assert history == []
+
+
+def test_workspace_mentor_chat_enforces_discovery_preference():
+    database.insert_learner_profile(
+        learner_id="mentor-discovery",
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+    )
+    created = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "mentor-discovery",
+            "title": "Demo Dataset",
+            "workspace_type": "data_engineering",
+            "usage_context": "personal",
+            "task_brief": "Learn to inspect missing values.",
+        },
+    )
+    assert created.status_code == 200
+    workspace = created.json()
+    with patch(
+        "backend.app.chat_routes.get_mentor_response_from_message",
+        return_value=(
+            "Eksik değer oranları veri kalitesini etkileyebilir.\n\n"
+            "1. `df[col].isnull().mean()` ile hesapla.\n"
+            "2. Sonuçları sırala."
+        ),
+    ):
+        response = client.post(
+            "/chat",
+            json={
+                "session_id": workspace["mentor_session_id"],
+                "learner_id": "mentor-discovery",
+                "workspace_id": workspace["workspace_id"],
+                "message": "Bana açıklayıp çözümü doğrudan vermeden yönlendir.",
+            },
+        )
+
+    assert response.status_code == 200
+    reply = response.json()["reply"]
+    assert "df[col]" not in reply
+    assert reply.count("?") == 1
+    stored = client.get(
+        f'/chat/{workspace["mentor_session_id"]}/history'
+    ).json()["messages"]
+    assert stored[-1]["content"] == reply
+
+
+def test_verified_local_investigation_reply_skips_llm():
+    database.insert_learner_profile(
+        learner_id="local-evidence-learner",
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+    )
+    created = client.post(
+        "/workspaces",
+        json={
+            "learner_id": "local-evidence-learner",
+            "title": "Generic Analysis",
+            "workspace_type": "data_engineering",
+        },
+    )
+    assert created.status_code == 200
+    workspace = created.json()
+    verified = {
+        "status": "verified",
+        "evidence": {
+            "target_column": "optional",
+            "group_column": "status",
+            "total_rows": 4,
+            "total_missing": 3,
+            "groups": [
+                {
+                    "value": "0", "rows": 2,
+                    "missing_rows": 2, "present_rows": 0,
+                    "missing_pct": 100.0,
+                },
+                {
+                    "value": "1", "rows": 2,
+                    "missing_rows": 1, "present_rows": 1,
+                    "missing_pct": 50.0,
+                },
+            ],
+            "groups_truncated": False,
+            "business_rule_confirmed": False,
+        },
+    }
+    with patch(
+        "backend.app.chat_routes.dispatch_local_investigation",
+        return_value=verified,
+    ), patch(
+        "backend.app.chat_routes.get_mentor_response_from_message"
+    ) as mentor_ai:
+        response = client.post(
+            "/chat",
+            json={
+                "session_id": workspace["mentor_session_id"],
+                "learner_id": "local-evidence-learner",
+                "workspace_id": workspace["workspace_id"],
+                "message": "optional ile status ilişkisini local engine üzerinden incele",
+            },
+        )
+    assert response.status_code == 200, response.text
+    mentor_ai.assert_not_called()
+    reply = response.json()["reply"]
+    assert "2 eksik" in reply
+    assert "1 eksik" in reply
+    assert "henüz" in reply
+    assert "\\n" not in reply

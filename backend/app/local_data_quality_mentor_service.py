@@ -27,22 +27,17 @@ from backend.app.mentor_service import (
     refresh_skill_status,
 )
 
-
-LOCAL_ASSISTANCE_BY_SKILL_STATUS = {
-    "new": "GUIDE",
-    "learning": "GUIDE",
-    "practicing": "NUDGE",
-    "comfortable": "NONE",
-}
+from backend.app.mentor_orchestration_service import (
+    determine_assistance_level,
+)
 
 
 def get_local_assistance_level(
     skill_status: str,
 ) -> str:
 
-    return LOCAL_ASSISTANCE_BY_SKILL_STATUS.get(
-        skill_status,
-        "GUIDE",
+    return determine_assistance_level(
+        skill_status=skill_status,
     )
 
 

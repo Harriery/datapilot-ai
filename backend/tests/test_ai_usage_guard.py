@@ -121,3 +121,74 @@ def test_usage_status_marks_unconfigured_current_provider_as_blocked(
     assert status["current_provider_allowed"] is False
     assert status["usage_scope"] == "local_safety_budget"
     assert status["provider_quota_known"] is False
+
+
+
+def test_usage_status_reports_input_size_and_breakdown():
+    client = MagicMock()
+    client.responses.create.return_value = "ok"
+
+    guarded_responses_create(
+        client,
+        provider="test-free",
+        purpose="mentor_learning_phase",
+        model="small-model",
+        input="abcd" * 10,
+    )
+    guarded_responses_create(
+        client,
+        provider="test-free",
+        purpose="mentor_learning_reply",
+        model="small-model",
+        input="xy" * 10,
+    )
+
+    status = get_ai_usage_status()
+
+    assert status["daily_requests"] == 2
+    assert status["daily_input_chars"] > 0
+    assert status["estimated_daily_input_tokens"] > 0
+    assert (
+        status["token_estimate_method"]
+        == "input_chars_divided_by_4"
+    )
+
+    breakdown = status["today_by_model_purpose"]
+    assert len(breakdown) == 2
+    assert {
+        item["purpose"]
+        for item in breakdown
+    } == {
+        "mentor_learning_phase",
+        "mentor_learning_reply",
+    }
+    assert all(
+        item["model"] == "small-model"
+        for item in breakdown
+    )
+    assert all(
+        item["estimated_input_tokens"] > 0
+        for item in breakdown
+    )
+
+
+def test_usage_breakdown_does_not_store_prompt_content():
+    client = MagicMock()
+    client.responses.create.return_value = "ok"
+
+    secret_text = "do-not-expose-this-prompt"
+    guarded_responses_create(
+        client,
+        provider="test-free",
+        purpose="mentor",
+        model="test-model",
+        input=secret_text,
+    )
+
+    status = get_ai_usage_status()
+    serialized = __import__("json").dumps(
+        status,
+        ensure_ascii=False,
+    )
+
+    assert secret_text not in serialized

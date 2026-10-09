@@ -23,6 +23,10 @@ from backend.app.practice_service import (
     validate_practice_attempt,
     get_python_data_structure_variant,
     get_next_practice_hint,
+    get_practice_focus_misconception,
+)
+from backend.app.practice_catalog_service import (
+    get_practice_catalog,
 )
 
 def test_get_practice_difficulty_for_new_skill():
@@ -995,3 +999,232 @@ def test_get_next_practice_hint_makes_solution_available_after_all_hints():
         learner_id="learner-001",
         hint_level=3,
     )
+
+
+def test_practice_v2_catalog_exposes_topic_paths():
+    catalog = get_practice_catalog(
+        learner_id="learner-001"
+    )
+
+    topic_ids = {
+        topic.topic_id
+        for topic in catalog.topics
+    }
+
+    assert {
+        "python",
+        "sql",
+        "data_cleaning_transform",
+        "data_modeling",
+        "data_engineering",
+    }.issubset(topic_ids)
+
+    python_topic = next(
+        topic
+        for topic in catalog.topics
+        if topic.topic_id == "python"
+    )
+
+    assert python_topic.difficulties == [
+        "easy",
+        "medium",
+        "hard",
+    ]
+    assert "theory" in python_topic.modes
+    assert "code" in python_topic.modes
+    assert python_topic.mastery_policy == "evidence_based"
+    assert "concept_coverage" in python_topic.mastery_signals
+    assert "correct_application" in python_topic.mastery_signals
+    assert "transfer_to_new_context" in python_topic.mastery_signals
+    assert "independent_completion" in python_topic.mastery_signals
+    assert python_topic.mini_project_target == 4
+
+
+def test_practice_v2_catalog_keeps_external_sources_on_demand():
+    catalog = get_practice_catalog(
+        learner_id="learner-001"
+    )
+
+    sources = {
+        source.source_id: source
+        for source in catalog.sources
+    }
+
+    assert (
+        sources["exercism-python"].delivery
+        == "on_demand"
+    )
+    assert (
+        sources["pandas-exercises"].delivery
+        == "on_demand"
+    )
+    assert (
+        sources["100-pandas-puzzles"].delivery
+        == "on_demand"
+    )
+
+    assert (
+        sources["sql-practice-reference"].delivery
+        == "metadata_only"
+    )
+    assert (
+        sources["de-zoomcamp-reference"].delivery
+        == "metadata_only"
+    )
+
+
+def test_practice_v2_catalog_marks_license_restrictions_explicitly():
+    catalog = get_practice_catalog(
+        learner_id="learner-001"
+    )
+
+    sources = {
+        source.source_id: source
+        for source in catalog.sources
+    }
+
+    assert (
+        sources["exercism-python"].license
+        == "MIT"
+    )
+    assert (
+        sources["pandas-exercises"].license
+        == "BSD-3-Clause"
+    )
+    assert (
+        sources["100-pandas-puzzles"].license
+        == "MIT"
+    )
+    assert (
+        sources["sql-practice-reference"].import_policy
+        == "reference_only_copyleft_review"
+    )
+    assert (
+        sources["de-zoomcamp-reference"].import_policy
+        == "reference_only_pending_license_review"
+    )
+
+
+def test_practice_v2_catalog_has_no_fixed_question_quota():
+    catalog = get_practice_catalog(
+        learner_id="learner-001"
+    )
+
+    assert "15 successful exercises" not in (
+        catalog.level_completion_rule
+    )
+    assert "not a fixed quota" in (
+        catalog.level_completion_rule
+    )
+
+    for topic in catalog.topics:
+        assert not hasattr(
+            topic,
+            "level_target",
+        )
+        assert not hasattr(
+            topic,
+            "theory_target",
+        )
+        assert not hasattr(
+            topic,
+            "applied_target",
+        )
+
+
+def test_practice_focus_uses_most_frequent_misconception():
+    evidence = [
+        {"context_json": '{"misconception":"filter_scope_confusion"}'},
+        {"context_json": '{"misconception":"dataset_context_confusion"}'},
+        {"context_json": '{"misconception":"filter_scope_confusion"}'},
+    ]
+    with patch(
+        "backend.app.practice_service.database.get_learning_evidence_by_skill",
+        return_value=evidence,
+    ):
+        result = get_practice_focus_misconception(
+            learner_id="learner-001",
+            skill_name="null_analysis",
+        )
+    assert result == "filter_scope_confusion"
+
+
+def test_null_analysis_practice_targets_filter_scope_confusion():
+    recommendation = PracticeRecommendationResponse(
+        learner_id="learner-001",
+        recommendation=PracticeRecommendation(
+            skill_name="null_analysis",
+            priority="high",
+            difficulty="easy",
+            reason="Repeated filter scope confusion.",
+        ),
+    )
+    progress = LearnerProgressResponse(
+        learner_id="learner-001",
+        skills=[
+            LearnerSkillProgress(
+                skill_name="null_analysis",
+                status="learning",
+                attempts=2,
+                successful_attempts=1,
+                success_rate=0.5,
+                last_assistance_level="GUIDE",
+                independence_trend="stable",
+                practice_priority="high",
+                misconceptions=["filter_scope_confusion"],
+            )
+        ],
+    )
+    with patch(
+        "backend.app.practice_service.get_practice_recommendation",
+        return_value=recommendation,
+    ), patch(
+        "backend.app.practice_service.get_practice_focus_misconception",
+        return_value="filter_scope_confusion",
+    ), patch(
+        "backend.app.practice_service.get_learner_progress",
+        return_value=progress,
+    ), patch(
+        "backend.app.practice_service.database.save_practice_challenge",
+    ) as mock_save:
+        result = create_practice_challenge(
+            learner_id="learner-001"
+        )
+    assert result.challenge.challenge_type == "code"
+    assert "Tüm dataset üzerinde sayım yapma" in result.challenge.instructions
+    record = mock_save.call_args.kwargs["record"]
+    assert record.validation_spec.validation_type == "exact_output"
+    assert record.validation_spec.expected_output == "2"
+
+
+def test_null_analysis_practice_targets_dataset_context_confusion():
+    recommendation = PracticeRecommendationResponse(
+        learner_id="learner-001",
+        recommendation=PracticeRecommendation(
+            skill_name="null_analysis",
+            priority="high",
+            difficulty="easy",
+            reason="Repeated dataset context confusion.",
+        ),
+    )
+    progress = LearnerProgressResponse(
+        learner_id="learner-001",
+        skills=[],
+    )
+    with patch(
+        "backend.app.practice_service.get_practice_recommendation",
+        return_value=recommendation,
+    ), patch(
+        "backend.app.practice_service.get_practice_focus_misconception",
+        return_value="dataset_context_confusion",
+    ), patch(
+        "backend.app.practice_service.get_learner_progress",
+        return_value=progress,
+    ), patch(
+        "backend.app.practice_service.database.save_practice_challenge",
+    ):
+        result = create_practice_challenge(
+            learner_id="learner-001"
+        )
+    assert "Raw ve working" in result.challenge.title
+    assert "raw_records" in (result.challenge.context_code or "")

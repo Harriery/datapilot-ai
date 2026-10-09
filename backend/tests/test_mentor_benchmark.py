@@ -311,7 +311,7 @@ def test_orchestrator_increases_help_for_explicit_beginner_request():
         if item["id"] == "mentor_help_request_beginner"
     )
 
-    assert determine_orchestrated_assistance(scenario) == "GUIDE"
+    assert determine_orchestrated_assistance(scenario) == "TEACH"
 
 
 def test_orchestrator_increases_help_for_repeated_misconception():
@@ -433,12 +433,7 @@ def test_benchmark_provider_does_not_retry_unrelated_error():
     import pytest
 
     class FakeOtherError(Exception):
-        status_code = 429
-        body = {
-            "error": {
-                "code": "rate_limit_exceeded",
-            }
-        }
+        status_code = 500
 
     with patch(
         "backend.benchmarks.mentor_benchmark_provider."
@@ -447,7 +442,7 @@ def test_benchmark_provider_does_not_retry_unrelated_error():
     ), patch(
         "backend.benchmarks.mentor_benchmark_provider."
         "guarded_responses_parse",
-        side_effect=FakeOtherError("rate limited"),
+        side_effect=FakeOtherError("server error"),
     ) as mock_parse:
         with pytest.raises(FakeOtherError):
             _generate_openai_compatible_structured(
@@ -516,3 +511,97 @@ def test_benchmark_provider_retries_groq_json_validation_failure_once():
         mock_parse.call_args_list[1].kwargs["purpose"]
         == "judge_parse_retry"
     )
+
+
+
+def test_benchmark_provider_retries_transient_groq_rate_limit_once():
+    from backend.benchmarks.mentor_benchmark_provider import (
+        _generate_openai_compatible_structured,
+    )
+
+    class FakeRateLimitError(Exception):
+        status_code = 429
+        body = {
+            "error": {
+                "code": "rate_limit_exceeded",
+            }
+        }
+
+    parsed = CandidateResponse(
+        is_evidence=True,
+        success=True,
+        misconception=None,
+        mentor_reply="Kısa cevap.",
+    )
+    response = MagicMock()
+    response.output_parsed = parsed
+
+    with patch(
+        "backend.benchmarks.mentor_benchmark_provider."
+        "_openai_compatible_client",
+        return_value=MagicMock(),
+    ), patch(
+        "backend.benchmarks.mentor_benchmark_provider."
+        "guarded_responses_parse",
+        side_effect=[
+            FakeRateLimitError(
+                "Rate limit reached. Please try again in 1.25s."
+            ),
+            response,
+        ],
+    ) as mock_parse, patch(
+        "backend.benchmarks.mentor_benchmark_provider.sleep",
+    ) as mock_sleep:
+        result = _generate_openai_compatible_structured(
+            provider="groq",
+            model="openai/gpt-oss-20b",
+            purpose="judge",
+            instructions="instructions",
+            input_text="input",
+            text_format=CandidateResponse,
+        )
+
+    assert result == parsed
+    assert mock_parse.call_count == 2
+    assert (
+        mock_parse.call_args_list[1].kwargs["purpose"]
+        == "judge_rate_limit_retry"
+    )
+    mock_sleep.assert_called_once_with(1.5)
+
+
+def test_shared_orchestration_matches_benchmark_rules():
+    from backend.app.mentor_orchestration_service import (
+        determine_assistance_level,
+        determine_next_learning_phase,
+    )
+
+    assert determine_assistance_level(
+        skill_status="new",
+    ) == "GUIDE"
+    assert determine_assistance_level(
+        skill_status="practicing",
+    ) == "NUDGE"
+    assert determine_assistance_level(
+        skill_status="comfortable",
+    ) == "NONE"
+    assert determine_assistance_level(
+        skill_status="comfortable",
+        learner_message="Bilmiyorum, adım adım anlatır mısın?",
+    ) == "TEACH"
+
+    assert determine_next_learning_phase(
+        current_phase="reason",
+        is_evidence=True,
+        success=True,
+    ) == "decide"
+    assert determine_next_learning_phase(
+        current_phase="reason",
+        is_evidence=True,
+        success=False,
+    ) == "reason"
+    assert determine_next_learning_phase(
+        current_phase="explain",
+        is_evidence=True,
+        success=True,
+    ) == "completed"

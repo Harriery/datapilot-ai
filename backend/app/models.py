@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Bu dosya, API içinde kullanılan veri modellerini içerir.
 
@@ -199,6 +201,9 @@ class LearningEvidenceDecision(BaseModel):
     # AI'nın kısa açıklaması
     note: str | None = None
 
+    # Reusable conceptual error when one is confidently identifiable.
+    misconception: str | None = None
+
 class LearningEvidenceContext(BaseModel):
     """
     Learning Evidence V2 context.
@@ -244,6 +249,13 @@ class PrepareLearningPhaseEvaluation(BaseModel):
 
     note: str | None = None
     misconception: str | None = None
+
+
+class PrepareMentorReply(BaseModel):
+    mentor_reply: str = Field(
+        min_length=1,
+        max_length=600,
+    )
 
 
 class DataQualityFinding(BaseModel):
@@ -630,6 +642,12 @@ class WorkspaceDataPreviewResponse(BaseModel):
     ]
 
     columns: list[str]
+    column_types: dict[str, Literal[
+        "text",
+        "number",
+        "datetime",
+        "boolean",
+    ]] = Field(default_factory=dict)
 
     total_row_count: int
     filtered_row_count: int
@@ -681,6 +699,7 @@ class WorkspaceValidationCheck(BaseModel):
         "dataset_integrity",
         "schema_preserved",
         "pipeline_replay",
+        "full_data_preflight",
         "duplicate_rows",
         "missing_values",
     ] | None = None
@@ -1541,11 +1560,12 @@ class WorkspaceWorkbenchTransformationResponse(BaseModel):
 class WorkspaceDevelopmentSampleRequest(BaseModel):
     sample_size: int = Field(
         ge=1,
-        le=5000,
+        le=20000,
     )
 
     strategy: Literal[
         "random",
+        "smart",
     ] = "random"
 
     random_seed: int = 42
@@ -1559,11 +1579,49 @@ class WorkspaceDevelopmentSampleResponse(BaseModel):
 
     strategy: Literal[
         "random",
+        "smart",
     ]
 
     random_seed: int
 
     sampled: bool
+
+
+class WorkspaceSmartSamplingRequest(BaseModel):
+    candidate_sizes: list[int] = Field(
+        default_factory=lambda: [
+            5000,
+            10000,
+            20000,
+        ],
+        min_length=1,
+        max_length=3,
+    )
+
+    random_seed: int = 42
+
+
+class WorkspaceSmartSamplingResponse(BaseModel):
+    source_row_count: int
+    selected_size: int
+    selected_strategy: str
+    candidate_evaluations: list[dict] = Field(
+        default_factory=list
+    )
+    selected_evaluation: dict | None = None
+    threshold: float
+    rare_coverage_threshold: float | None = None
+    reason: str
+    full_data_preflight_required: bool = True
+
+
+class WorkspaceFullDataPreflightResponse(BaseModel):
+    passed: bool
+    source_row_count: int
+    checks: list[dict] = Field(
+        default_factory=list
+    )
+    engine: Literal["duckdb"] = "duckdb"
 
 
 class WorkspaceFullPipelineResponse(BaseModel):
@@ -1585,6 +1643,8 @@ class WorkspaceNotebookCell(BaseModel):
 
     cell_type: Literal[
         "python",
+        "sql",
+        "markdown",
     ] = "python"
 
     # Optional user-defined notebook section. Existing notebooks remain
@@ -1705,6 +1765,17 @@ class WorkspaceProcessedDataset(BaseModel):
     ] = "working_snapshot"
 
 
+class WorkspaceLearningLoopMessage(BaseModel):
+    role: Literal[
+        "user",
+        "assistant",
+    ]
+    content: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+
+
 class WorkspaceLearningLoop(BaseModel):
     loop_id: str
 
@@ -1758,6 +1829,29 @@ class WorkspaceLearningLoop(BaseModel):
         default_factory=dict
     )
 
+    # Mentor V2 keeps the current evidence-gathering subtask stable across
+    # turns. This prevents the LLM from switching comparison columns or
+    # restarting an investigation when the learner asks how to continue.
+    active_investigation: dict = Field(
+        default_factory=dict
+    )
+
+    # Mentor V3 project/issue supervisor snapshot. This stores only bounded
+    # control state; raw data and large outputs remain outside the model.
+    supervisor_state: dict = Field(
+        default_factory=dict
+    )
+
+    # Deterministic Mentor workflow state. The learner's wording never sets
+    # this value; trusted phase/execution state does.
+    workflow_state: str | None = None
+
+    # Persisted Guided Learning conversation. This remains UI/history state;
+    # only a bounded recent slice may be sent to AI.
+    message_history: list[
+        WorkspaceLearningLoopMessage
+    ] = Field(default_factory=list)
+
 
 class WorkspaceLearningLoopResponse(BaseModel):
     loop: WorkspaceLearningLoop
@@ -1768,6 +1862,16 @@ class WorkspaceLearningLoopResponseRequest(BaseModel):
     response: str = Field(
         min_length=1,
         max_length=4000,
+    )
+
+    # Guided Learning receives the same current UI state as Mentor Chat.
+    # The learning-loop service allowlists the fields before AI use.
+    ui_context: dict | None = None
+
+    # Bounded recent Guided Learning turns prevent the mentor from repeating
+    # an action the learner has already completed.
+    learning_history: list[dict] = Field(
+        default_factory=list
     )
 
 
@@ -1782,6 +1886,13 @@ class WorkspaceLearningLoopReviewResponse(BaseModel):
         "TEACH",
         "DEMONSTRATE",
     ]
+
+
+class ProjectMentorSetup(BaseModel):
+    intent: Literal["learning", "practice", "portfolio", "work"] = "learning"
+    experience_level: Literal["beginner", "intermediate", "advanced"] = "beginner"
+    approach: Literal["guided", "balanced", "direct"] = "guided"
+    learning_focus: list[Literal["python", "sql", "cleaning", "pipelines", "modeling", "quality", "bi"]] = Field(default_factory=list)
 
 
 class Workspace(BaseModel):
@@ -1829,6 +1940,8 @@ class Workspace(BaseModel):
         "portfolio",
     ] | None = None
 
+    mentor_setup: ProjectMentorSetup | None = None
+
     project_deliverables: list[
         ProjectDeliverable
     ] = Field(default_factory=list)
@@ -1870,6 +1983,9 @@ class Workspace(BaseModel):
         PersonalProjectDataModelStudio | None
     ) = None
 
+    # Verified, compact backend action history for zero-LLM mentoring.
+    action_evidence_events: list[dict] = Field(default_factory=list)
+
     workbench_operations: list[
         WorkspaceWorkbenchOperation
     ] = Field(default_factory=list)
@@ -1900,6 +2016,7 @@ class Workspace(BaseModel):
 
     development_sample_strategy: Literal[
         "random",
+        "smart",
     ] | None = None
 
     development_sample_seed: int | None = None
@@ -1907,6 +2024,24 @@ class Workspace(BaseModel):
     development_sample_row_count: int | None = None
 
     development_sample_enabled: bool = False
+
+    # Large-data execution metadata. Raw/source remains immutable,
+    # the active development sample stays bounded, and full-data
+    # results are materialized separately as Silver parquet.
+    dataset_storage_mode: Literal[
+        "legacy_csv",
+        "duckdb",
+    ] = "legacy_csv"
+
+    dataset_source_bytes: int | None = None
+
+    full_data_profile: dict | None = None
+
+    smart_sampling_report: dict | None = None
+
+    full_data_preflight: dict | None = None
+
+    silver_dataset_path: str | None = None
 
     processed_datasets: list[
         WorkspaceProcessedDataset
@@ -2131,8 +2266,515 @@ class LearnerProgressResponse(BaseModel):
 
 
 # ==================================================
+# LEARNER JOURNAL / RESUME STATE
+# ==================================================
+
+class LearnerResumePayload(BaseModel):
+    topic_id: str | None = None
+    subtopic_id: str | None = None
+    practice_mode: str | None = None
+    difficulty: str | None = None
+    source_id: str | None = None
+    source_exercise_id: str | None = None
+
+    workspace_id: str | None = None
+    stage: str | None = None
+    current_view: str | None = None
+
+    metadata: dict = Field(
+        default_factory=dict
+    )
+
+
+class LearnerResumeStateUpsertRequest(BaseModel):
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str = Field(
+        min_length=1,
+        max_length=240,
+    )
+    state: LearnerResumePayload
+
+
+class LearnerResumeState(BaseModel):
+    learner_id: str
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str
+    state: LearnerResumePayload
+    updated_at: str | None = None
+
+
+class LearnerNoteCreateRequest(BaseModel):
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str = Field(
+        min_length=1,
+        max_length=240,
+    )
+    title: str | None = Field(
+        default=None,
+        max_length=120,
+    )
+    body: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+    source_exercise_id: str | None = None
+
+
+class LearnerNoteUpdateRequest(BaseModel):
+    title: str | None = Field(
+        default=None,
+        max_length=120,
+    )
+    body: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=4000,
+    )
+
+
+class LearnerNote(BaseModel):
+    note_id: str
+    learner_id: str
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str
+    title: str | None = None
+    body: str
+    source_exercise_id: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class LearnerJournalResponse(BaseModel):
+    learner_id: str
+    context_type: Literal[
+        "practice",
+        "workspace",
+    ]
+    context_key: str
+    resume_state: LearnerResumeState | None = None
+    notes: list[LearnerNote] = Field(
+        default_factory=list
+    )
+
+
+# ==================================================
 # PRACTICE SYSTEM
 # ==================================================
+
+# ==================================================
+# PRACTICE V2 CATALOG
+# ==================================================
+
+class PracticeSourceDescriptor(BaseModel):
+    source_id: str
+    name: str
+    repository: str
+    license: str
+    import_policy: Literal[
+        "allowed_with_attribution",
+        "reference_only_copyleft_review",
+        "reference_only_pending_license_review",
+    ]
+    delivery: Literal[
+        "on_demand",
+        "metadata_only",
+    ]
+    topics: list[str] = Field(
+        default_factory=list
+    )
+
+
+class PracticeTopicDescriptor(BaseModel):
+    topic_id: str
+    title: str
+    description: str
+
+    modes: list[
+        Literal[
+            "theory",
+            "code",
+            "sql",
+            "transformation",
+            "design",
+            "project",
+            "mixed",
+        ]
+    ]
+
+    difficulties: list[
+        Literal[
+            "easy",
+            "medium",
+            "hard",
+        ]
+    ]
+
+    subtopics: list[str] = Field(
+        default_factory=list
+    )
+
+    mastery_policy: Literal[
+        "evidence_based",
+    ] = "evidence_based"
+
+    mastery_signals: list[str] = Field(
+        default_factory=list
+    )
+
+    mini_project_target: int = Field(
+        ge=0
+    )
+
+    source_ids: list[str] = Field(
+        default_factory=list
+    )
+
+
+class PracticeExerciseSourceItem(BaseModel):
+    source_id: str
+    source_exercise_id: str
+    title: str
+    source_difficulty: int = Field(
+        ge=1
+    )
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    practices: list[str] = Field(
+        default_factory=list
+    )
+    prerequisites: list[str] = Field(
+        default_factory=list
+    )
+    mastery_signals: list[
+        Literal[
+            "concept_coverage",
+            "correct_application",
+            "transfer_to_new_context",
+        ]
+    ] = Field(default_factory=list)
+    attribution: str
+
+
+class PracticeExerciseSourceResponse(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    source_id: str
+    exercises: list[
+        PracticeExerciseSourceItem
+    ]
+
+
+class PracticeExerciseProgressState(BaseModel):
+    source_exercise_id: str
+    attempts: int = Field(ge=0)
+    client_passes: int = Field(ge=0)
+    client_failures: int = Field(ge=0)
+    last_client_success: bool | None = None
+
+
+class PracticeNextExerciseResponse(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    source_id: str
+    status: Literal[
+        "new",
+        "resume",
+        "next",
+        "cycle_complete",
+    ]
+    exercise: PracticeExerciseSourceItem | None = None
+    progress: list[
+        PracticeExerciseProgressState
+    ] = Field(default_factory=list)
+    completed_exercise_count: int = Field(ge=0)
+    available_exercise_count: int = Field(ge=0)
+
+
+class PracticeTheoryConceptItem(BaseModel):
+    source_id: str
+    concept_id: str
+    title: str
+    source_path: str
+    attribution: str
+
+
+class PracticeTheoryConceptResponse(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    source_id: str
+    concepts: list[
+        PracticeTheoryConceptItem
+    ]
+
+
+class PracticeTheoryCheckGenerated(BaseModel):
+    question: str = Field(
+        min_length=10,
+        max_length=500,
+    )
+    options: list[str] = Field(
+        min_length=3,
+        max_length=4,
+    )
+    correct_index: int = Field(
+        ge=0,
+        le=3,
+    )
+    explanation: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+
+class PracticeTheoryCheckCreateRequest(BaseModel):
+    learner_id: str
+    subtopic_id: str
+    concept_id: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    language: Literal[
+        "en",
+        "tr",
+        "nl",
+    ] = "en"
+
+
+class PracticeTheoryCheckResponse(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    concept_id: str
+    challenge: PracticeChallenge
+    attribution: str
+
+
+class PracticeTheoryAnswerRequest(BaseModel):
+    learner_id: str
+    challenge_id: str
+    answer: str
+
+
+class PracticeTheoryAnswerResponse(BaseModel):
+    learner_id: str
+    challenge_id: str
+    concept_id: str
+    success: bool
+    feedback: str
+    mastery: PracticeMasterySummary
+
+
+class PracticeTheoryConceptContent(BaseModel):
+    learner_id: str
+    source_id: str
+    concept_id: str
+    title: str
+    source_path: str
+    source_text: str
+    attribution: str
+    content_hash: str
+    cached: bool = False
+
+
+class PracticeExerciseContentResponse(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    title: str
+    instructions: str
+    solution_filename: str | None = None
+    starter_code: str | None = None
+    attribution: str
+    source_revision: str | None = None
+    content_hash: str
+    cached: bool = False
+
+
+class PracticeValidationSourceFile(BaseModel):
+    path: str
+    content: str
+
+
+class PracticeTranslationRequest(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    content_hash: str
+    target_language: Literal[
+        "tr",
+        "nl",
+    ]
+    source_text: str = Field(
+        min_length=1,
+        max_length=30000,
+    )
+
+
+class PracticeTranslationResponse(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    content_hash: str
+    target_language: Literal[
+        "tr",
+        "nl",
+    ]
+    translated_text: str
+    provider: str
+    model: str
+    cached: bool = False
+
+
+class PracticeExerciseValidationBundle(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    solution_filename: str
+    test_files: list[
+        PracticeValidationSourceFile
+    ]
+    attribution: str
+    source_revision: str | None = None
+    content_hash: str
+    cached: bool = False
+
+
+class ExternalPracticeValidationEventRequest(BaseModel):
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    content_hash: str
+    validation_bundle_hash: str
+    client_reported_success: bool
+    tests_run: int = Field(
+        ge=0,
+        le=500,
+    )
+    answer: str = Field(
+        max_length=50000
+    )
+
+
+class ExternalPracticeValidationEvent(BaseModel):
+    event_id: str
+    learner_id: str
+    source_id: str
+    source_exercise_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    content_hash: str
+    validation_bundle_hash: str
+    solution_hash: str
+    client_reported_success: bool
+    tests_run: int
+    trust_level: Literal[
+        "client_sandbox",
+    ] = "client_sandbox"
+    created_at: str | None = None
+
+
+class PracticeMasterySignalState(BaseModel):
+    signal: Literal[
+        "concept_coverage",
+        "correct_application",
+        "transfer_to_new_context",
+        "independent_completion",
+    ]
+    demonstrated: bool
+    evidence_count: int = Field(
+        ge=0
+    )
+
+
+class PracticeMasterySummary(BaseModel):
+    learner_id: str
+    topic_id: str
+    subtopic_id: str
+    practice_mode: str
+    difficulty: Literal[
+        "easy",
+        "medium",
+        "hard",
+    ]
+    status: Literal[
+        "not_started",
+        "building",
+        "demonstrated",
+    ]
+    signals: list[
+        PracticeMasterySignalState
+    ]
+    successful_evidence_count: int = Field(
+        ge=0
+    )
+    independent_success_count: int = Field(
+        ge=0
+    )
+
+
+class PracticeCatalogResponse(BaseModel):
+    learner_id: str
+    level_completion_rule: str
+    project_unlock_rule: str
+    topics: list[
+        PracticeTopicDescriptor
+    ]
+    sources: list[
+        PracticeSourceDescriptor
+    ]
+
+
 
 # PracticeRecommendation:
 #
@@ -2185,6 +2827,29 @@ class PracticeChallenge(BaseModel):
     challenge_id: str
 
     skill_name: str
+
+    # Practice V2 path metadata. Optional fields keep legacy
+    # adaptive challenges backward compatible.
+    topic_id: str | None = None
+    subtopic_id: str | None = None
+    practice_mode: Literal[
+        "theory",
+        "code",
+        "sql",
+        "transformation",
+        "design",
+        "project",
+        "mixed",
+    ] | None = None
+    source_id: str | None = None
+    source_exercise_id: str | None = None
+    mastery_signals: list[
+        Literal[
+            "concept_coverage",
+            "correct_application",
+            "transfer_to_new_context",
+        ]
+    ] = Field(default_factory=list)
 
     difficulty: Literal[
         "foundation",
@@ -2593,6 +3258,7 @@ class WorkspaceCreateRequest(BaseModel):
         "unknown",
     ] | None = None
 
+    mentor_setup: ProjectMentorSetup | None = None
     task_brief: str | None = None
     desired_outcome: str | None = None
 

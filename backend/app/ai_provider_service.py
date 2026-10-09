@@ -14,11 +14,21 @@ from backend.app.ai_usage_guard import (
 AIRole = Literal[
     "mentor",
     "classifier",
+    "guided_evaluator",
+    "guided_tutor",
+    "translator",
+    "practice_generator",
 ]
 
 
 class AIProviderConfigurationError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class AIRuntimeConfig:
+    provider: str
+    model: str
 
 
 @dataclass(frozen=True)
@@ -50,6 +60,44 @@ def _configured_provider(
                 "groq",
             ),
         )
+    elif role in {
+        "guided_evaluator",
+        "guided_tutor",
+    }:
+        env_name = (
+            "AI_GUIDED_EVALUATOR_PROVIDER"
+            if role == "guided_evaluator"
+            else "AI_GUIDED_TUTOR_PROVIDER"
+        )
+        value = os.getenv(
+            env_name,
+            os.getenv(
+                "AI_CLASSIFIER_PROVIDER",
+                os.getenv(
+                    "AI_MENTOR_PROVIDER",
+                    "groq",
+                ),
+            ),
+        )
+    elif role in {
+        "translator",
+        "practice_generator",
+    }:
+        env_name = (
+            "AI_TRANSLATOR_PROVIDER"
+            if role == "translator"
+            else "AI_PRACTICE_GENERATOR_PROVIDER"
+        )
+        value = os.getenv(
+            env_name,
+            os.getenv(
+                "AI_CLASSIFIER_PROVIDER",
+                os.getenv(
+                    "AI_MENTOR_PROVIDER",
+                    "groq",
+                ),
+            ),
+        )
     else:
         value = os.getenv(
             "AI_MENTOR_PROVIDER",
@@ -69,6 +117,40 @@ def _configured_model(
             return (
                 os.getenv(
                     "AI_GROQ_CLASSIFIER_MODEL",
+                    "openai/gpt-oss-120b",
+                ).strip()
+                or "openai/gpt-oss-120b"
+            )
+
+        if role in {
+            "guided_evaluator",
+            "guided_tutor",
+        }:
+            env_name = (
+                "AI_GROQ_GUIDED_EVALUATOR_MODEL"
+                if role == "guided_evaluator"
+                else "AI_GROQ_GUIDED_TUTOR_MODEL"
+            )
+            return (
+                os.getenv(
+                    env_name,
+                    "openai/gpt-oss-20b",
+                ).strip()
+                or "openai/gpt-oss-20b"
+            )
+
+        if role in {
+            "translator",
+            "practice_generator",
+        }:
+            env_name = (
+                "AI_GROQ_TRANSLATOR_MODEL"
+                if role == "translator"
+                else "AI_GROQ_PRACTICE_GENERATOR_MODEL"
+            )
+            return (
+                os.getenv(
+                    env_name,
                     "openai/gpt-oss-20b",
                 ).strip()
                 or "openai/gpt-oss-20b"
@@ -86,6 +168,26 @@ def _configured_model(
         return (
             os.getenv(
                 "AI_CLASSIFIER_MODEL",
+                os.getenv(
+                    "AI_MENTOR_MODEL",
+                    "gpt-5-mini",
+                ),
+            ).strip()
+            or "gpt-5-mini"
+        )
+
+    if role in {
+        "guided_evaluator",
+        "guided_tutor",
+    }:
+        env_name = (
+            "AI_GUIDED_EVALUATOR_MODEL"
+            if role == "guided_evaluator"
+            else "AI_GUIDED_TUTOR_MODEL"
+        )
+        return (
+            os.getenv(
+                env_name,
                 os.getenv(
                     "AI_MENTOR_MODEL",
                     "gpt-5-mini",
@@ -167,17 +269,30 @@ def _resolve_provider(
     )
 
 
-def get_ai_runtime(
+def get_ai_runtime_config(
     role: AIRole = "mentor",
-) -> AIRuntime:
+) -> AIRuntimeConfig:
     provider = _resolve_provider(
         role
     )
-
     model = _configured_model(
         provider=provider,
         role=role,
     )
+    return AIRuntimeConfig(
+        provider=provider,
+        model=model,
+    )
+
+
+def get_ai_runtime(
+    role: AIRole = "mentor",
+) -> AIRuntime:
+    runtime_config = get_ai_runtime_config(
+        role
+    )
+    provider = runtime_config.provider
+    model = runtime_config.model
 
     if provider == "groq":
         return AIRuntime(

@@ -17,6 +17,10 @@ from backend.app.models import (
     PracticeMicroCheckValidation,
     PracticeValidationSpec,
     PracticeSupportSpec,
+    LearnerResumePayload,
+    LearnerResumeState,
+    LearnerNote,
+    ExternalPracticeValidationEvent,
     Workspace,
 )
 
@@ -275,6 +279,70 @@ def init_db():
         )
 
     
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS learner_resume_states (
+            learner_id TEXT NOT NULL,
+            context_type TEXT NOT NULL,
+            context_key TEXT NOT NULL,
+            state_json TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (
+                learner_id,
+                context_type,
+                context_key
+            ),
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS external_practice_validation_events (
+            event_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            source_exercise_id TEXT NOT NULL,
+            topic_id TEXT NOT NULL,
+            subtopic_id TEXT NOT NULL,
+            practice_mode TEXT NOT NULL,
+            difficulty TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            validation_bundle_hash TEXT NOT NULL,
+            solution_hash TEXT NOT NULL,
+            client_reported_success INTEGER NOT NULL,
+            tests_run INTEGER NOT NULL,
+            trust_level TEXT NOT NULL DEFAULT 'client_sandbox',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS learner_notes (
+            note_id TEXT PRIMARY KEY,
+            learner_id TEXT NOT NULL,
+            context_type TEXT NOT NULL,
+            context_key TEXT NOT NULL,
+            title TEXT,
+            body TEXT NOT NULL,
+            source_exercise_id TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (learner_id)
+                REFERENCES learner_profiles(learner_id)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS skill_states(
@@ -952,6 +1020,471 @@ def get_learner_profile_by_id(learner_id:str):
     return profile
 
 
+def record_external_practice_validation_event(
+    *,
+    event: ExternalPracticeValidationEvent,
+) -> ExternalPracticeValidationEvent:
+    connection = get_connection()
+
+    connection.execute(
+        """
+        INSERT INTO external_practice_validation_events(
+            event_id,
+            learner_id,
+            source_id,
+            source_exercise_id,
+            topic_id,
+            subtopic_id,
+            practice_mode,
+            difficulty,
+            content_hash,
+            validation_bundle_hash,
+            solution_hash,
+            client_reported_success,
+            tests_run,
+            trust_level
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            event.event_id,
+            event.learner_id,
+            event.source_id,
+            event.source_exercise_id,
+            event.topic_id,
+            event.subtopic_id,
+            event.practice_mode,
+            event.difficulty,
+            event.content_hash,
+            event.validation_bundle_hash,
+            event.solution_hash,
+            int(event.client_reported_success),
+            event.tests_run,
+            event.trust_level,
+        ),
+    )
+    connection.commit()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM external_practice_validation_events
+        WHERE event_id = ?
+        """,
+        (event.event_id,),
+    ).fetchone()
+
+    connection.close()
+
+    return ExternalPracticeValidationEvent(
+        event_id=row["event_id"],
+        learner_id=row["learner_id"],
+        source_id=row["source_id"],
+        source_exercise_id=row["source_exercise_id"],
+        topic_id=row["topic_id"],
+        subtopic_id=row["subtopic_id"],
+        practice_mode=row["practice_mode"],
+        difficulty=row["difficulty"],
+        content_hash=row["content_hash"],
+        validation_bundle_hash=row["validation_bundle_hash"],
+        solution_hash=row["solution_hash"],
+        client_reported_success=bool(
+            row["client_reported_success"]
+        ),
+        tests_run=row["tests_run"],
+        trust_level=row["trust_level"],
+        created_at=row["created_at"],
+    )
+
+
+def list_external_practice_validation_events(
+    *,
+    learner_id: str,
+    source_id: str,
+    source_exercise_id: str,
+) -> list[ExternalPracticeValidationEvent]:
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM external_practice_validation_events
+        WHERE learner_id = ?
+        AND source_id = ?
+        AND source_exercise_id = ?
+        ORDER BY created_at ASC
+        """,
+        (
+            learner_id,
+            source_id,
+            source_exercise_id,
+        ),
+    ).fetchall()
+
+    connection.close()
+
+    return [
+        ExternalPracticeValidationEvent(
+            event_id=row["event_id"],
+            learner_id=row["learner_id"],
+            source_id=row["source_id"],
+            source_exercise_id=row["source_exercise_id"],
+            topic_id=row["topic_id"],
+            subtopic_id=row["subtopic_id"],
+            practice_mode=row["practice_mode"],
+            difficulty=row["difficulty"],
+            content_hash=row["content_hash"],
+            validation_bundle_hash=row["validation_bundle_hash"],
+            solution_hash=row["solution_hash"],
+            client_reported_success=bool(
+                row["client_reported_success"]
+            ),
+            tests_run=row["tests_run"],
+            trust_level=row["trust_level"],
+            created_at=row["created_at"],
+        )
+        for row in rows
+    ]
+
+
+def list_external_practice_validation_events_for_path(
+    *,
+    learner_id: str,
+    source_id: str,
+    topic_id: str,
+    subtopic_id: str,
+    practice_mode: str,
+    difficulty: str,
+):
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM external_practice_validation_events
+        WHERE learner_id = ?
+        AND source_id = ?
+        AND topic_id = ?
+        AND subtopic_id = ?
+        AND practice_mode = ?
+        AND difficulty = ?
+        ORDER BY created_at ASC, rowid ASC
+        """,
+        (
+            learner_id,
+            source_id,
+            topic_id,
+            subtopic_id,
+            practice_mode,
+            difficulty,
+        ),
+    ).fetchall()
+
+    connection.close()
+    return rows
+
+
+def upsert_learner_resume_state(
+    *,
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+    state: LearnerResumePayload,
+) -> LearnerResumeState:
+    connection = get_connection()
+
+    connection.execute(
+        """
+        INSERT INTO learner_resume_states(
+            learner_id,
+            context_type,
+            context_key,
+            state_json
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(
+            learner_id,
+            context_type,
+            context_key
+        )
+        DO UPDATE SET
+            state_json = excluded.state_json,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            learner_id,
+            context_type,
+            context_key,
+            state.model_dump_json(),
+        ),
+    )
+    connection.commit()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM learner_resume_states
+        WHERE learner_id = ?
+        AND context_type = ?
+        AND context_key = ?
+        """,
+        (
+            learner_id,
+            context_type,
+            context_key,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    return LearnerResumeState(
+        learner_id=row["learner_id"],
+        context_type=row["context_type"],
+        context_key=row["context_key"],
+        state=LearnerResumePayload.model_validate_json(
+            row["state_json"]
+        ),
+        updated_at=row["updated_at"],
+    )
+
+
+def get_learner_resume_state(
+    *,
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+) -> LearnerResumeState | None:
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM learner_resume_states
+        WHERE learner_id = ?
+        AND context_type = ?
+        AND context_key = ?
+        """,
+        (
+            learner_id,
+            context_type,
+            context_key,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    return LearnerResumeState(
+        learner_id=row["learner_id"],
+        context_type=row["context_type"],
+        context_key=row["context_key"],
+        state=LearnerResumePayload.model_validate_json(
+            row["state_json"]
+        ),
+        updated_at=row["updated_at"],
+    )
+
+
+def create_learner_note(
+    *,
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+    body: str,
+    title: str | None = None,
+    source_exercise_id: str | None = None,
+) -> LearnerNote:
+    connection = get_connection()
+    note_id = str(uuid4())
+
+    connection.execute(
+        """
+        INSERT INTO learner_notes(
+            note_id,
+            learner_id,
+            context_type,
+            context_key,
+            title,
+            body,
+            source_exercise_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            note_id,
+            learner_id,
+            context_type,
+            context_key,
+            title,
+            body,
+            source_exercise_id,
+        ),
+    )
+    connection.commit()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM learner_notes
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            note_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+
+    return _learner_note_from_row(row)
+
+
+def _learner_note_from_row(row) -> LearnerNote:
+    return LearnerNote(
+        note_id=row["note_id"],
+        learner_id=row["learner_id"],
+        context_type=row["context_type"],
+        context_key=row["context_key"],
+        title=row["title"],
+        body=row["body"],
+        source_exercise_id=row["source_exercise_id"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def list_learner_notes(
+    *,
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+) -> list[LearnerNote]:
+    connection = get_connection()
+
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM learner_notes
+        WHERE learner_id = ?
+        AND context_type = ?
+        AND context_key = ?
+        ORDER BY updated_at DESC, created_at DESC
+        """,
+        (
+            learner_id,
+            context_type,
+            context_key,
+        ),
+    ).fetchall()
+
+    connection.close()
+
+    return [
+        _learner_note_from_row(row)
+        for row in rows
+    ]
+
+
+def update_learner_note(
+    *,
+    learner_id: str,
+    note_id: str,
+    title: str | None = None,
+    body: str | None = None,
+) -> LearnerNote | None:
+    connection = get_connection()
+
+    row = connection.execute(
+        """
+        SELECT *
+        FROM learner_notes
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            note_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    if row is None:
+        connection.close()
+        return None
+
+    next_title = (
+        title
+        if title is not None
+        else row["title"]
+    )
+    next_body = (
+        body
+        if body is not None
+        else row["body"]
+    )
+
+    connection.execute(
+        """
+        UPDATE learner_notes
+        SET
+            title = ?,
+            body = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            next_title,
+            next_body,
+            note_id,
+            learner_id,
+        ),
+    )
+    connection.commit()
+
+    updated = connection.execute(
+        """
+        SELECT *
+        FROM learner_notes
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            note_id,
+            learner_id,
+        ),
+    ).fetchone()
+
+    connection.close()
+    return _learner_note_from_row(updated)
+
+
+def delete_learner_note(
+    *,
+    learner_id: str,
+    note_id: str,
+) -> bool:
+    connection = get_connection()
+
+    cursor = connection.execute(
+        """
+        DELETE FROM learner_notes
+        WHERE note_id = ?
+        AND learner_id = ?
+        """,
+        (
+            note_id,
+            learner_id,
+        ),
+    )
+    connection.commit()
+    deleted = cursor.rowcount > 0
+    connection.close()
+    return deleted
+
+
 def insert_skill_state(
         learner_id: str,
         skill_name: str,
@@ -1025,6 +1558,25 @@ def insert_learning_evidence(
     )
     connection.commit()
     connection.close()
+
+
+def get_learning_evidence_by_learner(
+    learner_id: str,
+):
+    connection = get_connection()
+
+    evidence = connection.execute(
+        """
+        SELECT *
+        FROM learning_evidence
+        WHERE learner_id = ?
+        ORDER BY id ASC
+        """,
+        (learner_id,),
+    ).fetchall()
+
+    connection.close()
+    return evidence
 
 
 def get_learning_evidence_by_skill(
@@ -1159,6 +1711,93 @@ def record_learning_evidence(
 
     finally:
         connection.close()
+
+def record_practice_mastery_evidence(
+    *,
+    learner_id: str,
+    skill_name: str,
+    assistance_level: str,
+    success: bool,
+    evidence_type: str,
+    note: str | None = None,
+    context: dict | None = None,
+):
+    """
+    Practice V2 mastery evidence.
+
+    Unlike record_learning_evidence(), this intentionally
+    does NOT mutate legacy skill_states counters.
+    """
+    connection = get_connection()
+
+    context_json = (
+        json.dumps(
+            context,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        if context
+        else None
+    )
+
+    try:
+        connection.execute(
+            """
+            INSERT INTO learning_evidence(
+                learner_id,
+                skill_name,
+                assistance_level,
+                success,
+                evidence_type,
+                note,
+                session_id,
+                context_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+            """,
+            (
+                learner_id,
+                skill_name,
+                assistance_level,
+                int(success),
+                evidence_type,
+                note,
+                context_json,
+            ),
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+
+def record_observed_learning_signal(
+    *,
+    learner_id: str,
+    skill_name: str,
+    assistance_level: str,
+    success: bool,
+    evidence_type: str,
+    note: str | None = None,
+    context: dict | None = None,
+):
+    """
+    Persist a Mentor V2 observation without incrementing assessed attempt
+    counters. These signals can raise practice priority without pretending
+    the learner submitted another assessed attempt.
+    """
+    record_practice_mastery_evidence(
+        learner_id=learner_id,
+        skill_name=skill_name,
+        assistance_level=assistance_level,
+        success=success,
+        evidence_type=evidence_type,
+        note=note,
+        context=context,
+    )
 
 def update_skill_status(
   learner_id: str,
@@ -2330,7 +2969,12 @@ def get_ai_usage_counts() -> dict:
                 THEN 1 ELSE 0 END) AS daily_requests,
             SUM(CASE WHEN strftime('%Y-%m', created_at, 'localtime')
                            = strftime('%Y-%m', 'now', 'localtime')
-                THEN 1 ELSE 0 END) AS monthly_requests
+                THEN 1 ELSE 0 END) AS monthly_requests,
+            SUM(CASE WHEN date(created_at, 'localtime') = date('now', 'localtime')
+                THEN input_chars ELSE 0 END) AS daily_input_chars,
+            SUM(CASE WHEN strftime('%Y-%m', created_at, 'localtime')
+                           = strftime('%Y-%m', 'now', 'localtime')
+                THEN input_chars ELSE 0 END) AS monthly_input_chars
         FROM ai_usage_events
         """
     ).fetchone()
@@ -2338,7 +2982,44 @@ def get_ai_usage_counts() -> dict:
     return {
         "daily_requests": int(row["daily_requests"] or 0),
         "monthly_requests": int(row["monthly_requests"] or 0),
+        "daily_input_chars": int(row["daily_input_chars"] or 0),
+        "monthly_input_chars": int(row["monthly_input_chars"] or 0),
     }
+
+
+def get_ai_usage_breakdown_today() -> list[dict]:
+    """
+    Aggregate today's external-AI reservations without storing prompt content.
+    """
+    connection = get_connection()
+    rows = connection.execute(
+        """
+        SELECT
+            provider,
+            model,
+            purpose,
+            COUNT(*) AS request_count,
+            SUM(input_chars) AS input_chars,
+            MAX(input_chars) AS max_input_chars
+        FROM ai_usage_events
+        WHERE date(created_at, 'localtime') = date('now', 'localtime')
+        GROUP BY provider, model, purpose
+        ORDER BY request_count DESC, input_chars DESC
+        """
+    ).fetchall()
+    connection.close()
+
+    return [
+        {
+            "provider": str(row["provider"]),
+            "model": str(row["model"]),
+            "purpose": str(row["purpose"]),
+            "request_count": int(row["request_count"] or 0),
+            "input_chars": int(row["input_chars"] or 0),
+            "max_input_chars": int(row["max_input_chars"] or 0),
+        }
+        for row in rows
+    ]
 
 
 def reserve_ai_usage_event(

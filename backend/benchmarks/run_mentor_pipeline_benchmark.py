@@ -15,6 +15,18 @@ from backend.app.ai_usage_guard import (
     AIBillingPolicyError,
     AIUsageLimitError,
 )
+from backend.app.mentor_misconception_taxonomy import (
+    normalize_misconception,
+)
+from backend.app.mentor_classifier_policy import (
+    classifier_generation_kwargs,
+    learning_evidence_classifier_rules,
+    strict_validation_classifier_rules,
+)
+from backend.app.mentor_reply_policy import (
+    mentor_pipeline_production_status,
+    mentor_reply_rules,
+)
 from backend.benchmarks.mentor_benchmark_provider import (
     generate_benchmark_structured,
 )
@@ -51,6 +63,13 @@ class PipelineBenchmarkEvaluation(BaseModel):
     notes: str
 
 
+CHECKPOINT_VERSION = 1
+
+
+class BenchmarkCheckpointError(RuntimeError):
+    pass
+
+
 def scenario_without_expected(
     scenario: dict[str, Any],
 ) -> dict[str, Any]:
@@ -62,31 +81,25 @@ def scenario_without_expected(
 
 
 def build_classifier_instructions() -> str:
-    return """
+    return f"""
     You are DataPilot's learning-evidence classifier.
 
     Return structured output only.
 
     Rules:
     - Decide whether learner_message is genuine learning evidence.
-    - A pure help request or clarification question with no proposed answer,
-      action, explanation, or hypothesis is not learning evidence.
-    - A learner claim, proposed decision, explanation, hypothesis, or attempted
-      answer IS learning evidence even when it is wrong.
-    - Interrogative wording does not make a proposed decision non-evidence.
-      For example, "Should I fill missing values with 0?" is a proposed action,
-      so classify it as evidence and evaluate whether that proposal is sound.
-    - For genuine evidence, set success true or false from the supplied context.
-    - For non-evidence, set success=null.
-    - If a clear reusable misconception is visible, return one short snake_case
-      label; otherwise null.
-    - Do not invent dataset facts.
     - Do not generate mentor guidance.
+
+    Shared classifier policy:
+    {learning_evidence_classifier_rules()}
+
+    Validation policy:
+    {strict_validation_classifier_rules()}
     """
 
 
 def build_mentor_reply_instructions() -> str:
-    return """
+    return f"""
     You are DataPilot's adaptive Data Engineering mentor.
 
     Upstream classification and deterministic orchestration are already complete.
@@ -95,41 +108,7 @@ def build_mentor_reply_instructions() -> str:
     Follow learning_evaluation and orchestration exactly.
 
     Response rules:
-    - Reply in the same language as learner_message.
-    - Give only ONE small next step.
-    - The reply must have one cognitive target only. Do not combine two checks
-      or two questions in one sentence.
-    - Prefer one short sentence; target <= 20 words.
-    - If success=true and next_phase differs from current_phase, briefly
-      acknowledge the learner and move to the next phase. Do not ask them to
-      repeat or reconfirm what they already established.
-    - If success=false, stay on the current concept and repair only the specific
-      misconception. Challenge the faulty premise before suggesting any
-      implementation. Do not answer "use X instead of Y" when the learner has
-      not yet established what the data means.
-    - In a reasoning phase, do not combine understanding the cause with choosing
-      an imputation or transformation in the same reply. Give only the reasoning
-      step.
-    - If is_evidence=false, give one small step that helps the learner continue
-      the current phase. Do not ask the learner to recompute, restate, or record
-      a fact that is already present in workspace_context.
-    - Never invent an arbitrary technique, threshold, percentage bucket, sample
-      size, grouping rule, or transformation that is not justified by the
-      supplied context.
-    - If next_phase=completed, only close/acknowledge the completed learning step.
-      Do not tell the learner to continue analysis, do another check, ask a new
-      question, or start a new task.
-    - Respect assistance_level:
-      NONE = minimal acknowledgement or transfer prompt;
-      NUDGE = one small hint/question;
-      GUIDE = one concrete, targeted step;
-      TEACH = one compact concept explanation plus one immediate check;
-      DEMONSTRATE = one minimal example only when needed.
-    - Do not provide code unless learner_message explicitly asks for code or
-      assistance_level=DEMONSTRATE.
-    - Do not jump from grain to dimension design, from reasoning to implementation,
-      or from a validation conclusion to a new analysis.
-    - Do not invent columns, values, business rules, or prior-project facts.
+    {mentor_reply_rules()}
     """
 
 
@@ -200,6 +179,12 @@ def run_classifier(
             indent=2,
         ),
         text_format=ClassifierResponse,
+        request_kwargs=classifier_generation_kwargs(),
+    )
+
+    result.misconception = normalize_misconception(
+        success=result.success,
+        misconception=result.misconception,
     )
 
     return (
@@ -428,100 +413,153 @@ def percentage(
     )
 
 
-def run_suite(
+def checkpoint_path_for_output(
+    output_path: Path,
+) -> Path:
+    return output_path.with_name(
+        f"{output_path.stem}.checkpoint.json"
+    )
+
+
+def _write_json_atomic(
+    path: Path,
+    payload: dict[str, Any],
+) -> None:
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    temp_path = path.with_name(
+        path.name + ".tmp"
+    )
+
+    temp_path.write_text(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    temp_path.replace(
+        path
+    )
+
+
+def _build_run_config(
     *,
-    suite_path: Path,
+    suite: dict[str, Any],
+    scenarios: list[dict[str, Any]],
     classifier_provider: str,
     classifier_model: str,
     mentor_provider: str,
     mentor_model: str,
     judge_provider: str,
     judge_model: str,
-    scenario_limit: int | None,
-    scenario_ids: list[str] | None,
-    output_path: Path,
 ) -> dict[str, Any]:
-    suite = load_suite(
-        suite_path
-    )
-    scenarios = select_scenarios(
-        suite=suite,
-        scenario_ids=scenario_ids,
-        scenario_limit=scenario_limit,
-    )
+    return {
+        "suite_id":
+            suite["suite_id"],
+        "suite_version":
+            suite["version"],
+        "scenario_ids": [
+            scenario["id"]
+            for scenario in scenarios
+        ],
+        "classifier_provider":
+            classifier_provider,
+        "classifier_model":
+            classifier_model,
+        "mentor_provider":
+            mentor_provider,
+        "mentor_model":
+            mentor_model,
+        "judge_provider":
+            judge_provider,
+        "judge_model":
+            judge_model,
+    }
 
-    rows: list[dict[str, Any]] = []
 
-    for scenario in scenarios:
-        classification, classifier_latency = (
-            run_classifier(
-                provider=classifier_provider,
-                model=classifier_model,
-                scenario=scenario,
+def _load_checkpoint(
+    checkpoint_path: Path,
+) -> dict[str, Any]:
+    try:
+        payload = json.loads(
+            checkpoint_path.read_text(
+                encoding="utf-8"
             )
         )
+    except (
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:
+        raise BenchmarkCheckpointError(
+            "Benchmark checkpoint could not be read safely."
+        ) from exc
 
-        orchestration = build_orchestration(
-            scenario=scenario,
-            classification=classification,
+    if not isinstance(
+        payload,
+        dict,
+    ):
+        raise BenchmarkCheckpointError(
+            "Benchmark checkpoint has an invalid structure."
         )
 
-        mentor_reply, mentor_latency = (
-            run_mentor_reply(
-                provider=mentor_provider,
-                model=mentor_model,
-                scenario=scenario,
-                classification=classification,
-                orchestration=orchestration,
-            )
+    if payload.get(
+        "checkpoint_version"
+    ) != CHECKPOINT_VERSION:
+        raise BenchmarkCheckpointError(
+            "Benchmark checkpoint version is not supported."
         )
 
-        evaluation = run_judge(
-            provider=judge_provider,
-            model=judge_model,
-            scenario=scenario,
-            classification=classification,
-            orchestration=orchestration,
-            mentor_reply=mentor_reply,
-        )
+    return payload
 
-        rows.append(
-            {
-                "scenario_id":
-                    scenario["id"],
-                "stage":
-                    scenario["stage"],
-                "classification":
-                    classification.model_dump(),
-                "orchestration":
-                    orchestration,
-                "mentor_reply":
-                    mentor_reply.mentor_reply,
-                "classifier_matches":
-                    classifier_matches(
-                        scenario=scenario,
-                        classification=classification,
-                    ),
-                "orchestration_matches":
-                    orchestration_matches(
-                        scenario=scenario,
-                        orchestration=orchestration,
-                    ),
-                "reply_checks":
-                    deterministic_reply_checks(
-                        scenario=scenario,
-                        orchestration=orchestration,
-                        reply=mentor_reply.mentor_reply,
-                    ),
-                "evaluation":
-                    evaluation.model_dump(),
-                "classifier_latency_ms":
-                    classifier_latency,
-                "mentor_latency_ms":
-                    mentor_latency,
-            }
-        )
 
+def _checkpoint_payload(
+    *,
+    run_config: dict[str, Any],
+    rows: list[dict[str, Any]],
+    last_error: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "checkpoint_version":
+            CHECKPOINT_VERSION,
+        "status":
+            "in_progress",
+        "run_config":
+            run_config,
+        "completed_scenario_ids": [
+            row["scenario_id"]
+            for row in rows
+        ],
+        "completed_scenario_count":
+            len(rows),
+        "estimated_completed_requests":
+            len(rows) * 3,
+        "last_error":
+            last_error,
+        "results":
+            rows,
+    }
+
+
+def _build_pipeline_result(
+    *,
+    suite: dict[str, Any],
+    rows: list[dict[str, Any]],
+    classifier_provider: str,
+    classifier_model: str,
+    mentor_provider: str,
+    mentor_model: str,
+    judge_provider: str,
+    judge_model: str,
+    resumed_scenario_count: int,
+    checkpoint_path: Path,
+) -> dict[str, Any]:
     score_fields = [
         "technical_correctness",
         "pedagogy",
@@ -564,13 +602,15 @@ def run_suite(
         "completed_without_new_question",
     ]
 
-    result = {
+    return {
         "suite_id":
             suite["suite_id"],
         "suite_version":
             suite["version"],
         "benchmark_type":
             "mentor_pipeline",
+        "production_integration":
+            mentor_pipeline_production_status(),
         "scenario_count":
             len(rows),
         "classifier_provider":
@@ -585,6 +625,22 @@ def run_suite(
             judge_provider,
         "judge_model":
             judge_model,
+        "resume_metadata": {
+            "resumed":
+                resumed_scenario_count > 0,
+            "resumed_scenario_count":
+                resumed_scenario_count,
+            "completed_this_run":
+                len(rows)
+                - resumed_scenario_count,
+            "estimated_requests_saved":
+                resumed_scenario_count
+                * 3,
+            "checkpoint_path":
+                str(
+                    checkpoint_path
+                ),
+        },
         "average_scores":
             average_scores,
         "classifier_match_percent": {
@@ -644,22 +700,249 @@ def run_suite(
             rows,
     }
 
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
+
+def run_suite(
+    *,
+    suite_path: Path,
+    classifier_provider: str,
+    classifier_model: str,
+    mentor_provider: str,
+    mentor_model: str,
+    judge_provider: str,
+    judge_model: str,
+    scenario_limit: int | None,
+    scenario_ids: list[str] | None,
+    output_path: Path,
+    resume: bool = False,
+) -> dict[str, Any]:
+    suite = load_suite(
+        suite_path
     )
-    output_path.write_text(
-        json.dumps(
-            result,
-            ensure_ascii=False,
-            indent=2,
+    scenarios = select_scenarios(
+        suite=suite,
+        scenario_ids=scenario_ids,
+        scenario_limit=scenario_limit,
+    )
+
+    checkpoint_path = (
+        checkpoint_path_for_output(
+            output_path
         )
-        + "\n",
-        encoding="utf-8",
+    )
+
+    run_config = _build_run_config(
+        suite=suite,
+        scenarios=scenarios,
+        classifier_provider=classifier_provider,
+        classifier_model=classifier_model,
+        mentor_provider=mentor_provider,
+        mentor_model=mentor_model,
+        judge_provider=judge_provider,
+        judge_model=judge_model,
+    )
+
+    rows: list[dict[str, Any]] = []
+    resumed_scenario_count = 0
+
+    if checkpoint_path.exists():
+        if not resume:
+            raise BenchmarkCheckpointError(
+                "A benchmark checkpoint already exists. "
+                "Use --resume to continue it instead of repeating completed calls."
+            )
+
+        checkpoint = _load_checkpoint(
+            checkpoint_path
+        )
+
+        if checkpoint.get(
+            "run_config"
+        ) != run_config:
+            raise BenchmarkCheckpointError(
+                "Checkpoint configuration does not match this benchmark run."
+            )
+
+        checkpoint_rows = checkpoint.get(
+            "results",
+            [],
+        )
+
+        if not isinstance(
+            checkpoint_rows,
+            list,
+        ):
+            raise BenchmarkCheckpointError(
+                "Checkpoint results are invalid."
+            )
+
+        rows = checkpoint_rows
+        resumed_scenario_count = len(
+            rows
+        )
+
+    selected_ids = [
+        scenario["id"]
+        for scenario in scenarios
+    ]
+    completed_ids = [
+        row.get(
+            "scenario_id"
+        )
+        for row in rows
+    ]
+
+    if (
+        len(completed_ids)
+        != len(set(completed_ids))
+        or any(
+            scenario_id not in selected_ids
+            for scenario_id in completed_ids
+        )
+    ):
+        raise BenchmarkCheckpointError(
+            "Checkpoint contains incompatible completed scenarios."
+        )
+
+    _write_json_atomic(
+        checkpoint_path,
+        _checkpoint_payload(
+            run_config=run_config,
+            rows=rows,
+            last_error=None,
+        ),
+    )
+
+    completed_id_set = set(
+        completed_ids
+    )
+
+    for scenario in scenarios:
+        if scenario["id"] in completed_id_set:
+            continue
+
+        try:
+            classification, classifier_latency = (
+                run_classifier(
+                    provider=classifier_provider,
+                    model=classifier_model,
+                    scenario=scenario,
+                )
+            )
+
+            orchestration = build_orchestration(
+                scenario=scenario,
+                classification=classification,
+            )
+
+            mentor_reply, mentor_latency = (
+                run_mentor_reply(
+                    provider=mentor_provider,
+                    model=mentor_model,
+                    scenario=scenario,
+                    classification=classification,
+                    orchestration=orchestration,
+                )
+            )
+
+            evaluation = run_judge(
+                provider=judge_provider,
+                model=judge_model,
+                scenario=scenario,
+                classification=classification,
+                orchestration=orchestration,
+                mentor_reply=mentor_reply,
+            )
+
+            rows.append(
+                {
+                    "scenario_id":
+                        scenario["id"],
+                    "stage":
+                        scenario["stage"],
+                    "classification":
+                        classification.model_dump(),
+                    "orchestration":
+                        orchestration,
+                    "mentor_reply":
+                        mentor_reply.mentor_reply,
+                    "classifier_matches":
+                        classifier_matches(
+                            scenario=scenario,
+                            classification=classification,
+                        ),
+                    "orchestration_matches":
+                        orchestration_matches(
+                            scenario=scenario,
+                            orchestration=orchestration,
+                        ),
+                    "reply_checks":
+                        deterministic_reply_checks(
+                            scenario=scenario,
+                            orchestration=orchestration,
+                            reply=mentor_reply.mentor_reply,
+                        ),
+                    "evaluation":
+                        evaluation.model_dump(),
+                    "classifier_latency_ms":
+                        classifier_latency,
+                    "mentor_latency_ms":
+                        mentor_latency,
+                }
+            )
+            completed_id_set.add(
+                scenario["id"]
+            )
+
+            _write_json_atomic(
+                checkpoint_path,
+                _checkpoint_payload(
+                    run_config=run_config,
+                    rows=rows,
+                    last_error=None,
+                ),
+            )
+
+        except Exception as exc:
+            _write_json_atomic(
+                checkpoint_path,
+                _checkpoint_payload(
+                    run_config=run_config,
+                    rows=rows,
+                    last_error={
+                        "scenario_id":
+                            scenario["id"],
+                        "error_type":
+                            type(exc).__name__,
+                        "message":
+                            str(exc),
+                    },
+                ),
+            )
+            raise
+
+    result = _build_pipeline_result(
+        suite=suite,
+        rows=rows,
+        classifier_provider=classifier_provider,
+        classifier_model=classifier_model,
+        mentor_provider=mentor_provider,
+        mentor_model=mentor_model,
+        judge_provider=judge_provider,
+        judge_model=judge_model,
+        resumed_scenario_count=resumed_scenario_count,
+        checkpoint_path=checkpoint_path,
+    )
+
+    _write_json_atomic(
+        output_path,
+        result,
+    )
+
+    checkpoint_path.unlink(
+        missing_ok=True,
     )
 
     return result
-
 
 def build_plan(
     *,
@@ -687,6 +970,8 @@ def build_plan(
             suite["suite_id"],
         "benchmark_type":
             "mentor_pipeline",
+        "production_integration":
+            mentor_pipeline_production_status(),
         "scenario_count":
             len(scenarios),
         "estimated_external_requests":
@@ -769,6 +1054,14 @@ def parse_args() -> argparse.Namespace:
         "--confirm-live",
         action="store_true",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Resume a compatible partial benchmark checkpoint "
+            "and skip completed scenarios."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -837,11 +1130,13 @@ def main() -> int:
             scenario_limit=args.limit,
             scenario_ids=args.scenario_ids,
             output_path=args.output,
+            resume=args.resume,
         )
     except (
         AIProviderConfigurationError,
         AIBillingPolicyError,
         AIUsageLimitError,
+        BenchmarkCheckpointError,
     ) as exc:
         print(
             f"Benchmark blocked: {exc}"
@@ -865,6 +1160,8 @@ def main() -> int:
                     result["orchestration_match_percent"],
                 "reply_check_percent":
                     result["reply_check_percent"],
+                "resume_metadata":
+                    result["resume_metadata"],
                 "average_classifier_latency_ms":
                     result["average_classifier_latency_ms"],
                 "average_mentor_latency_ms":

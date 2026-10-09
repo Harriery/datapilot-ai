@@ -1,3 +1,4 @@
+import logging
 import uuid
 from io import BytesIO
 from typing import Literal
@@ -10,6 +11,8 @@ from fastapi import (
     UploadFile,
     Response,
 )
+
+from pydantic import BaseModel, Field
 
 import backend.app.database as database
 
@@ -49,6 +52,9 @@ from backend.app.models import (
     WorkspaceWorkbenchDecisionRequest,
     WorkspaceDevelopmentSampleRequest,
     WorkspaceDevelopmentSampleResponse,
+    WorkspaceSmartSamplingRequest,
+    WorkspaceSmartSamplingResponse,
+    WorkspaceFullDataPreflightResponse,
     WorkspaceFullPipelineResponse,
     WorkspaceProcessedDatasetCreateRequest,
     WorkspaceProcessedDataset,
@@ -80,6 +86,9 @@ from backend.app.workspace_plan_service import (
 
 from backend.app.workspace_data_service import (
     save_workspace_dataset,
+    save_workspace_dataset_stream,
+    get_workspace_source_path,
+    get_workspace_silver_path,
     load_workspace_working_dataframe,
     dataframe_to_records,
     save_workspace_working_dataframe,
@@ -123,6 +132,9 @@ from backend.app.local_data_quality_mentor_service import (
     build_local_mentor_response,
     get_local_assistance_level,
     review_task_transformation_locally,
+)
+from backend.app.mentor_orchestration_service import (
+    determine_assistance_level,
 )
 
 from backend.app.personal_project_service import (
@@ -174,19 +186,55 @@ from backend.app.workspace_pipeline_service import (
     apply_replayable_workbench_pipeline,
 )
 
+from backend.app.workspace_large_data_service import (
+    SMART_SAMPLE_CANDIDATES,
+    build_full_data_profile,
+    build_full_quality_analysis,
+    build_smart_development_sample,
+    run_full_data_preflight,
+    apply_full_pipeline_to_silver,
+    profile_parquet,
+    load_large_source_sample,
+    query_large_data_preview,
+    recalculate_source_duplicates,
+)
+from backend.app.workspace_preview_filter_service import (
+    apply_preview_filters,
+    parse_preview_filters,
+    preview_column_types,
+)
+
 from backend.app.mentor_learning_loop_service import (
     apply_learning_phase_review,
     apply_trusted_prepare_validation,
     complete_prepare_learning_loop,
     evaluate_prepare_phase_response,
+    generate_prepare_mentor_reply,
+    render_zero_ai_prepare_support_reply,
     record_prepare_phase_evidence,
     record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
+    restart_prepare_learning_loop,
+    record_learning_loop_exchange,
 )
 
 from backend.app.workspace_notebook_mentor_service import (
     build_notebook_mentor_guidance,
 )
+from backend.app.mentor_context_service import (
+    build_guided_mentor_context,
+)
+from backend.app.mentor_learner_model_service import (
+    record_execution_signal,
+)
+from backend.app.mentor_action_evidence_service import (
+    record_action_evidence,
+)
+from backend.app.mentor_local_investigation_service import (
+    verify_missingness_relationship,
+)
+
+
 
 router = APIRouter()
 
@@ -233,6 +281,7 @@ def create_workspace(
         usage_context=request.usage_context,
         organization_id=request.organization_id,
         data_sensitivity=request.data_sensitivity,
+        mentor_setup=request.mentor_setup if request.usage_context == "personal" else None,
         task_brief=request.task_brief,
         desired_outcome=request.desired_outcome,
         project_type=request.project_type,
@@ -1206,13 +1255,98 @@ def transform_workspace_workbench_data(
                     ),
                     row_count=len(after_df),
                     rows=dataframe_to_records(
-                        after_df
+                        after_df.head(
+                            5000
+                        )
                     ),
                 )
             ),
         )
     )
 
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/full-data-preflight"
+    ),
+    response_model=(
+        WorkspaceFullDataPreflightResponse
+    ),
+)
+def run_workspace_full_data_preflight(
+    learner_id: str,
+    workspace_id: str,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if not workspace.workbench_operations:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Preflight için tamamlanmış "
+                "Workbench pipeline gerekli."
+            ),
+        )
+
+    try:
+        result = run_full_data_preflight(
+            source_path=(
+                get_workspace_source_path(
+                    workspace_id
+                )
+            ),
+            operations=(
+                workspace.workbench_operations
+            ),
+        )
+    except (
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    workspace.full_data_preflight = result
+
+    workspace.checkpoint.current_focus = (
+        "Apply pipeline to full dataset"
+        if result["passed"]
+        else "Resolve full-data preflight failures"
+    )
+    workspace.checkpoint.next_actions = (
+        ["Apply pipeline to full dataset"]
+        if result["passed"]
+        else [
+            "Review preflight failures",
+            "Update the development pipeline",
+        ]
+    )
+    workspace.checkpoint.last_error = (
+        None
+        if result["passed"]
+        else "Full-data preflight failed."
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceFullDataPreflightResponse(
+        **result
+    )
 
 
 @router.post(
@@ -1239,19 +1373,6 @@ def apply_workspace_pipeline_to_full_dataset(
             detail="Workspace bulunamadı.",
         )
 
-    try:
-        source_df = (
-            load_workspace_source_dataframe(
-                workspace_id
-            )
-        )
-
-    except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        ) from exc
-
     if not workspace.workbench_operations:
         raise HTTPException(
             status_code=400,
@@ -1261,44 +1382,151 @@ def apply_workspace_pipeline_to_full_dataset(
             ),
         )
 
-    try:
-        (
-            full_df,
-            applied_operation_ids,
-        ) = apply_replayable_workbench_pipeline(
-            source_df=source_df,
-            operations=(
-                workspace.workbench_operations
-            ),
+    # Large-data workspaces must validate their sample-derived decisions
+    # against the immutable full source before materializing Silver.
+    if workspace.dataset_storage_mode == "duckdb":
+        preflight = (
+            workspace.full_data_preflight
         )
 
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc),
-        ) from exc
+        if (
+            preflight is None
+            or not preflight.get(
+                "passed",
+                False,
+            )
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Full dataset pipeline öncesinde "
+                    "başarılı Full-data Preflight gerekli."
+                ),
+            )
 
-    if full_df.empty:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Pipeline full dataset içindeki "
-                "bütün satırları silemez."
-            ),
+        try:
+            result = apply_full_pipeline_to_silver(
+                source_path=(
+                    get_workspace_source_path(
+                        workspace_id
+                    )
+                ),
+                silver_path=(
+                    get_workspace_silver_path(
+                        workspace_id
+                    )
+                ),
+                operations=(
+                    workspace.workbench_operations
+                ),
+            )
+
+        except (
+            FileNotFoundError,
+            ValueError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        source_row_count = int(
+            (
+                workspace.full_data_profile
+                or workspace.dataset_profile
+                or {}
+            ).get(
+                "row_count",
+                preflight.get(
+                    "source_row_count",
+                    0,
+                ),
+            )
         )
 
-    save_workspace_working_dataframe(
-        workspace_id=workspace_id,
-        df=full_df,
-    )
+        working_row_count = int(
+            result[
+                "working_row_count"
+            ]
+        )
+        applied_operation_ids = list(
+            result[
+                "applied_operation_ids"
+            ]
+        )
+
+        workspace.silver_dataset_path = (
+            result["silver_path"]
+        )
+
+        # Keep browser/workbench state bounded. The full prepared data now
+        # lives in Silver parquet and is queried through DuckDB.
+        workspace.full_data_profile = (
+            workspace.full_data_profile
+            or workspace.dataset_profile
+        )
+        workspace.dataset_profile = (
+            workspace.dataset_profile
+            or workspace.full_data_profile
+        )
+
+    else:
+        try:
+            source_df = (
+                load_workspace_source_dataframe(
+                    workspace_id
+                )
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        try:
+            (
+                full_df,
+                applied_operation_ids,
+            ) = apply_replayable_workbench_pipeline(
+                source_df=source_df,
+                operations=(
+                    workspace.workbench_operations
+                ),
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        if full_df.empty:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Pipeline full dataset içindeki "
+                    "bütün satırları silemez."
+                ),
+            )
+
+        save_workspace_working_dataframe(
+            workspace_id=workspace_id,
+            df=full_df,
+        )
+
+        source_row_count = len(
+            source_df
+        )
+        working_row_count = len(
+            full_df
+        )
 
     clear_workspace_versions(
         workspace_id=workspace_id
     )
 
     workspace.development_sample_enabled = False
-    workspace.development_sample_row_count = len(
-        full_df
+    workspace.development_sample_row_count = (
+        working_row_count
     )
 
     workspace.validation_result = None
@@ -1306,10 +1534,8 @@ def apply_workspace_pipeline_to_full_dataset(
     workspace.analysis_result = None
     workspace.analysis_results = []
     workspace.dashboard_config.visuals = []
-
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
-
     workspace.data_model_plan = None
     workspace.data_model_studio = None
 
@@ -1327,11 +1553,9 @@ def apply_workspace_pipeline_to_full_dataset(
     workspace.checkpoint.current_focus = (
         "Validate full prepared dataset"
     )
-
     workspace.checkpoint.next_actions = [
         "Validate full prepared dataset"
     ]
-
     workspace.checkpoint.blocked_reason = None
     workspace.checkpoint.last_error = None
 
@@ -1341,8 +1565,13 @@ def apply_workspace_pipeline_to_full_dataset(
         for deliverable in (
             workspace.project_deliverables
         ):
-            if deliverable.code == "clean_dataset":
-                deliverable.status = "in_progress"
+            if (
+                deliverable.code
+                == "clean_dataset"
+            ):
+                deliverable.status = (
+                    "in_progress"
+                )
                 invalidate_started = True
                 continue
 
@@ -1354,11 +1583,11 @@ def apply_workspace_pipeline_to_full_dataset(
     )
 
     return WorkspaceFullPipelineResponse(
-        source_row_count=len(
-            source_df
+        source_row_count=(
+            source_row_count
         ),
-        working_row_count=len(
-            full_df
+        working_row_count=(
+            working_row_count
         ),
         applied_operation_ids=(
             applied_operation_ids
@@ -1368,7 +1597,6 @@ def apply_workspace_pipeline_to_full_dataset(
         ),
         development_sample_disabled=True,
     )
-
 
 @router.post(
     (
@@ -1395,91 +1623,152 @@ def create_workspace_development_sample(
             detail="Workspace bulunamadı.",
         )
 
-    try:
-        source_df = (
-            load_workspace_source_dataframe(
-                workspace_id
-            )
+    if workspace.dataset_storage_mode == "duckdb":
+        profile = (
+            workspace.full_data_profile
+            or workspace.dataset_profile
         )
 
-    except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        ) from exc
-
-    source_row_count = len(
-        source_df
-    )
-
-    if source_row_count == 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Source dataset boş.",
-        )
-
-    sample_max_size = (
-        workspace.development_sample_max_size
-        or workspace.development_sample_size
-        or workspace.development_sample_row_count
-        or min(
-            1000,
-            source_row_count,
-        )
-    )
-
-    sample_max_size = min(
-        sample_max_size,
-        source_row_count,
-    )
-
-    if request.sample_size > sample_max_size:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Development sample üst sınırı "
-                f"{sample_max_size} satır."
-            ),
-        )
-
-    sample_size = min(
-        request.sample_size,
-        source_row_count,
-    )
-
-    sampled = (
-        sample_size
-        < source_row_count
-    )
-
-    if sampled:
-        working_df = (
-            source_df.sample(
-                n=sample_size,
-                random_state=(
-                    request.random_seed
+        if profile is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Full-data profile bulunamadı."
                 ),
             )
-            .reset_index(drop=True)
+
+        source_row_count = int(
+            profile["row_count"]
         )
+        sample_max_size = min(
+            int(
+                workspace.development_sample_max_size
+                or 20_000
+            ),
+            source_row_count,
+        )
+
+        if request.sample_size > sample_max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Development sample üst sınırı "
+                    f"{sample_max_size} satır."
+                ),
+            )
+
+        try:
+            (
+                working_df,
+                report,
+            ) = build_smart_development_sample(
+                source_path=(
+                    get_workspace_source_path(
+                        workspace_id
+                    )
+                ),
+                profile=profile,
+                candidate_sizes=(
+                    request.sample_size,
+                ),
+                seed=request.random_seed,
+            )
+        except (
+            FileNotFoundError,
+            ValueError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        if request.strategy == "smart":
+            workspace.smart_sampling_report = report
+
+        sampled = (
+            len(working_df)
+            < source_row_count
+        )
+
     else:
-        working_df = (
-            source_df.copy()
-            .reset_index(drop=True)
+        try:
+            source_df = (
+                load_workspace_source_dataframe(
+                    workspace_id
+                )
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        source_row_count = len(
+            source_df
         )
+
+        if source_row_count == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Source dataset boş.",
+            )
+
+        sample_max_size = (
+            workspace.development_sample_max_size
+            or workspace.development_sample_size
+            or workspace.development_sample_row_count
+            or min(
+                1000,
+                source_row_count,
+            )
+        )
+        sample_max_size = min(
+            sample_max_size,
+            source_row_count,
+        )
+
+        if request.sample_size > sample_max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Development sample üst sınırı "
+                    f"{sample_max_size} satır."
+                ),
+            )
+
+        sample_size = min(
+            request.sample_size,
+            source_row_count,
+        )
+        sampled = (
+            sample_size
+            < source_row_count
+        )
+
+        if sampled:
+            working_df = (
+                source_df.sample(
+                    n=sample_size,
+                    random_state=(
+                        request.random_seed
+                    ),
+                )
+                .reset_index(drop=True)
+            )
+        else:
+            working_df = (
+                source_df.copy()
+                .reset_index(drop=True)
+            )
 
     save_workspace_working_dataframe(
         workspace_id=workspace_id,
         df=working_df,
     )
-
     clear_workspace_versions(
         workspace_id=workspace_id
     )
 
-    # A different development sample invalidates
-    # previous transformation results and downstream
-    # state. Rebuild only trusted quality operations.
     findings = (
         workspace.dataset_analysis.findings
         if workspace.dataset_analysis
@@ -1496,44 +1785,35 @@ def create_workspace_development_sample(
     )
 
     workspace.workbench_preview = None
-
-    workspace.development_sample_size = (
-        sample_size
+    workspace.development_sample_size = len(
+        working_df
     )
-
     workspace.development_sample_max_size = (
         sample_max_size
     )
-
     workspace.development_sample_strategy = (
         request.strategy
     )
-
     workspace.development_sample_seed = (
         request.random_seed
     )
-
-    workspace.development_sample_row_count = (
-        len(working_df)
+    workspace.development_sample_row_count = len(
+        working_df
     )
+    workspace.development_sample_enabled = sampled
 
-    workspace.development_sample_enabled = (
-        sampled
-    )
-
+    # A new sample invalidates decisions made against the previous sample.
+    workspace.full_data_preflight = None
+    workspace.silver_dataset_path = None
     workspace.validation_result = None
-
     workspace.analysis_plan = None
     workspace.analysis_result = None
     workspace.analysis_results = []
     workspace.dashboard_config.visuals = []
-
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
-
     workspace.data_model_plan = None
     workspace.data_model_studio = None
-
     workspace.current_task_id = None
 
     workspace.checkpoint.completed_items = [
@@ -1547,15 +1827,12 @@ def create_workspace_development_sample(
             "Handoff completed",
         }
     ]
-
     workspace.checkpoint.current_focus = (
         "Review development sample and build execution plan"
     )
-
     workspace.checkpoint.next_actions = [
         "Build execution plan"
     ]
-
     workspace.checkpoint.blocked_reason = None
     workspace.checkpoint.last_error = None
 
@@ -1565,17 +1842,29 @@ def create_workspace_development_sample(
         for deliverable in (
             workspace.project_deliverables
         ):
-            if deliverable.code == "data_profile":
-                deliverable.status = "completed"
+            if (
+                deliverable.code
+                == "data_profile"
+            ):
+                deliverable.status = (
+                    "completed"
+                )
                 continue
 
-            if deliverable.code == "clean_dataset":
-                deliverable.status = "in_progress"
+            if (
+                deliverable.code
+                == "clean_dataset"
+            ):
+                deliverable.status = (
+                    "in_progress"
+                )
                 invalidate_started = True
                 continue
 
             if invalidate_started:
-                deliverable.status = "pending"
+                deliverable.status = (
+                    "pending"
+                )
 
     database.save_workspace(
         workspace=workspace
@@ -1594,6 +1883,176 @@ def create_workspace_development_sample(
         sampled=sampled,
     )
 
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/smart-sampling"
+    ),
+    response_model=(
+        WorkspaceSmartSamplingResponse
+    ),
+)
+def create_workspace_smart_sample(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceSmartSamplingRequest,
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    profile = (
+        workspace.full_data_profile
+        or workspace.dataset_profile
+    )
+
+    if profile is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Smart Sampling öncesinde "
+                "Full-data Profile gerekli."
+            ),
+        )
+
+    candidate_sizes = tuple(
+        sorted(
+            {
+                int(size)
+                for size in request.candidate_sizes
+                if 1 <= int(size) <= 20_000
+            }
+        )
+    )
+
+    if not candidate_sizes:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "En az bir geçerli candidate size gerekli."
+            ),
+        )
+
+    try:
+        (
+            working_df,
+            report,
+        ) = build_smart_development_sample(
+            source_path=(
+                get_workspace_source_path(
+                    workspace_id
+                )
+            ),
+            profile=profile,
+            candidate_sizes=(
+                candidate_sizes
+            ),
+            seed=request.random_seed,
+        )
+    except (
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    save_workspace_working_dataframe(
+        workspace_id=workspace_id,
+        df=working_df,
+    )
+    clear_workspace_versions(
+        workspace_id=workspace_id
+    )
+
+    workspace.dataset_storage_mode = (
+        "duckdb"
+        if int(profile["row_count"])
+        >= 100_000
+        else workspace.dataset_storage_mode
+    )
+    workspace.smart_sampling_report = (
+        report
+    )
+    workspace.development_sample_size = len(
+        working_df
+    )
+    workspace.development_sample_max_size = min(
+        max(candidate_sizes),
+        int(profile["row_count"]),
+    )
+    workspace.development_sample_strategy = (
+        "smart"
+    )
+    workspace.development_sample_seed = (
+        request.random_seed
+    )
+    workspace.development_sample_row_count = len(
+        working_df
+    )
+    workspace.development_sample_enabled = (
+        len(working_df)
+        < int(profile["row_count"])
+    )
+
+    workspace.full_data_preflight = None
+    workspace.silver_dataset_path = None
+    workspace.validation_result = None
+    workspace.current_task_id = None
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceSmartSamplingResponse(
+        source_row_count=int(
+            profile["row_count"]
+        ),
+        selected_size=int(
+            report["selected_size"]
+        ),
+        selected_strategy=str(
+            report["selected_strategy"]
+        ),
+        candidate_evaluations=list(
+            report[
+                "candidate_evaluations"
+            ]
+        ),
+        selected_evaluation=(
+            report.get(
+                "selected_evaluation"
+            )
+        ),
+        threshold=float(
+            report["threshold"]
+        ),
+        rare_coverage_threshold=(
+            float(
+                report[
+                    "rare_coverage_threshold"
+                ]
+            )
+            if report.get(
+                "rare_coverage_threshold"
+            )
+            is not None
+            else None
+        ),
+        reason=str(
+            report["reason"]
+        ),
+        full_data_preflight_required=True,
+    )
 
 @router.post(
     "/workspaces/{learner_id}/{workspace_id}/plan",
@@ -1789,6 +2248,86 @@ def create_workspace_execution_plan(
 
 
 @router.post(
+    "/workspaces/{learner_id}/{workspace_id}/data/refresh-duplicates"
+)
+def refresh_workspace_duplicate_count(
+    learner_id: str,
+    workspace_id: str,
+):
+    """Recalculate old duplicate metadata without modifying the raw source."""
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Workspace bulunamadı.")
+    if workspace.dataset_storage_mode != "duckdb" or not workspace.dataset_profile:
+        raise HTTPException(
+            status_code=400,
+            detail="This operation requires a profiled large dataset.",
+        )
+
+    try:
+        duplicates = recalculate_source_duplicates(
+            get_workspace_source_path(workspace_id)
+        )
+    except (OSError, ValueError) as exc:
+        logging.getLogger(__name__).exception(
+            "Duplicate recount failed for workspace %s", workspace_id
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Duplicate recount failed; existing profile was preserved.",
+        ) from exc
+
+    profile = dict(workspace.dataset_profile)
+    profile["duplicate_count"] = duplicates
+    profile["duplicate_count_verified"] = True
+    workspace.dataset_profile = profile
+    if workspace.full_data_profile is not None:
+        full_profile = dict(workspace.full_data_profile)
+        full_profile["duplicate_count"] = duplicates
+        full_profile["duplicate_count_verified"] = True
+        workspace.full_data_profile = full_profile
+
+    if workspace.dataset_analysis is not None:
+        findings = [
+            finding for finding in workspace.dataset_analysis.findings
+            if finding.issue_type != "duplicate_rows"
+        ]
+        if duplicates:
+            from backend.app.models import DataQualityFinding
+            percent = round(duplicates / max(int(profile["row_count"]), 1) * 100, 2)
+            findings.append(DataQualityFinding(
+                issue_type="duplicate_rows",
+                severity="high" if percent >= 20 else "medium",
+                observation=f"{duplicates} duplicate rows found ({percent}%).",
+                suggested_action=(
+                    "Inspect duplicate rows and confirm whether they are true "
+                    "duplicates before removing."
+                ),
+            ))
+        workspace.dataset_analysis = workspace.dataset_analysis.model_copy(
+            update={"findings": findings}
+        )
+        (
+            workspace.workbench_operations,
+            workspace.workbench_active_operation_id,
+        ) = sync_data_quality_workbench_operations(
+            existing_operations=workspace.workbench_operations,
+            findings=findings,
+        )
+
+    database.save_workspace(workspace=workspace)
+    return {
+        "workspace_id": workspace_id,
+        "duplicate_count": duplicates,
+        "row_count": profile["row_count"],
+        "status": "refreshed",
+    }
+
+
+@router.post(
     "/workspaces/{learner_id}/{workspace_id}/data/profile"
 )
 def profile_workspace_data(
@@ -1798,7 +2337,7 @@ def profile_workspace_data(
     development_sample_size: int = Form(
         default=1000,
         ge=1,
-        le=5000,
+        le=20000,
     ),
 ):
     workspace = database.get_workspace(
@@ -1818,60 +2357,195 @@ def profile_workspace_data(
             detail="Yalnızca CSV dosyası yükleyebilirsiniz.",
         )
 
+    # --------------------------------------------------
+    # STREAMING INGESTION
+    # --------------------------------------------------
+    # The upload is copied to immutable source.csv in chunks.
+    # We never read the complete upload into Python bytes/RAM.
     try:
-        content = file.file.read()
-
-        df = pd.read_csv(
-            BytesIO(content)
+        source_bytes = save_workspace_dataset_stream(
+            workspace_id=workspace_id,
+            source_file=file.file,
         )
 
-    except pd.errors.EmptyDataError:
+        source_path = get_workspace_source_path(
+            workspace_id
+        )
+
+        full_profile = build_full_data_profile(
+            source_path
+        )
+
+    except (OSError, ValueError) as exc:
+        logging.getLogger(__name__).exception(
+            "Workspace CSV ingestion/profile failed (workspace_id=%s, stage=upload_or_full_profile)",
+            workspace_id,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "CSV dosyası geçersiz, bozuk veya "
+                "profil oluşturulamadı."
+            ),
+        ) from exc
+
+    source_row_count = int(
+        full_profile["row_count"]
+    )
+
+    if source_row_count == 0:
         raise HTTPException(
             status_code=400,
             detail="CSV dosyası boş.",
         )
 
-    except pd.errors.ParserError:
-        raise HTTPException(
-            status_code=400,
-            detail="CSV dosyası geçersiz veya bozuk.",
-        )
-
-    # ==================================================
-    # LOCAL DATA ANALYSIS
-    # ==================================================
-    #
-    # Raw dataset üzerinde deterministic kontroller
-    # HER ZAMAN local olarak çalışır.
-    #
-    # Bu işlem external AI izninden bağımsızdır.
-
-    local_analysis = (
-        analyze_dataframe_locally(
-            df
-        )
+    # Large sources use the new DuckDB path. Smaller sources keep the
+    # existing pandas learning flow so Melbourne/regression work remains
+    # unchanged.
+    large_dataset = (
+        source_row_count >= 100_000
+        or source_bytes >= 50 * 1024 * 1024
     )
 
-    # ==================================================
-    # SAFE PROFILE
-    # ==================================================
-    #
-    # Raw sample rows external AI context'ine
-    # dahil edilmez.
+    smart_sampling_report = None
 
-    profile = build_data_profile(
-        df
-    )
+    if large_dataset:
+        try:
+            (
+                working_df,
+                smart_sampling_report,
+            ) = build_smart_development_sample(
+                source_path=source_path,
+                profile=full_profile,
+                candidate_sizes=(
+                    SMART_SAMPLE_CANDIDATES
+                ),
+                seed=42,
+            )
+        except (OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Smart development sample "
+                    "oluşturulamadı."
+                ),
+            ) from exc
 
+        local_analysis = build_full_quality_analysis(
+            profile=full_profile,
+            development_sample=working_df,
+        )
+
+        workspace.dataset_storage_mode = "duckdb"
+        workspace.development_sample_strategy = "smart"
+        workspace.development_sample_seed = 42
+        workspace.development_sample_size = len(
+            working_df
+        )
+        workspace.development_sample_max_size = min(
+            20_000,
+            source_row_count,
+        )
+        workspace.development_sample_row_count = len(
+            working_df
+        )
+        workspace.development_sample_enabled = (
+            len(working_df) < source_row_count
+        )
+        workspace.smart_sampling_report = (
+            smart_sampling_report
+        )
+
+    else:
+        try:
+            source_df = (
+                load_workspace_source_dataframe(
+                    workspace_id
+                )
+            )
+        except (
+            FileNotFoundError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "CSV dosyası geçersiz veya bozuk."
+                ),
+            ) from exc
+
+        # Preserve the proven small-data profile contract so
+        # Melbourne/regression work keeps pandas dtype names and summaries.
+        full_profile = build_data_profile(
+            source_df
+        )
+
+        local_analysis = (
+            analyze_dataframe_locally(
+                source_df
+            )
+        )
+
+        requested_sample_size = (
+            development_sample_size
+        )
+
+        development_sample_max_size = min(
+            requested_sample_size,
+            len(source_df),
+        )
+
+        use_full_working_dataset = (
+            development_sample_max_size
+            >= len(source_df)
+        )
+
+        if use_full_working_dataset:
+            working_df = (
+                source_df.copy()
+                .reset_index(drop=True)
+            )
+        else:
+            working_df = (
+                source_df.sample(
+                    n=development_sample_max_size,
+                    random_state=42,
+                )
+                .reset_index(drop=True)
+            )
+
+        workspace.dataset_storage_mode = "legacy_csv"
+        workspace.development_sample_size = (
+            development_sample_max_size
+        )
+        workspace.development_sample_max_size = (
+            development_sample_max_size
+        )
+        workspace.development_sample_strategy = (
+            None
+            if use_full_working_dataset
+            else "random"
+        )
+        workspace.development_sample_seed = (
+            None
+            if use_full_working_dataset
+            else 42
+        )
+        workspace.development_sample_row_count = len(
+            working_df
+        )
+        workspace.development_sample_enabled = (
+            not use_full_working_dataset
+        )
+        workspace.smart_sampling_report = None
+
+    # Raw sample rows are never sent to external AI.
     safe_profile = {
         key: value
-        for key, value in profile.items()
+        for key, value in full_profile.items()
         if key != "sample_rows"
     }
-
-    # ==================================================
-    # DATA SECURITY POLICY
-    # ==================================================
 
     security_decision = (
         evaluate_external_ai_policy(
@@ -1889,16 +2563,7 @@ def profile_workspace_data(
         )
     )
 
-
-    # ==================================================
-    # ANALYSIS STRATEGY
-    # ==================================================
-
-    if (
-        security_decision
-        .external_ai_allowed
-    ):
-
+    if security_decision.external_ai_allowed:
         try:
             ai_analysis = (
                 generate_data_recommendations(
@@ -1912,100 +2577,24 @@ def profile_workspace_data(
                     ai_analysis,
                 )
             )
-
-            analysis_source = (
-                "local_and_ai"
-            )
+            analysis_source = "local_and_ai"
 
         except Exception:
-
-            # External AI izinli olsa bile
-            # servis çalışmazsa junior'ın işi
-            # tamamen durmamalı.
-            #
-            # Local deterministic findings ile
-            # devam ediyoruz.
-
             analysis = local_analysis
-
             analysis_source = (
                 "local_ai_fallback"
             )
-
     else:
-
-        # Confidential / restricted / unknown
-        # veya organization policy izin vermiyorsa
-        # external AI çağrısı yapılmaz.
-
         analysis = local_analysis
-
         analysis_source = "local"
 
     workspace.dataset_filename = file.filename
-
-    requested_sample_size = (
-        development_sample_size
-    )
-
-    development_sample_max_size = min(
-        requested_sample_size,
-        len(df),
-    )
-
-    use_full_working_dataset = (
-        development_sample_max_size
-        >= len(df)
-    )
-
-    if use_full_working_dataset:
-        working_df = (
-            df.copy()
-            .reset_index(drop=True)
-        )
-    else:
-        working_df = (
-            df.sample(
-                n=development_sample_max_size,
-                random_state=42,
-            )
-            .reset_index(drop=True)
-        )
-
-    workspace.development_sample_size = (
-        development_sample_max_size
-    )
-
-    workspace.development_sample_max_size = (
-        development_sample_max_size
-    )
-
-    workspace.development_sample_strategy = (
-        None
-        if use_full_working_dataset
-        else "random"
-    )
-
-    workspace.development_sample_seed = (
-        None
-        if use_full_working_dataset
-        else 42
-    )
-
-    workspace.development_sample_row_count = (
-        len(working_df)
-    )
-
-    workspace.development_sample_enabled = (
-        not use_full_working_dataset
-    )
-
-    workspace.dataset_profile = (
-        safe_profile
-    )
+    workspace.dataset_source_bytes = source_bytes
+    workspace.dataset_profile = safe_profile
+    workspace.full_data_profile = safe_profile
 
     (
-    workspace.workbench_operations,
+        workspace.workbench_operations,
         workspace.workbench_active_operation_id,
     ) = sync_data_quality_workbench_operations(
         existing_operations=(
@@ -2014,17 +2603,25 @@ def profile_workspace_data(
         findings=analysis.findings,
     )
 
-    workspace.dataset_analysis = (
-        analysis
-    )
-
+    workspace.dataset_analysis = analysis
     workspace.dataset_ai_processing_status = (
-        security_decision
-        .ai_processing_status
+        security_decision.ai_processing_status
     )
-
     workspace.dataset_analysis_source = (
         analysis_source
+    )
+
+    # A new source invalidates full-data execution artefacts.
+    workspace.full_data_preflight = None
+    workspace.silver_dataset_path = None
+
+    save_workspace_working_dataframe(
+        workspace_id=workspace_id,
+        df=working_df,
+    )
+
+    clear_workspace_versions(
+        workspace_id=workspace_id
     )
 
     if workspace.usage_context == "personal":
@@ -2040,88 +2637,58 @@ def profile_workspace_data(
     workspace.dashboard_config.visuals = []
     workspace.kpi_candidates = []
     workspace.kpi_definitions = []
+    workspace.data_model_plan = None
+    workspace.data_model_studio = None
+    workspace.current_task_id = None
 
     workspace.checkpoint.completed_items = [
         item
         for item in workspace.checkpoint.completed_items
         if item not in {
+            "Execution plan created",
             "Validation passed",
             "Final review completed",
+            "Handoff completed",
         }
     ]
 
-    # Yeni dataset yüklendiyse eski execution plan
-    # artık güvenilir olmayabilir.
-    workspace.current_task_id = None
-
-    completed_items = [
-        item
-        for item in workspace.checkpoint.completed_items
-        if item != "Execution plan created"
-    ]
-
-    if "Dataset profile" not in completed_items:
-        completed_items.append("Dataset profile")
-
-    workspace.checkpoint.completed_items = (
-        completed_items
-    )
+    if (
+        "Dataset profile"
+        not in workspace.checkpoint.completed_items
+    ):
+        workspace.checkpoint.completed_items.append(
+            "Dataset profile"
+        )
 
     workspace.checkpoint.current_focus = (
-        (
-            "Review development sample and build execution plan"
-        )
+        "Review development sample and build execution plan"
         if workspace.development_sample_enabled
-        else (
-            "Review dataset profile and build execution plan"
-        )
+        else "Review dataset profile and build execution plan"
     )
-
     workspace.checkpoint.next_actions = [
         "Build execution plan"
     ]
-
     workspace.checkpoint.blocked_reason = None
     workspace.checkpoint.last_error = None
-
-    save_workspace_dataset(
-        workspace_id=workspace_id,
-        content=content,
-    )
-
-    if workspace.development_sample_enabled:
-        save_workspace_working_dataframe(
-            workspace_id=workspace_id,
-            df=working_df,
-        )
 
     database.save_workspace(
         workspace=workspace
     )
 
     return {
-        "workspace_id":
-            workspace_id,
-
-        "filename":
-            file.filename,
-
-        "profile":
-            safe_profile,
-
-        "analysis":
-            analysis.model_dump(),
-
+        "workspace_id": workspace_id,
+        "filename": file.filename,
+        "profile": safe_profile,
+        "analysis": analysis.model_dump(),
         "ai_processing_status":
-            security_decision
-            .ai_processing_status,
-
+            security_decision.ai_processing_status,
         "external_ai_allowed":
-            security_decision
-            .external_ai_allowed,
-
-        "analysis_source":
-            analysis_source,
+            security_decision.external_ai_allowed,
+        "analysis_source": analysis_source,
+        "dataset_storage_mode":
+            workspace.dataset_storage_mode,
+        "smart_sampling":
+            smart_sampling_report,
     }
 
 @router.post(
@@ -2195,6 +2762,95 @@ def start_workspace_prepare_learning_loop(
             finding_index=finding_index,
             finding=finding,
             skill_name=skill_name,
+            language=language,
+        )
+    )
+
+    database.save_workspace(
+        workspace=workspace
+    )
+
+    return WorkspaceLearningLoopResponse(
+        loop=loop,
+        mentor_prompt=mentor_prompt,
+    )
+
+
+@router.post(
+    (
+        "/workspaces/{learner_id}/{workspace_id}"
+        "/data/findings/{finding_index}"
+        "/learning-loop/restart"
+    ),
+    response_model=WorkspaceLearningLoopResponse,
+)
+def restart_workspace_prepare_learning_loop(
+    learner_id: str,
+    workspace_id: str,
+    finding_index: int,
+    language: Literal[
+        "en",
+        "nl",
+        "tr",
+    ] = Query(
+        default="en"
+    ),
+):
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+
+    if workspace is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace bulunamadı.",
+        )
+
+    if workspace.dataset_analysis is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Workspace için dataset analysis "
+                "henüz bulunmuyor."
+            ),
+        )
+
+    findings = workspace.dataset_analysis.findings
+    if (
+        finding_index < 0
+        or finding_index >= len(findings)
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail="Finding bulunamadı.",
+        )
+
+    finding = findings[finding_index]
+    skill_name = get_skill_for_data_quality_issue(
+        finding.issue_type
+    )
+    if skill_name is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Bu finding için uygun "
+                "mentor skill'i bulunamadı."
+            ),
+        )
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=finding_index,
+        finding=finding,
+        skill_name=skill_name,
+        language=language,
+    )
+
+    loop, mentor_prompt = (
+        restart_prepare_learning_loop(
+            loop=loop,
+            finding=finding,
             language=language,
         )
     )
@@ -2304,11 +2960,72 @@ def respond_to_workspace_prepare_learning_loop(
         else "new"
     )
 
-    assistance_level = (
-        get_local_assistance_level(
-            skill_status
+    assistance_level = determine_assistance_level(
+        skill_status=skill_status,
+        learner_message=request.response,
+    )
+
+    # Route deterministic technical support BEFORE any classifier call.
+    # Navigation/code-help/result-reading turns are not learning evidence.
+    mentor_context = build_guided_mentor_context(
+        learner_id=learner_id,
+        workspace=workspace,
+        loop=loop,
+        finding=finding,
+        ui_context=request.ui_context,
+        learner_message=request.response,
+    )
+
+    record_execution_signal(
+        learner_id=learner_id,
+        workspace_id=workspace_id,
+        skill_name=loop.skill_name,
+        phase=loop.current_phase,
+        assistance_level=assistance_level,
+        diagnosis=mentor_context.get(
+            "execution_diagnosis"
+        ),
+    )
+
+    mentor_context = build_guided_mentor_context(
+        learner_id=learner_id,
+        workspace=workspace,
+        loop=loop,
+        finding=finding,
+        ui_context=request.ui_context,
+        learner_message=request.response,
+    )
+
+    local_support_reply = (
+        render_zero_ai_prepare_support_reply(
+            loop=loop,
+            learner_response=request.response,
+            mentor_context=mentor_context,
         )
     )
+
+    if local_support_reply is not None:
+        evidence = LearningEvidenceDecision(
+            is_evidence=False,
+            note=(
+                "Deterministic technical support turn; "
+                "no external AI assessment required."
+            ),
+        )
+        record_learning_loop_exchange(
+            loop=loop,
+            learner_message=request.response,
+            mentor_response=local_support_reply,
+        )
+        database.save_workspace(
+            workspace=workspace
+        )
+        return WorkspaceLearningLoopReviewResponse(
+            loop=loop,
+            mentor_response=local_support_reply,
+            evidence=evidence,
+            assistance_level=assistance_level,
+        )
 
     try:
         evaluation = evaluate_prepare_phase_response(
@@ -2337,8 +3054,36 @@ def respond_to_workspace_prepare_learning_loop(
         evaluation=evaluation,
     )
 
+    try:
+        mentor_response = generate_prepare_mentor_reply(
+            loop=loop,
+            finding=finding,
+            learner_response=request.response,
+            evaluation=evaluation,
+            assistance_level=assistance_level,
+            ui_context=request.ui_context,
+            learning_history=[
+                *[
+                    item.model_dump()
+                    for item
+                    in loop.message_history[-6:]
+                ],
+                {
+                    "role": "user",
+                    "content": request.response,
+                },
+            ],
+            mentor_context=mentor_context,
+        )
+    except (
+        AIProviderConfigurationError,
+        AIBillingPolicyError,
+        AIUsageLimitError,
+    ):
+        mentor_response = None
+
     if loop.current_phase == "explain":
-        loop, mentor_response = (
+        loop, fallback_response = (
             complete_prepare_learning_loop(
                 loop=loop,
                 finding=finding,
@@ -2346,13 +3091,22 @@ def respond_to_workspace_prepare_learning_loop(
             )
         )
     else:
-        loop, mentor_response = (
+        loop, fallback_response = (
             apply_learning_phase_review(
                 loop=loop,
                 finding=finding,
                 evidence=evidence,
             )
         )
+
+    if mentor_response is None:
+        mentor_response = fallback_response
+
+    record_learning_loop_exchange(
+        loop=loop,
+        learner_message=request.response,
+        mentor_response=mentor_response,
+    )
 
     database.save_workspace(
         workspace=workspace
@@ -3013,6 +3767,56 @@ def get_workspace_notebook_data(
             detail="Notebook bulunamadı.",
         )
 
+    notebook_limit = min(
+        (
+            workspace.development_sample_size
+            or workspace.development_sample_row_count
+            or workspace.development_sample_max_size
+            or 1000
+        ),
+        5000,
+    )
+
+    if (
+        workspace.dataset_storage_mode
+        == "duckdb"
+        and notebook.dataset_kind
+        == "raw"
+    ):
+        try:
+            (
+                df,
+                total_row_count,
+            ) = load_large_source_sample(
+                source_path=(
+                    get_workspace_source_path(
+                        workspace_id
+                    )
+                ),
+                limit=notebook_limit,
+                seed=42,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        return WorkspaceWorkingDataResponse(
+            columns=df.columns.tolist(),
+            row_count=len(df),
+            rows=dataframe_to_records(
+                df
+            ),
+            total_row_count=(
+                total_row_count
+            ),
+            sampled=(
+                total_row_count
+                > len(df)
+            ),
+        )
+
     try:
         if notebook.dataset_kind == "working":
             df = (
@@ -3054,16 +3858,6 @@ def get_workspace_notebook_data(
         ) from exc
 
     total_row_count = len(df)
-
-    notebook_limit = min(
-        (
-            workspace.development_sample_size
-            or workspace.development_sample_row_count
-            or workspace.development_sample_max_size
-            or 1000
-        ),
-        5000,
-    )
 
     sampled = (
         total_row_count > notebook_limit
@@ -3400,6 +4194,71 @@ def export_workspace_processed_dataset(
     )
 
 
+class WorkspaceRelationshipInvestigationRequest(BaseModel):
+    target_column: str = Field(min_length=1, max_length=200)
+    group_column: str = Field(min_length=1, max_length=200)
+    max_groups: int = Field(default=12, ge=1, le=30)
+
+
+@router.post(
+    "/workspaces/{learner_id}/{workspace_id}/mentor/investigate-missingness"
+)
+def investigate_workspace_missingness(
+    learner_id: str,
+    workspace_id: str,
+    request: WorkspaceRelationshipInvestigationRequest,
+):
+    """Read-only, no-LLM verification of missingness by a chosen column."""
+    workspace = database.get_workspace(
+        workspace_id=workspace_id,
+        learner_id=learner_id,
+    )
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Workspace bulunamadı.")
+    from backend.app.workspace_data_service import get_workspace_data_dir
+    working_path = get_workspace_data_dir(workspace_id) / "working.csv"
+    try:
+        # Load only the two requested columns, not the entire raw source.
+        # Validate column names using CSV schema first to avoid silent inference.
+        available = pd.read_csv(working_path, nrows=0).columns
+        if (
+            request.target_column not in available
+            or request.group_column not in available
+        ):
+            raise ValueError("Both requested columns must exist.")
+        columns = [request.target_column, request.group_column]
+        df = pd.read_csv(working_path, usecols=columns)
+        result = verify_missingness_relationship(
+            df,
+            target_column=request.target_column,
+            group_column=request.group_column,
+            max_groups=request.max_groups,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404, detail="Working dataset not found."
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    stat = working_path.stat()
+    data_version = f"{stat.st_size}:{stat.st_mtime_ns}"
+    if record_action_evidence(
+        workspace,
+        action="missingness_relationship",
+        dataset="working",
+        parameters={
+            "target_column": request.target_column,
+            "group_column": request.group_column,
+            "max_groups": request.max_groups,
+        },
+        result=result,
+        data_version=data_version,
+    ):
+        database.save_workspace(workspace=workspace)
+    return result
+
+
 @router.get(
     "/workspaces/{learner_id}/{workspace_id}/data/preview",
     response_model=WorkspaceDataPreviewResponse,
@@ -3424,6 +4283,16 @@ def get_workspace_data_preview(
         default=None,
         max_length=200,
     ),
+    filters: str | None = Query(
+        default=None,
+        max_length=8000,
+    ),
+    filter_logic: Literal[
+        "and",
+        "or",
+    ] = Query(
+        default="and"
+    ),
 ):
     workspace = database.get_workspace(
         workspace_id=workspace_id,
@@ -3434,6 +4303,143 @@ def get_workspace_data_preview(
         raise HTTPException(
             status_code=404,
             detail="Workspace bulunamadı.",
+        )
+
+    def record_preview_evidence(
+        *,
+        verified_filters: list[dict],
+        total: int,
+        filtered: int,
+    ) -> None:
+        # Record only meaningful user investigations. Initial page loads
+        # and pagination are not learning achievements.
+        if not verified_filters and not (search or "").strip():
+            return
+        from backend.app.workspace_data_service import get_workspace_data_dir
+
+        file_path = (
+            get_workspace_source_path(workspace_id)
+            if dataset == "source"
+            else get_workspace_data_dir(workspace_id) / "working.csv"
+        )
+        try:
+            stat = file_path.stat()
+            data_version = f"{stat.st_size}:{stat.st_mtime_ns}"
+        except OSError:
+            data_version = None
+
+        if record_action_evidence(
+            workspace,
+            action="preview_investigation",
+            dataset=dataset,
+            parameters={
+                "filters": verified_filters,
+                "logic": filter_logic,
+                "search": (search or "").strip(),
+            },
+            result={
+                "total_rows": total,
+                "matching_rows": filtered,
+            },
+            data_version=data_version,
+        ):
+            database.save_workspace(workspace=workspace)
+
+    use_large_preview = (
+        workspace.dataset_storage_mode
+        == "duckdb"
+        and (
+            dataset == "source"
+            or (
+                dataset == "working"
+                and workspace.development_sample_enabled
+                is False
+                and workspace.silver_dataset_path
+                is not None
+            )
+        )
+    )
+
+    if use_large_preview:
+        try:
+            preview_filters = (
+                parse_preview_filters(
+                    filters
+                )
+            )
+
+            result = (
+                query_large_data_preview(
+                    source_path=(
+                        get_workspace_source_path(
+                            workspace_id
+                        )
+                        if dataset
+                        == "source"
+                        else None
+                    ),
+                    parquet_path=(
+                        get_workspace_silver_path(
+                            workspace_id
+                        )
+                        if dataset
+                        == "working"
+                        else None
+                    ),
+                    page=page,
+                    page_size=page_size,
+                    search=(
+                        search
+                        or ""
+                    ),
+                    filters=(
+                        preview_filters
+                    ),
+                    filter_logic=(
+                        filter_logic
+                    ),
+                )
+            )
+
+        except (
+            FileNotFoundError,
+            ValueError,
+        ) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        record_preview_evidence(
+            verified_filters=preview_filters,
+            total=result["total_row_count"],
+            filtered=result["filtered_row_count"],
+        )
+
+        return WorkspaceDataPreviewResponse(
+            dataset=dataset,
+            columns=result[
+                "columns"
+            ],
+            column_types=result[
+                "column_types"
+            ],
+            total_row_count=result[
+                "total_row_count"
+            ],
+            filtered_row_count=result[
+                "filtered_row_count"
+            ],
+            page=result["page"],
+            page_size=result[
+                "page_size"
+            ],
+            total_pages=result[
+                "total_pages"
+            ],
+            rows=dataframe_to_records(
+                result["rows"]
+            ),
         )
 
     try:
@@ -3486,6 +4492,21 @@ def get_workspace_data_preview(
             row_matches
         ]
 
+    try:
+        preview_filters = parse_preview_filters(
+            filters
+        )
+        filtered_df = apply_preview_filters(
+            df=filtered_df,
+            filters=preview_filters,
+            logic=filter_logic,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
     filtered_row_count = len(
         filtered_df
     )
@@ -3514,9 +4535,18 @@ def get_workspace_data_preview(
         start + page_size
     ]
 
+    record_preview_evidence(
+        verified_filters=preview_filters,
+        total=total_row_count,
+        filtered=filtered_row_count,
+    )
+
     return WorkspaceDataPreviewResponse(
         dataset=dataset,
         columns=df.columns.tolist(),
+        column_types=preview_column_types(
+            df
+        ),
         total_row_count=total_row_count,
         filtered_row_count=(
             filtered_row_count
@@ -3562,21 +4592,19 @@ def get_workspace_working_data(
             detail=str(exc),
         )
 
-    # MVP sırasında browser-side workbench için
-    # makul bir sınır koyuyoruz.
-    if len(df) > 5000:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                "Bu MVP workbench şu anda "
-                "en fazla 5000 satır destekliyor."
-            ),
-        )
+    # Browser only receives a bounded preview. The complete
+    # development sample remains on disk and structured Workbench
+    # transformations execute against that full sample in the backend.
+    preview_df = df.head(
+        5000
+    )
 
     return WorkspaceWorkingDataResponse(
         columns=df.columns.tolist(),
         row_count=len(df),
-        rows=dataframe_to_records(df),
+        rows=dataframe_to_records(
+            preview_df
+        ),
     )
 
 
@@ -4150,6 +5178,320 @@ def validate_workspace_result(
                 "pipeline full dataset'e uygulanmalı."
             ),
         )
+
+    if workspace.dataset_storage_mode == "duckdb":
+        source_profile = (
+            workspace.full_data_profile
+            or workspace.dataset_profile
+        )
+
+        if source_profile is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Full-data profile bulunamadı."
+                ),
+            )
+
+        if not workspace.silver_dataset_path:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Validation öncesinde full pipeline "
+                    "Silver dataset'e uygulanmalı."
+                ),
+            )
+
+        try:
+            working_profile = profile_parquet(
+                get_workspace_silver_path(
+                    workspace_id
+                )
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+        checks: list[
+            WorkspaceValidationCheck
+        ] = []
+
+        working_row_count = int(
+            working_profile["row_count"]
+        )
+
+        checks.append(
+            WorkspaceValidationCheck(
+                name="Dataset integrity",
+                status=(
+                    "passed"
+                    if working_row_count > 0
+                    else "failed"
+                ),
+                message=(
+                    f"Silver dataset contains "
+                    f"{working_row_count} rows."
+                ),
+                code="dataset_integrity",
+                params={
+                    "row_count":
+                        working_row_count,
+                    "engine":
+                        "duckdb",
+                    "storage":
+                        "parquet",
+                },
+            )
+        )
+
+        preflight_passed = bool(
+            workspace.full_data_preflight
+            and workspace.full_data_preflight.get(
+                "passed",
+                False,
+            )
+        )
+
+        checks.append(
+            WorkspaceValidationCheck(
+                name="Full-data preflight",
+                status=(
+                    "passed"
+                    if preflight_passed
+                    else "failed"
+                ),
+                message=(
+                    "Sample-derived pipeline decisions "
+                    "were checked against the full source."
+                    if preflight_passed
+                    else (
+                        "A successful full-data preflight "
+                        "is missing."
+                    )
+                ),
+                code="full_data_preflight",
+                params={
+                    "passed":
+                        preflight_passed,
+                },
+            )
+        )
+
+        operations_by_finding_index = {
+            operation.finding_index:
+                operation
+            for operation
+            in workbench_operations
+            if (
+                operation.finding_index
+                is not None
+            )
+        }
+
+        for step_index, step in enumerate(
+            task.steps
+        ):
+            finding = step.finding
+            operation = (
+                operations_by_finding_index.get(
+                    step_index
+                )
+            )
+
+            accepted_as_is = (
+                operation is not None
+                and operation.decision
+                == "accepted_as_is"
+            )
+
+            if (
+                finding.issue_type
+                == "duplicate_rows"
+            ):
+                duplicate_count = int(
+                    working_profile[
+                        "duplicate_count"
+                    ]
+                )
+
+                checks.append(
+                    WorkspaceValidationCheck(
+                        name="Duplicate rows",
+                        status=(
+                            "warning"
+                            if accepted_as_is
+                            else (
+                                "passed"
+                                if duplicate_count == 0
+                                else "failed"
+                            )
+                        ),
+                        message=(
+                            f"{duplicate_count} "
+                            "duplicate rows remain."
+                        ),
+                        code="duplicate_rows",
+                        params={
+                            "duplicate_count":
+                                duplicate_count,
+                        },
+                    )
+                )
+
+            elif (
+                finding.issue_type
+                == "missing_values"
+                and finding.column
+            ):
+                missing_count = int(
+                    working_profile[
+                        "null_counts"
+                    ].get(
+                        finding.column,
+                        0,
+                    )
+                )
+
+                source_missing_count = int(
+                    source_profile[
+                        "null_counts"
+                    ].get(
+                        finding.column,
+                        0,
+                    )
+                )
+
+                pipeline_action = (
+                    operation.pipeline_action
+                    if operation is not None
+                    else None
+                )
+
+                partial_mapping_fill = (
+                    pipeline_action is not None
+                    and pipeline_action.action
+                    == "fill_missing"
+                    and pipeline_action.fill_strategy
+                    == "mapping"
+                    and pipeline_action
+                    .mapping_only_unambiguous
+                    and missing_count > 0
+                    and missing_count
+                    < source_missing_count
+                )
+
+                checks.append(
+                    WorkspaceValidationCheck(
+                        name=(
+                            "Missing values · "
+                            f"{finding.column}"
+                        ),
+                        status=(
+                            "warning"
+                            if (
+                                accepted_as_is
+                                or partial_mapping_fill
+                            )
+                            else (
+                                "passed"
+                                if missing_count == 0
+                                else "failed"
+                            )
+                        ),
+                        message=(
+                            f"{missing_count} missing "
+                            f"values remain in "
+                            f"{finding.column}."
+                        ),
+                        code="missing_values",
+                        params={
+                            "column":
+                                finding.column,
+                            "missing_count":
+                                missing_count,
+                            "source_missing_count":
+                                source_missing_count,
+                        },
+                    )
+                )
+
+        passed = all(
+            check.status != "failed"
+            for check in checks
+        )
+
+        if passed:
+            if workspace.usage_context == "personal":
+                complete_and_advance_personal_project_deliverable(
+                    workspace=workspace,
+                    code="clean_dataset",
+                )
+
+                workspace.analysis_plan = (
+                    build_personal_analysis_plan(
+                        working_profile,
+                        dataset_filename=(
+                            workspace.dataset_filename
+                        ),
+                    )
+                )
+
+                workspace.kpi_candidates = (
+                    build_personal_kpi_candidates_from_plan(
+                        workspace.analysis_plan
+                    )
+                )
+
+            if (
+                "Validation passed"
+                not in workspace.checkpoint.completed_items
+            ):
+                workspace.checkpoint.completed_items.append(
+                    "Validation passed"
+                )
+
+            workspace.checkpoint.current_focus = (
+                "Review transformed dataset"
+            )
+            workspace.checkpoint.next_actions = [
+                "Review final dataset and changes"
+            ]
+            workspace.checkpoint.last_error = None
+
+        else:
+            workspace.checkpoint.current_focus = (
+                "Resolve validation failures"
+            )
+            workspace.checkpoint.last_error = (
+                "Final validation failed."
+            )
+
+        validation_result = (
+            WorkspaceValidationResponse(
+                passed=passed,
+                source_row_count=int(
+                    source_profile[
+                        "row_count"
+                    ]
+                ),
+                working_row_count=(
+                    working_row_count
+                ),
+                checks=checks,
+            )
+        )
+
+        workspace.validation_result = (
+            validation_result
+        )
+
+        database.save_workspace(
+            workspace=workspace
+        )
+
+        return validation_result
 
     try:
         source_df = (

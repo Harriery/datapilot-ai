@@ -17,6 +17,7 @@ from openai import (
     AuthenticationError,
     RateLimitError,
     APIConnectionError,
+    BadRequestError,
 )
 
 from backend.app.models import (
@@ -42,7 +43,36 @@ from backend.app.models import (
     PracticeHintResponse,
     PracticeSolutionRequest,
     PracticeSolutionResponse,
+    PracticeCatalogResponse,
+    PracticeExerciseSourceResponse,
+    PracticeNextExerciseResponse,
+    PracticeExerciseContentResponse,
+    PracticeTheoryConceptResponse,
+    PracticeTheoryConceptContent,
+    PracticeTheoryCheckCreateRequest,
+    PracticeTheoryCheckResponse,
+    PracticeTheoryAnswerRequest,
+    PracticeTheoryAnswerResponse,
+    PracticeExerciseValidationBundle,
+    PracticeTranslationRequest,
+    PracticeTranslationResponse,
+    ExternalPracticeValidationEvent,
+    ExternalPracticeValidationEventRequest,
+    LearnerJournalResponse,
+    LearnerNote,
+    LearnerNoteCreateRequest,
+    LearnerNoteUpdateRequest,
+    LearnerResumeState,
+    LearnerResumeStateUpsertRequest,
 )
+from backend.app.ai_usage_guard import (
+    AIBillingPolicyError,
+    AIUsageLimitError,
+)
+from backend.app.ai_provider_service import (
+    AIProviderConfigurationError,
+)
+
 from backend.app.practice_micro_check_service import (
     review_practice_micro_check,
 )
@@ -57,8 +87,40 @@ from backend.app.practice_service import (
     get_next_practice_hint,
     get_practice_solution,
 )
+from backend.app.practice_catalog_service import (
+    get_practice_catalog,
+)
+from backend.app.practice_progression_service import (
+    choose_next_external_exercise,
+)
+from backend.app.practice_theory_source_service import (
+    get_exercism_python_theory_concept,
+    list_exercism_python_theory_concepts,
+)
+from backend.app.practice_theory_check_service import (
+    create_python_theory_check,
+    review_python_theory_answer,
+)
+from backend.app.practice_exercism_adapter import (
+    get_exercism_python_exercise_content,
+    get_exercism_python_validation_bundle,
+    list_exercism_python_exercises,
+)
 from backend.app.progress_service import (
     get_learner_progress,
+)
+from backend.app.practice_translation_service import (
+    translate_practice_instructions,
+)
+from backend.app.external_practice_validation_service import (
+    record_client_validation_event,
+)
+from backend.app.learner_journal_service import (
+    add_note,
+    edit_note,
+    get_journal,
+    remove_note,
+    save_resume_state,
 )
 
 
@@ -441,6 +503,598 @@ def get_progress(
     return get_learner_progress(
         learner_id=learner_id
     )
+
+# ---------------------------------------------------------
+# LEARNER JOURNAL / RESUME STATE
+# ---------------------------------------------------------
+
+@router.put(
+    "/journal/{learner_id}/resume",
+    response_model=LearnerResumeState,
+)
+def upsert_learner_resume_state_route(
+    learner_id: str,
+    request: LearnerResumeStateUpsertRequest,
+):
+    learner = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return save_resume_state(
+        learner_id=learner_id,
+        request=request,
+    )
+
+
+@router.get(
+    "/journal/{learner_id}",
+    response_model=LearnerJournalResponse,
+)
+def get_learner_journal_route(
+    learner_id: str,
+    context_type: str,
+    context_key: str,
+):
+    learner = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    if context_type not in {
+        "practice",
+        "workspace",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail="Geçersiz journal context_type.",
+        )
+
+    return get_journal(
+        learner_id=learner_id,
+        context_type=context_type,
+        context_key=context_key,
+    )
+
+
+@router.post(
+    "/journal/{learner_id}/notes",
+    response_model=LearnerNote,
+)
+def create_learner_note_route(
+    learner_id: str,
+    request: LearnerNoteCreateRequest,
+):
+    learner = database.get_learner_profile_by_id(
+        learner_id
+    )
+
+    if learner is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return add_note(
+        learner_id=learner_id,
+        request=request,
+    )
+
+
+@router.patch(
+    "/journal/{learner_id}/notes/{note_id}",
+    response_model=LearnerNote,
+)
+def update_learner_note_route(
+    learner_id: str,
+    note_id: str,
+    request: LearnerNoteUpdateRequest,
+):
+    note = edit_note(
+        learner_id=learner_id,
+        note_id=note_id,
+        request=request,
+    )
+
+    if note is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Note bulunamadı.",
+        )
+
+    return note
+
+
+@router.delete(
+    "/journal/{learner_id}/notes/{note_id}",
+    status_code=204,
+)
+def delete_learner_note_route(
+    learner_id: str,
+    note_id: str,
+):
+    deleted = remove_note(
+        learner_id=learner_id,
+        note_id=note_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Note bulunamadı.",
+        )
+
+
+# ---------------------------------------------------------
+# PRACTICE V2 EXTERNAL EXERCISE SOURCE
+# ---------------------------------------------------------
+
+@router.get(
+    "/practice/source/exercism/python/{learner_id}",
+    response_model=PracticeExerciseSourceResponse,
+)
+def get_exercism_python_practice_source(
+    learner_id: str,
+    subtopic_id: str,
+    difficulty: str,
+    practice_mode: str = "code",
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    if practice_mode != "code":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Exercism Python adapter currently "
+                "supports code mode only."
+            ),
+        )
+
+    try:
+        return list_exercism_python_exercises(
+            learner_id=learner_id,
+            subtopic_id=subtopic_id,
+            difficulty=difficulty,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/practice/source/exercism/python/{learner_id}/theory",
+    response_model=PracticeTheoryConceptResponse,
+)
+def get_exercism_python_theory_concepts_route(
+    learner_id: str,
+    subtopic_id: str,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return list_exercism_python_theory_concepts(
+            learner_id=learner_id,
+            subtopic_id=subtopic_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    (
+        "/practice/source/exercism/python/"
+        "{learner_id}/theory/{concept_id}"
+    ),
+    response_model=PracticeTheoryConceptContent,
+)
+def get_exercism_python_theory_concept_route(
+    learner_id: str,
+    concept_id: str,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return get_exercism_python_theory_concept(
+            learner_id=learner_id,
+            concept_id=concept_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Theory concept source "
+                "could not be loaded."
+            ),
+        ) from exc
+
+
+@router.get(
+    "/practice/source/exercism/python/{learner_id}/next",
+    response_model=PracticeNextExerciseResponse,
+)
+def get_next_exercism_python_practice(
+    learner_id: str,
+    subtopic_id: str,
+    difficulty: str,
+    practice_mode: str = "code",
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    if practice_mode != "code":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Exercism Python progression currently "
+                "supports code mode only."
+            ),
+        )
+
+    source = list_exercism_python_exercises(
+        learner_id=learner_id,
+        subtopic_id=subtopic_id,
+        difficulty=difficulty,
+    )
+
+    return choose_next_external_exercise(
+        learner_id=learner_id,
+        topic_id="python",
+        subtopic_id=subtopic_id,
+        practice_mode=practice_mode,
+        difficulty=difficulty,
+        source_id=source.source_id,
+        exercises=source.exercises,
+    )
+
+
+@router.get(
+    (
+        "/practice/source/exercism/python/"
+        "{learner_id}/exercise/{exercise_id}"
+    ),
+    response_model=PracticeExerciseContentResponse,
+)
+def get_exercism_python_exercise_content_route(
+    learner_id: str,
+    exercise_id: str,
+    title: str,
+    source_revision: str | None = None,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return get_exercism_python_exercise_content(
+            learner_id=learner_id,
+            exercise_id=exercise_id,
+            title=title,
+            source_revision=source_revision,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "External Practice source "
+                "could not be loaded."
+            ),
+        ) from exc
+
+
+@router.get(
+    (
+        "/practice/source/exercism/python/"
+        "{learner_id}/exercise/{exercise_id}/validation"
+    ),
+    response_model=PracticeExerciseValidationBundle,
+)
+def get_exercism_python_validation_bundle_route(
+    learner_id: str,
+    exercise_id: str,
+    source_revision: str | None = None,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return get_exercism_python_validation_bundle(
+            learner_id=learner_id,
+            exercise_id=exercise_id,
+            source_revision=source_revision,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "External Practice validation "
+                "bundle could not be loaded."
+            ),
+        ) from exc
+
+
+@router.post(
+    "/practice/external-validation-event",
+    response_model=ExternalPracticeValidationEvent,
+)
+def record_external_practice_validation_event_route(
+    request: ExternalPracticeValidationEventRequest,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            request.learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return record_client_validation_event(
+        request=request
+    )
+
+
+@router.post(
+    "/practice/translate",
+    response_model=PracticeTranslationResponse,
+)
+def translate_practice_instructions_route(
+    request: PracticeTranslationRequest,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            request.learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return translate_practice_instructions(
+            request=request
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Practice translation could not be loaded."
+            ),
+        ) from exc
+
+
+@router.post(
+    "/practice/theory/check",
+    response_model=PracticeTheoryCheckResponse,
+)
+def create_practice_theory_check_route(
+    request: PracticeTheoryCheckCreateRequest,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            request.learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return create_python_theory_check(
+            request=request
+        )
+    except AIUsageLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+        ) from exc
+    except AIBillingPolicyError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail=str(exc),
+        ) from exc
+    except AIProviderConfigurationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+    except RateLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Groq rate limit reached. "
+                "Try again after the provider quota resets."
+            ),
+        ) from exc
+    except AuthenticationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Practice AI provider authentication "
+                "is not configured correctly."
+            ),
+        ) from exc
+    except APIConnectionError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Practice AI provider could not be reached."
+            ),
+        ) from exc
+    except BadRequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Practice AI provider rejected the "
+                "Theory generation request."
+            ),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Practice theory check "
+                "could not be generated."
+            ),
+        ) from exc
+
+
+@router.post(
+    "/practice/theory/answer",
+    response_model=PracticeTheoryAnswerResponse,
+)
+def review_practice_theory_answer_route(
+    request: PracticeTheoryAnswerRequest,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            request.learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    try:
+        return review_python_theory_answer(
+            request=request
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+
+# ---------------------------------------------------------
+# PRACTICE V2 CATALOG ENDPOINT
+# ---------------------------------------------------------
+
+@router.get(
+    "/practice/catalog/{learner_id}",
+    response_model=PracticeCatalogResponse,
+)
+def get_practice_catalog_route(
+    learner_id: str,
+):
+    learner_profile = (
+        database.get_learner_profile_by_id(
+            learner_id
+        )
+    )
+
+    if learner_profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Learner profile bulunamadı.",
+        )
+
+    return get_practice_catalog(
+        learner_id=learner_id
+    )
+
 
 # ---------------------------------------------------------
 # PRACTICE RECOMMENDATION ENDPOINT

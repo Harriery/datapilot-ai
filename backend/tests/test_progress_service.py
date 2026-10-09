@@ -580,3 +580,26 @@ def test_progress_exposes_learning_phase_and_misconception_metrics():
     assert skill.misconceptions == [
         "auto_fill_missing"
     ]
+
+
+
+def test_recurring_misconceptions_raise_practice_priority():
+    assert (
+        calculate_practice_priority(
+            status="comfortable",
+            success_rate=0.9,
+            independence_trend="stable",
+            recurring_misconception_count=2,
+        )
+        == "medium"
+    )
+
+    assert (
+        calculate_practice_priority(
+            status="comfortable",
+            success_rate=0.9,
+            independence_trend="stable",
+            recurring_misconception_count=3,
+        )
+        == "high"
+    )

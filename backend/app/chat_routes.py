@@ -8,6 +8,7 @@ Bu dosya AI sohbetiyle ilgili API endpoint'lerini içerir.
 - OpenAI hatalarını uygun HTTP hatalarına dönüştürür.
 """
 import os
+import logging
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from openai import (
@@ -15,6 +16,7 @@ from openai import (
     AuthenticationError,
     RateLimitError,
     APIConnectionError,
+    APIStatusError,
 )
 import backend.app.database as database
 from backend.app.models import ChatRequest, ChatResponse
@@ -33,9 +35,20 @@ from backend.app.ai_usage_guard import (
     get_ai_usage_status,
     guarded_responses_create,
 )
+from backend.app.ai_provider_service import (
+    get_ai_runtime,
+    get_ai_runtime_config,
+)
+from backend.app.mentor_workspace_context_service import (
+    build_chat_mentor_workspace_context,
+)
+from backend.app.mentor_pedagogy_contract import enforce_discovery_contract
+from backend.app.mentor_local_dispatcher_service import dispatch_local_investigation
 
 import json
 
+
+logger = logging.getLogger('uvicorn.error')
 
 router = APIRouter()
 MAX_HISTORY_MESSAGES = 10 
@@ -63,141 +76,13 @@ def _deterministic_workspace_guidance(
     message: str,
     conversation_history: list[dict] | None = None,
 ) -> str | None:
-    """Control beginner-help turns while advancing from evidence already reported."""
-    if workspace_context is None:
-        return None
-
-    ui_context = (
-        workspace_context.get("ui_context")
-        or {}
-    )
-
-    # Deterministic micro-guidance is intentionally limited to the
-    # hands-on Workbench screen. On Validate/Understand/Data Model/etc.
-    # the adaptive mentor must reason from the relevant stage artifacts
-    # rather than being trapped in an older data-quality step.
-    if not (
-        ui_context.get("active_workspace_stage") == "prepare"
-        and ui_context.get("active_prepare_stage") == "workbench"
-    ):
-        return None
-
-    step = workspace_context.get("current_step") or {}
-    task = workspace_context.get("current_task") or {}
-    checkpoint = workspace_context.get("checkpoint") or {}
-    step_text = " ".join(
-        str(value)
-        for value in (
-            step.get("title"),
-            step.get("instruction"),
-            step.get("description"),
-            task.get("title"),
-            checkpoint.get("current_focus"),
-        )
-        if value
-    )
-    normalized_step = step_text.casefold()
-    notebook_evidence = []
-    for notebook in workspace_context.get("notebooks", []):
-        for cell in notebook.get("recent_cells", []):
-            execution = cell.get("last_execution")
-            if execution:
-                notebook_evidence.append({
-                    "code": cell.get("code", ""),
-                    "execution": execution,
-                })
-
-    car_count_observed = any(
-        "car" in item["code"].casefold()
-        and ("isna" in item["code"].casefold() or "isnull" in item["code"].casefold())
-        and item["execution"].get("success")
-        and item["execution"].get("expression_kind") == "scalar"
-        for item in notebook_evidence
-    )
-    car_examples_observed = any(
-        "car" in item["code"].casefold()
-        and ("isna" in item["code"].casefold() or "isnull" in item["code"].casefold())
-        and item["execution"].get("success")
-        and item["execution"].get("expression_kind") == "dataframe"
-        and item["execution"].get("preview_rows")
-        for item in notebook_evidence
-    )
-    if not (
-        "car" in normalized_step
-        and ("eksik" in normalized_step or "missing" in normalized_step or "null" in normalized_step)
-    ):
-        if not _is_step_by_step_help_request(message):
-            return None
-        step_label = (
-            step.get("title")
-            or step.get("instruction")
-            or checkpoint.get("current_focus")
-            or task.get("title")
-        )
-        if step_label:
-            return (
-                f"Şu an üzerinde çalıştığımız adım: {step_label}. "
-                "Bu adımda yalnızca ilk küçük kontrolü yapalım. "
-                "Nasıl yapacağını bilmiyorsan söyle, birlikte yapalım."
-            )
-        return None
-
-    normalized_message = message.casefold()
-    history = conversation_history or []
-    recent_user_text = " ".join(
-        str(item.get("content", ""))
-        for item in history[-8:]
-        if item.get("role") == "user"
-    ).casefold()
-
-    count_reported = (
-        car_count_observed
-        or "np.int64(23)" in normalized_message
-        or "23 eksik" in normalized_message
-        or "np.int64(23)" in recent_user_text
-        or "23 eksik" in recent_user_text
-    )
-
-    direct_teaching_markers = (
-        "bilmiyorum", "ilk defa", "ilk kez", "tarif et", "birlikte yap",
-        "nasıl yap", "nasil yap", "göster", "goster",
-        "i don't know", "i dont know", "first time", "show me", "teach me",
-    )
-    asks_for_instruction = any(marker in normalized_message for marker in direct_teaching_markers)
-
-    if car_examples_observed:
-        # Observation is complete. Do not trap every later message in a canned
-        # acknowledgement; let the adaptive mentor inspect the compact preview
-        # and answer interpretation/teaching questions from the actual rows.
-        return None
-
-    if count_reported:
-        if asks_for_instruction:
-            return (
-                "23 eksik değer olduğunu zaten bulduk; aynı sayımı tekrar yapmayacağız. "
-                "Şimdi Notebook'ta yeni bir hücreye df[df['Car'].isna()][['Suburb','Type','Rooms','Price']].head(5) yazıp çalıştır. "
-                "Hücreyi çalıştırdıktan sonra sadece 'yaptım' de; çıktıyı Notebook'tan görebilirim."
-            )
-        return (
-            "Car sütununda 23 eksik değer olduğunu bulduk. "
-            "Şimdi yalnızca bu eksik kayıtlardan birkaç örneğe bakalım. "
-            "Nasıl yapacağını bilmiyorsan söyle, birlikte yapalım."
-        )
-
-    if asks_for_instruction:
-        return (
-            "Notebook'ta yeni bir hücreye df['Car'].isna().sum() yaz ve o hücreyi çalıştır. "
-            "Ekranda çıkan sayıyı bana gönder; şimdilik başka bir şey yapma."
-        )
-
-    if _is_step_by_step_help_request(message):
-        return (
-            "Şu an Car sütunundaki eksik değerleri inceliyoruz. "
-            "İlk olarak sadece kaç tane Car değerinin eksik olduğunu bulalım. "
-            "Bunu Notebook'ta nasıl kontrol edeceğini bilmiyorsan söyle; birlikte yapalım."
-        )
-
+    """
+    Kept as a narrow compatibility hook. Mentor V2 intentionally contains no
+    dataset-specific columns, counts, or notebook code here; semantic guidance
+    comes from the capability registry, workspace state and learning playbooks.
+    """
     return None
+
 
 @router.get("/chat/{session_id}/history")
 def chat_history(session_id: str):
@@ -277,92 +162,29 @@ def chat(request: ChatRequest):
                     None,
                 )
 
-        workspace_context = {
-            "workspace_id": workspace.workspace_id,
-            "title": workspace.title,
-            "workspace_type": workspace.workspace_type,
-            "status": workspace.status,
-            "current_task_id": workspace.current_task_id,
-            "current_task": current_task,
-            "current_step": current_step,
-            "checkpoint": workspace.checkpoint.model_dump(),
-            "task_brief": workspace.task_brief,
-            "desired_outcome": workspace.desired_outcome,
-            "project_type": workspace.project_type,
-            "dataset_filename": workspace.dataset_filename,
-            "development_sample_size": workspace.development_sample_size,
-            "dataset_profile": (
-                workspace.dataset_profile.model_dump()
-                if hasattr(workspace.dataset_profile, "model_dump")
-                else workspace.dataset_profile
-            ),
-            "dataset_analysis": (
-                workspace.dataset_analysis.model_dump()
-                if hasattr(workspace.dataset_analysis, "model_dump")
-                else workspace.dataset_analysis
-            ),
-            "workbench_operations": [
-                item.model_dump() if hasattr(item, "model_dump") else item
-                for item in (workspace.workbench_operations or [])
-            ],
-            "notebooks": [
-                {
-                    "notebook_id": item.notebook_id,
-                    "name": item.name,
-                    "dataset_kind": item.dataset_kind,
-                    "cell_count": len(item.cells),
-                    "recent_cells": [
-                        {
-                            "cell_id": cell.cell_id,
-                            "code": cell.code[-4000:],
-                            "last_execution": cell.last_execution,
-                        }
-                        for cell in item.cells[-6:]
-                        if cell.code.strip() or cell.last_execution
-                    ],
-                }
-                for item in (workspace.notebooks or [])
-            ],
-            "processed_datasets": [
-                item.model_dump() if hasattr(item, "model_dump") else item
-                for item in (workspace.processed_datasets or [])
-            ],
-            "active_processed_dataset_id":
-                workspace.active_processed_dataset_id,
-            "validation_result": (
-                workspace.validation_result.model_dump()
-                if hasattr(workspace.validation_result, "model_dump")
-                else workspace.validation_result
-            ),
-            "analysis_plan": (
-                workspace.analysis_plan.model_dump()
-                if hasattr(workspace.analysis_plan, "model_dump")
-                else workspace.analysis_plan
-            ),
-            "data_model_plan": (
-                workspace.data_model_plan.model_dump()
-                if hasattr(workspace.data_model_plan, "model_dump")
-                else workspace.data_model_plan
-            ),
-            "data_model_studio": (
-                workspace.data_model_studio.model_dump()
-                if hasattr(workspace.data_model_studio, "model_dump")
-                else workspace.data_model_studio
-            ),
-            "kpi_candidates": [
-                item.model_dump() if hasattr(item, "model_dump") else item
-                for item in (workspace.kpi_candidates or [])
-            ],
-            "kpi_definitions": [
-                item.model_dump() if hasattr(item, "model_dump") else item
-                for item in (workspace.kpi_definitions or [])
-            ],
-            "ui_context": request.ui_context or {},
-            "learner_skills": [
-                dict(item)
-                for item in database.get_skill_states_by_learner(learner_id)
-            ],
-        }
+        # Run local verification before constructing the bounded AI context.
+        # Only explicit named-column investigations may dispatch; never
+        # infer business rules or spend model tokens on data counting.
+        from backend.app.workspace_data_service import get_workspace_data_dir
+        local_result = dispatch_local_investigation(
+            workspace,
+            message,
+            get_workspace_data_dir(workspace.workspace_id) / "working.csv",
+        )
+        if local_result.get("status") == "verified":
+            database.save_workspace(workspace=workspace)
+
+        workspace_context = (
+            build_chat_mentor_workspace_context(
+                workspace=workspace,
+                learner_id=learner_id,
+                ui_context=request.ui_context,
+                message=message,
+                current_task=current_task,
+                current_step=current_step,
+            )
+        )
+        workspace_context["local_investigation"] = local_result
 
     learner_profile = database.get_learner_profile_by_id(
     learner_id
@@ -395,11 +217,70 @@ def chat(request: ChatRequest):
     try:
         # Explicit beginner-help turns are controlled before the LLM so one
         # learning turn cannot expand into several tasks or a solution dump.
-        reply = _deterministic_workspace_guidance(
-            workspace_context=workspace_context,
-            message=message,
-            conversation_history=previous_history,
+        # Trusted local query results are rendered without a second model call.
+        # This prevents the Mentor from overlooking verified counts and
+        # asking the learner to repeat the same calculation.
+        local_evidence = (
+            (workspace_context or {}).get("local_investigation") or {}
         )
+        if local_evidence.get("status") == "verified":
+            evidence = local_evidence["evidence"]
+            lines = [
+                f"{evidence['target_column']} eksikliği, "
+                f"{evidence['group_column']} sütununa göre incelendi.",
+                f"Çalışma örneklemi: {evidence['total_rows']} satır; "
+                f"eksik: {evidence['total_missing']} satır.",
+            ]
+            lines.extend(
+                f"{item['value']}: {item['rows']} satır, "
+                f"{item['missing_rows']} eksik, "
+                f"{item['present_rows']} dolu (%{item['missing_pct']} eksik)."
+                for item in evidence["groups"]
+            )
+            sufficiency = evidence.get("sufficiency") or {}
+            state = sufficiency.get("status")
+            if state in {"conflicting", "needs_verification"}:
+                lines = [
+                    "Hesaplanan ilişkide tutarsız veya doğrulanmamış kanıt var. "
+                    "Bu sayılardan henüz sonuç çıkarmayalım.",
+                    "Önce toplamların ve veri kaynağının doğrulanması gerekiyor.",
+                ]
+            elif state == "needs_more_evidence":
+                lines.append(
+                    "Bu inceleme henüz yeterli kanıt sağlamıyor "
+                    f"({sufficiency.get('reason', 'eksik kanıt')})."
+                )
+                lines.append(
+                    "Bu eksikliği gidermek için hangi ek kontrolü yapmalıyız?"
+                )
+            else:
+                lines.append(
+                    "Sayılar doğrulanmıştır; iş kuralının nedeni henüz "
+                    "doğrulanmamıştır. Sence bu ilişkiyi nasıl yorumlamalıyız?"
+                )
+            reply = "\n".join(lines)
+        elif (
+            local_evidence.get("status") == "needs_clarification"
+            and local_evidence.get("reason") == "request_one_group_column"
+            and local_evidence.get("target_column")
+            and local_evidence.get("informal_question")
+        ):
+            # Natural learner follow-ups like "Bu boşlar normal mi?"
+            # should not trigger unsupported UI instructions or repeat work.
+            target = local_evidence["target_column"]
+            reply = (
+                f"{target} sütunundaki eksik kayıtları daha önce "
+                "incelediğini görüyorum. Ancak sadece boş kayıt sayısına "
+                "bakarak bunların hata mı, beklenen durum mu olduğunu "
+                "söyleyemeyiz. Sence bunu anlamak için hangi başka "
+                "bilgiyle karşılaştırmalıyız?"
+            )
+        else:
+            reply = _deterministic_workspace_guidance(
+                workspace_context=workspace_context,
+                message=message,
+                conversation_history=previous_history,
+            )
 
         # Other turns continue through the adaptive mentor.
         if reply is None:
@@ -457,11 +338,15 @@ def chat(request: ChatRequest):
                     )
                 )
 
-            response = guarded_responses_create(
-                client,
-                purpose="chat_fallback",
+            runtime = get_ai_runtime(
+                "mentor"
+            )
 
-                model="gpt-5-mini",
+            response = guarded_responses_create(
+                runtime.client,
+                provider=runtime.provider,
+                purpose="chat_fallback",
+                model=runtime.model,
                 instructions=fallback_instructions,
                 input=history,
             )
@@ -496,12 +381,38 @@ def chat(request: ChatRequest):
             detail="AI servisine şu anda ulaşılamıyor.",
         )
 
+    except APIStatusError as exc:
+        logger.warning(
+            "Mentor AI provider rejected request (status=%d)",
+            exc.status_code,
+        )
+        delete_last_message(request.session_id)
+        if exc.status_code == 413:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "Mentor context exceeded the AI provider token limit. "
+                    "Try a shorter question or retry after context refresh."
+                ),
+            ) from exc
+        raise HTTPException(
+            status_code=503,
+            detail="Mentor AI provider request failed.",
+        ) from exc
+
     except Exception:
+        logger.exception(
+            "Mentor chat request failed (workspace_attached=%s)",
+            workspace_context is not None,
+        )
         delete_last_message(request.session_id)
         raise HTTPException(
             status_code=500,
             detail="Beklenmeyen bir sunucu hatası oluştu.",
         )
+
+    if workspace_context is not None:
+        reply = enforce_discovery_contract(message, reply)
 
     # Başarılı AI cevabını SQLite veritabanına kaydeder.
     insert_message(
@@ -516,5 +427,27 @@ def chat(request: ChatRequest):
 
 @router.get("/ai/usage")
 def ai_usage_status():
-    """Return local hard-stop counters without contacting any AI provider."""
-    return get_ai_usage_status()
+    """Return local safety counters and resolved AI runtime configuration."""
+    status = get_ai_usage_status()
+    mentor_runtime = get_ai_runtime_config(
+        "mentor"
+    )
+    classifier_runtime = get_ai_runtime_config(
+        "classifier"
+    )
+
+    return {
+        **status,
+        "current_provider":
+            mentor_runtime.provider,
+        "current_model":
+            mentor_runtime.model,
+        "mentor_provider":
+            mentor_runtime.provider,
+        "mentor_model":
+            mentor_runtime.model,
+        "classifier_provider":
+            classifier_runtime.provider,
+        "classifier_model":
+            classifier_runtime.model,
+    }

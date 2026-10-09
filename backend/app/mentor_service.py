@@ -1,5 +1,4 @@
 import json
-from openai import OpenAI
 from backend.app.models import (
     MentorDecision,
     SkillDetection,
@@ -15,9 +14,7 @@ from backend.app.models import (
     DataEngineeringTaskTransformationResponse,
 )
 import backend.app.database as database
-import os
 import pandas as pd
-from dotenv import load_dotenv
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
 )
@@ -25,22 +22,27 @@ from backend.app.ai_usage_guard import (
     guarded_responses_create,
     guarded_responses_parse,
 )
+from backend.app.ai_provider_service import (
+    get_ai_runtime,
+)
 
 from backend.app.task_service import (
     get_current_task_step,
     apply_validation_result_to_task,
 )
+from backend.app.mentor_classifier_policy import (
+    classifier_generation_kwargs,
+    learning_evidence_classifier_rules,
+)
+from backend.app.mentor_orchestration_service import (
+    determine_assistance_level,
+)
+from backend.app.mentor_misconception_taxonomy import (
+    normalize_misconception,
+)
 
 # MentorDecision bizim models.py dosyasında oluşturduğumuz Pydantic modelidir.
-# AI'dan gelecek mentor kararının hangi alanlara sahip olması gerektiğini tanımlar.
-
-load_dotenv()
-
-# OpenAI API anahtarını ortam değişkeninden alır.
-api_key = os.getenv("OPENAI_API_KEY")
-
-# OpenAI ile iletişim kuracak istemciyi oluşturur.
-client = OpenAI(api_key=api_key)
+# Provider/model selection is centralized in ai_provider_service.
 
 
 # Mentor sisteminin MVP'de takip ettiği skill'ler.
@@ -85,6 +87,12 @@ SKILL_CATALOG = {
     "data_modeling",
     "file_formats",
     "medallion_architecture",
+    "semantic_modeling",
+    "kpi_design",
+    "data_analysis",
+    "dashboard_design",
+    "data_interpretation",
+    "technical_documentation",
 
     # Engineering Workflow
     "testing",
@@ -151,51 +159,34 @@ def generate_mentor_decision(
     learning_evidence: list[dict],
     current_message: str,
 ):
-    
-    prompt = build_mentor_decision_prompt(learner_profile, skill_state,learning_evidence, current_message)
+    """
+    Assistance level is deterministic in Mentor V2.
+    Historical evidence remains available to learner/progress systems, while
+    the current message can immediately increase support when the learner is
+    stuck.
+    """
+    skill_name = str(
+        skill_state.get("skill_name")
+        or ""
+    )
+    skill_status = str(
+        skill_state.get("status")
+        or "new"
+    )
 
-    instructions = """
-            You are an adaptive Data Engineering mentor.
+    assistance_level = determine_assistance_level(
+        skill_status=skill_status,
+        learner_message=current_message,
+    )
 
-            Choose the minimum assistance level needed for the learner's next correct step.
-
-            Assistance levels:
-            - NONE: learner can continue independently
-            - NUDGE: learner only needs a small hint
-            - GUIDE: learner needs step-by-step direction
-            - TEACH: learner needs the concept explained
-            - DEMONSTRATE: learner needs a concrete example
-
-            Base your decision on the learner profile, skill state,
-            learning evidence, and current message.
-
-            The current message is an immediate assistance signal:
-            if the learner explicitly says they do not understand, do not know
-            what to do, or asks to be taught step by step, do NOT choose NONE
-            or NUDGE merely because older evidence was strong. Choose GUIDE,
-            TEACH, or DEMONSTRATE as appropriate for this turn.
-            Older evidence describes capability; it must not override an explicit
-            request for more support in the current task.
-            """
-
-
-
-# parse():
-# AI cevabını düz metin olarak almak yerine,
-# verdiğimiz Pydantic modeline göre yapılandırılmış şekilde almamızı sağlar.
-#
-# text_format=MentorDecision:
-# "AI cevabı bizim MentorDecision modelimizin yapısına uygun olsun" demektir.
-    response = guarded_responses_parse(
-        client,
-        purpose="mentor",
-  # parse cevabi (basemodeldeki) sablona gore olusturdemek.
-    model="gpt-5-mini",
-    input=prompt,               # → AI NEYE BAKARAK karar versin?
-    instructions=instructions,  # → AI NASIL karar versin?
-    text_format=MentorDecision, # AI KARARI HANGİ ŞEKİLDE versin? model.py deki olusturdugumuz model
-)
-    return response.output_parsed   # MentorDecision modeline dönüştürülmüş asıl sonuç
+    return MentorDecision(
+        skill_name=skill_name,
+        assistance_level=assistance_level,
+        reason=(
+            "Deterministic Mentor V2 assistance policy based on "
+            f"skill_status={skill_status} and the current support request."
+        ),
+    )
 
 
 #  output_parsed Mesela prompt kabaca şöyle görünür:
@@ -268,10 +259,100 @@ def get_mentor_decision_for_learner(
     return ai_decision
 
 
-def detect_relevant_skill(current_message:str):
+STAGE_SKILL_FALLBACK = {
+    "data_model": "data_modeling",
+    "kpis": "kpi_design",
+    "bi_dataset": "semantic_modeling",
+    "analysis": "data_analysis",
+    "dashboard": "dashboard_design",
+    "insights": "data_interpretation",
+    "docs": "technical_documentation",
+    "prepare.workbench": "data_transformation",
+    "prepare.workbench.notebook": "pandas_dataframe",
+    "prepare.workbench.pipeline": "pipeline_concepts",
+    "prepare.validate": "data_validation",
+}
+
+
+def _workspace_product_path(
+    workspace_context: dict | None,
+) -> str | None:
+    product = (
+        (workspace_context or {}).get(
+            "mentor_product_context"
+        )
+        or {}
+    )
+    current = product.get("current")
+
+    if isinstance(current, dict):
+        path = current.get("path")
+        if isinstance(path, str):
+            return path
+
+    return None
+
+
+def _is_contextual_stage_message(
+    message: str,
+) -> bool:
+    normalized = message.casefold()
+    markers = (
+        "burada",
+        "burda",
+        "şimdi",
+        "simdi",
+        "bunu",
+        "bunun",
+        "hangi buton",
+        "hangi seçenek",
+        "hangi secenek",
+        "ne yap",
+        "nasıl",
+        "nasil",
+        "doğru mu",
+        "dogru mu",
+        "here",
+        "this",
+        "what next",
+        "which button",
+        "which option",
+        "is this correct",
+    )
+    return any(
+        marker in normalized
+        for marker in markers
+    )
+
+
+def detect_relevant_skill(
+    current_message: str,
+    workspace_context: dict | None = None,
+):
 
 
     skills_text = ", ".join(SKILL_CATALOG)# skill katologiunu metne cevirdik ai in okumasi icin.
+    product_path = _workspace_product_path(
+        workspace_context
+    )
+
+    if (
+        product_path in STAGE_SKILL_FALLBACK
+        and _is_contextual_stage_message(
+            current_message
+        )
+    ):
+        return SkillDetection(
+            skill_name=(
+                STAGE_SKILL_FALLBACK[
+                    product_path
+                ]
+            ),
+            reason=(
+                "Active DataPilot stage resolves this contextual message "
+                "without an AI classification call."
+            ),
+        )
 
     instructions = f"""
         Kullanıcının mesajına en uygun skill'i seç.
@@ -283,32 +364,60 @@ def detect_relevant_skill(current_message:str):
         skill_name = null döndür.
 
         Yeni bir skill adı üretme.
+        Current Product Path yalnız bağlamdır; sırf bir ekranda bulunmak learning
+        evidence anlamına gelmez. Ancak kısa/bağlamsal mesajlarda doğru skill'i
+        seçmek için bu stage bilgisini kullanabilirsin.
         Neden bu kararı verdiğini kısa şekilde açıkla.
+
+        Current Product Path:
+        {product_path}
     """
+    runtime = get_ai_runtime(
+        "classifier"
+    )
+
     response = guarded_responses_parse(
-        client,
-        purpose="mentor",
-  # OpenAI cevabı için modeli kullanmasını parse() ile biz söyleriz.
-        model="gpt-5-mini",
-        input= current_message,
-        instructions= instructions,            
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_skill_detection",
+        model=runtime.model,
+        input=current_message,
+        instructions=instructions,
         text_format=SkillDetection,
+        **classifier_generation_kwargs(),
     )
 
     detection = response.output_parsed# modele gore olusturulmus sonuc (SkillDetection)
     if detection.skill_name is not None and detection.skill_name not in SKILL_CATALOG:
         raise ValueError("Geçersiz skill tespit edildi.")
-    
+
+    if (
+        detection.skill_name is None
+        and product_path in STAGE_SKILL_FALLBACK
+    ):
+        detection.skill_name = (
+            STAGE_SKILL_FALLBACK[
+                product_path
+            ]
+        )
+        detection.reason = (
+            "Active DataPilot stage provides the skill context."
+        )
+
     return detection
 
 def get_mentor_decision_from_message(
     learner_id: str,
     current_message: str,
+    workspace_context: dict | None = None,
     ):
 
     # Burada SkillDetection nesnesini aldık.
     # skill_name değerine skill_detection.skill_name ile ulaşırız.
-    skill_detection = detect_relevant_skill(current_message)
+    skill_detection = detect_relevant_skill(
+        current_message,
+        workspace_context=workspace_context,
+    )
     if skill_detection.skill_name is None:
         return None
     decision = get_mentor_decision_for_learner(
@@ -395,26 +504,82 @@ def generate_mentor_response(
         indent=2,
     )   
 
+    # Limit context to the current project and the evidence necessary for
+    # this turn. Full workspace artifacts are already stored server-side.
+    recent_history = (conversation_history or [])[-4:]
     conversation_history_text = json.dumps(
-    conversation_history or [],
-    ensure_ascii=False,
-    indent=2,
+        [
+            {
+                "role": item.get("role"),
+                "content": str(item.get("content") or "")[-1200:],
+            }
+            for item in recent_history
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
     )
 
+    source_context = workspace_context or {}
+    compact_workspace = {
+        key: source_context.get(key)
+        for key in (
+            "workspace_id", "title", "task_brief", "desired_outcome",
+            "project_type", "mentor_setup", "dataset_filename",
+            "dataset_profile_summary", "sampling_context",
+            "verified_action_evidence",
+            "local_investigation",
+            "development_sample_size", "current_step", "checkpoint",
+            "mentor_execution_context",
+        )
+        if source_context.get(key) is not None
+    }
+    ui = source_context.get("ui_context") or {}
+    compact_workspace["ui_context"] = {
+        key: ui.get(key)
+        for key in (
+            "active_workspace_stage", "active_prepare_stage",
+            "workbench_view", "selected_workbench_column",
+        )
+        if ui.get(key) is not None
+    }
+    artifacts = source_context.get("artifacts") or {}
+    # Preserve the stage-specific evidence contract (model, KPI, analysis,
+    # dashboard etc.), but do not send complete large artifacts.
+    compact_artifacts = {}
+    for key, value in artifacts.items():
+        if key in {"dataset_profile", "dataset_analysis", "selected_notebook"}:
+            compact_artifacts[key] = value
+            continue
+        serialized = json.dumps(
+            value, ensure_ascii=False, separators=(",", ":"), default=str
+        )
+        compact_artifacts[key] = (
+            value if len(serialized) <= 1800
+            else {"preview": serialized[:1800], "truncated": True}
+        )
+    compact_workspace["artifacts"] = compact_artifacts
     workspace_context_text = json.dumps(
-    workspace_context or {},
-    ensure_ascii=False,
-    indent=2,
+        compact_workspace,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=str,
     )
 
     current_step = (workspace_context or {}).get("current_step")
     checkpoint = (workspace_context or {}).get("checkpoint") or {}
     ui_context = (workspace_context or {}).get("ui_context") or {}
+    artifacts = (
+        (workspace_context or {}).get("artifacts")
+        or {}
+    )
     workspace_has_dataset = bool(
         (workspace_context or {}).get("dataset_filename")
-        or (workspace_context or {}).get("dataset_profile")
+        or artifacts.get("dataset_profile")
     )
-    notebook_summaries = (workspace_context or {}).get("notebooks") or []
+    notebook_summaries = (
+        artifacts.get("notebooks")
+        or []
+    )
     mentor_state = {
         "workspace_has_dataset": workspace_has_dataset,
         "dataset_filename": (workspace_context or {}).get("dataset_filename"),
@@ -427,12 +592,24 @@ def generate_mentor_response(
         "active_prepare_stage": ui_context.get("active_prepare_stage"),
         "workbench_view": ui_context.get("workbench_view"),
         "selected_notebook_id": ui_context.get("selected_notebook_id"),
+        "selected_notebook_dataset_kind":
+            ui_context.get(
+                "selected_notebook_dataset_kind"
+            ),
         "selected_workbench_column": ui_context.get("selected_workbench_column"),
+        "product_context":
+            (workspace_context or {}).get(
+                "mentor_product_context"
+            ),
+        "execution_context":
+            (workspace_context or {}).get(
+                "mentor_execution_context"
+            ),
         "has_validation_result": bool(
-            (workspace_context or {}).get("validation_result")
+            artifacts.get("validation_result")
         ),
         "has_analysis_plan": bool(
-            (workspace_context or {}).get("analysis_plan")
+            artifacts.get("analysis_plan")
         ),
         "active_processed_dataset_id":
             (workspace_context or {}).get("active_processed_dataset_id"),
@@ -469,11 +646,56 @@ def generate_mentor_response(
     instructions = """
     Sen DataPilot'un kıdemli Data Engineering mentorusun. Oyuncak bir chatbot gibi davranma.
 
+    Soru önceliği ve güvenilirlik:
+    - Kullanıcı proje amacını, Mentor Setup tercihlerini, tam veri profilini veya development sample'ı
+      soruyorsa önce ilgili sorularını Current Workspace alanlarından tek tek yanıtla.
+      Ardından öğretim tercihine uygun tek bir küçük soru sor. Soruyu cevapsız bırakıp
+      doğrudan genel bir alıştırmaya geçme. Birden fazla bağlam sorusunu cevaplamak
+      birden fazla çalışma görevi vermek anlamına gelmez.
+    - mentor_setup kullanıcının beyan ettiği tercihleri içerir, ölçülmüş becerileri değil.
+      Guided yaklaşımında çözümü hemen sunma; doğrudan yardım istendiğinde ise açıklama yap.
+    - dataset_profile_summary.column_count güvenilir kolon sayısıdır; columns listesinin
+      uzunluğunu veya ismini yeniden tahmin etme.
+    - sampling_context.active_development_rows mevcut çalışma örneklemini gösterir.
+      smart_sampling_report son ölçümün sonucudur, aktif örneklemle karıştırma.
+    - duplicate_count_verified=false ise eski duplicate_count ve duplicate_rows findings
+      güncelliği doğrulanmamış kayıtlardır; sayıyı kesin gerçek gibi sunma.
+      Refresh edilmiş veya yeni hesaplanmış doğrulanmış profil dışında eski duplicate
+      bulgularına dayanarak yönlendirme yapma.
+    - Kullanıcı Türkçe yazıyorsa Türkçe cevap ver. Kullanıcı farklı bir dil isterse onu izle.
+    - verified_action_evidence yalnızca backend'in gerçekten çalıştırıp doğruladığı
+      filtre, arama ve ilişki incelemelerini içerir. Burada mevcut bir filtre
+      veya hesaplama sonucu varsa aynı satırları kopyalamasını, head() çıktısını
+      tekrar göndermesini ya da aynı filtreyi yeniden yapmasını isteme.
+    - Elde edilen sonuç ile iş kuralının yorumu farklıdır. business_rule_confirmed=false
+      olduğunda bulgu doğrulanmıştır fakat nedeni henüz kanıtlanmamıştır.
+      Uygun tek bir ayırt edici inceleme sorusu sor veya mevcut kanıt üzerinden
+      öğrencinin yorumunu iste; kanıt olmadan doldurma/silme önerme.
+    - İlişki kanıtı henüz yoksa varmış gibi sunma. Yerel doğrulama aracı
+      olmadan veri sonucu uydurma ve öğrenciden gereksiz ham satır isteme.
+
+
     Verilen Mentor Guideline'a kesinlikle uy ve yardım seviyesini aşma.
     Current Workspace bilgisini aktif çalışma bağlamı olarak kullan:
     mevcut aşama/görev, checkpoint, veri profili ve bulgular, pipeline işlemleri,
     notebooklar ve işlenmiş datasetler birbiriyle çelişmeden değerlendirilmelidir.
     Current Mentor State içindeki ACTIVE UI STATE, kullanıcının o anda ekranda gördüğü yeri anlatır.
+    product_context DataPilot'ın seçilmiş capability registry bilgisidir:
+    current aktif konumu, referenced ise kullanıcının mesajında açıkça sorduğu diğer
+    stage'leri gösterir. UI hakkında bu kayıtlarla çelişen bir kontrol, buton,
+    select seçeneği veya işlem uydurma. Her entry'nin limits alanını gerçek ürün
+    sınırı kabul et. Soruyla ilgisiz stage bilgisini cevapta dökme.
+    Current Workspace içindeki artifacts yalnızca bu turla ilgili backend-retrieved
+    artifact'lardır; görünmeyen artifact'ları varmış gibi varsayma.
+    mentor_stage_playbooks current/referenced stage için profesyonel işlem sırasını,
+    evidence gate'i ve kaçınılacak hataları verir. Kullanıcıya yol çizerken bu sırayı
+    koru; kanıt kapısı geçilmeden sonraki semantik karara atlama.
+    mentor_supervisor stage objective, exit gate ve next stage bilgisini taşır.
+    Bu katman proje ilerlemesini yönetir: exit gate karşılandıysa sırf daha fazla kontrol
+    mümkün diye aynı stage'de yeni incelemeler üretme; henüz karşılanmadıysa da erken atlama.
+    execution_context seçili notebook'un güvenilir son code/output gözlemidir.
+    status=error ise yeni görev vermeden önce mevcut hatayı açıkla ve yalnız o hücreyi
+    düzeltmeye yardım et. status=executed olması tek başına mantıksal doğruluk kanıtı değildir.
     Bunu varsayılan bağlam olarak kullan ama kullanıcının sorusunu o sekmeye zorla kilitleme.
     Önce sorunun niyetini ayırt et:
     - mevcut ekrandaki şeyi yorumlama/review,
@@ -485,8 +707,8 @@ def generate_mentor_response(
 
     current_step yalnızca aktif Workbench/data-quality öğretim akışında pedagojik sınırdır.
     Validate, Understand, Data Model, KPI, Analysis ve diğer üst aşamalarda eski current_step'e
-    takılı kalma; o aşamaya ait validation_result, analysis_plan, data_model_plan/studio,
-    KPI/analysis artifact'larını önceliklendir.
+    takılı kalma; o aşamaya ait artifacts içindeki validation/model/KPI/analysis
+    kayıtlarını önceliklendir.
     workspace_has_dataset=true ise kullanıcıya veri setini yüklemesini, dosyayı açmasını veya yeniden
     eklemesini söyleme. notebooks boş değilse notebook'un zaten workspace içinde bulunduğunu bil.
     Kullanıcı "şimdi ne yapacağım?" dediğinde sadece mevcut küçük işlemi tarif et; aynı anda hem eksik
@@ -579,13 +801,17 @@ def generate_mentor_response(
 # → AI'dan junior'a gösterilecek normal metin cevabı isteriz.
 # → Burada belirli bir Pydantic şeması yok.
 # → Sonucu response.output_text ile alırız.
-    response = guarded_responses_create(
-     client,
-     purpose="mentor",
+    runtime = get_ai_runtime(
+        "mentor"
+    )
 
-     model="gpt-5-mini",
-     input=prompt,              
-     instructions=instructions, 
+    response = guarded_responses_create(
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_chat_reply",
+        model=runtime.model,
+        input=prompt,
+        instructions=instructions,
     )
 
     # Junior'a gösterilecek normal metin cevabı.
@@ -613,6 +839,7 @@ def get_mentor_response_from_message(
     mentor_decision = get_mentor_decision_from_message(
         learner_id=learner_id,
         current_message=current_message,
+        workspace_context=workspace_context,
     )
 
     # Explicit requests for beginner/step-by-step help are turn-level evidence
@@ -676,6 +903,7 @@ def classify_learning_evidence(
     skill_name: str,
     current_message: str,
     conversation_history: list[dict] | None = None,
+    workspace_context: dict | None = None,
 ) -> LearningEvidenceDecision:
     """
     Junior'ın mesajının gerçekten öğrenme evidence'ı olup olmadığını belirler.
@@ -698,25 +926,20 @@ def classify_learning_evidence(
     {skill_name}
 
     Kullanıcının mesajının gerçek learning evidence olup olmadığını belirle.
+    Workspace context yalnızca kullanıcının önerisini/cevabını mevcut görev ve
+    artifact'lara göre değerlendirmek içindir; workspace'in kendi bilgisi learner
+    evidence değildir.
 
-    Learning evidence sayılabilecek durumlar:
-    - application: junior bir çözüm veya kod deniyor
-    - explanation: junior bir kavramı kendi cümleleriyle açıklıyor
-    - debugging: junior bir hatayı analiz edip çözmeye çalışıyor
-    - validation: junior sonucunu kontrol ediyor veya doğruluyor
+    - Saf yardım, navigasyon, "hangi buton?", "nereden yapacağım?" soruları
+      learning evidence değildir ve misconception üretmemelidir.
+    - Kullanıcı bir çözüm, kod, açıklama, karar, hipotez veya validation kriteri
+      öneriyorsa bu genuine evidence olabilir; yanlışsa success=false.
+    - Data Model/KPI/Analysis/Dashboard gibi stage'lerde kullanıcı yanlış bir
+      semantik karar öneriyorsa uygun canonical misconception varsa onu döndür.
+    - Emin olmadığın durumda misconception=null.
 
-    Sadece soru sormak, yardım istemek, proje navigasyonu,
-    hatırlatma istemek veya genel konuşma learning evidence değildir.
-
-    Evidence değilse:
-    is_evidence=false
-    evidence_type=null
-    success=null
-
-    Evidence ise:
-    evidence_type belirle
-    success değerini belirle
-    note alanında kısa neden yaz.
+    Shared classifier policy:
+    {learning_evidence_classifier_rules()}
     """
 
     conversation_history_text = json.dumps(
@@ -725,25 +948,65 @@ def classify_learning_evidence(
     indent=2,
     )
 
+    workspace_evidence_context = {
+        "product":
+            (workspace_context or {}).get(
+                "mentor_product_context"
+            ),
+        "stage_playbooks":
+            (workspace_context or {}).get(
+                "mentor_stage_playbooks"
+            ),
+        "execution":
+            (workspace_context or {}).get(
+                "mentor_execution_context"
+            ),
+        "artifacts":
+            (workspace_context or {}).get(
+                "artifacts"
+            ),
+    }
+    workspace_evidence_text = json.dumps(
+        workspace_evidence_context,
+        ensure_ascii=False,
+        default=str,
+    )[:24000]
+
     evidence_input = f"""
     Previous Conversation:
     {conversation_history_text}
+
+    Relevant Workspace Context:
+    {workspace_evidence_text}
 
     Current Message:
     {current_message}
     """
 
-    response = guarded_responses_parse(
-        client,
-        purpose="mentor",
+    runtime = get_ai_runtime(
+        "classifier"
+    )
 
-        model="gpt-5-mini",
+    response = guarded_responses_parse(
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_chat_evidence",
+        model=runtime.model,
         input=evidence_input,
         instructions=instructions,
         text_format=LearningEvidenceDecision,
+        **classifier_generation_kwargs(),
     )
 
     evidence = response.output_parsed
+    evidence.misconception = (
+        normalize_misconception(
+            success=evidence.success,
+            misconception=(
+                evidence.misconception
+            ),
+        )
+    )
 
     # AI evidence olduğunu söylüyorsa gerekli alanların da dolu olması gerekir.
     if evidence.is_evidence:
@@ -813,6 +1076,7 @@ def process_learning_evidence(
         skill_name=mentor_decision.skill_name,
         current_message=current_message,
         conversation_history=conversation_history,
+        workspace_context=workspace_context,
     )
 
     # Mesaj genuine learning evidence değilse
@@ -839,6 +1103,7 @@ def process_learning_evidence(
         target_name=ui_context.get("selected_workbench_column"),
         user_authored=True,
         deterministic_validation=False,
+        misconception=evidence.misconception,
         metadata={
             "current_focus": checkpoint.get("current_focus"),
             "selected_notebook_id": ui_context.get("selected_notebook_id"),
@@ -1009,17 +1274,30 @@ def evaluate_data_quality_attempt(
     Finding içinde olmayan kolon, veri veya metadata uydurma.
     """
 
-    response = guarded_responses_parse(
-        client,
-        purpose="mentor",
+    runtime = get_ai_runtime(
+        "classifier"
+    )
 
-        model="gpt-5-mini",
+    response = guarded_responses_parse(
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_data_quality_evidence",
+        model=runtime.model,
         input=evaluation_input,
-        instructions=instructions,
+        instructions=(
+            instructions
+            + "\n\nShared classifier policy:\n"
+            + learning_evidence_classifier_rules()
+        ),
         text_format=LearningEvidenceDecision,
+        **classifier_generation_kwargs(),
     )
 
     evidence = response.output_parsed
+    evidence.misconception = normalize_misconception(
+        success=evidence.success,
+        misconception=evidence.misconception,
+    )
 
     if evidence.is_evidence:
         if evidence.evidence_type is None or evidence.success is None:
@@ -1103,6 +1381,7 @@ def review_data_quality_attempt(
             target_name=finding.column,
             user_authored=True,
             deterministic_validation=False,
+            misconception=evidence.misconception,
             metadata={
                 "severity": finding.severity,
             },
@@ -1208,11 +1487,15 @@ def generate_data_quality_attempt_response(
     - Kısa, doğal bir cümle yaz.
     """
 
-    response = guarded_responses_parse(
-        client,
-        purpose="mentor",
+    runtime = get_ai_runtime(
+        "mentor"
+    )
 
-        model="gpt-5-mini",
+    response = guarded_responses_parse(
+        runtime.client,
+        provider=runtime.provider,
+        purpose="mentor_data_quality_next_step",
+        model=runtime.model,
         input=prompt,
         instructions=instructions,
         text_format=DataQualityNextStep,

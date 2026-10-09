@@ -94,6 +94,46 @@ def parse_evidence_context(
     )
 
 
+def is_observed_learning_signal(
+    evidence_item,
+) -> bool:
+    context = parse_evidence_context(
+        evidence_item
+    )
+    metadata = context.get("metadata")
+
+    return bool(
+        isinstance(metadata, dict)
+        and metadata.get("origin")
+        == "mentor_execution_observer"
+    )
+
+
+def build_misconception_counts(
+    evidence,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+
+    for item in evidence:
+        context = parse_evidence_context(
+            item
+        )
+        misconception = context.get(
+            "misconception"
+        )
+
+        if (
+            isinstance(misconception, str)
+            and misconception.strip()
+        ):
+            counts[misconception] = (
+                counts.get(misconception, 0)
+                + 1
+            )
+
+    return counts
+
+
 def build_learning_phase_summary(
     evidence,
 ) -> tuple[
@@ -115,8 +155,16 @@ def build_learning_phase_summary(
         phase = context.get(
             "learning_phase"
         )
+        observed_signal = (
+            is_observed_learning_signal(
+                item
+            )
+        )
 
-        if isinstance(phase, str):
+        if (
+            isinstance(phase, str)
+            and not observed_signal
+        ):
             latest_phase = phase
             phase_counts[phase] = (
                 phase_counts.get(
@@ -169,6 +217,14 @@ def build_learning_phase_summary(
 def build_skill_independence_score(
     evidence,
 ) -> int:
+    evidence = [
+        item
+        for item in evidence
+        if not is_observed_learning_signal(
+            item
+        )
+    ]
+
     scores = [
         assistance_level_to_percent(
             get_evidence_value(
@@ -328,6 +384,14 @@ def calculate_independence_trend(
     evidence,
 ) -> str:
 
+    evidence = [
+        item
+        for item in evidence
+        if not is_observed_learning_signal(
+            item
+        )
+    ]
+
     # Tek evidence ile "gelişiyor mu?" diyemeyiz.
     if len(evidence) < 2:
         return "insufficient_data"
@@ -409,23 +473,25 @@ def get_learner_progress(
                 2,
             )
 
-        # Evidence varsa en son kaydın assistance level'ını al.
-        # Evidence yoksa None.
-        if evidence:
-            last_assistance_level = evidence[-1][
-                "assistance_level"
-            ]
+        assessed_evidence = [
+            item
+            for item in evidence
+            if not is_observed_learning_signal(
+                item
+            )
+        ]
+
+        if assessed_evidence:
+            last_assistance_level = (
+                assessed_evidence[-1][
+                    "assistance_level"
+                ]
+            )
         else:
             last_assistance_level = None
 
         independence_trend = calculate_independence_trend(
-                evidence
-        )
-
-        practice_priority = calculate_practice_priority(
-            status=skill_state["status"],
-            success_rate=success_rate,
-            independence_trend=independence_trend,
+            assessed_evidence
         )
 
         (
@@ -435,6 +501,25 @@ def get_learner_progress(
             misconceptions,
         ) = build_learning_phase_summary(
             evidence
+        )
+
+        misconception_counts = (
+            build_misconception_counts(
+                evidence
+            )
+        )
+        recurring_misconception_count = max(
+            misconception_counts.values(),
+            default=0,
+        )
+
+        practice_priority = calculate_practice_priority(
+            status=skill_state["status"],
+            success_rate=success_rate,
+            independence_trend=independence_trend,
+            recurring_misconception_count=(
+                recurring_misconception_count
+            ),
         )
 
         independence_score = (
@@ -467,7 +552,7 @@ def get_learner_progress(
             skill_progress
         )
 
-        for evidence_item in evidence:
+        for evidence_item in assessed_evidence:
 
             evidence_sequence += 1
 
@@ -521,7 +606,16 @@ def calculate_practice_priority(
     status: str,
     success_rate: float,
     independence_trend: str,
+    recurring_misconception_count: int = 0,
 ) -> str:
+
+    if recurring_misconception_count >= 3:
+        return "high"
+
+    if recurring_misconception_count >= 2:
+        if status in {"new", "learning"}:
+            return "high"
+        return "medium"
 
     # Skill henüz yeni ise Practice önceliği yüksektir.
     if status == "new":

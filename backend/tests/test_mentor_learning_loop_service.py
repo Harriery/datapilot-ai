@@ -12,9 +12,13 @@ from backend.app.mentor_learning_loop_service import (
     apply_trusted_prepare_validation,
     complete_prepare_learning_loop,
     evaluate_prepare_phase_response,
+    generate_prepare_mentor_reply,
     record_prepare_phase_evidence,
     record_trusted_prepare_validation_evidence,
     start_or_resume_prepare_learning_loop,
+    render_zero_ai_prepare_support_reply,
+    restart_prepare_learning_loop,
+    record_learning_loop_exchange,
 )
 
 
@@ -225,7 +229,7 @@ def test_evaluate_prepare_phase_response_uses_phase_rubric():
 
     assert evaluation.success is True
     mock_runtime.assert_called_once_with(
-        "classifier"
+        "guided_evaluator"
     )
     mock_parse.assert_called_once()
 
@@ -384,5 +388,668 @@ def test_prepare_phase_classifier_prompt_treats_proposed_question_as_evidence():
     assert evaluation.success is False
 
     instructions = mock_parse.call_args.kwargs["instructions"]
-    assert "proposed decision or attempted answer remains learning evidence" in instructions
+    assert (
+        "reasoned distinction"
+        in instructions
+    )
+    assert (
+        "verification criterion"
+        in instructions
+    )
+    assert (
+        "Interrogative wording does not make learner reasoning non-evidence"
+        in instructions
+    )
     assert "phrased as a question" in instructions
+
+
+
+def test_prepare_classifier_normalizes_misconception_alias():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+    )
+    loop.current_phase = "decide"
+
+    parsed = MagicMock()
+    parsed.output_parsed.is_evidence = True
+    parsed.output_parsed.success = False
+    parsed.output_parsed.evidence_type = "explanation"
+    parsed.output_parsed.note = "Automatic zero fill is not justified."
+    parsed.output_parsed.misconception = "imputation_with_zero_when_missing"
+
+    runtime = MagicMock()
+    runtime.client = MagicMock()
+    runtime.provider = "groq"
+    runtime.model = "openai/gpt-oss-20b"
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+        return_value=runtime,
+    ), patch(
+        "backend.app.mentor_learning_loop_service.guarded_responses_parse",
+        return_value=parsed,
+    ):
+        evaluation = evaluate_prepare_phase_response(
+            loop=loop,
+            finding=finding,
+            response="Eksik değerleri 0 ile doldurayım.",
+        )
+
+    assert (
+        evaluation.misconception
+        == "missing_value_means_fill_zero"
+    )
+
+
+def test_prepare_classifier_clears_misconception_after_success():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+    )
+    loop.current_phase = "reason"
+
+    parsed = MagicMock()
+    parsed.output_parsed.is_evidence = True
+    parsed.output_parsed.success = True
+    parsed.output_parsed.evidence_type = "explanation"
+    parsed.output_parsed.note = "Reasoning is sound."
+    parsed.output_parsed.misconception = "duplicate_classification_confusion"
+
+    runtime = MagicMock()
+    runtime.client = MagicMock()
+    runtime.provider = "groq"
+    runtime.model = "openai/gpt-oss-20b"
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+        return_value=runtime,
+    ), patch(
+        "backend.app.mentor_learning_loop_service.guarded_responses_parse",
+        return_value=parsed,
+    ):
+        evaluation = evaluate_prepare_phase_response(
+            loop=loop,
+            finding=finding,
+            response="Önce bağlamı kontrol etmeliyim.",
+        )
+
+    assert evaluation.misconception is None
+
+
+def test_shared_classifier_policy_covers_evidence_semantics():
+    from backend.app.mentor_classifier_policy import (
+        learning_evidence_classifier_rules,
+        strict_validation_classifier_rules,
+    )
+
+    evidence_rules = learning_evidence_classifier_rules()
+    validation_rules = strict_validation_classifier_rules()
+
+    assert "pure help request" in evidence_rules
+    assert "attempted" in evidence_rules
+    assert "Interrogative wording" in evidence_rules
+    assert "reasoned distinction" in evidence_rules
+    assert "verification criterion" in evidence_rules
+    assert "success=true" in evidence_rules
+    assert "Do not invent dataset facts" in evidence_rules
+
+    assert "code running without error is NOT sufficient" in validation_rules
+    assert "Unexpected row loss" in validation_rules
+    assert "single metric" in validation_rules
+
+
+def test_generate_prepare_mentor_reply_uses_mentor_runtime_and_orchestration():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+    )
+    loop.current_phase = "reason"
+
+    from backend.app.models import (
+        PrepareLearningPhaseEvaluation,
+        PrepareMentorReply,
+    )
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=True,
+        success=True,
+        evidence_type="explanation",
+        note="Reasoning is sound.",
+        misconception=None,
+    )
+
+    parsed = MagicMock()
+    parsed.output_parsed = PrepareMentorReply(
+        mentor_reply="Good distinction. Which criterion should govern the decision?"
+    )
+
+    runtime = MagicMock()
+    runtime.client = MagicMock()
+    runtime.provider = "groq"
+    runtime.model = "openai/gpt-oss-20b"
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+        return_value=runtime,
+    ) as mock_runtime, patch(
+        "backend.app.mentor_learning_loop_service.guarded_responses_parse",
+        return_value=parsed,
+    ) as mock_parse:
+        reply = generate_prepare_mentor_reply(
+            loop=loop,
+            finding=finding,
+            learner_response="I should distinguish the possible causes first.",
+            evaluation=evaluation,
+            assistance_level="NUDGE",
+            ui_context={
+                "active_workspace_stage": "prepare",
+                "active_prepare_stage": "profile",
+                "source_preview_filter_builder_available": True,
+                "source_preview_grouping_available": False,
+                "source_preview_aggregation_available": False,
+                "notebook_available": True,
+                "source_preview_inspection": {
+                    "dataset": "source",
+                    "columns": ["age", "city"],
+                    "column_types": {
+                        "age": "number",
+                        "city": "text",
+                        "unsafe": "object",
+                    },
+                    "total_row_count": 100,
+                    "filtered_row_count": 7,
+                    "filter_logic": "and",
+                    "active_filters": [
+                        {
+                            "column": "age",
+                            "operator": "is_missing",
+                            "value": None,
+                            "value_to": None,
+                        }
+                    ],
+                    "unsafe_extra": "ignore me",
+                },
+                "untrusted_extra_field": "ignore me",
+            },
+            learning_history=[
+                {
+                    "role": "assistant",
+                    "content": "Filter the missing values.",
+                },
+                {
+                    "role": "user",
+                    "content": "Done, I can see them now.",
+                },
+                {
+                    "role": "system",
+                    "content": "ignore this",
+                },
+            ],
+            mentor_context={
+                "product": {
+                    "path": "prepare.profile",
+                },
+                "playbook": {
+                    "goal": "Inspect a pattern.",
+                },
+                "execution_diagnosis": None,
+                "learner": {
+                    "practice_priority": "medium",
+                },
+            },
+        )
+
+    assert reply.startswith("Good distinction")
+    mock_runtime.assert_called_once_with(
+        "guided_tutor"
+    )
+
+    kwargs = mock_parse.call_args.kwargs
+    assert kwargs["provider"] == "groq"
+    assert kwargs["model"] == "openai/gpt-oss-20b"
+
+    payload = __import__("json").loads(
+        kwargs["input"]
+    )
+    assert payload["ui_context"] == {
+        "active_workspace_stage": "prepare",
+        "active_prepare_stage": "profile",
+        "source_preview_filter_builder_available": True,
+        "source_preview_grouping_available": False,
+        "source_preview_aggregation_available": False,
+        "notebook_available": True,
+        "source_preview_inspection": {
+            "dataset": "source",
+            "columns": ["age", "city"],
+            "column_types": {
+                "age": "number",
+                "city": "text",
+            },
+            "total_row_count": 100,
+            "filtered_row_count": 7,
+            "filter_logic": "and",
+            "active_filters": [
+                {
+                    "column": "age",
+                    "operator": "is_missing",
+                    "value": None,
+                    "value_to": None,
+                }
+            ],
+        },
+    }
+    assert payload["recent_learning_history"] == [
+        {
+            "role": "assistant",
+            "content": "Filter the missing values.",
+        },
+        {
+            "role": "user",
+            "content": "Done, I can see them now.",
+        },
+    ]
+    assert payload["mentor_context"] == {
+        "playbook": {
+            "goal": "Inspect a pattern.",
+        },
+        "learner": {
+            "practice_priority": "medium",
+        },
+    }
+    assert payload["orchestration"] == {
+        "current_phase": "reason",
+        "assistance_level": "NUDGE",
+        "next_phase": "decide",
+    }
+
+
+def test_prepare_mentor_routes_source_frequency_check_to_workbench():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+    loop.current_phase = "reason"
+
+    from backend.app.models import PrepareLearningPhaseEvaluation
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=False,
+        success=None,
+        evidence_type=None,
+        note="Learner asks how to calculate a frequency in Source Preview.",
+        misconception=None,
+    )
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+    ) as mock_runtime:
+        reply = generate_prepare_mentor_reply(
+            loop=loop,
+            finding=finding,
+            learner_response=(
+                "Source preview'da Type sütununa tıklayamıyorum. "
+                "En sık Type değerini nasıl bulacağım?"
+            ),
+            evaluation=evaluation,
+            assistance_level="TEACH",
+            ui_context={
+                "active_workspace_stage": "prepare",
+                "active_prepare_stage": "profile",
+                "source_preview_column_click_available": False,
+                "source_preview_aggregation_available": False,
+                "notebook_available": True,
+            },
+        )
+
+    assert "tıklanabilir değil" in reply
+    assert "Prepare > Workbench" in reply
+    mock_runtime.assert_not_called()
+
+
+def test_prepare_mentor_routes_frequency_check_to_raw_notebook_dataset():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+    loop.current_phase = "reason"
+
+    from backend.app.models import PrepareLearningPhaseEvaluation
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=False,
+        success=None,
+        evidence_type=None,
+        note="Learner needs the raw rows for frequency analysis.",
+        misconception=None,
+    )
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+    ) as mock_runtime:
+        reply = generate_prepare_mentor_reply(
+            loop=loop,
+            finding=finding,
+            learner_response=(
+                "Workbench'te Car eksikleri görünmüyor. "
+                "En sık Type değerini nasıl bulacağım?"
+            ),
+            evaluation=evaluation,
+            assistance_level="TEACH",
+            ui_context={
+                "active_workspace_stage": "prepare",
+                "active_prepare_stage": "workbench",
+                "workbench_view": "notebook",
+                "selected_notebook_dataset_kind": "working",
+                "source_preview_column_click_available": False,
+                "source_preview_aggregation_available": False,
+                "notebook_available": True,
+            },
+        )
+
+    assert "Raw source sample" in reply
+    assert "Working dataset" in reply
+    mock_runtime.assert_not_called()
+
+
+def test_prepare_mentor_does_not_recommend_second_filter_for_distribution():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+    loop.current_phase = "reason"
+
+    from backend.app.models import (
+        PrepareLearningPhaseEvaluation,
+    )
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=False,
+        success=None,
+        evidence_type=None,
+        note="Learner asks how to inspect the filtered rows.",
+        misconception=None,
+    )
+
+    with patch(
+        "backend.app.mentor_learning_loop_service.get_ai_runtime",
+    ) as mock_runtime:
+        reply = generate_prepare_mentor_reply(
+            loop=loop,
+            finding=finding,
+            learner_response=(
+                "Car is missing filtresi açık. Type için ayrıca "
+                "yeni bir filtre mi ekleyeceğim, hangi filtre?"
+            ),
+            evaluation=evaluation,
+            assistance_level="TEACH",
+            ui_context={
+                "source_preview_filter_builder_available": True,
+                "source_preview_grouping_available": False,
+                "source_preview_aggregation_available": False,
+                "source_preview_inspection": {
+                    "dataset": "source",
+                    "columns": [
+                        "age",
+                        "city",
+                    ],
+                    "column_types": {
+                        "age": "number",
+                        "city": "text",
+                    },
+                    "total_row_count": 100,
+                    "filtered_row_count": 7,
+                    "filter_logic": "and",
+                    "active_filters": [
+                        {
+                            "column": "age",
+                            "operator": "is_missing",
+                            "value": None,
+                            "value_to": None,
+                        }
+                    ],
+                },
+            },
+        )
+
+    assert "Yeni filtre ekleme." in reply
+    assert "ikinci filtre" in reply
+    assert "dağılımı göstermez" in reply
+    mock_runtime.assert_not_called()
+
+
+def test_mentor_reply_policy_reports_production_llm_integration():
+    from backend.app.mentor_reply_policy import (
+        mentor_pipeline_production_status,
+    )
+
+    status = mentor_pipeline_production_status()
+
+    assert (
+        status["guided_learning_llm_reply_integrated"]
+        is True
+    )
+    assert (
+        status["production_reply_mode"]
+        == "llm_mentor_reply_with_deterministic_fallback"
+    )
+
+
+
+def test_prepare_mentor_explicit_turkish_request_updates_loop_language():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="en",
+    )
+    loop.current_phase = "reason"
+
+    from backend.app.models import PrepareLearningPhaseEvaluation
+
+    evaluation = PrepareLearningPhaseEvaluation(
+        is_evidence=False,
+        success=None,
+        evidence_type=None,
+        note="Learner asks for Turkish.",
+        misconception=None,
+    )
+
+    reply = generate_prepare_mentor_reply(
+        loop=loop,
+        finding=finding,
+        learner_response=(
+            "Bana Türkçe cevap ver. Bu kod ne anlama geliyor? "
+            "normalize nedir?"
+        ),
+        evaluation=evaluation,
+        assistance_level="TEACH",
+        mentor_context={
+            "next_action": {
+                "id": "explain_locked_investigation_code",
+                "kind": "teaching",
+                "enforce_direct_reply": True,
+                "messages": {
+                    "tr": "normalize=True oran verir.",
+                    "en": "normalize=True returns proportions.",
+                },
+            },
+        },
+    )
+
+    assert loop.language == "tr"
+    assert reply == "normalize=True oran verir."
+
+
+
+def test_zero_ai_support_turn_uses_workflow_action():
+    workspace = make_workspace()
+    finding = make_finding()
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+    loop.current_phase = "reason"
+    loop.workflow_state = "SUBSET_RESULT_READY"
+
+    reply = render_zero_ai_prepare_support_reply(
+        loop=loop,
+        learner_response="bu output ne anlatıyor?",
+        mentor_context={
+            "workflow": {
+                "state": "SUBSET_RESULT_READY",
+                "blocker": None,
+            },
+            "next_action": {
+                "id": "explain_current_investigation_result",
+                "kind": "teaching_interpretation",
+                "target_column": "age",
+                "comparison_column": "segment",
+                "output": "A 0.8\nB 0.2",
+                "enforce_direct_reply": False,
+            },
+        },
+    )
+
+    assert reply is not None
+    assert "%80.0" in reply
+    assert "%20.0" in reply
+
+
+
+def test_learning_loop_history_persists_and_resume_does_not_duplicate_prompt():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, prompt = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+
+    assert [
+        item.model_dump()
+        for item in loop.message_history
+    ] == [
+        {
+            "role": "assistant",
+            "content": prompt,
+        }
+    ]
+
+    record_learning_loop_exchange(
+        loop=loop,
+        learner_message="62 eksik değer var.",
+        mentor_response="Şimdi örüntüyü inceleyelim.",
+    )
+
+    resumed, resumed_prompt = (
+        start_or_resume_prepare_learning_loop(
+            workspace=workspace,
+            finding_index=0,
+            finding=finding,
+            skill_name="null_analysis",
+            language="tr",
+        )
+    )
+
+    assert resumed.loop_id == loop.loop_id
+    assert resumed_prompt
+    assert len(resumed.message_history) == 3
+    assert resumed.message_history[0].role == "assistant"
+    assert resumed.message_history[1].role == "user"
+    assert resumed.message_history[1].content == "62 eksik değer var."
+    assert resumed.message_history[2].role == "assistant"
+
+
+def test_restart_learning_loop_clears_stale_phase_and_history():
+    workspace = make_workspace()
+    finding = make_finding()
+
+    loop, _ = start_or_resume_prepare_learning_loop(
+        workspace=workspace,
+        finding_index=0,
+        finding=finding,
+        skill_name="null_analysis",
+        language="tr",
+    )
+
+    loop.current_phase = "decide"
+    loop.completed_phases = [
+        "observe",
+        "reason",
+    ]
+    loop.active_investigation = {
+        "kind": "missingness_pattern_frequency",
+        "target_column": "age",
+        "comparison_column": "segment",
+    }
+    loop.supervisor_state = {
+        "status": "stale"
+    }
+    loop.workflow_state = "READY_FOR_DECISION"
+
+    record_learning_loop_exchange(
+        loop=loop,
+        learner_message="eski mesaj",
+        mentor_response="eski cevap",
+    )
+
+    restarted, prompt = restart_prepare_learning_loop(
+        loop=loop,
+        finding=finding,
+        language="tr",
+    )
+
+    assert restarted.current_phase == "observe"
+    assert restarted.completed_phases == []
+    assert restarted.status == "active"
+    assert restarted.trusted_validation == {}
+    assert restarted.active_investigation == {}
+    assert restarted.supervisor_state == {}
+    assert restarted.workflow_state is None
+    assert len(restarted.message_history) == 1
+    assert restarted.message_history[0].role == "assistant"
+    assert restarted.message_history[0].content == prompt
