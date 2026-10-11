@@ -16,6 +16,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useMemo,
 } from "react";
 
 import {
@@ -56,6 +57,7 @@ export type WorkspaceNotebookData = {
 
   cells:
     WorkspaceNotebookCellData[];
+  section_mode?: "legacy" | "explicit";
 
   created_at: string;
   updated_at: string;
@@ -133,7 +135,7 @@ function WorkspaceNotebook({
       sampledRows: "sampled rows", fromTotal: "from", totalRows: "total rows",
       columns: "columns", askMentor: "Ask mentor", reviewing: "Reviewing...",
       sendPipeline: "Send to pipeline", deleteCell: "Delete cell", output: "OUTPUT",
-      addCell: "Add cell", cellLanguage: "Language", section: "Section", sectionPlaceholder: "Optional section title",
+      addCell: "Add cell", sectionChoice: "Section", ungrouped: "No section", newSection: "New section", newSectionName: "New section name", cellKind: "Cell type", cellLanguage: "Language", section: "Section", sectionPlaceholder: "Optional section title",
     },
     nl: {
       notebook: "Notebook", dataset: "Dataset", working: "Ontwikkeldata / werkset",
@@ -143,7 +145,7 @@ function WorkspaceNotebook({
       sampledRows: "steekproefrijen", fromTotal: "van", totalRows: "totale rijen",
       columns: "kolommen", askMentor: "Vraag mentor", reviewing: "Beoordelen...",
       sendPipeline: "Naar pipeline", deleteCell: "Cel verwijderen", output: "UITVOER",
-      addCell: "Cel toevoegen", cellLanguage: "Taal", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
+      addCell: "Cel toevoegen", sectionChoice: "Sectie", ungrouped: "Geen sectie", newSection: "Nieuwe sectie", newSectionName: "Nieuwe sectienaam", cellKind: "Celtype", cellLanguage: "Taal", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
     },
     tr: {
       notebook: "Not defteri", dataset: "Veri seti", working: "Geliştirme / çalışma verisi",
@@ -153,7 +155,7 @@ function WorkspaceNotebook({
       sampledRows: "örnek satır", fromTotal: "/", totalRows: "toplam satır",
       columns: "sütun", askMentor: "Mentora sor", reviewing: "İnceleniyor...",
       sendPipeline: "Pipeline'a gönder", deleteCell: "Cell'i sil", output: "ÇIKTI",
-      addCell: "Hücre ekle", cellLanguage: "Dil", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
+      addCell: "Hücre ekle", sectionChoice: "Bölüm", ungrouped: "Bağımsız", newSection: "Yeni bölüm", newSectionName: "Yeni bölüm adı", cellKind: "Hücre türü", cellLanguage: "Dil", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
     },
   }[language];
 
@@ -216,6 +218,14 @@ function WorkspaceNotebook({
         .map((title) => [title, true])
     )
   );
+  const [addCellOpen, setAddCellOpen] = useState(false);
+  const [addSection, setAddSection] = useState("");
+  const [addNewSectionName, setAddNewSectionName] = useState("");
+  const [addCellType, setAddCellType] = useState<"python" | "sql" | "markdown">("python");
+  const newCellId = useRef<string | null>(null);
+  const availableSections = useMemo(() => [...new Set(
+    draft.cells.map(cell => cell.section_title?.trim()).filter((value): value is string => Boolean(value))
+  )], [draft.cells]);
   const autosaveTimer = useRef<number | null>(null);
 
   const [
@@ -256,6 +266,9 @@ function WorkspaceNotebook({
 
   useEffect(() => {
     setDraft(notebook);
+    setAddCellOpen(false);
+    setAddSection("");
+    newCellId.current = null;
     setResults({});
     setMentorGuidance({});
     setCollapsedSections(
@@ -406,6 +419,37 @@ function WorkspaceNotebook({
   function markDraftChanged(next: WorkspaceNotebookData) {
     setDraft(next);
     setDirty(true);
+  }
+
+  function explicitCells() {
+    if (draft.section_mode === "explicit") return draft.cells;
+    let current = "";
+    return draft.cells.map(cell => {
+      if (cell.section_title?.trim()) current = cell.section_title.trim();
+      return { ...cell, section_title: current || null };
+    });
+  }
+
+  function insertCell(section: string, kind: "python" | "sql" | "markdown") {
+    const normalized = section.trim();
+    if (normalized.length > 80) return;
+    const cells = explicitCells();
+    const cell = { ...createCell(kind), section_title: normalized || null };
+    let after = cells.length - 1;
+    if (normalized) {
+      const last = cells.findLastIndex(item => item.section_title === normalized);
+      if (last >= 0) after = last;
+    }
+    const updated = [...cells.slice(0, after + 1), cell, ...cells.slice(after + 1)];
+    markDraftChanged({ ...draft, section_mode: "explicit", cells: updated });
+    setCollapsedSections(prev => ({ ...prev, [normalized]: false }));
+    setAddCellOpen(false);
+    newCellId.current = cell.cell_id;
+    requestAnimationFrame(() => {
+      document.getElementById(`notebook-cell-${cell.cell_id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById(`notebook-code-${cell.cell_id}`)?.focus({ preventScroll: true });
+      newCellId.current = null;
+    });
   }
 
   function exportNotebook() {
@@ -879,11 +923,19 @@ function WorkspaceNotebook({
           let activeSection = "";
           return draft.cells.map(
             (cell, index) => {
-              if (cell.section_title?.trim()) {
+              if (draft.section_mode === "explicit") {
+                activeSection = cell.section_title?.trim() || "";
+              } else if (cell.section_title?.trim()) {
                 activeSection = cell.section_title.trim();
               }
 
               const sectionTitle = activeSection;
+              const sectionStart = Boolean(sectionTitle) && (
+                index === 0 ||
+                (draft.section_mode === "explicit"
+                  ? draft.cells[index - 1]?.section_title?.trim() !== sectionTitle
+                  : Boolean(cell.section_title?.trim()))
+              );
               const sectionCollapsed =
                 Boolean(
                   sectionTitle &&
@@ -897,7 +949,7 @@ function WorkspaceNotebook({
 
               if (
                 sectionCollapsed &&
-                !cell.section_title?.trim()
+                !sectionStart
               ) {
                 return null;
               }
@@ -906,8 +958,9 @@ function WorkspaceNotebook({
                 <div
                   className="notebook-cell-section-wrap"
                   key={cell.cell_id}
+                  id={`notebook-cell-${cell.cell_id}`}
                 >
-                  {cell.section_title?.trim() && (
+                  {sectionStart && (
                     <div className="notebook-section-header">
                       <button
                         type="button"
@@ -925,9 +978,9 @@ function WorkspaceNotebook({
                           : <ChevronDown size={14} />}
                         <strong>{sectionTitle}</strong>
                       </button>
-                      <span>
-                        {ui.section}
-                      </span>
+                      <button type="button" className="notebook-section-add" onClick={() => insertCell(sectionTitle, "python")}>
+                        <Plus size={13} /> {ui.addCell}
+                      </button>
                     </div>
                   )}
 
@@ -992,7 +1045,7 @@ function WorkspaceNotebook({
                     <label>
                       <span>{ui.section}</span>
                       <input
-                        value={cell.section_title ?? ""}
+                        value={draft.section_mode === "explicit" ? (cell.section_title ?? "") : (cell.section_title ?? "")}
                         placeholder={ui.sectionPlaceholder}
                         onChange={(event) => {
                           const sectionTitle =
@@ -1000,13 +1053,10 @@ function WorkspaceNotebook({
 
                           markDraftChanged({
                             ...draft,
-                            cells: draft.cells.map((item) =>
+                            section_mode: "explicit",
+                            cells: explicitCells().map(item =>
                               item.cell_id === cell.cell_id
-                                ? {
-                                    ...item,
-                                    section_title:
-                                      sectionTitle || null,
-                                  }
+                                ? { ...item, section_title: sectionTitle || null }
                                 : item
                             ),
                           });
@@ -1016,6 +1066,7 @@ function WorkspaceNotebook({
                   </div>
 
                   <textarea
+                    id={`notebook-code-${cell.cell_id}`}
                     value={cell.code}
                     spellCheck={false}
                     onChange={(event) => {
@@ -1236,19 +1287,36 @@ function WorkspaceNotebook({
           );
         })()}
 
-        <button
-          type="button"
-          className="notebook-add-cell"
-          onClick={() => {
-            markDraftChanged({
-              ...draft,
-              cells: [...draft.cells, createCell()],
-            });
-          }}
-        >
-          <Plus size={14} />
-          {ui.addCell}
+        <button type="button" className="notebook-add-cell" onClick={() => setAddCellOpen(value => !value)}>
+          <Plus size={14} /> {ui.addCell}
         </button>
+        {addCellOpen && (
+          <div className="notebook-add-panel">
+            <label>{ui.sectionChoice}
+              <select value={addSection} onChange={event => setAddSection(event.target.value)}>
+                <option value="">{ui.ungrouped}</option>
+                {availableSections.map(section => <option key={section} value={section}>{section}</option>)}
+                <option value="__new__">{ui.newSection}</option>
+              </select>
+            </label>
+            {addSection === "__new__" && (
+              <input value={addNewSectionName} maxLength={80} placeholder={ui.newSectionName}
+                onChange={event => setAddNewSectionName(event.target.value)} />
+            )}
+            <label>{ui.cellKind}
+              <select value={addCellType} onChange={event => setAddCellType(event.target.value as "python" | "sql" | "markdown")}>
+                <option value="python">Python</option>
+                <option value="sql">SQL</option>
+                <option value="markdown">Markdown</option>
+              </select>
+            </label>
+            <button type="button" className="notebook-add-submit"
+              disabled={addSection === "__new__" && !addNewSectionName.trim()}
+              onClick={() => insertCell(addSection === "__new__" ? addNewSectionName : addSection, addCellType)}>
+              <Plus size={14} /> {ui.addCell}
+            </button>
+          </div>
+        )
       </div>
 
       {message && (
