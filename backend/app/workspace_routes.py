@@ -3608,6 +3608,7 @@ def update_workspace_notebook(
             "processed_dataset_id":
                 request.processed_dataset_id,
             "cells": request.cells,
+            "section_mode": request.section_mode,
             "updated_at":
                 pd.Timestamp.now(
                     tz="UTC"
