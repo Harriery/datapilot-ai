@@ -82,6 +82,19 @@
 4. Sonucu gördükten sonra **tam Flight verisinde** aynı iş kuralını doğrulama yolunu incele; zorunlu olmadıkça uygulama kodunu değiştirme.
 5. Mentor'un bu soruya nasıl tepki verdiğini gözlemle; gereksiz bir LLM çağrısı gerekiyorsa önce beklenen faydayı ve limit durumunu değerlendir.
 
+## Açık sorun kayıtları — Flight/Notebook (11 Ekim 2026)
+
+**Çalışma kararı:** Sorunları bu listede biriktiriyoruz; Flight üzerinden SQL/Pandas öğrenme akışını gereksiz yere kesmiyoruz. Veri doğruluğunu, veri kaybını veya analizin güvenilirliğini etkileyen sorunlar ileride modelleme/dashboard'a sonuç taşımadan önce önceliklendirilip kullanıcı onayıyla giderilecek. Her kod düzeltmesinden sonra backend testleri, frontend build ve gerçek Notebook senaryosu doğrulanacak.
+
+| ID | Öncelik | Durum | Bulgu / kanıt | Beklenen düzeltme ve kabul kriteri |
+|---|---|---|---|---|
+| FL-001 | **Yüksek — analiz kapsamı ve sonuç güvenilirliği** | Açık / ertelendi | Flight kaynağı **5.819.079** satır. Development/Smart Sampling'de **10.000** satır seçilmiş; Workbench sağ üstte 10.000 gösteriliyor. Notebook üstünde `5000 sampled rows from 10000 total rows`, `SELECT COUNT(*) FROM df` sonucu **5.000**. Kodda Notebook endpoint'i `notebook_limit = min(..., 5000)` ile sınırlandırılıyor; Working Data için `df.sample(..., random_state=42)` kullanılıyor. | Raw/Development/Notebook/aktif sorgu kapsamı açık ve fark edilebilir gösterilsin; sonuçlarda ve Mentor cevaplarında kapsam/örneklem bilgisi bulunsun. Örneklem sonucu tam veri sonucu olarak sunulmasın. Güvenli boyut seçimi ve uygun backend tam-veri doğrulama akışı tasarlanıp performans açısından test edilsin. |
+| FL-002 | Orta — SQL öğrenme ve UX | Açık / ertelendi | Geçerli SQL `-- yorum\nSELECT ...` ile başladığında, Notebook SQL çalıştırıcısı doğrudan `SELECT` veya `WITH` başlangıcı aradığı için `Only read-only SELECT and WITH queries are supported.` hatası veriyor. | SQL yorumları ve boş satırlar doğru yorumlanıp read-only güvenliği korunarak kabul edilsin; regresyon testleri eklensin. |
+| FL-003 | Orta — Run Cell ve hata görünümü | Açık / ertelendi | Tek hücre çalıştırma akışı `runNotebookCells` içinde `codes.slice(0, targetIndex + 1)` aracılığıyla önceki hücreleri de çalıştırıyor. Önceki hatalı SQL hücresi alttaki hedef hücreyi engelliyor; neden anlaşılmıyor. | Run Cell'in gerçek kapsamını göster; engelleyen önceki hücreyi vurgula. Bağımsız sorgular için izole çalıştırma olasılığını Python durum bağımlılıklarını bozmadan değerlendir. |
+| NB-004 | Orta — Git entegrasyon durumu | Yerelde kullanıcı testi geçti / merge commit bekliyor | Notebook bölüm ve hücre yönetimi için frontend build, **546 backend testi** ve kullanıcının **6 UI senaryosu** başarılı. Yerelde `integration/notebook-sections` dalında başlatılan birleştirme henüz commit edilmedi. `backend/benchmarks/results/` korunmalı. | Merge durumu güvenle doğrulanıp ayrı entegrasyon dalında tamamlanmalı; `main` içine alma ayrıca kararlaştırılmalı. |
+
+**Flight analizi — kaldığımız yer:** `01_Data_Cleaning` Notebook, Development/working üzerinden gelen **5.000 satırlık Notebook örnekleminde** çalışıyor. Aynı kapsamda `CANCELLED=1 AND CANCELLATION_REASON IS NOT NULL` → **68**; `CANCELLED=1 AND CANCELLATION_REASON IS NULL` → **0**; `CANCELLED=0 AND CANCELLATION_REASON IS NOT NULL` → **0**. Bunlar **10.000 satırlık Development** veya **5.819.079 satırlık kaynak** üzerinde henüz doğrulanmadı. Sıradaki öğrenme işi: kullanıcının aynı kontrolleri **Pandas** ile yazarak SQL ile karşılaştırması.
+
 ## Dokümantasyon politikası
 
 - Mevcut portfolyo/Technical Deep Dive bir **development snapshot**; geliştirmeyi bekletmez.
