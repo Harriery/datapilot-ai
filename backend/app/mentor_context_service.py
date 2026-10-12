@@ -54,43 +54,73 @@ def build_trusted_notebook_state(
     if notebook is None:
         return None
 
+    # Notebook evidence is persisted by the app; this is a READ-ONLY snapshot.
+    # Recent executions and saved review notes should survive chat history
+    # truncation. Never treat an execution result as full-dataset validation.
     executed_cells = [
-        cell
-        for cell in notebook.cells
-        if isinstance(
-            cell.last_execution,
-            dict,
+        (index, cell)
+        for index, cell in enumerate(notebook.cells)
+        if isinstance(cell.last_execution, dict)
+    ]
+    executed_cells.sort(
+        key=lambda pair: (
+            str(pair[1].last_execution.get("executed_at") or ""),
+            pair[0],
         )
+    )
+
+    def _cell_snapshot(cell):
+        return {
+            "cell_id": cell.cell_id,
+            "code": cell.code[-1600:],
+            "last_execution": cell.last_execution,
+        }
+
+    latest_cell = (
+        _cell_snapshot(executed_cells[-1][1])
+        if executed_cells else None
+    )
+    recent_cells = [
+        _cell_snapshot(cell)
+        for _, cell in reversed(executed_cells[-8:])
     ]
 
-    latest_cell = None
-    if executed_cells:
-        latest = max(
-            executed_cells,
-            key=lambda cell: str(
-                (
-                    cell.last_execution
-                    or {}
-                ).get(
-                    "executed_at",
-                    "",
-                )
-            ),
+    # Quality Checks are optional for pre-feature Notebook objects.
+    checks = list(getattr(notebook, "quality_checks", None) or [])
+    checks.sort(key=lambda check: str(
+        check.get("observed_at", "") if isinstance(check, dict)
+        else getattr(check, "observed_at", "")
+    ), reverse=True)
+    recorded_checks = []
+    for check in checks[:5]:
+        item = (
+            check if isinstance(check, dict)
+            else check.model_dump() if hasattr(check, "model_dump")
+            else {}
         )
-        latest_cell = {
-            "cell_id": latest.cell_id,
-            "code": latest.code[-4000:],
-            "last_execution": latest.last_execution,
-        }
+        recorded_checks.append({
+            key: item.get(key)
+            for key in (
+                "check_id", "title", "section_title", "note",
+                "result_summary", "status", "sample_row_count",
+                "total_row_count", "dataset_kind", "observed_at",
+            )
+            if item.get(key) is not None
+        })
 
     return {
         "notebook_id": notebook.notebook_id,
         "name": notebook.name,
         "dataset_kind": notebook.dataset_kind,
-        "processed_dataset_id":
-            notebook.processed_dataset_id,
+        "processed_dataset_id": notebook.processed_dataset_id,
         "cell_count": len(notebook.cells),
         "latest_cell": latest_cell,
+        "recent_cells": recent_cells,
+        "quality_checks": recorded_checks,
+        "evidence_scope": (
+            "Persisted Notebook executions and user-recorded Quality Checks; "
+            "these are observations, not independent full-data verification."
+        ),
     }
 
 

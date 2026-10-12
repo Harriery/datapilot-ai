@@ -78,6 +78,31 @@ def _selected_notebook(value: object) -> dict | None:
         "last_execution": evidence,
         "execution_evidence": "persisted Notebook observation; source/code version match not independently verified",
     }
+    # Promote bounded evidence from earlier cells and saved human review notes.
+    # These observations are not proof that the full dataset was verified.
+    checks = value.get("quality_checks") or []
+    if isinstance(checks, list):
+        compact["quality_checks"] = [
+            {
+                "title": _clip(str(x.get("title") or ""), 90),
+                "note": _clip(str(x.get("note") or ""), 420),
+                "result_summary": _clip(str(x.get("result_summary") or ""), 240),
+                "status": x.get("status"),
+                "sample_row_count": x.get("sample_row_count"),
+            }
+            for x in checks[:3] if isinstance(x, dict)
+        ]
+    recent = value.get("recent_cells") or []
+    if isinstance(recent, list):
+        compact["recent_cells"] = [
+            {
+                "code": _clip(str(x.get("code") or ""), 320),
+                "output": _clip(str((x.get("last_execution") or {}).get("output") or ""), 260),
+                "executed_at": (x.get("last_execution") or {}).get("executed_at"),
+            }
+            for x in recent[:5]
+            if isinstance(x, dict) and isinstance(x.get("last_execution"), dict)
+        ]
     return compact
 
 
@@ -136,7 +161,7 @@ def compact_mentor_workspace_context(source: dict | None) -> dict:
         result["artifacts"] = reduced
 
     if len(_json(result)) > MAX_WORKSPACE_CHARS:
-        # Preserve the selected Notebook evidence while discarding secondary
+        # Preserve selected Notebook evidence while discarding secondary
         # stage summaries. Never produce an invalid partial JSON blob.
         if "artifacts" in result:
             result["artifacts"] = {
@@ -146,11 +171,21 @@ def compact_mentor_workspace_context(source: dict | None) -> dict:
         result.pop("verified_action_evidence", None)
         result.pop("mentor_execution_context", None)
     if len(_json(result)) > MAX_WORKSPACE_CHARS:
+        notebook = (result.get("artifacts") or {}).get("selected_notebook")
+        if isinstance(notebook, dict):
+            notebook["recent_cells"] = notebook.get("recent_cells", [])[:3]
+            notebook["quality_checks"] = notebook.get("quality_checks", [])[:2]
+    if len(_json(result)) > MAX_WORKSPACE_CHARS:
         for key in ("task_brief", "desired_outcome", "mentor_setup",
                     "dataset_profile_summary", "current_step", "checkpoint"):
             result.pop(key, None)
             if len(_json(result)) <= MAX_WORKSPACE_CHARS:
                 break
+    if len(_json(result)) > MAX_WORKSPACE_CHARS:
+        notebook = (result.get("artifacts") or {}).get("selected_notebook")
+        if isinstance(notebook, dict):
+            notebook.pop("recent_cells", None)
+            notebook.pop("quality_checks", None)
     return result
 
 
