@@ -3509,6 +3509,7 @@ async function saveWorkspaceNotebook(
         processed_dataset_id:
           notebook.processed_dataset_id,
         cells: notebook.cells,
+        quality_checks: notebook.quality_checks ?? [],
         section_mode: notebook.section_mode ?? "legacy",
       }),
     }
