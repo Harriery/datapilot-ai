@@ -922,45 +922,29 @@ def classify_learning_evidence(
     {learning_evidence_classifier_rules()}
     """
 
+    # This SECONDARY classifier runs after the user-facing Mentor response.
+    # Do not retransmit the full workspace or unlimited conversation.
     conversation_history_text = json.dumps(
-    conversation_history or [],
-    ensure_ascii=False,
-    indent=2,
+        compact_mentor_history(conversation_history, count=2),
+        ensure_ascii=False, separators=(",", ":"),
     )
-
+    compact = compact_mentor_workspace_context(workspace_context)
     workspace_evidence_context = {
-        "product":
-            (workspace_context or {}).get(
-                "mentor_product_context"
-            ),
-        "stage_playbooks":
-            (workspace_context or {}).get(
-                "mentor_stage_playbooks"
-            ),
-        "execution":
-            (workspace_context or {}).get(
-                "mentor_execution_context"
-            ),
-        "artifacts":
-            (workspace_context or {}).get(
-                "artifacts"
-            ),
+        "ui_context": compact.get("ui_context"),
+        "current_step": compact.get("current_step"),
+        "selected_notebook": (
+            (compact.get("artifacts") or {}).get("selected_notebook")
+        ),
     }
     workspace_evidence_text = json.dumps(
         workspace_evidence_context,
-        ensure_ascii=False,
-        default=str,
-    )[:24000]
+        ensure_ascii=False, separators=(",", ":"), default=str,
+    )[:2500]
 
     evidence_input = f"""
-    Previous Conversation:
-    {conversation_history_text}
-
-    Relevant Workspace Context:
-    {workspace_evidence_text}
-
-    Current Message:
-    {current_message}
+    Previous Conversation: {conversation_history_text}
+    Relevant Workspace Context: {workspace_evidence_text}
+    Current Message: {current_message[:1200]}
     """
 
     runtime = get_ai_runtime(
