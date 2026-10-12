@@ -23858,3 +23858,23 @@
 }
 .notebook-language-dot[data-language="sql"] { background: #5e91b1; }
 .notebook-language-dot[data-language="markdown"] { background: #7a8da3; }
+
+/* Notebook quality check ledger: compact, section-grouped and collapsible. */
+.notebook-quality-panel { margin: 10px 0 16px; border: 1px solid var(--border-color, #dbe3ed); border-radius: 10px; background: var(--card-background, #fff); overflow: hidden; }
+.notebook-quality-toggle { width:100%; display:flex; align-items:center; gap:8px; padding:11px 14px; border:0; background:transparent; color:inherit; font-weight:700; cursor:pointer; text-align:left; }
+.notebook-quality-toggle span { color:#64748b; font-weight:500; }
+.notebook-quality-body { padding:0 14px 13px; max-height:350px; overflow-y:auto; }
+.notebook-quality-hint { color:#64748b; margin:6px 0; font-size:12px; }
+.notebook-quality-group { padding:8px 0; border-top:1px solid #e2e8f0; }
+.notebook-quality-group > strong { display:block; font-size:12px; margin-bottom:7px; }
+.notebook-quality-entry { border:1px solid #e2e8f0; border-radius:7px; margin:5px 0; }
+.notebook-quality-entry-head { display:flex; gap:10px; align-items:center; width:100%; padding:9px 10px; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.notebook-quality-entry-head > span { flex:1; min-width:0; overflow-wrap:anywhere; font-size:12px; font-weight:600; }
+.notebook-quality-entry-head small { color:#64748b; white-space:nowrap; }
+.notebook-quality-detail { padding:10px; border-top:1px solid #e2e8f0; font-size:12px; overflow-wrap:anywhere; }
+.notebook-quality-detail pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:160px; overflow:auto; background:#172232; color:#f4f6fa; border-radius:5px; padding:9px; }
+.notebook-quality-editor { display:grid; gap:8px; padding:12px; margin:9px 0; border:1px solid #cbd5e1; background:var(--card-background,#fff); border-radius:9px; }
+.notebook-quality-editor label { display:grid; gap:4px; font-size:12px; font-weight:600; }
+.notebook-quality-editor input,.notebook-quality-editor select,.notebook-quality-editor textarea { border:1px solid #cbd5e1; border-radius:6px; padding:7px 9px; width:100%; max-width:100%; color:inherit; background:transparent; font:inherit; }
+.notebook-quality-editor small { color:#64748b; }
+.notebook-quality-buttons { display:flex; flex-wrap:wrap; gap:8px; margin-top:5px; }

@@ -1660,6 +1660,25 @@ class WorkspaceNotebookCell(BaseModel):
     last_execution: dict | None = None
 
 
+class WorkspaceNotebookQualityCheck(BaseModel):
+    """Saved, bounded notebook evidence; it is not a full-data validation."""
+
+    check_id: str
+    cell_id: str | None = None
+    section_title: str | None = Field(default=None, max_length=80)
+    title: str = Field(min_length=1, max_length=120)
+    note: str = Field(default="", max_length=1000)
+    code: str = Field(min_length=1, max_length=20000)
+    cell_type: Literal["python", "sql"]
+    result_summary: str = Field(max_length=1500)
+    status: Literal["recorded", "sample_passed", "needs_review"] = "recorded"
+    sample_row_count: int = Field(ge=0)
+    total_row_count: int | None = Field(default=None, ge=0)
+    dataset_kind: Literal["working", "raw", "processed"] = "working"
+    processed_dataset_id: str | None = None
+    observed_at: str
+
+
 class WorkspaceNotebook(BaseModel):
     notebook_id: str
 
@@ -1685,6 +1704,8 @@ class WorkspaceNotebook(BaseModel):
     cells: list[
         WorkspaceNotebookCell
     ] = Field(default_factory=list)
+
+    quality_checks: list[WorkspaceNotebookQualityCheck] = Field(default_factory=list)
 
     created_at: str
     updated_at: str
@@ -1745,6 +1766,8 @@ class WorkspaceNotebookUpdateRequest(BaseModel):
     cells: list[
         WorkspaceNotebookCell
     ] = Field(default_factory=list)
+
+    quality_checks: list[WorkspaceNotebookQualityCheck] = Field(default_factory=list)
 
 
 class WorkspaceProcessedDatasetCreateRequest(

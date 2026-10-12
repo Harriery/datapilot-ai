@@ -42,6 +42,23 @@ export type WorkspaceNotebookCellData = {
   } | null;
 };
 
+export type NotebookQualityCheck = {
+  check_id: string;
+  cell_id: string | null;
+  section_title: string | null;
+  title: string;
+  note: string;
+  code: string;
+  cell_type: "python" | "sql";
+  result_summary: string;
+  status: "recorded" | "sample_passed" | "needs_review";
+  sample_row_count: number;
+  total_row_count: number | null;
+  dataset_kind: "working" | "raw" | "processed";
+  processed_dataset_id: string | null;
+  observed_at: string;
+};
+
 export type WorkspaceNotebookData = {
   notebook_id: string;
   name: string;
@@ -57,6 +74,7 @@ export type WorkspaceNotebookData = {
 
   cells:
     WorkspaceNotebookCellData[];
+  quality_checks?: NotebookQualityCheck[];
   section_mode?: "legacy" | "explicit";
 
   created_at: string;
@@ -219,6 +237,12 @@ function WorkspaceNotebook({
         .map((title) => [title, true])
     )
   );
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const [qualityEditorId, setQualityEditorId] = useState<string | null>(null);
+  const [qualityTitle, setQualityTitle] = useState("");
+  const [qualityNote, setQualityNote] = useState("");
+  const [qualityStatus, setQualityStatus] = useState<NotebookQualityCheck["status"]>("recorded");
+  const [qualityExpandedId, setQualityExpandedId] = useState<string | null>(null);
   const [addCellOpen, setAddCellOpen] = useState(false);
   const [addSection, setAddSection] = useState("");
   const [addNewSectionName, setAddNewSectionName] = useState("");
@@ -451,6 +475,54 @@ function WorkspaceNotebook({
       document.getElementById(`notebook-code-${cell.cell_id}`)?.focus({ preventScroll: true });
       newCellId.current = null;
     });
+  }
+
+  function proposeCheckTitle(cell: WorkspaceNotebookCellData): string {
+    const comment = cell.code.split("\n").map(line => line.trim())
+      .find(line => line.startsWith("# ") || line.startsWith("-- "));
+    if (comment) return comment.replace(/^(#|--)\s*/, "").slice(0, 120);
+    const columns = [...new Set([...cell.code.matchAll(/df\[["']([^"']+)["']\]/g)].map(match => match[1]))];
+    return (columns.length ? columns.slice(0, 3).join(" / ") : "Notebook")
+      + " — quality check";
+  }
+
+  function openQualityEditor(cell: WorkspaceNotebookCellData) {
+    setQualityEditorId(cell.cell_id);
+    setQualityTitle(proposeCheckTitle(cell));
+    setQualityNote("");
+    setQualityStatus("recorded");
+  }
+
+  async function saveQualityCheck(cell: WorkspaceNotebookCellData) {
+    const result = results[cell.cell_id];
+    if (!result || result.success === false || !qualityTitle.trim()) return;
+    const summary = result.output.trim().slice(0, 1500) ||
+      (result.rows.length ? JSON.stringify(result.rows.slice(0, 5)).slice(0, 1500) : "Executed");
+    const check: NotebookQualityCheck = {
+      check_id: crypto.randomUUID(),
+      cell_id: cell.cell_id,
+      section_title: cell.section_title?.trim() || null,
+      title: qualityTitle.trim().slice(0, 120),
+      note: qualityNote.trim().slice(0, 1000),
+      code: cell.code,
+      cell_type: cell.cell_type as "python" | "sql",
+      result_summary: summary,
+      status: qualityStatus,
+      sample_row_count: inputRows.length,
+      total_row_count: inputTotalRowCount,
+      dataset_kind: draft.dataset_kind,
+      processed_dataset_id: draft.processed_dataset_id,
+      observed_at: new Date().toISOString(),
+    };
+    const saved = await saveDraft({
+      ...draft,
+      quality_checks: [...(draft.quality_checks ?? []), check],
+    });
+    if (saved) {
+      setQualityEditorId(null);
+      setQualityOpen(true);
+      setQualityExpandedId(check.check_id);
+    }
   }
 
   function exportNotebook() {
@@ -919,6 +991,65 @@ function WorkspaceNotebook({
               )}
       </div>
 
+      <div className="notebook-quality-panel">
+        <button type="button" className="notebook-quality-toggle"
+          onClick={() => setQualityOpen(value => !value)}>
+          {qualityOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          Quality Checks <span>({(draft.quality_checks ?? []).length})</span>
+        </button>
+        {qualityOpen && (
+          <div className="notebook-quality-body">
+            {(draft.quality_checks ?? []).length === 0 && (
+              <p className="notebook-quality-hint">Run a Python/SQL cell, review its result, then choose “Save as Quality Check”.</p>
+            )}
+            {(() => {
+              const groups = new Map<string, NotebookQualityCheck[]>();
+              for (const check of draft.quality_checks ?? []) {
+                const section = check.section_title || "Ungrouped";
+                groups.set(section, [...(groups.get(section) ?? []), check]);
+              }
+              return [...groups].map(([section, checks]) => (
+                <div key={section} className="notebook-quality-group">
+                  <strong>{section}</strong>
+                  {checks.map(check => (
+                    <div key={check.check_id} className="notebook-quality-entry">
+                      <button type="button" className="notebook-quality-entry-head"
+                        onClick={() => setQualityExpandedId(value => value === check.check_id ? null : check.check_id)}>
+                        <span>{check.title}</span>
+                        <small>{check.status.replaceAll("_", " ")} · {check.sample_row_count.toLocaleString()} rows</small>
+                        {qualityExpandedId === check.check_id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                      {qualityExpandedId === check.check_id && (
+                        <div className="notebook-quality-detail">
+                          <div>Notebook sample: {check.sample_row_count.toLocaleString()} rows; source context: {check.total_row_count?.toLocaleString() ?? "unknown"} rows · Full-data verification: pending</div>
+                          {check.note && <p>{check.note}</p>}
+                          <pre>{check.code}</pre>
+                          <pre>{check.result_summary}</pre>
+                          <div className="notebook-quality-buttons">
+                            <button type="button" className="secondary-button"
+                              onClick={() => {
+                                if (check.cell_id) {
+                                  setCollapsedSections(previous => ({ ...previous, [check.section_title ?? ""]: false }));
+                                  requestAnimationFrame(() => document.getElementById(`notebook-cell-${check.cell_id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+                                }
+                              }}>Go to cell</button>
+                            <button type="button" className="secondary-button"
+                              onClick={() => {
+                                if (!window.confirm("Remove this saved check?")) return;
+                                markDraftChanged({ ...draft, quality_checks: (draft.quality_checks ?? []).filter(item => item.check_id !== check.check_id) });
+                              }}>Remove</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ));
+            })()}
+          </div>
+        )}
+      </div>
+
       <div className="notebook-cells">
         {(() => {
           // Consolidate same-name sections visually; retain original cell indices for Run.
@@ -1154,6 +1285,15 @@ function WorkspaceNotebook({
                       {ui.sendPipeline}
                     </button>
 
+                    {(cell.cell_type === "python" || cell.cell_type === "sql") && (
+                      <button type="button" className="secondary-button"
+                        disabled={!results[cell.cell_id] || results[cell.cell_id].success === false || runningCellId !== null}
+                        title="Save this executed result as a quality check"
+                        onClick={() => openQualityEditor(cell)}>
+                        <Save size={13} /> Save as Quality Check
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="notebook-cell-delete"
@@ -1168,6 +1308,27 @@ function WorkspaceNotebook({
                     </button>
                   </div>
 
+                  {qualityEditorId === cell.cell_id && (
+                    <div className="notebook-quality-editor">
+                      <strong>Save as Quality Check</strong>
+                      <label>Check name<input maxLength={120} value={qualityTitle} onChange={event => setQualityTitle(event.target.value)} /></label>
+                      <label>Decision note (optional)<textarea maxLength={1000} rows={2} value={qualityNote} onChange={event => setQualityNote(event.target.value)} /></label>
+                      <label>Review status
+                        <select value={qualityStatus} onChange={event => setQualityStatus(event.target.value as NotebookQualityCheck["status"])}>
+                          <option value="recorded">Recorded — not yet reviewed</option>
+                          <option value="sample_passed">Sample passed — reviewed</option>
+                          <option value="needs_review">Needs investigation</option>
+                        </select>
+                      </label>
+                      <small>Current result: {results[cell.cell_id]?.output.slice(0, 150) || "DataFrame result"} · {inputRows.length.toLocaleString()} Notebook rows · Full data not verified</small>
+                      <div className="notebook-quality-buttons">
+                        <button type="button" className="secondary-button" onClick={() => setQualityEditorId(null)}>Cancel</button>
+                        <button type="button" className="new-workspace-button" disabled={!qualityTitle.trim() || saving || dirty}
+                          onClick={() => void saveQualityCheck(cell)}>Save check</button>
+                      </div>
+                      {dirty && <small>Wait for the Notebook autosave to finish before saving this check.</small>}
+                    </div>
+                  )}
                   {mentorGuidance[
                     cell.cell_id
                   ] && (
