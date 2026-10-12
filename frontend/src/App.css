@@ -13411,6 +13411,67 @@
   line-height: 1.35;
 }
 
+.notebook-section-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #c7d7e8;
+  border-radius: 6px;
+  background: #fff;
+  color: #397ecb;
+  padding: 6px 9px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.notebook-add-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d8e3ef;
+  border-radius: 9px;
+  background: #f7fafc;
+}
+
+.notebook-add-panel label {
+  display: grid;
+  gap: 5px;
+  color: #526980;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.notebook-add-panel select,
+.notebook-add-panel input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #c7d7e8;
+  border-radius: 7px;
+  background: #fff;
+  color: #334d68;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+
+.notebook-add-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: #2d76c7;
+  color: #fff;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.notebook-add-submit:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
 /* Notebook section organization */
 .notebook-cell-section-wrap {
   display: grid;

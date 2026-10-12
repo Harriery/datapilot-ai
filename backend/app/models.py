@@ -1663,6 +1663,10 @@ class WorkspaceNotebookCell(BaseModel):
 class WorkspaceNotebook(BaseModel):
     notebook_id: str
 
+    # Older notebooks inherited their section from preceding cells.
+    # Explicit mode gives every cell an independent section membership.
+    section_mode: Literal["legacy", "explicit"] = "legacy"
+
     name: str = Field(
         min_length=1,
         max_length=80,
@@ -1721,6 +1725,8 @@ class WorkspaceNotebookCreateRequest(BaseModel):
 
 
 class WorkspaceNotebookUpdateRequest(BaseModel):
+    section_mode: Literal["legacy", "explicit"] = "legacy"
+
     name: str = Field(
         min_length=1,
         max_length=80,
