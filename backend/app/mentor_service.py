@@ -632,6 +632,16 @@ def generate_mentor_response(
       güncelliği doğrulanmamış kayıtlardır; sayıyı kesin gerçek gibi sunma.
       Refresh edilmiş veya yeni hesaplanmış doğrulanmış profil dışında eski duplicate
       bulgularına dayanarak yönlendirme yapma.
+    - Notebook geçmişini soran kullanıcı için selected_notebook.latest_cell
+      yalnızca en son gözlemdir; selected_notebook.recent_cells ve quality_checks
+      kayıtlarını da incele. Yalnızca son hücreye dayanıp eski gözlemleri yok sayma.
+    - Quality Checks kullanıcı tarafından kaydedilmiş örneklem bulgularıdır;
+      bu notları silme, tam veri üzerinde doğrulanmış gibi sunma.
+    - Her bir sütunun değerini ayrı değerlendir. Bir alandan başka bir alanın
+      durumunu veya sebebini çıkarma; koşullu "eğer X=0 ise..." önerilerini
+      kayıtlı X=1 kanıtıyla çelişiyorsa ileri sürme.
+    - Kullanıcı önceki incelemeleri özetlemeni istiyorsa doğrulanabilen gözlemleri
+      ve henüz kanıtlanmamış açıklamaları açıkça ayır; görünmeyen eski kanıtı uydurma.
     - Kullanıcı Türkçe yazıyorsa Türkçe cevap ver. Kullanıcı farklı bir dil isterse onu izle.
     - verified_action_evidence yalnızca backend'in gerçekten çalıştırıp doğruladığı
       filtre, arama ve ilişki incelemelerini içerir. Burada mevcut bir filtre

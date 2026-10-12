@@ -136,3 +136,44 @@ def test_workspace_413_returns_grounded_local_reply_without_repeat_ai_call():
     mentor.assert_called_once()
     history = client.get(f"/chat/{workspace['mentor_session_id']}/history").json()["messages"]
     assert history[-1]["role"] == "assistant"
+
+
+def test_prior_notebook_findings_remain_visible_after_latest_cell():
+    source = {
+        "artifacts": {
+            "selected_notebook": {
+                "notebook_id": "flight-1",
+                "name": "01_Data_Cleaning",
+                "latest_cell": {
+                    "cell_id": "now",
+                    "code": 'df.loc[923, "DIVERTED"]',
+                    "last_execution": {"success": True, "output": "np.int64(0)"},
+                },
+                "recent_cells": [
+                    {
+                        "code": 'df.loc[923, "DIVERTED"]',
+                        "last_execution": {"output": "np.int64(0)", "success": True},
+                    },
+                    {
+                        "code": 'df.loc[923, "CANCELLED"]',
+                        "last_execution": {"output": "np.int64(1)", "success": True},
+                    },
+                ],
+                "quality_checks": [
+                    {
+                        "title": "Cancelled Flight — Recorded Takeoff Investigation",
+                        "note": "Satır 923: CANCELLED=1, DIVERTED=0. Acil iniş doğrulanmadı.",
+                        "result_summary": "WHEELS_OFF = 1613",
+                        "status": "needs_review",
+                        "sample_row_count": 5000,
+                    },
+                ],
+            },
+        },
+    }
+    result = compact_mentor_workspace_context(source)
+    notebook = result["artifacts"]["selected_notebook"]
+    assert notebook["latest_cell"]["last_execution"]["output"] == "np.int64(0)"
+    assert "CANCELLED" in json.dumps(notebook["recent_cells"])
+    assert "CANCELLED=1" in json.dumps(notebook["quality_checks"])
+    assert len(json.dumps(result, ensure_ascii=False)) < 6500
