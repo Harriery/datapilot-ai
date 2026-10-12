@@ -44,6 +44,10 @@ from backend.app.mentor_workspace_context_service import (
 )
 from backend.app.mentor_pedagogy_contract import enforce_discovery_contract
 from backend.app.mentor_local_dispatcher_service import dispatch_local_investigation
+from backend.app.mentor_prompt_context_service import (
+    compact_mentor_workspace_context, compact_mentor_history,
+    mentor_provider_overload_reply,
+)
 
 import json
 
@@ -259,22 +263,9 @@ def chat(request: ChatRequest):
                     "doğrulanmamıştır. Sence bu ilişkiyi nasıl yorumlamalıyız?"
                 )
             reply = "\n".join(lines)
-        elif (
-            local_evidence.get("status") == "needs_clarification"
-            and local_evidence.get("reason") == "request_one_group_column"
-            and local_evidence.get("target_column")
-            and local_evidence.get("informal_question")
-        ):
-            # Natural learner follow-ups like "Bu boşlar normal mi?"
-            # should not trigger unsupported UI instructions or repeat work.
-            target = local_evidence["target_column"]
-            reply = (
-                f"{target} sütunundaki eksik kayıtları daha önce "
-                "incelediğini görüyorum. Ancak sadece boş kayıt sayısına "
-                "bakarak bunların hata mı, beklenen durum mu olduğunu "
-                "söyleyemeyiz. Sence bunu anlamak için hangi başka "
-                "bilgiyle karşılaştırmalıyız?"
-            )
+        # A prior missingness filter is not evidence about the new question.
+        # Let the adaptive Mentor interpret the actual message instead of
+        # emitting a stale, hard-coded response about a previous column.
         else:
             reply = _deterministic_workspace_guidance(
                 workspace_context=workspace_context,
@@ -332,9 +323,9 @@ def chat(request: ChatRequest):
                 fallback_instructions += (
                     "\n\nCurrent Workspace Context:\n"
                     + json.dumps(
-                        workspace_context,
+                        compact_mentor_workspace_context(workspace_context),
                         ensure_ascii=False,
-                        indent=2,
+                        separators=(",", ":"),
                     )
                 )
 
@@ -348,7 +339,7 @@ def chat(request: ChatRequest):
                 purpose="chat_fallback",
                 model=runtime.model,
                 instructions=fallback_instructions,
-                input=history,
+                input=compact_mentor_history(history, count=5),
             )
 
             reply = response.output_text
@@ -387,13 +378,25 @@ def chat(request: ChatRequest):
             exc.status_code,
         )
         delete_last_message(request.session_id)
+        if exc.status_code == 413 and workspace_context is not None:
+            # An extra model retry could consume more free quota and trigger
+            # another oversized request. Provide grounded local feedback.
+            reply = mentor_provider_overload_reply(workspace_context)
+            insert_message(
+                session_id=request.session_id,
+                role="user",
+                content=message,
+            )
+            insert_message(
+                session_id=request.session_id,
+                role="assistant",
+                content=reply,
+            )
+            return {"reply": reply}
         if exc.status_code == 413:
             raise HTTPException(
                 status_code=413,
-                detail=(
-                    "Mentor context exceeded the AI provider token limit. "
-                    "Try a shorter question or retry after context refresh."
-                ),
+                detail="Mentor context exceeded the AI provider token limit. Try a shorter question or retry after context refresh.",
             ) from exc
         raise HTTPException(
             status_code=503,
