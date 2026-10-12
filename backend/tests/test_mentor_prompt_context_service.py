@@ -180,6 +180,7 @@ def test_prior_notebook_findings_remain_visible_after_latest_cell():
 
 
 def test_secondary_evidence_413_does_not_discard_generated_mentor_reply():
+    _create_learner("mentor-overload-regression")
     from types import SimpleNamespace
     from unittest.mock import patch
     from backend.app.mentor_service import get_mentor_response_from_message
