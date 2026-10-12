@@ -790,6 +790,10 @@ def generate_mentor_response(
         "mentor"
     )
 
+    mentor_logger.info(
+        "Mentor primary request size: instructions_chars=%d input_chars=%d",
+        len(instructions), len(prompt),
+    )
     response = guarded_responses_create(
         runtime.client,
         provider=runtime.provider,
@@ -966,6 +970,10 @@ def classify_learning_evidence(
         "classifier"
     )
 
+    mentor_logger.info(
+        "Mentor secondary evidence request size: instructions_chars=%d input_chars=%d",
+        len(instructions), len(evidence_input),
+    )
     response = guarded_responses_parse(
         runtime.client,
         provider=runtime.provider,
