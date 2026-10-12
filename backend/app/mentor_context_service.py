@@ -87,7 +87,7 @@ def build_trusted_notebook_state(
     import re
     terms = {
         token.casefold()
-        for token in re.findall(r"\\b[A-Za-z][A-Za-z0-9_]{2,}\\b", learner_message)
+        for token in re.findall(r"\b[A-Za-z][A-Za-z0-9_]{2,}\b", learner_message)
     }
     known_columns = set()
     profile = getattr(workspace, "dataset_profile", None) or {}
@@ -112,7 +112,7 @@ def build_trusted_notebook_state(
     ranked = list(reversed(executed_cells))
     related = [
         pair for pair in ranked
-        if any(re.search(r"(?<!\\w)" + re.escape(field) + r"(?!\\w)",
+        if any(re.search(r"(?<!\w)" + re.escape(field) + r"(?!\w)",
                          pair[1].code, re.IGNORECASE)
                for field in requested_fields)
     ]
@@ -124,7 +124,7 @@ def build_trusted_notebook_state(
         for pair in related:
             if pair[1].cell_id in chosen_ids:
                 continue
-            if re.search(r"(?<!\\w)" + re.escape(field) + r"(?!\\w)",
+            if re.search(r"(?<!\w)" + re.escape(field) + r"(?!\w)",
                          pair[1].code, re.IGNORECASE):
                 selected_pairs.append(pair)
                 chosen_ids.add(pair[1].cell_id)
