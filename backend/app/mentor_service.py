@@ -565,10 +565,20 @@ def generate_mentor_response(
         "active_processed_dataset_id":
             (workspace_context or {}).get("active_processed_dataset_id"),
     }
+    # Product metadata and execution diagnosis are duplicated in other
+    # context channels. Keep this state summary bounded as well.
+    mentor_state["notebooks"] = [
+        {"notebook_id": item.get("notebook_id"), "name": item.get("name")}
+        for item in notebook_summaries[:6] if isinstance(item, dict)
+    ]
+    mentor_state["product_context"] = (
+        str(mentor_state.get("product_context") or "")[:350]
+    )
+    mentor_state["execution_context"] = (
+        str(mentor_state.get("execution_context") or "")[:600]
+    )
     mentor_state_text = json.dumps(
-        mentor_state,
-        ensure_ascii=False,
-        indent=2,
+        mentor_state, ensure_ascii=False, separators=(",", ":"), default=str,
     )
 
     #BU MESAJDA hangi yardım seviyesinde davranacağıni belirliyoruz.
