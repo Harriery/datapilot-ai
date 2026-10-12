@@ -1477,7 +1477,7 @@ function WorkspaceNotebook({
               <Plus size={14} /> {ui.addCell}
             </button>
           </div>
-        )
+        )}
       </div>
 
       {message && (
