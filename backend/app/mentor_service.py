@@ -883,13 +883,13 @@ def get_mentor_response_from_message(
             workspace_context=workspace_context,
         )
     except APIStatusError as exc:
-        if exc.status_code != 413:
-            raise
-        # Never discard an already generated user-facing reply because a
-        # secondary progress classifier exceeded the provider's token limit.
-        # No synthetic learning evidence or skill advancement is recorded.
+        # This is secondary telemetry/progress classification, not the
+        # user-facing Mentor answer. Provider rejections must never discard
+        # an answer that was already successfully generated. Do not record
+        # fabricated evidence, advance skill state, or retry automatically.
         mentor_logger.warning(
-            "Mentor secondary evidence classification skipped (provider 413)"
+            "Mentor secondary evidence classification skipped (provider_status=%d)",
+            exc.status_code,
         )
 
     return mentor_response
