@@ -3600,6 +3600,30 @@ def update_workspace_notebook(
         notebook_index
     ]
 
+    # Never persist an old execution as evidence for changed source code.
+    # The frontend normally clears this on edit; enforce the same invariant
+    # for direct API clients and concurrent/stale saves.
+    original_cells = {
+        cell.cell_id: cell for cell in existing.cells
+    }
+    dataset_changed = (
+        existing.dataset_kind != request.dataset_kind
+        or existing.processed_dataset_id != request.processed_dataset_id
+    )
+    verified_cells = []
+    for cell in request.cells:
+        original = original_cells.get(cell.cell_id)
+        source_changed = (
+            dataset_changed
+            or (original is not None and (
+                original.code != cell.code
+                or original.cell_type != cell.cell_type
+            ))
+        )
+        if source_changed and cell.last_execution is not None:
+            cell = cell.model_copy(update={"last_execution": None})
+        verified_cells.append(cell)
+
     updated = existing.model_copy(
         update={
             "name": name,
@@ -3607,7 +3631,7 @@ def update_workspace_notebook(
                 request.dataset_kind,
             "processed_dataset_id":
                 request.processed_dataset_id,
-            "cells": request.cells,
+            "cells": verified_cells,
             "updated_at":
                 pd.Timestamp.now(
                     tz="UTC"
