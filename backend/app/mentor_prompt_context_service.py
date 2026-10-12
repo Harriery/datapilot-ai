@@ -96,8 +96,12 @@ def _selected_notebook(value: object) -> dict | None:
     if isinstance(recent, list):
         compact["recent_cells"] = [
             {
+                "cell_id": x.get("cell_id"),
                 "code": _clip(str(x.get("code") or ""), 320),
                 "output": _clip(str((x.get("last_execution") or {}).get("output") or ""), 260),
+                "preview_rows": _bounded(
+                    ((x.get("last_execution") or {}).get("preview_rows") or [])[:1], 280
+                ),
                 "executed_at": (x.get("last_execution") or {}).get("executed_at"),
             }
             for x in recent[:5]

@@ -289,3 +289,26 @@ def test_notebook_recall_prioritizes_older_executed_fields():
     assert "np.int64(1)" in source
     assert "np.int64(1603)" in source
     assert "np.int64(1613)" in source
+
+
+def test_recent_notebook_evidence_preserves_source_cell_id():
+    context = {"artifacts": {"selected_notebook": {
+        "notebook_id": "note-1",
+        "latest_cell": {
+            "cell_id": "current", "code": "df.head()",
+            "last_execution": {"success": True, "output": "latest"},
+        },
+        "recent_cells": [{
+            "cell_id": "previous",
+            "code": 'df.loc[923, "CANCELLED"]',
+            "last_execution": {
+                "success": True, "output": "np.int64(1)",
+                "executed_at": "2026-10-12T12:00:00Z",
+            },
+        }],
+    }}}
+    compact = compact_mentor_workspace_context(context)
+    previous = compact["artifacts"]["selected_notebook"]["recent_cells"][0]
+    assert previous["cell_id"] == "previous"
+    assert "CANCELLED" in previous["code"]
+    assert previous["output"] == "np.int64(1)"
