@@ -53,7 +53,7 @@ def test_notebook_update_discards_prior_execution_when_code_changes(tmp_path):
     assert original
     cell = {
         **original[0],
-        "code": "df.head()",
+        "code": original[0]["code"],
         "last_execution": {
             "success": True, "expression_kind": "scalar",
             "output": "original output",
