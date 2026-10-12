@@ -1,3 +1,4 @@
+from backend.app.mentor_prompt_context_service import compact_mentor_workspace_context, compact_mentor_history
 import json
 from backend.app.models import (
     MentorDecision,
@@ -504,65 +505,15 @@ def generate_mentor_response(
         indent=2,
     )   
 
-    # Limit context to the current project and the evidence necessary for
-    # this turn. Full workspace artifacts are already stored server-side.
-    recent_history = (conversation_history or [])[-4:]
+    # Bound the entire request context; prioritise the last executed Notebook
+    # cell and actual persisted output rather than large historical artifacts.
     conversation_history_text = json.dumps(
-        [
-            {
-                "role": item.get("role"),
-                "content": str(item.get("content") or "")[-1200:],
-            }
-            for item in recent_history
-        ],
-        ensure_ascii=False,
-        separators=(",", ":"),
+        compact_mentor_history(conversation_history),
+        ensure_ascii=False, separators=(",", ":"),
     )
-
-    source_context = workspace_context or {}
-    compact_workspace = {
-        key: source_context.get(key)
-        for key in (
-            "workspace_id", "title", "task_brief", "desired_outcome",
-            "project_type", "mentor_setup", "dataset_filename",
-            "dataset_profile_summary", "sampling_context",
-            "verified_action_evidence",
-            "local_investigation",
-            "development_sample_size", "current_step", "checkpoint",
-            "mentor_execution_context",
-        )
-        if source_context.get(key) is not None
-    }
-    ui = source_context.get("ui_context") or {}
-    compact_workspace["ui_context"] = {
-        key: ui.get(key)
-        for key in (
-            "active_workspace_stage", "active_prepare_stage",
-            "workbench_view", "selected_workbench_column",
-        )
-        if ui.get(key) is not None
-    }
-    artifacts = source_context.get("artifacts") or {}
-    # Preserve the stage-specific evidence contract (model, KPI, analysis,
-    # dashboard etc.), but do not send complete large artifacts.
-    compact_artifacts = {}
-    for key, value in artifacts.items():
-        if key in {"dataset_profile", "dataset_analysis", "selected_notebook"}:
-            compact_artifacts[key] = value
-            continue
-        serialized = json.dumps(
-            value, ensure_ascii=False, separators=(",", ":"), default=str
-        )
-        compact_artifacts[key] = (
-            value if len(serialized) <= 1800
-            else {"preview": serialized[:1800], "truncated": True}
-        )
-    compact_workspace["artifacts"] = compact_artifacts
     workspace_context_text = json.dumps(
-        compact_workspace,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        default=str,
+        compact_mentor_workspace_context(workspace_context),
+        ensure_ascii=False, separators=(",", ":"), default=str,
     )
 
     current_step = (workspace_context or {}).get("current_step")
