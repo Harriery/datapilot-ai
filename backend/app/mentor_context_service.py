@@ -144,18 +144,15 @@ def build_trusted_notebook_state(
         else getattr(check, "observed_at", "")
     ), reverse=True)
     if requested_fields:
-        checks.sort(
-            key=lambda check: sum(
-                field in (
-                    (check.get("note", "") + " " + check.get("title", "")
-                     + " " + check.get("code", "")).casefold()
-                    if isinstance(check, dict) else
-                    (check.note + " " + check.title + " " + check.code).casefold()
-                )
-                for field in requested_fields
-            ),
-            reverse=True,
-        )
+        def _check_relevance(check):
+            item = check if isinstance(check, dict) else (
+                check.model_dump() if hasattr(check, "model_dump") else {}
+            )
+            text = " ".join(str(item.get(key) or "") for key in (
+                "title", "note", "result_summary",
+            )).casefold()
+            return sum(field in text for field in requested_fields)
+        checks.sort(key=_check_relevance, reverse=True)
     recorded_checks = []
     for check in checks[:5]:
         item = (
