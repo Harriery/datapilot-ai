@@ -19,6 +19,11 @@ import pandas as pd
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
 )
+from openai import APIStatusError
+import logging
+
+mentor_logger = logging.getLogger("uvicorn.error")
+
 from backend.app.ai_usage_guard import (
     guarded_responses_create,
     guarded_responses_parse,
@@ -785,6 +790,10 @@ def generate_mentor_response(
         "mentor"
     )
 
+    mentor_logger.info(
+        "Mentor primary request size: instructions_chars=%d input_chars=%d",
+        len(instructions), len(prompt),
+    )
     response = guarded_responses_create(
         runtime.client,
         provider=runtime.provider,
@@ -864,14 +873,24 @@ def get_mentor_response_from_message(
 
     # Junior'ın mevcut mesajı gerçek evidence içeriyorsa kaydet.
     # Sonraki mesajda mentor artık güncellenmiş state'i görecek.
-    process_learning_evidence(
-        learner_id=learner_id,
-        mentor_decision=mentor_decision,
-        current_message=current_message,
-        session_id=session_id,
-        conversation_history=conversation_history,
-        workspace_context=workspace_context,
-    )
+    try:
+        process_learning_evidence(
+            learner_id=learner_id,
+            mentor_decision=mentor_decision,
+            current_message=current_message,
+            session_id=session_id,
+            conversation_history=conversation_history,
+            workspace_context=workspace_context,
+        )
+    except APIStatusError as exc:
+        if exc.status_code != 413:
+            raise
+        # Never discard an already generated user-facing reply because a
+        # secondary progress classifier exceeded the provider's token limit.
+        # No synthetic learning evidence or skill advancement is recorded.
+        mentor_logger.warning(
+            "Mentor secondary evidence classification skipped (provider 413)"
+        )
 
     return mentor_response
 
@@ -922,51 +941,39 @@ def classify_learning_evidence(
     {learning_evidence_classifier_rules()}
     """
 
+    # This SECONDARY classifier runs after the user-facing Mentor response.
+    # Do not retransmit the full workspace or unlimited conversation.
     conversation_history_text = json.dumps(
-    conversation_history or [],
-    ensure_ascii=False,
-    indent=2,
+        compact_mentor_history(conversation_history, count=2),
+        ensure_ascii=False, separators=(",", ":"),
     )
-
+    compact = compact_mentor_workspace_context(workspace_context)
     workspace_evidence_context = {
-        "product":
-            (workspace_context or {}).get(
-                "mentor_product_context"
-            ),
-        "stage_playbooks":
-            (workspace_context or {}).get(
-                "mentor_stage_playbooks"
-            ),
-        "execution":
-            (workspace_context or {}).get(
-                "mentor_execution_context"
-            ),
-        "artifacts":
-            (workspace_context or {}).get(
-                "artifacts"
-            ),
+        "ui_context": compact.get("ui_context"),
+        "current_step": compact.get("current_step"),
+        "selected_notebook": (
+            (compact.get("artifacts") or {}).get("selected_notebook")
+        ),
     }
     workspace_evidence_text = json.dumps(
         workspace_evidence_context,
-        ensure_ascii=False,
-        default=str,
-    )[:24000]
+        ensure_ascii=False, separators=(",", ":"), default=str,
+    )[:2500]
 
     evidence_input = f"""
-    Previous Conversation:
-    {conversation_history_text}
-
-    Relevant Workspace Context:
-    {workspace_evidence_text}
-
-    Current Message:
-    {current_message}
+    Previous Conversation: {conversation_history_text}
+    Relevant Workspace Context: {workspace_evidence_text}
+    Current Message: {current_message[:1200]}
     """
 
     runtime = get_ai_runtime(
         "classifier"
     )
 
+    mentor_logger.info(
+        "Mentor secondary evidence request size: instructions_chars=%d input_chars=%d",
+        len(instructions), len(evidence_input),
+    )
     response = guarded_responses_parse(
         runtime.client,
         provider=runtime.provider,
