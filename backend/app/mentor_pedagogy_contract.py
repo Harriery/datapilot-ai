@@ -95,9 +95,9 @@ _REPLY_REVIEW_MARKERS = (
     "you were wrong",
 )
 _UNSOLICITED_NEXT_STEP = re.compile(
-    r"(?im)^\s*(?:\\*\\*)?\\s*(?:bir sonraki(?: küçük)? adım|"
+    r"(?im)^\s*(?:\*\*)?\s*(?:bir sonraki(?: küçük)? adım|"
     r"sıradaki(?: küçük)? adım|next step|yeni görev)"
-    r"\\s*(?:\\*\\*)?\\s*[:：]"
+    r"\s*(?:\*\*)?\s*[:：]"
 )
 
 
