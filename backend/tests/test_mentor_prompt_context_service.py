@@ -211,6 +211,38 @@ def test_secondary_evidence_413_does_not_discard_generated_mentor_reply():
     secondary.assert_called_once()
 
 
+@pytest.mark.parametrize("status_code", [400, 413, 422, 429, 500])
+def test_secondary_provider_failure_keeps_mentor_reply(status_code):
+    _create_learner("secondary-provider-regression")
+    from types import SimpleNamespace
+    from backend.app.mentor_service import get_mentor_response_from_message
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/responses")
+    error = APIStatusError(
+        "secondary classifier rejected",
+        response=httpx.Response(status_code, request=request),
+        body={"error": {"type": "invalid_request"}},
+    )
+    decision = SimpleNamespace(skill_name="null_analysis", assistance_level="GUIDE")
+    with patch(
+        "backend.app.mentor_service.get_mentor_decision_from_message",
+        return_value=decision,
+    ), patch(
+        "backend.app.mentor_service.generate_mentor_response",
+        return_value="Mentorun doğrulanmış cevabı.",
+    ), patch(
+        "backend.app.mentor_service.process_learning_evidence",
+        side_effect=error,
+    ) as classifier:
+        reply = get_mentor_response_from_message(
+            learner_id="secondary-provider-regression",
+            current_message="Önceki cevabını yeniden değerlendir.",
+            workspace_context={"workspace_id": "example"},
+        )
+    assert reply == "Mentorun doğrulanmış cevabı."
+    classifier.assert_called_once()
+
+
 def test_notebook_recall_prioritizes_older_executed_fields():
     from types import SimpleNamespace
     from backend.app.mentor_context_service import build_trusted_notebook_state
