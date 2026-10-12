@@ -209,3 +209,51 @@ def test_secondary_evidence_413_does_not_discard_generated_mentor_reply():
         )
     assert "CANCELLED=1" in result
     secondary.assert_called_once()
+
+
+def test_notebook_recall_prioritizes_older_executed_fields():
+    from types import SimpleNamespace
+    from backend.app.mentor_context_service import build_trusted_notebook_state
+
+    def cell(index, code, output):
+        return SimpleNamespace(
+            cell_id=f"cell-{index}", code=code,
+            last_execution={
+                "success": True, "output": output,
+                "executed_at": f"2026-10-12T10:{index:02d}:00",
+            },
+        )
+
+    cells = [
+        cell(1, 'df.loc[923, "CANCELLED"]', "np.int64(1)"),
+        cell(2, 'df.loc[923, "DEPARTURE_TIME"]', "np.int64(1603)"),
+        cell(3, 'df.loc[923, "WHEELS_OFF"]', "np.int64(1613)"),
+    ] + [
+        cell(i, f'df.loc[{i}, "ARRIVAL_TIME"]', "np.int64(0)")
+        for i in range(4, 14)
+    ] + [cell(14, 'df.loc[923, "DIVERTED"]', "np.int64(0)")]
+
+    notebook = SimpleNamespace(
+        notebook_id="n1", name="01_Data_Cleaning", dataset_kind="raw",
+        processed_dataset_id=None, cells=cells, quality_checks=[],
+    )
+    workspace = SimpleNamespace(
+        notebooks=[notebook], dataset_profile={"columns": [
+            "CANCELLED", "DEPARTURE_TIME", "WHEELS_OFF", "DIVERTED",
+            "ARRIVAL_TIME",
+        ]},
+    )
+    evidence = build_trusted_notebook_state(
+        workspace=workspace, ui_context={"selected_notebook_id": "n1"},
+        learner_message="923 için CANCELLED, DIVERTED, DEPARTURE_TIME ve WHEELS_OFF?",
+    )
+    compact = compact_mentor_workspace_context({
+        "artifacts": {"selected_notebook": evidence}
+    })
+    notebook_context = compact["artifacts"]["selected_notebook"]
+    source = json.dumps(notebook_context, ensure_ascii=False)
+    for column in ("CANCELLED", "DIVERTED", "DEPARTURE_TIME", "WHEELS_OFF"):
+        assert column in source
+    assert "np.int64(1)" in source
+    assert "np.int64(1603)" in source
+    assert "np.int64(1613)" in source
