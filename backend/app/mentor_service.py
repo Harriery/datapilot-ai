@@ -19,6 +19,11 @@ import pandas as pd
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
 )
+from openai import APIStatusError
+import logging
+
+mentor_logger = logging.getLogger("uvicorn.error")
+
 from backend.app.ai_usage_guard import (
     guarded_responses_create,
     guarded_responses_parse,
@@ -864,14 +869,24 @@ def get_mentor_response_from_message(
 
     # Junior'ın mevcut mesajı gerçek evidence içeriyorsa kaydet.
     # Sonraki mesajda mentor artık güncellenmiş state'i görecek.
-    process_learning_evidence(
-        learner_id=learner_id,
-        mentor_decision=mentor_decision,
-        current_message=current_message,
-        session_id=session_id,
-        conversation_history=conversation_history,
-        workspace_context=workspace_context,
-    )
+    try:
+        process_learning_evidence(
+            learner_id=learner_id,
+            mentor_decision=mentor_decision,
+            current_message=current_message,
+            session_id=session_id,
+            conversation_history=conversation_history,
+            workspace_context=workspace_context,
+        )
+    except APIStatusError as exc:
+        if exc.status_code != 413:
+            raise
+        # Never discard an already generated user-facing reply because a
+        # secondary progress classifier exceeded the provider's token limit.
+        # No synthetic learning evidence or skill advancement is recorded.
+        mentor_logger.warning(
+            "Mentor secondary evidence classification skipped (provider 413)"
+        )
 
     return mentor_response
 
