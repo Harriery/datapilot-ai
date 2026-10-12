@@ -42,7 +42,7 @@ from backend.app.ai_provider_service import (
 from backend.app.mentor_workspace_context_service import (
     build_chat_mentor_workspace_context,
 )
-from backend.app.mentor_pedagogy_contract import enforce_discovery_contract
+from backend.app.mentor_pedagogy_contract import enforce_discovery_contract, enforce_reply_review_contract
 from backend.app.mentor_local_dispatcher_service import dispatch_local_investigation
 from backend.app.mentor_prompt_context_service import (
     compact_mentor_workspace_context, compact_mentor_history,
@@ -416,6 +416,7 @@ def chat(request: ChatRequest):
 
     if workspace_context is not None:
         reply = enforce_discovery_contract(message, reply)
+        reply = enforce_reply_review_contract(message, reply)
 
     # Başarılı AI cevabını SQLite veritabanına kaydeder.
     insert_message(

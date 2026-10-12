@@ -1,6 +1,8 @@
 from backend.app.mentor_pedagogy_contract import (
     enforce_discovery_contract,
     wants_discovery_without_solution,
+    is_mentor_reply_review_request,
+    enforce_reply_review_contract,
 )
 
 
@@ -41,3 +43,31 @@ def test_code_allowed_when_explicitly_requested():
     message = "Çözümü verme ama bana kodu göster."
     reply = "Örnek: `df.isna()`"
     assert enforce_discovery_contract(message, reply) == reply
+
+
+def test_previous_mentor_error_question_is_review_not_new_assignment():
+    message = (
+        "Az önce DIVERTED = 0 iptal edilmemiş demek dedin, ama "
+        "CANCELLED = 1. Önceki açıklaman doğru muydu?"
+    )
+    assert is_mentor_reply_review_request(message)
+    answer = (
+        "Önceki açıklamam yanlıştı. Bu iki sütun farklı kavramları gösterir.\n\n"
+        "**Bir sonraki küçük adım:** Bir sütunda yeni filtre çalıştır."
+    )
+    result = enforce_reply_review_contract(message, answer)
+    assert "Önceki açıklamam yanlıştı" in result
+    assert "Bir sonraki" not in result
+
+
+def test_normal_mentor_guidance_is_not_suppressed():
+    message = "Eksik kayıtlar için bir sonraki adım nedir?"
+    answer = "Bir sonraki adım: Eksik satır sayısını kontrol et."
+    assert not is_mentor_reply_review_request(message)
+    assert enforce_reply_review_contract(message, answer) == answer
+
+
+def test_review_correct_answer_does_not_force_false_apology():
+    message = "Önceki cevabın doğru muydu?"
+    answer = "Evet, önceki açıklama mevcut kanıtla uyumlu."
+    assert enforce_reply_review_contract(message, answer) == answer
