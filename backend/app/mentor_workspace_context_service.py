@@ -250,6 +250,7 @@ def build_chat_mentor_workspace_context(
         build_trusted_notebook_state(
             workspace=workspace,
             ui_context=ui_context,
+            learner_message=message,
         )
     )
 

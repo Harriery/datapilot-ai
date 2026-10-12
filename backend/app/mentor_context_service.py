@@ -32,6 +32,7 @@ def build_trusted_notebook_state(
     *,
     workspace: Workspace,
     ui_context: dict | None,
+    learner_message: str = "",
 ) -> dict | None:
     selected_id = (
         (ui_context or {}).get(
@@ -80,10 +81,61 @@ def build_trusted_notebook_state(
         _cell_snapshot(executed_cells[-1][1])
         if executed_cells else None
     )
-    recent_cells = [
-        _cell_snapshot(cell)
-        for _, cell in reversed(executed_cells[-8:])
+    # Prefer executed cells that explicitly mention fields in the learner's
+    # current question; the last N cells alone can miss an earlier finding.
+    # This is retrieval, not a dataset-specific rule or a new computation.
+    import re
+    terms = {
+        token.casefold()
+        for token in re.findall(r"\\b[A-Za-z][A-Za-z0-9_]{2,}\\b", learner_message)
+    }
+    known_columns = set()
+    profile = getattr(workspace, "dataset_profile", None) or {}
+    if isinstance(profile, dict):
+        known_columns = {
+            str(column).casefold()
+            for column in (profile.get("columns") or [])
+        }
+    requested_fields = terms & known_columns
+    if not requested_fields:
+        # Not every workspace has a populated profile; quoted/exact names
+        # from executable notebook code are still useful retrieval keys.
+        used_fields = set()
+        for _, cell in executed_cells:
+            used_fields.update(
+                match.casefold() for match in re.findall(
+                    r"""['"]([A-Za-z_][A-Za-z0-9_]*)['"]""",
+                    cell.code,
+                )
+            )
+        requested_fields = terms & used_fields
+    ranked = list(reversed(executed_cells))
+    related = [
+        pair for pair in ranked
+        if any(re.search(r"(?<!\\w)" + re.escape(field) + r"(?!\\w)",
+                         pair[1].code, re.IGNORECASE)
+               for field in requested_fields)
     ]
+    selected_pairs = []
+    chosen_ids = set()
+    # One best visible observation for each requested column, then other
+    # related cells, then recent context; preserve chronological ordering.
+    for field in sorted(requested_fields):
+        for pair in related:
+            if pair[1].cell_id in chosen_ids:
+                continue
+            if re.search(r"(?<!\\w)" + re.escape(field) + r"(?!\\w)",
+                         pair[1].code, re.IGNORECASE):
+                selected_pairs.append(pair)
+                chosen_ids.add(pair[1].cell_id)
+                break
+    for pair in related + ranked:
+        if len(selected_pairs) >= 8:
+            break
+        if pair[1].cell_id not in chosen_ids:
+            selected_pairs.append(pair)
+            chosen_ids.add(pair[1].cell_id)
+    recent_cells = [_cell_snapshot(cell) for _, cell in selected_pairs[:8]]
 
     # Quality Checks are optional for pre-feature Notebook objects.
     checks = list(getattr(notebook, "quality_checks", None) or [])
@@ -91,6 +143,16 @@ def build_trusted_notebook_state(
         check.get("observed_at", "") if isinstance(check, dict)
         else getattr(check, "observed_at", "")
     ), reverse=True)
+    if requested_fields:
+        def _check_relevance(check):
+            item = check if isinstance(check, dict) else (
+                check.model_dump() if hasattr(check, "model_dump") else {}
+            )
+            text = " ".join(str(item.get(key) or "") for key in (
+                "title", "note", "result_summary",
+            )).casefold()
+            return sum(field in text for field in requested_fields)
+        checks.sort(key=_check_relevance, reverse=True)
     recorded_checks = []
     for check in checks[:5]:
         item = (
