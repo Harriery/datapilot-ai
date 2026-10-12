@@ -1025,7 +1025,14 @@ function WorkspaceNotebook({
                       markDraftChanged({
                         ...draft,
                         cells: draft.cells.map((item) =>
-                          item.cell_id === cell.cell_id ? { ...item, code } : item
+                          item.cell_id === cell.cell_id
+                            ? {
+                                ...item,
+                                code,
+                                last_execution:
+                                  code === item.code ? item.last_execution : null,
+                              }
+                            : item
                         ),
                       });
 
