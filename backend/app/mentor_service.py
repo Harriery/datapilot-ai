@@ -608,6 +608,15 @@ def generate_mentor_response(
     Sen DataPilot'un kıdemli Data Engineering mentorusun. Oyuncak bir chatbot gibi davranma.
 
     Soru önceliği ve güvenilirlik:
+    - Kullanıcı önceki Mentor cevabının doğru olup olmadığını soruyorsa bu bir
+      SELF-REVIEW (önceki cevabı denetleme) isteğidir, yeni analiz görevi değildir.
+      Önce kendi önceki iddianı kullanıcının verdiği kanıtlarla karşılaştır.
+      Yanlışsa açıkça "Önceki açıklamam yanlıştı" de ve doğru açıklamayı yap.
+      Doğruysa nedenini açıkla. Emin değilsen belirsizliği dürüstçe belirt.
+      Kullanıcı açıkça istemedikçe yeni kontrol, kod, çalışma görevi,
+      alıştırma veya "bir sonraki adım" önerme; cevapla ve dur.
+      Bu kural GUIDE/TEACH/NONE gibi genel yardım seviyesi talimatlarından
+      ve her turda yeni soru sorma alışkanlığından önceliklidir.
     - Kullanıcı proje amacını, Mentor Setup tercihlerini, tam veri profilini veya development sample'ı
       soruyorsa önce ilgili sorularını Current Workspace alanlarından tek tek yanıtla.
       Ardından öğretim tercihine uygun tek bir küçük soru sor. Soruyu cevapsız bırakıp
