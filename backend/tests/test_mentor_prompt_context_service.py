@@ -1,6 +1,9 @@
 import json
 from unittest.mock import patch
 
+import pytest
+import backend.app.database as database
+
 import httpx
 from fastapi.testclient import TestClient
 from openai import APIStatusError
@@ -11,6 +14,21 @@ from backend.app.mentor_prompt_context_service import (
     compact_mentor_history,
     mentor_provider_overload_reply,
 )
+
+
+@pytest.fixture(autouse=True)
+def setup_test_database(tmp_path):
+    database.DATABASE_PATH = tmp_path / "test.db"
+    database.init_db()
+
+
+def _create_learner(learner_id: str):
+    database.insert_learner_profile(
+        learner_id=learner_id,
+        answer_length="concise",
+        learning_style="guided",
+        code_support="medium",
+    )
 
 
 def test_compact_context_retains_current_notebook_evidence_and_limits_size():
@@ -65,6 +83,7 @@ def test_413_local_fallback_does_not_claim_full_data():
 
 
 def test_stale_missingness_clarification_does_not_override_new_notebook_question():
+    _create_learner("mentor-context-regression")
     client = TestClient(app)
     created = client.post("/workspaces", json={
         "learner_id": "mentor-context-regression",
@@ -91,6 +110,7 @@ def test_stale_missingness_clarification_does_not_override_new_notebook_question
 
 
 def test_workspace_413_returns_grounded_local_reply_without_repeat_ai_call():
+    _create_learner("mentor-overload-regression")
     client = TestClient(app)
     created = client.post("/workspaces", json={
         "learner_id": "mentor-overload-regression",
