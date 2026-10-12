@@ -177,3 +177,34 @@ def test_prior_notebook_findings_remain_visible_after_latest_cell():
     assert "CANCELLED" in json.dumps(notebook["recent_cells"])
     assert "CANCELLED=1" in json.dumps(notebook["quality_checks"])
     assert len(json.dumps(result, ensure_ascii=False)) < 6500
+
+
+def test_secondary_evidence_413_does_not_discard_generated_mentor_reply():
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    from backend.app.mentor_service import get_mentor_response_from_message
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/responses")
+    error = APIStatusError(
+        "TPM exceeded",
+        response=httpx.Response(413, request=request),
+        body={"error": {"type": "tokens"}},
+    )
+    decision = SimpleNamespace(skill_name="null_analysis", assistance_level="GUIDE")
+    with patch(
+        "backend.app.mentor_service.get_mentor_decision_from_message",
+        return_value=decision,
+    ), patch(
+        "backend.app.mentor_service.generate_mentor_response",
+        return_value="CANCELLED=1 kaydı iptal edilmiş uçuşu gösterir.",
+    ), patch(
+        "backend.app.mentor_service.process_learning_evidence",
+        side_effect=error,
+    ) as secondary:
+        result = get_mentor_response_from_message(
+            learner_id="mentor-overload-regression",
+            current_message="Önceki Notebook bulgularını açıkla.",
+            workspace_context={"workspace_id": "flight"},
+        )
+    assert "CANCELLED=1" in result
+    secondary.assert_called_once()
