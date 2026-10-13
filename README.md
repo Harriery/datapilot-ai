@@ -30,7 +30,7 @@ The objective is not to replace a data professional's judgment. It is to support
 
 ## The idea in one diagram
 
-\`\`\`text
+```text
 Real data + a project goal
            |
            v
@@ -46,7 +46,7 @@ Real data + a project goal
            Review and improve
                     |
         Data product / portfolio
-\`\`\`
+```
 
 The mentor aims to offer the **minimum sufficient help**, progressing from demonstration and teaching toward guidance, small hints, and independent work.
 
@@ -160,7 +160,7 @@ For the current engineering and learning roadmap, see [docs/ACTIVE_ROADMAP.md](d
 
 Prerequisites: Python, Node.js/npm, and appropriate project configuration.
 
-\`\`\`bash
+```bash
 # Backend (from the repository root, with dependencies installed)
 python -m uvicorn backend.app.main:app --reload
 
@@ -168,18 +168,18 @@ python -m uvicorn backend.app.main:app --reload
 cd frontend
 npm install
 npm run dev
-\`\`\`
+```
 
 Refer to [.env.example](.env.example) for example environment variables. Keep credentials out of the repository. Some AI features depend on configured provider access; behavior and quotas vary.
 
-\`\`\`bash
+```bash
 # Backend tests
 python -m pytest -q
 
 # Frontend typecheck + production build
 cd frontend
 npm run build
-\`\`\`
+```
 
 **Verification note:** these are commands, not a statement that the complete test suite passed on the latest commit. Development notes contain dated, scoped test results; they should not be treated as a fresh full-suite run.
 
