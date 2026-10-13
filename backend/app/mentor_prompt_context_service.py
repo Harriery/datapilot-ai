@@ -223,7 +223,7 @@ def compact_mentor_review_history(items: list[dict] | None) -> list[dict]:
 
     reply = str(history[assistant_index].get("content") or "")
     if len(reply) > 3400:
-        reply = reply[:2750] + "\\n… [middle omitted from earlier Mentor reply] …\\n" + reply[-500:]
+        reply = reply[:2750] + "\n… [middle omitted from earlier Mentor reply] …\n" + reply[-500:]
 
     previous_user = next(
         (item for item in reversed(history[:assistant_index])
