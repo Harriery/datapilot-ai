@@ -89,6 +89,39 @@ type ProcessedDataset = {
 type NotebookRunResult =
   NotebookCellRunResult;
 
+type NotebookDisplayResult = NotebookRunResult & {
+  restoredFromSave?: boolean;
+  savedRowCount?: number | null;
+};
+
+// Saved executions are persisted with their cell in the workspace. Restore
+// only that bounded snapshot; never silently rerun cells or infer full-data
+// validation from a saved sample preview.
+function restoreSavedNotebookResults(
+  cells: WorkspaceNotebookCellData[],
+): Record<string, NotebookDisplayResult> {
+  const restored: Record<string, NotebookDisplayResult> = {};
+  for (const cell of cells) {
+    const execution = cell.last_execution;
+    if (
+      !execution ||
+      typeof execution.success !== "boolean" ||
+      !["dataframe", "scalar", "none"].includes(execution.expression_kind)
+    ) {
+      continue;
+    }
+    restored[cell.cell_id] = {
+      rows: Array.isArray(execution.preview_rows) ? execution.preview_rows : [],
+      output: typeof execution.output === "string" ? execution.output : "",
+      expressionKind: execution.expression_kind,
+      success: execution.success,
+      restoredFromSave: true,
+      savedRowCount: execution.row_count ?? null,
+    };
+  }
+  return restored;
+}
+
 type Props = {
   workspaceId: string;
 
@@ -153,6 +186,7 @@ function WorkspaceNotebook({
       sampledRows: "sampled rows", fromTotal: "from", totalRows: "total rows",
       columns: "columns", askMentor: "Ask mentor", reviewing: "Reviewing...",
       sendPipeline: "Send to pipeline", deleteCell: "Delete cell", output: "OUTPUT",
+      savedPreview: "saved preview",
       addCell: "Add cell", sectionChoice: "Section", ungrouped: "No section", newSection: "New section", newSectionName: "New section name", cellKind: "Cell type", cellLanguage: "Language", section: "Section", sectionPlaceholder: "Optional section title",
     },
     nl: {
@@ -163,6 +197,7 @@ function WorkspaceNotebook({
       sampledRows: "steekproefrijen", fromTotal: "van", totalRows: "totale rijen",
       columns: "kolommen", askMentor: "Vraag mentor", reviewing: "Beoordelen...",
       sendPipeline: "Naar pipeline", deleteCell: "Cel verwijderen", output: "UITVOER",
+      savedPreview: "opgeslagen voorbeeld",
       addCell: "Cel toevoegen", sectionChoice: "Sectie", ungrouped: "Geen sectie", newSection: "Nieuwe sectie", newSectionName: "Nieuwe sectienaam", cellKind: "Celtype", cellLanguage: "Taal", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
     },
     tr: {
@@ -173,6 +208,7 @@ function WorkspaceNotebook({
       sampledRows: "örnek satır", fromTotal: "/", totalRows: "toplam satır",
       columns: "sütun", askMentor: "Mentora sor", reviewing: "İnceleniyor...",
       sendPipeline: "Pipeline'a gönder", deleteCell: "Cell'i sil", output: "ÇIKTI",
+      savedPreview: "kayıtlı önizleme",
       addCell: "Hücre ekle", sectionChoice: "Bölüm", ungrouped: "Bağımsız", newSection: "Yeni bölüm", newSectionName: "Yeni bölüm adı", cellKind: "Hücre türü", cellLanguage: "Dil", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
     },
   }[language];
@@ -285,7 +321,7 @@ function WorkspaceNotebook({
   ] = useState<
     Record<
       string,
-      NotebookRunResult
+      NotebookDisplayResult
     >
   >({});
 
@@ -294,7 +330,7 @@ function WorkspaceNotebook({
     setAddCellOpen(false);
     setAddSection("");
     newCellId.current = null;
-    setResults({});
+    setResults(restoreSavedNotebookResults(notebook.cells));
     setMentorGuidance({});
     setCollapsedSections(
       Object.fromEntries(
@@ -598,13 +634,7 @@ function WorkspaceNotebook({
               success,
               expression_kind:
                 result.expressionKind,
-              output:
-                (
-                  !success ||
-                  result.expressionKind === "scalar"
-                )
-                  ? result.output.slice(0, 1000)
-                  : null,
+              output: result.output.slice(0, 1000),
               row_count:
                 result.rows.length || null,
               columns:
@@ -703,14 +733,7 @@ function WorkspaceNotebook({
     result: NotebookRunResult,
     success = true,
   ) {
-    const compactOutput =
-      success === false
-        ? result.output.slice(0, 1000)
-        : (
-            result.expressionKind === "scalar"
-              ? result.output.slice(0, 1000)
-              : null
-          );
+    const compactOutput = result.output.slice(0, 1000);
     const previewRows =
       result.expressionKind === "dataframe"
         ? result.rows.slice(0, 5)
@@ -1386,7 +1409,7 @@ function WorkspaceNotebook({
                         <strong>
                           {result.expressionKind === "scalar"
                             ? "value"
-                            : `${result.rows.length} rows`}
+                            : `${result.savedRowCount ?? result.rows.length} rows${result.restoredFromSave ? ` · ${ui.savedPreview}` : ""}`}
                         </strong>
                       </div>
 
