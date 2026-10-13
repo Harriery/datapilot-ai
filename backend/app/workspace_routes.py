@@ -6368,8 +6368,11 @@ def save_personal_dashboard(
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "Dashboard visual references "
-                    "an unknown KPI."
+                    f'Dashboard visual "{visual.title}" '
+                    f'(id: {visual.visual_id}) references '
+                    f'an unknown KPI "{visual.kpi_code}". '
+                    "Choose a current KPI in Edit > Visual Properties > "
+                    "Semantic data. The dashboard was not overwritten."
                 ),
             )
 
