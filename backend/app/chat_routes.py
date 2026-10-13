@@ -336,7 +336,7 @@ def chat(request: ChatRequest):
             is_self_review = is_mentor_reply_review_request(message)
             if is_self_review:
                 fallback_instructions += (
-                    "\\nSELF-REVIEW: Audit the actual last assistant message in the"
+                    "\nSELF-REVIEW: Audit the actual last assistant message in the"
                     " conversation, not an older claim. Compare it against"
                     " current Notebook evidence. Admit only supported mistakes;"
                     " do not invent unseen claims or assign a new exercise."
