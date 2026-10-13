@@ -42,11 +42,15 @@ from backend.app.ai_provider_service import (
 from backend.app.mentor_workspace_context_service import (
     build_chat_mentor_workspace_context,
 )
-from backend.app.mentor_pedagogy_contract import enforce_discovery_contract, enforce_reply_review_contract
+from backend.app.mentor_pedagogy_contract import (
+    enforce_discovery_contract,
+    enforce_reply_review_contract,
+    is_mentor_reply_review_request,
+)
 from backend.app.mentor_local_dispatcher_service import dispatch_local_investigation
 from backend.app.mentor_prompt_context_service import (
     compact_mentor_workspace_context, compact_mentor_history,
-    mentor_provider_overload_reply,
+    compact_mentor_review_history, mentor_provider_overload_reply,
 )
 
 import json
@@ -329,6 +333,19 @@ def chat(request: ChatRequest):
                     )
                 )
 
+            is_self_review = is_mentor_reply_review_request(message)
+            if is_self_review:
+                fallback_instructions += (
+                    "\nSELF-REVIEW: Audit the actual last assistant message in the"
+                    " conversation, not an older claim. Compare it against"
+                    " current Notebook evidence. Admit only supported mistakes;"
+                    " do not invent unseen claims or assign a new exercise."
+                )
+                fallback_history = compact_mentor_review_history(previous_history)
+                fallback_history.append({"role": "user", "content": message[:1200]})
+            else:
+                fallback_history = compact_mentor_history(history, count=5)
+
             runtime = get_ai_runtime(
                 "mentor"
             )
@@ -339,7 +356,7 @@ def chat(request: ChatRequest):
                 purpose="chat_fallback",
                 model=runtime.model,
                 instructions=fallback_instructions,
-                input=compact_mentor_history(history, count=5),
+                input=fallback_history,
             )
 
             reply = response.output_text

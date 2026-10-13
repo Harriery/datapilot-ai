@@ -93,6 +93,12 @@ _REPLY_REVIEW_MARKERS = (
     "was your earlier answer correct",
     "your previous answer was wrong",
     "you were wrong",
+    "önceki cevabını yeniden değerlendir",
+    "önceki cevabını teknik olarak yeniden değerlendir",
+    "önceki yanıtını yeniden değerlendir",
+    "önceki açıklamanı yeniden değerlendir",
+    "review your previous answer",
+    "re-evaluate your previous answer",
 )
 _UNSOLICITED_NEXT_STEP = re.compile(
     r"(?im)^\s*(?:\*\*)?\s*(?:bir sonraki(?: küçük)? adım|"

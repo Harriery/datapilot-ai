@@ -1,4 +1,9 @@
-from backend.app.mentor_prompt_context_service import compact_mentor_workspace_context, compact_mentor_history
+from backend.app.mentor_prompt_context_service import (
+    compact_mentor_workspace_context,
+    compact_mentor_history,
+    compact_mentor_review_history,
+)
+from backend.app.mentor_pedagogy_contract import is_mentor_reply_review_request
 import json
 from backend.app.models import (
     MentorDecision,
@@ -510,10 +515,15 @@ def generate_mentor_response(
         indent=2,
     )   
 
-    # Bound the entire request context; prioritise the last executed Notebook
-    # cell and actual persisted output rather than large historical artifacts.
+    # An explicit self-review must include the Mentor's own actual previous
+    # answer, not just its final 700 characters. Other turns stay short.
+    is_self_review = is_mentor_reply_review_request(current_message)
+    selected_history = (
+        compact_mentor_review_history(conversation_history)
+        if is_self_review else compact_mentor_history(conversation_history)
+    )
     conversation_history_text = json.dumps(
-        compact_mentor_history(conversation_history),
+        selected_history,
         ensure_ascii=False, separators=(",", ":"),
     )
     workspace_context_text = json.dumps(
@@ -615,7 +625,10 @@ def generate_mentor_response(
     Soru önceliği ve güvenilirlik:
     - Kullanıcı önceki Mentor cevabının doğru olup olmadığını soruyorsa bu bir
       SELF-REVIEW (önceki cevabı denetleme) isteğidir, yeni analiz görevi değildir.
+      Previous Conversation içindeki son assistant yanıtını gerçekte ne söylediğini
+      belirlemek için kullan; başka bir turdaki eski yanlışını buna atfetme.
       Önce kendi önceki iddianı kullanıcının verdiği kanıtlarla karşılaştır.
+      Geçmiş alıntısı eksik/kesilmişse görünmeyen iddialar uydurma.
       Yanlışsa açıkça "Önceki açıklamam yanlıştı" de ve doğru açıklamayı yap.
       Doğruysa nedenini açıkla. Emin değilsen belirsizliği dürüstçe belirt.
       Kullanıcı açıkça istemedikçe yeni kontrol, kod, çalışma görevi,
