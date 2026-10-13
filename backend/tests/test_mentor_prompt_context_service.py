@@ -378,3 +378,53 @@ def test_primary_mentor_self_review_prompt_contains_actual_previous_answer():
     prompt = ai.call_args.kwargs["input"]
     assert "PREVIOUS REAL ANSWER: CANCELLED = 1, DIVERTED = 0." in prompt
     assert "OLD ANSWER: CANCELLED = 0." not in prompt
+
+
+def test_fallback_self_review_keeps_actual_last_assistant_reply():
+    from types import SimpleNamespace
+
+    _create_learner("self-review-route")
+    client = TestClient(app)
+    created = client.post("/workspaces", json={
+        "learner_id": "self-review-route",
+        "title": "Review context",
+        "workspace_type": "data_engineering",
+    })
+    assert created.status_code == 200, created.text
+    workspace = created.json()
+    session_id = workspace["mentor_session_id"]
+
+    database.insert_message(session_id, "assistant", "OLD: CANCELLED = 0.")
+    database.insert_message(session_id, "user", "Analyze my Notebook evidence.")
+    database.insert_message(
+        session_id, "assistant",
+        "LATEST: CANCELLED = 1; DIVERTED = 0. " + ("details " * 140),
+    )
+
+    with patch(
+        "backend.app.chat_routes.dispatch_local_investigation",
+        return_value={"status": "needs_clarification"},
+    ), patch(
+        "backend.app.chat_routes.get_mentor_response_from_message",
+        return_value=None,
+    ), patch(
+        "backend.app.chat_routes.get_ai_runtime",
+        return_value=SimpleNamespace(client=object(), provider="groq", model="test"),
+    ), patch(
+        "backend.app.chat_routes.guarded_responses_create",
+        return_value=SimpleNamespace(output_text="The latest claim was correct."),
+    ) as ai:
+        response = client.post("/chat", json={
+            "session_id": session_id,
+            "learner_id": "self-review-route",
+            "workspace_id": workspace["workspace_id"],
+            "message": "Önceki cevabını teknik olarak yeniden değerlendir.",
+        })
+    assert response.status_code == 200, response.text
+    history = ai.call_args.kwargs["input"]
+    assert any(
+        item["role"] == "assistant" and "LATEST: CANCELLED = 1" in item["content"]
+        for item in history
+    )
+    assert not any("OLD: CANCELLED = 0" in item["content"] for item in history)
+    assert history[-1]["role"] == "user"
