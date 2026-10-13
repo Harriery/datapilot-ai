@@ -71,3 +71,13 @@ def test_review_correct_answer_does_not_force_false_apology():
     message = "Önceki cevabın doğru muydu?"
     answer = "Evet, önceki açıklama mevcut kanıtla uyumlu."
     assert enforce_reply_review_contract(message, answer) == answer
+
+
+def test_explicit_previous_answer_review_is_detected_without_error_claim():
+    assert is_mentor_reply_review_request(
+        "Önceki cevabını teknik olarak yeniden değerlendir. "
+        "Kanıtlarla varsayımları ayır ve yeni görev verme."
+    )
+    assert not is_mentor_reply_review_request(
+        "Notebook bulgularını değerlendir ve sonucu açıkla."
+    )
