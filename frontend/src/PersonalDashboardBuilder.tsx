@@ -170,7 +170,7 @@ type Props = {
     subtitle: string | null,
     theme: DashboardTheme,
     filters: DashboardFilterData[],
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 };
 
 type DashboardDraftData = {
@@ -6696,6 +6696,12 @@ function PersonalDashboardBuilder({
         dashboardMode
       }
     >
+      {error && (
+        <p className="personal-analysis-error" role="alert">
+          Dashboard save failed: {error}
+          {" "}Your local dashboard draft has been kept.
+        </p>
+      )}
       {draftRecovered && (
         <div className="dashboard-draft-recovered">
           <strong>Unsaved dashboard draft restored.</strong>
@@ -6756,18 +6762,16 @@ function PersonalDashboardBuilder({
                 dashboardSubtitle.trim() || null,
                 dashboardTheme,
                 dashboardFilters,
-              ).then(() => {
-                try {
-                  window.localStorage.removeItem(
-                    draftKey,
-                  );
-                } catch {
-                  // Saving to the server already succeeded.
+              ).then((saved) => {
+                if (!saved) {
+                  return;
                 }
-
-                setDraftRecovered(
-                  false
-                );
+                try {
+                  window.localStorage.removeItem(draftKey);
+                } catch {
+                  // The server confirmed the save, but local cleanup failed.
+                }
+                setDraftRecovered(false);
               })
             }
           >
@@ -10113,11 +10117,6 @@ function PersonalDashboardBuilder({
         </main>
       </div>
 
-      {error && (
-        <p className="personal-analysis-error">
-          {error}
-        </p>
-      )}
     </section>
   );
 }
