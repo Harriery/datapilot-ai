@@ -4165,9 +4165,10 @@ async function savePersonalDashboard(
   subtitle: string | null,
   theme: DashboardTheme,
   filters: DashboardFilterData[],
-) {
+): Promise<boolean> {
   if (!workspaceId) {
-    return;
+    setPersonalDashboardError("Workspace not found. Dashboard draft has been kept.");
+    return false;
   }
 
   setPersonalDashboardLoading(true);
@@ -4198,13 +4199,18 @@ async function savePersonalDashboard(
     );
 
     if (!response.ok) {
-      const errorData =
-        await response.json();
+      const errorData = await response.json().catch(() => null);
+      const detail = errorData?.detail;
+      const message =
+        typeof detail === "string"
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((item: { loc?: (string | number)[]; msg?: string }) =>
+                `${(item.loc ?? []).join(".")}: ${item.msg ?? "Invalid value"}`
+              ).join("; ")
+            : `Dashboard could not be saved (HTTP ${response.status}).`;
 
-      throw new Error(
-        errorData.detail ||
-          "Dashboard could not be saved."
-      );
+      throw new Error(message);
     }
 
     const updatedWorkspace:
@@ -4250,13 +4256,14 @@ async function savePersonalDashboard(
     setActiveWorkspaceStage(
       "insights"
     );
-
+    return true;
   } catch (error) {
     setPersonalDashboardError(
       error instanceof Error
         ? error.message
         : "Dashboard could not be saved."
     );
+    return false;
   } finally {
     setPersonalDashboardLoading(false);
   }
