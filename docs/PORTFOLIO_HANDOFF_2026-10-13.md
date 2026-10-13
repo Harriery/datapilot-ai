@@ -61,14 +61,14 @@ Follow the evidence and acceptance criteria in **docs/ACTIVE_ROADMAP.md**:
 | QC-007 | Quality Check title suggestions can copy comment text blindly |
 | QC-008 | Saved Quality Check scope labels can wrongly imply full-source context |
 
-**Git integration checkpoint from saved user work:** local \`integration/notebook-sections\` with merges \`5007ab2\` and \`2b618a8\`; saved successful user verification included **546 backend tests** and a frontend build, plus UI persistence. These are **historical local results, not tests rerun by this documentation session**.
+**Git integration checkpoint from saved user work:** local `integration/notebook-sections` with merges `5007ab2` and `2b618a8`; saved successful user verification included **546 backend tests** and a frontend build, plus UI persistence. These are **historical local results, not tests rerun by this documentation session**.
 
-**GitHub main inspected before README work:** \`3d9e5e6b5bb80e3b35e9e85302d6a133fea52354\` (snapshot on 2026-10-13). Verify branch ancestry and local uncommitted files before app development resumes. Do not overwrite \`backend/benchmarks/results/\` untracked results.
+**GitHub main inspected before README work:** `3d9e5e6b5bb80e3b35e9e85302d6a133fea52354` (snapshot on 2026-10-13). Verify branch ancestry and local uncommitted files before app development resumes. Do not overwrite `backend/benchmarks/results/` untracked results.
 
 ## Resume procedure after LinkedIn preparation
 
 1. Read this handoff and **docs/ACTIVE_ROADMAP.md**, particularly Flight/Notebook issue table.
-2. Inspect local \`git status\`, current branch, and relation to GitHub; never assume public main is identical to the user's local working tree.
+2. Inspect local `git status`, current branch, and relation to GitHub; never assume public main is identical to the user's local working tree.
 3. Open actual Flight workspace and check full/10k/5k scope and the latest Notebook section/cell.
 4. Continue the user's real SQL/Pandas investigation and check the currently visible outputs. Do not create invented results or switch tasks to a new code feature without permission.
 5. If addressing a blocking reliability issue, use the established reproduce → expected behavior → test → approval → fix → regression/UI verification flow.
