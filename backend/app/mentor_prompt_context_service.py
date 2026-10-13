@@ -204,6 +204,42 @@ def compact_mentor_history(items: list[dict] | None, count: int = 4) -> list[dic
     ]
 
 
+def compact_mentor_review_history(items: list[dict] | None) -> list[dict]:
+    """Retain the actual last Mentor reply for an explicit self-review turn.
+
+    Normal chat stays on the existing short-tail policy. In review mode we
+    preserve the opening claims of the previous assistant answer rather than
+    its last 700 characters. A bounded ending helps capture the conclusion.
+    The immediately preceding user question identifies what was being answered.
+    """
+    history = [item for item in (items or []) if isinstance(item, dict)]
+    assistant_index = next(
+        (index for index in range(len(history) - 1, -1, -1)
+         if history[index].get("role") == "assistant"),
+        None,
+    )
+    if assistant_index is None:
+        return compact_mentor_history(history, count=2)
+
+    reply = str(history[assistant_index].get("content") or "")
+    if len(reply) > 3400:
+        reply = reply[:2750] + "\n… [middle omitted from earlier Mentor reply] …\n" + reply[-500:]
+
+    previous_user = next(
+        (item for item in reversed(history[:assistant_index])
+         if item.get("role") == "user"),
+        None,
+    )
+    selected = []
+    if previous_user is not None:
+        selected.append({
+            "role": "user",
+            "content": str(previous_user.get("content") or "")[-650:],
+        })
+    selected.append({"role": "assistant", "content": reply})
+    return selected
+
+
 def mentor_provider_overload_reply(workspace_context: dict | None) -> str:
     """Truthful no-LLM fallback for provider-side 413, with no invented data."""
     compact = compact_mentor_workspace_context(workspace_context)

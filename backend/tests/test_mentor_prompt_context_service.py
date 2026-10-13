@@ -12,6 +12,7 @@ from backend.app.main import app
 from backend.app.mentor_prompt_context_service import (
     compact_mentor_workspace_context,
     compact_mentor_history,
+    compact_mentor_review_history,
     mentor_provider_overload_reply,
 )
 
@@ -312,3 +313,118 @@ def test_recent_notebook_evidence_preserves_source_cell_id():
     assert previous["cell_id"] == "previous"
     assert "CANCELLED" in previous["code"]
     assert previous["output"] == "np.int64(1)"
+
+
+def test_review_history_preserves_last_assistant_opening_claim_instead_of_old_error():
+    history = [
+        {"role": "assistant", "content": "OLD: CANCELLED was 0"},
+        {"role": "user", "content": "Explain recorded notebook evidence."},
+        {
+            "role": "assistant",
+            "content": "LATEST: CANCELLED = 1; DIVERTED = 0. " + ("detail " * 180),
+        },
+    ]
+    ordinary = compact_mentor_history(history)
+    assert "LATEST:" not in ordinary[-1]["content"]
+    review = compact_mentor_review_history(history)
+    assert len(review) == 2
+    assert review[0]["role"] == "user"
+    assert review[1]["role"] == "assistant"
+    assert "LATEST: CANCELLED = 1; DIVERTED = 0" in review[1]["content"]
+    assert "OLD: CANCELLED was 0" not in json.dumps(review)
+
+
+def test_review_history_is_bounded_when_previous_reply_is_extremely_long():
+    content = "ACTUAL OPENING CLAIM. " + ("x" * 6200) + " FINAL CONCLUSION."
+    review = compact_mentor_review_history([
+        {"role": "user", "content": "y" * 3000},
+        {"role": "assistant", "content": content},
+    ])
+    assert len(review) == 2
+    assert len(review[0]["content"]) <= 650
+    assert len(review[1]["content"]) < 3400
+    assert review[1]["content"].startswith("ACTUAL OPENING CLAIM.")
+    assert review[1]["content"].endswith("FINAL CONCLUSION.")
+    assert "[middle omitted" in review[1]["content"]
+
+
+def test_primary_mentor_self_review_prompt_contains_actual_previous_answer():
+    from types import SimpleNamespace
+    from backend.app.mentor_service import generate_mentor_response
+
+    latest = "PREVIOUS REAL ANSWER: CANCELLED = 1, DIVERTED = 0. " + ("more " * 190)
+    history = [
+        {"role": "assistant", "content": "OLD ANSWER: CANCELLED = 0."},
+        {"role": "user", "content": "Review row 923."},
+        {"role": "assistant", "content": latest},
+    ]
+    with patch(
+        "backend.app.mentor_service.get_ai_runtime",
+        return_value=SimpleNamespace(
+            client=object(), provider="groq", model="test-model"
+        ),
+    ), patch(
+        "backend.app.mentor_service.guarded_responses_create",
+        return_value=SimpleNamespace(output_text="Previous claim corrected."),
+    ) as ai:
+        answer = generate_mentor_response(
+            learner_profile={"answer_length": "concise"},
+            mentor_decision=SimpleNamespace(assistance_level="GUIDE"),
+            current_message="Önceki cevabını teknik olarak yeniden değerlendir.",
+            conversation_history=history,
+            workspace_context={"title": "Test"},
+        )
+    assert answer == "Previous claim corrected."
+    prompt = ai.call_args.kwargs["input"]
+    assert "PREVIOUS REAL ANSWER: CANCELLED = 1, DIVERTED = 0." in prompt
+    assert "OLD ANSWER: CANCELLED = 0." not in prompt
+
+
+def test_fallback_self_review_keeps_actual_last_assistant_reply():
+    from types import SimpleNamespace
+
+    _create_learner("self-review-route")
+    client = TestClient(app)
+    created = client.post("/workspaces", json={
+        "learner_id": "self-review-route",
+        "title": "Review context",
+        "workspace_type": "data_engineering",
+    })
+    assert created.status_code == 200, created.text
+    workspace = created.json()
+    session_id = workspace["mentor_session_id"]
+
+    database.insert_message(session_id, "assistant", "OLD: CANCELLED = 0.")
+    database.insert_message(session_id, "user", "Analyze my Notebook evidence.")
+    database.insert_message(
+        session_id, "assistant",
+        "LATEST: CANCELLED = 1; DIVERTED = 0. " + ("details " * 140),
+    )
+
+    with patch(
+        "backend.app.chat_routes.dispatch_local_investigation",
+        return_value={"status": "needs_clarification"},
+    ), patch(
+        "backend.app.chat_routes.get_mentor_response_from_message",
+        return_value=None,
+    ), patch(
+        "backend.app.chat_routes.get_ai_runtime",
+        return_value=SimpleNamespace(client=object(), provider="groq", model="test"),
+    ), patch(
+        "backend.app.chat_routes.guarded_responses_create",
+        return_value=SimpleNamespace(output_text="The latest claim was correct."),
+    ) as ai:
+        response = client.post("/chat", json={
+            "session_id": session_id,
+            "learner_id": "self-review-route",
+            "workspace_id": workspace["workspace_id"],
+            "message": "Önceki cevabını teknik olarak yeniden değerlendir.",
+        })
+    assert response.status_code == 200, response.text
+    history = ai.call_args.kwargs["input"]
+    assert any(
+        item["role"] == "assistant" and "LATEST: CANCELLED = 1" in item["content"]
+        for item in history
+    )
+    assert not any("OLD: CANCELLED = 0" in item["content"] for item in history)
+    assert history[-1]["role"] == "user"
