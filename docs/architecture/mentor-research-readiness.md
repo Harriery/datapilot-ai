@@ -1,277 +1,140 @@
-# Mentor araştırma akışı: geliştirme ve kabul durumu
+# Mentor: güncel durum ve kabul ölçütleri
 
-18 Ekim 2026. Flight incelemesi durduruldu. Yeni bir gerçek veri projesine
-geçmeden önce aşağıdaki kabul değerlendirmeleri tamamlanmalıdır.
+Güncelleme: 21 Ekim 2026. Çalışma dalı: `mentor/reliability-review`.
+Flight projesi beklemede. Ana hedef, acemi kullanıcının uygulamadaki mentorla
+veriyi tanımadan proje çıktılarının tamamlanmasına kadar ilerleyebilmesidir.
+Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin yerine geçmez.
 
-## Neden değişti?
+## Neyi doğruladık, neyi doğrulamadık?
 
-Son notebook hücresini görmek, araştırmanın amacını korumak anlamına gelmiyordu.
-Mentor AIR_SYSTEM_DELAY araştırmasından yardımcı iptal nedeni kontrolüne kaydı;
-beş örnekten geniş bir eksiklik yorumuna geçti. Önceki testler bağlam taşımayı
-kanıtlıyor, gerçek yanıtın öğretici ve mantıklı olduğunu kanıtlamıyordu.
+| Alan | Mevcut kanıt | Açık kabul ölçütü |
+| --- | --- | --- |
+| Notebook kapsamı | Kullanıcı 10.000 satırın uygulamada göründüğünü doğruladı. Yürütmenin kendi kapsamı kaydediliyor. | Örneklem, mevcut df ve tam kaynak ayrımını uzun araştırmada korumak. |
+| Sayımı açıklama | 21 Ekim canlı `report(6)` denemesinde 5.000 eksik `temperature` sayımı tek denemede doğru gösterildi. Kaynak tur test fixture'ında saklı. | Diğer desteklenen işlemleri ve gerçek kullanıcı sorularını doğrulamak. |
+| Yardımcı kontrolün satır grubu | AST sözleşmesi ve gerçek `report(5)` regresyonları, seçilen grubu ölçülen sütundan ayırıyor. Sıfır için boş grup olasılığı belirtiliyor. | Birbirine bağlı canlı incelemelerde aynı disiplini korumak. |
+| Kaynak açıklaması isteme | `report(6)` model önerisi veri sözlüğünü sordu. | Kullanıcı açıklamayı bilmiyorsa araştırmayı sürdürebilmek. Yeni takip testi bunu ölçer; canlı sonucu henüz yok. |
+| Araştırmayı ilerletme | Sabit model yanıtlarıyla üç bağlı yerel kontrolün çıktıları sonraki adıma taşındı. | Canlı mentorun önerileriyle aynı ilerlemeyi göstermek. |
+| Temizleme/dönüşüm kararı | Yeni inceleme yolu otomatik dönüşüm önerisini kabul etmez. | Kanıta ve kullanıcı hedefine dayalı karar, uygulama ve sonuç doğrulaması. |
+| SQL, veri modeli, KPI, dashboard, insights, docs | Önceki ürün yolları mevcut. Bu çalışma bunları kapsamlı biçimde yeniden doğrulamadı. | Aşamalar arası mentor rehberliğini ve kullanıcıya faydayı sınamak. |
+| Baştan sona proje | Henüz bir acemi kullanıcının yeni mentorla tamamlaması gösterilmedi. | Dışarıdan yoğun destek gerektirmeden bütün proje aşamalarını tamamlamak. |
 
-## Uygulanan değişiklikler
+## Aktif kod yolu
 
-- Seçili notebook için serbest metin üretimi ve ayrı beceri sınıflandırıcısı yerine
-  tek yapılandırılmış araştırma önerisi üretilir. Diğer ürün aşamalarının mevcut
-  mentor yolları bu değişiklikle yeniden doğrulanmış sayılmaz.
-- Workspace/notebook başına ayrı SQLite araştırma belleği: hedef sütun, gözlem
-  kimlikleri, önceki öneriler ve açık soru. Yardımcı kontrol hedefi değiştirmez;
-  açık kullanıcı konu değişimi yeni hedef başlatabilir.
-- Ham gözlemler, hipotezler ve sınırlamalar farklı alanlardır. Notebook kanıtından
-  tam kaynak iddiası, olmayan kanıt kimliği, farklı hedefe öneri ve aynı başarılı
-  hesaplamanın tekrarı denetlenir. Kullanıcıya görünür yanıtta hedef ve kanıt
-  kapsamı ayrıca gösterilir.
-- Önerilen inceleme kodu çalıştırılmaz. Kolonları ve izin verilen inceleme işlemleri
-  AST üzerinden kontrol edilir. Kuralı geçmeyen öneri için en fazla bir uygulama
-  düzeltme turu vardır; hâlâ reddediliyorsa öneri kullanıcıya görev olarak verilmez.
-- Kod/tür/sıralama/silme/ekleme/dataset değişikliği sonrasındaki bağımlı hücrelerin
-  eski yürütmeleri frontend ve backend tarafında geçersizleşir. Bölüm etiketi
-  değişikliği yürütmeleri silmez. Kaydedilmiş Quality Checks korunur.
-- Girdi tazelik kaydı dosya boyutu/mtime, veri türü, processed kimliği ve örneklem
-  seçimine bağlıdır. Bu kayıt dosya içeriğinin kriptografik kanıtı değildir.
-- Kalıcı araştırma belleği her turda tamamen AI'a gönderilmez. İstek JSON'u
-  karakter bütçesiyle sınırlandırılır; geçmiş kayıtlar ve mevcut kanıt ayrılır.
+Yeni notebook araştırma yolu `AI_NOTEBOOK_RESEARCH_ENABLED` bayrağına bağlıdır;
+varsayılanı kapalıdır. Kodun dalda bulunması, normal UI sohbetinin bu yolu kullandığı
+anlamına gelmez. Kabul komutları yeni servisi doğrudan çağırır ve bu bayrağı açmaz.
+Diğer ürün aşamaları kendi mevcut mentor yollarında çalışmaya devam eder.
+Normal kullanıcı akışını açmak ayrı bir kabul kararıdır.
 
-## Yayın kapısı
+Yeni model şeması `GroundedResearchPlan`: `next_action` ve `evidence_ids`.
+Modelin serbest gözlem açıklaması kullanıcıya gösterilmez. Backend şu bilgileri
+kaydedilmiş Python kodundan ve çıktısından çıkarıp gösterir:
 
-Yeni araştırma yolu `AI_NOTEBOOK_RESEARCH_ENABLED` bayrağıyla korunur ve
-varsayılan olarak kapalıdır. Canlı teknik/öğretici kabul değerlendirmesi yapılmadan
-normal kullanıcı akışına açılmaz. Kabul komutu bayrağa ihtiyaç duymadan doğrudan
-yeni üretim planner/validator servisini sınar. Sonradan arayüz değerlendirmesi için
-`.env` içinde `AI_NOTEBOOK_RESEARCH_ENABLED=true` ayarlanıp backend yeniden
-başlatılabilir. Bu seçenek mentorun tüm aşamalarının hazır olduğu anlamına gelmez.
+- Mevcut notebook df'si üzerinde birebir satır seçimi; AND/OR/NOT korunur.
+- Ölçülen sütun, işlem ve kayıtlı sonuç.
+- Yürütme başarısı, yükleme kapsamı ve veri/örneklem sürümünün güncelliği.
 
-## Kabul testini çalıştırma
+Model sonraki işlemi seçer. Backend hedef, bilinen sütunlar, izin verilen inceleme
+kodu ve tekrar kontrollerini uygular; instruction/why metni desteklenen işlemden
+oluşturulur. Hangi işlemin öğretici açıdan en yararlı olduğunu bu kontroller tek
+başına kanıtlamaz.
 
-Proje kökünden, uygulamanın mevcut sanal ortamıyla:
+## Destek ve sınırlar
 
-```powershell
-python -m pytest -q
-python -m backend.benchmarks.run_mentor_research_acceptance
-python -m backend.benchmarks.run_mentor_research_acceptance --live
-```
+- Desteklenen açıklamalar: literal df seçimleri ve `.loc`; karşılaştırma,
+  isna/notna filtreleri; eksik sayımı, value_counts, head/tail ve basit özetler.
+- Alias, query, groupby ve keyfi Python ifadeleri bu yeni açıklama yolunda henüz
+  desteklenmez. Son hücre eşleştirilemiyorsa AI çağrısı harcanmadan sınır belirtilir.
+  Bu, notebook'un normal kod çalıştırma kabiliyetini değiştirmez.
+- Girdi satır sayısı, önceki dönüşümlerden sonraki df uzunluğunun paydası sayılmaz.
+  Önizleme genel kural değildir; count=0 grubun dolu veya kategorilerin geçerli
+  olduğunu kanıtlamaz. Örneklem sonucu tam kaynak sonucu diye sunulmaz.
+- Araştırma belleği workspace/notebook bazında ayrı SQLite tablosundadır. Yardımcı
+  sütun ana hedefi kendiliğinden değiştirmez. İstek bağlamı boyutla sınırlandırılır.
+- Bağımlı hücrelerin eski yürütmeleri ilgili kod/veri değişikliklerinde
+  geçersizleşir. Tazelik kaydı boyut/mtime ve örneklem seçimine dayanır; dosya
+  içeriğinin kriptografik doğrulaması değildir.
+- AST imzası eşdeğer bütün hesaplamaları tanımaz. Bu yapı tam semantik veya
+  pedagojik doğruluk garantisi değildir.
 
-Offline komut dış AI çağrısı yapmaz. Live komut mevcut yerel `.env` ayarlarını
-kullanır; anahtar rapora yazılmaz. Varsayılan üç sentetik şemada dörder tur vardır:
-boş sayımı, dağılım, yardımcı kontrol, kendi önceki cevabını denetleme. Her turda
-normal üretim planner/validator yolu çağrılır. Ücretsiz sağlayıcının TPM sınırı
-nedeniyle turlar arasında 65 saniye beklenir. Her üretim turunda gerekirse bir
-öneri düzeltmesi daha yapılabilir. Sağlayıcı hatasında test durur; rapora başarısız
-olarak kaydeder. Windows terminalinde Ctrl+C ile durdurulabilir.
+## Mevcut test araçları
 
-Sonuçlar `backend/benchmarks/results/research-acceptance/<zaman>/report.json`
-altındadır. Raporun içindeki gerçek yanıtlar teknik doğruluk ve öğreticilik
-bakımından ayrıca incelenmelidir. "Structurally accepted" bunu kanıtlamaz.
-Testler ayrı SQLite dosyası kullanır; Flight projesi, kullanıcı ilerlemesi ve
-uygulamanın normal veritabanı değiştirilmez.
-
-## Bu çalışma neyi henüz kanıtlamıyor?
-
-Bu sürüm araştırma denetiminin geliştirme adımıdır; mentorun tamamen düzeldiği
-veya yeni bir kullanıcının projeyi baştan sona bitirebildiği iddiası değildir.
-
-- Canlı model cevaplarının semantik doğruluğu ve öğretici kalitesi bu ortamda
-  ölçülemedi: Groq kimlik bilgisi yok. Model çıktıları taklit edilerek geçirilen
-  testler canlı doğrulama diye sunulmamalıdır.
-- AST imzası semantik olarak eşdeğer bütün kodları tanımaz. Bir iddiada geçerli
-  kanıt kimliği bulunması, yorumun gerçekten o kanıttan çıktığını ispatlamaz.
-- Kalıcı hedef ve yapısal denetim, doğal dildeki bütün yanlış anlamaları yakalamaz.
-- Şu an yeni notebook inceleme yolunda dönüşüm önerileri otomatik kabul edilmez;
-  gerekçeli karar ve dönüşüm için ayrı kabul akışı tamamlanmalıdır. Python
-  inceleme önerileri denetlenir; SQL için eşdeğer öneri denetimi henüz yoktur.
-- Sentetik senaryolar bir acemi kullanıcı simülasyonu veya uçtan uca tarayıcı testi
-  değildir. Büyük veri performansını veya bilinmeyen gerçek bir dataset'i sınamaz.
-- Diğer aşamalar: veri modeli, KPI, dashboard, dokümantasyon ve aşamalar arası
-  geçişler için çok turlu canlı kabul testleri ve başlangıç kullanıcısı denemesi
-  yapılmadan ürünün ana öğrenme amacı kanıtlanmış sayılmaz.
-
-## Devam kapısı
-
-1. Canlı raporlardaki hedef, kapsam ve teknik yorum hataları giderilmeli.
-2. Rehberli karar/dönüşüm ve SQL akışları aynı denetim çerçevesine alınmalı.
-3. Model/KPI/analiz/dashboard/docs geçişleri çok turlu kabul senaryolarıyla sınanmalı.
-4. Daha önce kullanılmamış gerçek bir dataset'te uygulama içi mentorla tamamlama
-   denemesi yapılmalı; dışarıdan yapılan müdahaleler ayrıca kaydedilmeli.
-5. Bu kanıtlar oluşana kadar Flight durur; "ürün hazır" veya "mentorla bağımsız
-   proje tamamlama doğrulandı" denmez.
-
-## Canlı protokol raporu sonrası düzeltme
-
-İlk gerçek raporda iki öneri zorunlu iç kolon/kod alanları nedeniyle reddedildi;
-üçüncü turda BadRequestError oluştu. Raporda modelin asıl önerileri ve HTTP hata
-detayı yoktu. Bu yüzden hataların öğretici kalite sorunu mu yoksa protokol
-uyumsuzluğu mu olduğu kesinleştirilemedi; başarı iddiası yapılmadı.
-
-Yeni sürüm kullanıcıya kod göstermeme isteğini backend-only code alanından açıkça
-ayırır; alan açıklamaları ve düzeltme girdisi aynı sözleşmeyi kullanır. Her model
-önerisi, reddedilme nedenleri ve seçili sağlayıcı hata alanları yerel rapora alınır.
-Reddedilen ilk turdan sonra senaryo durur. Önce kısa kontrol:
+Yerel testler AI kotası harcamaz:
 
 ```powershell
-python -m backend.benchmarks.run_mentor_research_acceptance --live --case sensors --max-turns 1
-```
-
-Bu komut yalnız bir konuşma turudur (gerekirse bir düzeltme çağrısı daha).
-`full_scenario_exercised=false` beklenir; tek tur geçmesi bütün senaryonun veya
-mentor kalitesinin geçtiği anlamına gelmez. Tam suite ancak bu protokol kontrolü
-başarılı olduktan sonra çalıştırılmalıdır.
-
-## Kayıtlı kod alıntısı için gerçek yanıt regresyonu
-
-İkinci tam deneme ilk turda durdu: model kayıtlı sayım ifadesini açıklamasında
-alıntıladığı için yeni çözüm kodu vermiş gibi reddediliyordu. İlk yanıt ayrıca
-Türkçe isteğe İngilizceydi. Bu iki gerçek öneri, notebook kanıtıyla birlikte
-`backend/tests/fixtures/research_recorded_code_review.json` içine alındı.
-
-Yeni gösterim normalleştirmesi yalnız daha önce gözlenmiş tek ifadeli Python
-kodunun tam alıntısını açıklama içinde "kayıtlı hücre" olarak sadeleştirir.
-Yeni kod, uzatılmış ifadeler ve önerilen işlem kodu bu işlemle değiştirilmez.
-Ham model önerisi ve sadeleştirilmiş gösterim kopyası ayrı ayrı raporlanır.
-
-Yanıt dili isteğe eklenir; belirgin TR/EN/NL uyuşmazlığı yerel denetimde yakalanır.
-Bu denetim tam bir dil sınıflandırıcısı değildir. Sistemin kendi hedef/kapsam/ret
-metinleri de aynı dilde gösterilir. İlk İngilizce canlı öneri dil nedeniyle
-reddedilirken ikinci Türkçe öneri, kayıtlı kod alıntısı sadeleştirildiğinde diğer
-kanıt/tekrar/hedef kontrollerini geçmektedir. Bu gerçek yanıt tekrarı çevrimdışı
-regresyondur; yeni bir canlı model denemesi veya bütün senaryonun başarısı değildir.
-
-## Uzun yanıt ve kaldığı yerden devam etme düzeltmesi
-
-Üçüncü gerçek raporda iki tur geçti. Üçüncü turdaki 1727 karakterlik geçerli
-JSON açıklaması, sağlayıcının şemadaki 1100 karakterlik sınıra takılmasıyla HTTP
-400'e dönüştü. Metin uzunluğu artık wire şemasını geçersiz yapmaz: kısalık yerel
-denetimde değerlendirilir ve gerekirse tek düzeltme turuyla istenir. İçerik
-kesilerek başarılı sayılmaz; hedef, kanıt, tekrar ve dil kontrolleri korunur.
-
-Sağlayıcının `json_validate_failed` hatasında tam bir `failed_generation` JSON'u
-varsa yalnız o JSON yerel şemayla okunur ve aynı kontrollerden geçirilir. Başka
-sağlayıcı hataları veya eksik JSON için başarı varsayılmaz. HTTP hata mesajı da
-rapordaki özgün kullanıcı sorusunun üzerine yazılmaz.
-
-Aynı klasördeki önceki canlı test ve izole veritabanıyla devam etmek için:
-
-```powershell
-python -m backend.benchmarks.run_mentor_research_acceptance --live --resume-latest
-```
-
-Önceki başarılı turlar, sentetik kanıtın değişmediği ve öneriler güncel yerel
-kontrolleri geçtiği takdirde AI çağrısı yapılmadan kullanılır. Bu raporun ilk iki
-turu gerçek yanıt regresyonunda tekrar doğrulandı. Test üçüncü turdan sürer;
-sensors tamamlanırsa kalan retail/service senaryolarına geçer. Eski başarısız
-rapor zaman damgalı bir kopyada korunur. Uygun kayıt yoksa sessizce baştan başlamaz.
-65 saniyelik koruyucu aralık düzeltme çağrıları dahil gerçek model isteklerine
-uygulanır; önbellekten alınan turlar sağlayıcı kotası tüketmez.
-
-
-## Çıktı bütçesi ve kesilmiş planların reddi
-
-Dördüncü canlı rapor, iki başarılı turu tekrar kullanarak üçüncü turda durdu.
-Her iki denemede sağlayıcı `max_completion_tokens` nedeniyle kesilme bildirdi;
-geçerli JSON'a benzeyen hata çıktısında zorunlu `next_action` yoktu. Eksik alanı
-`null` varsaymak doğru değildir. Bu gerçek iki çıktı regresyon fixture'ına alındı.
-
-Varsayılan genel çıktı bütçesi 1500 tokendir. Groq Responses API'de bu bütçe
-hem görünür çıktıyı hem düşünme tokenlarını kapsar. Yalnız Groq GPT-OSS 20B/120B
-notebook araştırma yolu `reasoning={"effort":"low"}` gönderir. Başka modele
-bu parametre gönderilmez; mevcut kullanıcı token sınırı artırılmaz veya aşılmaz.
-Modelden tek kısa açıklama, tekrarsız en çok iki iddia ve bir eylem istenir;
-şemada karar alanı önce gelir. Bu sıralama tek başına tamamlanma garantisi değildir.
-
-Sağlayıcı kesilme bildirdiyse şema tamamlanmış görünse bile o çıktı kabul edilmez.
-HTTP 200 ile `status=incomplete` veya incomplete_details gelen yanıt da reddedilir.
-En fazla bir kısa düzeltme çağrısı yapılır; aynı günlük/aylık kullanım koruması ve
-çağrı aralığı uygulanır. İkinci yanıt da kesilirse işlem atanmaz; kullanıcıya
-kesilme açıkça bildirilir. Raporda yapılandırılmış token sınırı, kullanılan düşünme
-ayarı ve varsa gerçek sayısal token kullanımı saklanır; düşünme metni kaydedilmez.
-
-Resmi parametre kaynağı: https://console.groq.com/docs/responses-api ve
-https://console.groq.com/docs/api-reference (Responses max_output_tokens).
-Bu düzeltmenin yerel regresyonu gerçek üçüncü tur hata çıktısını tekrarlar;
-yeni canlı modelin bu bütçeyle tamamlanması veya öğretici doğruluğu henüz doğrulanmış
-sayılmaz. Aynı `--live --resume-latest` komutu başarılı iki turu yeniden kullanır.
-
-
-## Satır grubu ve ölçüm sözleşmesi (grounded-v1)
-
-Beşinci canlı raporda 12 tur biçim denetiminden geçmesine rağmen retail ve service
-cevaplarında yardımcı filtrenin grubu ana sütunun eksik satırlarıyla karıştırıldı.
-Bu hata yalnız yeni bir prompt veya belirli sütun adlarına yönelik regex ile
-çözülmedi. Notebook araştırma yolunda factual prose üretimi modelden çıkarıldı.
-
-Yeni `GroundedResearchPlan` wire şeması yalnız `next_action` ve `evidence_ids`
-alır. Serbest `answer`/`claims` içeren eski model nesnesi yeni yanıtta kabul edilmez.
-Backend kodu çalıştırmadan AST üzerinden şu sözleşmeyi çıkarır:
-
-- Doğrudan mevcut notebook `df` kaynağı ve birebir satır koşulu; AND/OR/NOT korunur.
-- Ölçülen sütunlar, işlem ve kaydedilmiş çıktı. Eksik sayımı için yalnız açık tamsayı
-  veya tek sütunlu tamsayı Series çıktısı kabul edilir.
-- Çalıştırma başarısı, yürütmenin kendi kapsamı ve güncelliği.
-
-Desteklenen alan sınırlıdır: literal df seçimleri ve `.loc`, karşılaştırma/isna/notna
-filtreleri, eksik sayımı, tek/çok sütunlu value_counts, head/tail ve basit özetler.
-Alias, query, groupby ve keyfi Python işlemleri henüz bu açıklama yolunda desteklenmez.
-Bunlar yanlışlıkla bütün df olarak yorumlanmaz; son hücre desteklenmiyorsa AI çağrısı
-harcanmadan bu sınır açıkça belirtilir ve yeni işlem atanmaz. Bu sınır notebook'un
-kod çalıştırmasını değiştirmez. Yeni yolun özellik bayrağı hâlâ varsayılan kapalıdır.
-
-Modelin seçtiği güncel kanıtlar backend tarafından açıklanır. En son çalıştırma
-zorunludur. Sayı 0 ise grubun boş olabilmesi ve kategori geçerliliğinin ölçülmemiş
-olması belirtilir. Yüklenen satır sayısı df'nin son uzunluğu için payda yapılmaz;
-yüzde uydurulmaz. Dağılımın görünen çıktısı kısaltılmış gösterilir; neden, eşitlik
-veya bütün kaynak hakkında modelden türetilen iddialar gösterilmez. Tam kaynak
-ayrımı korunur. Model action instruction/why metni de doğrudan yayınlanmaz; inspect
-önerisinin satır seçimi ve ölçümü desteklenen koddan açıklanır. Hangi kontrolün
-öğretici açıdan en yararlı olduğu hâlâ model değerlendirmesi ve ayrı test gerektirir.
-
-Eski başarılı test cevapları kaldığı yerden devam ederken aynen gösterilmez. Kanıt
-ve işlem önerisi güncel sözleşmeye uyuyorsa açıklama AI çağrısı yapılmadan yeniden
-kurulur. Önceki ham öneri `original_cached_proposal`, yeni derleme seçimi
-`cached_recompile_plan` olarak ayrı korunur. Bunlar yeni model çıktısı diye
-etiketlenmez. Eski raporun arşivlenmesi de korunur.
-
-Gerçek report(5) fixture'ı üç senaryo/12 turu yeniden derler. Ek karşı-örnekte
-flag=1 grubunun reason eksik sayısı 0 iken target eksik grubunda 1'dir; yanlış
-grup aktarımı aynı sonuç sanılamaz. Üç bağlı sentetik kontrol testi önerilen sabit
-ifadeyi gerçekten çalıştırıp sonraki adıma çıktısını taşır. Bu son test sabit model
-cevaplarıyla yereldir; canlı veya özerk acemi kullanıcı/proje tamamlama kanıtı değildir.
-
-Yerel kontroller:
-
-```powershell
-python -m pytest backend/tests/test_mentor_observation_contract.py -q
+python -m pytest backend/tests -q
 python -m backend.benchmarks.run_mentor_research_acceptance
 ```
 
-Bunlar API kotası harcamaz. Yeni wire protokolünün gerçek sağlayıcıyla kabulü,
-yönlendirme kalitesi, SQL ve bütün proje aşamalarının tamamlanması henüz açık
-kriterlerdir. Bu çalışma notebook araştırmasının gözlem açıklaması çekirdeğini
-güçlendirir; bütün Mentor'un hazır olduğu anlamına gelmez.
-
-
-## Canlı test beklemesi ve kesinti kaydı
-
-Tek turluk smoke denemesinde Ctrl+C, ikinci düzeltme isteği öncesindeki 65 saniyelik
-pacing beklemesinde geldi. İlk önerinin ret kaydı yalnız tur sonunda yazıldığı için
-bu kesinti ilk ret nedenini kaybettirebiliyordu. Artık her tamamlanan ret önerisi,
-sonraki bekleme/istekten önce araştırma hafızasına kaydedilir. Bekleme nedeni ve
-süresi CLI'da görünür. KeyboardInterrupt beklemede veya sağlayıcı isteğinde olursa
-kesinti aşaması ve tamamlanmış önceki denemeler korunur. Runner kesilmiş turu
-başarısız olarak case.json ve report.json içine yazar; çıkış kodu 130'dur.
-
-Tanı için ek düzeltme denemesi yapmadan ilk model önerisini almak:
+İlk canlı protokol kontrolü, bir konuşma turu ve bir uygulama denemesi:
 
 ```powershell
 python -m backend.benchmarks.run_mentor_research_acceptance --live --case sensors --max-turns 1 --model-attempts 1
 ```
 
-`--max-turns` konuşma turunu, `--model-attempts` uygulamanın o turdaki üretim/düzeltme
-denemelerini sınırlar. Varsayılan iki deneme ve pacing korunur. Bir denemelik mod,
-ilk yanıt reddedilirse ret nedenini raporlar ve düzeltme isteği yapmaz. SDK'nın
-mevcut bağlantı/HTTP tekrar politikası değiştirilmemiştir; bu seçenek HTTP isteği
-sayısı için ayrı bir muhasebe garantisi değildir. Kesinti sırasında sağlayıcıya
-ulaşmış bir isteğin kota tüketip tüketmediği rapordan çıkarılamaz.
+`--max-turns` konuşma turunu, `--model-attempts` o turdaki üretim/düzeltme denemelerini
+sınırlar. SDK'nın mevcut HTTP/bağlantı tekrar politikası ayrıdır. İlk ret ikinci
+bekleme/istekten önce kaydedilir. Normal iki denemelik mod beklemeyi ve ret nedenini
+CLI'da gösterir. Ctrl+C tamamlanmış denemeleri korur; rapor kesildi olarak kaydedilir,
+başarı sayılmaz. Raporlar UTF-8 okunur ve yazılır.
 
-Yerel kesinti regresyonları gerçek sağlayıcı çağırmaz veya gerçekten beklemez.
-Bu düzenleme testin görünürlüğünü ve tanı kayıtlarını iyileştirir; önerinin
-öğretici doğruluğu için yeni bir başarı kanıtı değildir.
+Eski dört turluk replay, hazırlanmış notebook görüntülerini kullanır. Modelin
+önerdiği kodu gerçekten uygulayan bir acemi simülasyonu değildir. Eski başarılı
+replay'i sürdürmek için `--live --resume-latest` vardır; eski açıklamalar güncel
+kanıt sözleşmesiyle yeniden kurulur. İlk denemenin canlı başarısı, dört turun veya
+bütün mentorun geçtiği anlamına gelmez.
+
+## Yeni takip testi: "Bilmiyorum, veri sözlüğüm yok"
+
+Bu test, gerçek kabul raporundaki başarılı ilk `clarify` turunu yeniden doğrular.
+Kanıt, başlangıç sorusu, grounded-v1 kabulü ve ham model önerisi eşleşmelidir.
+İlk tur yeniden üretilmez. Dosyadaki serbest reply metni güvenilir sayılmaz;
+önceki yanıt kayıtlı kod/çıktıdan yeniden kurularak konuşma geçmişine eklenir.
+Önceki `clarify` önerisi yeni, ayrı test veritabanındaki araştırma belleğine taşınır.
+
+Yeni kullanıcı mesajı:
+
+> Bilmiyorum, veri sözlüğüm de yok. Mevcut veriye bakarak araştırmaya devam
+> edebilir miyiz? Kod vermeden tek bir küçük adımla yönlendir.
+
+Önce kaynak raporu kotasız doğrulama:
+
+```powershell
+python -m backend.benchmarks.run_mentor_clarification_followup --from-latest
+```
+
+Ardından tek yeni model denemesi:
+
+```powershell
+python -m backend.benchmarks.run_mentor_clarification_followup --live --from-latest
+```
+
+Varsayılan kaynak arama yeri `backend/benchmarks/results/research-acceptance`;
+`--source-report <yol>` ile belirli rapor seçilebilir. Uyumlu kaynak yoksa test
+yeni bir başlangıç turunu sessizce üretmez. Canlı komut mevcut `.env`/sağlayıcı
+ayarlarını kullanır; gerçek sağlayıcı kotası tüketir.
+
+Raporda yapısal kabul ve bu senaryonun ilerleme ölçütü ayrıdır. Ölçüt şunları ister:
+
+1. Güncel kanıt ve işlem denetiminden geçen yanıt.
+2. Ana hedefi koruyan bir `inspect` önerisi.
+3. Eksik hedef satırlarına odaklanan, daha önce tamamlanmamış bir kontrol.
+
+Aynı açıklamayı yeniden istemek, görev vermemek veya mevcut sayımı tekrarlamak bu
+ilerleme ölçütünü geçmez. OR koşulunun bir dalının başka satırları dahil etmesi,
+"yalnız eksik hedef satırları" diye kabul edilmez. Bu, bu senaryoya ait dar bir
+kabul ölçütüdür; diğer bütün araştırma adımlarının uygunluğuna ilişkin genel hüküm
+değildir. Test modelin önerdiği kodu çalıştırmaz; önerinin öğretici niteliği insan
+incelemesi gerektirir. Proje tamamlama kanıtı üretilmez.
+
+Yeni rapor `backend/benchmarks/results/clarification-followup/<zaman>/report.json`
+altındadır. Test kendi SQLite dosyasını kullanır ve çağrı bitince test sürecinin
+önceki veritabanı ayarını geri yükler. Flight veya kullanıcının gerçek çalışma
+verileri bu testte açılmaz.
+
+## Git üzerinden çalışma
+
+Kaynak kodu, testler ve bu durum belgesi açıklamalı commit'lerle aynı geliştirme
+dalında tutulur. Kullanıcı güncellemeyi Git üzerinden alır. Test sonuçları, aktarım
+ZIP'leri ve eski yama dosyaları kaynak commit'lerine eklenmez. Her çalışma birimi
+bir kullanıcı davranışı ve onun kabul ölçütüyle değerlendirilir.
