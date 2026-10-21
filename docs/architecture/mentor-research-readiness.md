@@ -14,6 +14,7 @@ Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin ye
 | Yardımcı kontrolün satır grubu | AST sözleşmesi ve gerçek `report(5)` regresyonları, seçilen grubu ölçülen sütundan ayırıyor. Sıfır için boş grup olasılığı belirtiliyor. | Birbirine bağlı canlı incelemelerde aynı disiplini korumak. |
 | Kaynak açıklaması isteme | `report(6)` veri sözlüğünü sordu. Canlı `report(7)`, kullanıcı sözlüğün olmadığını söylediğinde aynı sorunun tekrarlandığını ve ilerlemenin başarısız olduğunu gösterdi. | Aynı soruyu reddeden yeni bellek/denetim düzeltmesinden sonra canlı ilerlemeyi doğrulamak. |
 | İnceleme kararını aktarma | Canlı `report(8)` eksik hedef satırlarının önizlemesini seçti; eski şemada iç evidence_ids eksik olduğu için reddedildi. Yeni küçük sözleşmeyle aynı kod yerelde değişmeden kabul ediliyor. | Gerçek modelin yeni sözleşmeyle tek denemede geçerli karar vermesini ve sonraki çıktıyı doğru yorumlamasını doğrulamak. |
+| Cevaplanan soruyu kapatma | Canlı `report(9)` yeni şemaya uydu ama yine clarify seçti; tekrar denetimi bunu reddetti. İncelemede sözlük kısıtı kaydedilirken eski sorunun açık ve önerinin proposed kaldığı görüldü. | Düzeltilen soru yaşam döngüsü ve bağlama göre daraltılan işlem şemasıyla canlı ilerlemeyi doğrulamak. |
 | Araştırmayı ilerletme | Sabit model yanıtlarıyla üç bağlı yerel kontrolün çıktıları sonraki adıma taşındı. | Canlı mentorun önerileriyle aynı ilerlemeyi göstermek. |
 | Temizleme/dönüşüm kararı | Yeni inceleme yolu otomatik dönüşüm önerisini kabul etmez. | Kanıta ve kullanıcı hedefine dayalı karar, uygulama ve sonuç doğrulaması. |
 | SQL, veri modeli, KPI, dashboard, insights, docs | Önceki ürün yolları mevcut. Bu çalışma bunları kapsamlı biçimde yeniden doğrulamadı. | Aşamalar arası mentor rehberliğini ve kullanıcıya faydayı sınamak. |
@@ -199,3 +200,26 @@ kanıt/kod/odak denetimleri uygulanır; eksik veya kesilmiş belgeden karar üre
 Modelin sonraki canlı yanıtı ve gerçek acemi kullanıcının adımı uygulayabilmesi
 ayrı kabul ölçütleridir. Yeni desteklenmeyen bir model yanıtı otomatik olarak
 başarılı sayılmaz; aynı en fazla iki denemelik normal düzeltme sınırı korunur.
+
+## report(9): cevaplanmış soru ve işlem seçenekleri
+
+"Sözlüğüm yok/bilmiyorum" cevabı sonrasında sözlük sorusu artık
+`answered_unavailable` durumuna geçer ve açık sorular kuyruğundan çıkar.
+Kullanıcının tanımı sonradan bulması `available` durumunu açar; hedef sütun
+değiştiğinde eski hedefin kısıtı yeni hedefe taşınmaz. Önceki sürümden kalmış
+unavailable/proposed çelişkisi de durum hazırlanırken yerelde düzeltilir.
+Tarihçe silinmez; ilgisiz açık sorular korunur.
+
+Tanım sağlanamıyorsa sağlayıcıya gönderilen şema `GroundedInspectionDecision`
+olur: işlem türü yalnızca inspect olabilir. Mevcut clarify gösterimi yalnızca
+sözlük sorusunu üretebildiği için bu seçim o bağlamda seçenek değildir. Null,
+yeni görev istenmediğinde veya haklı bir inceleme bulunamadığında geçerlidir;
+sırf test geçsin diye bir işlem zorlanmaz. Yeni incelemenin kod/kanıt/odak/tekrar
+denetimleri korunur. Bu, yeni kanıtı olmayan null yanıtın ilerleme testini geçtiği
+anlamına gelmez. Rehberlik hâlâ gerçek canlı yanıtla doğrulanmalıdır.
+
+Yerel regresyon gerçek report(9) kararının bu bağlamın şemasından geçemediğini,
+cevaplanmış sorunun model isteğinde açık soru olarak kalmadığını, yeni kaynağın
+ve hedef değişikliğinin seçenekleri yeniden açtığını kontrol eder. Takip raporu
+artık `research_context` altında kısıtı, açık soruları ve öneri durumlarını;
+`validation.runtime.decision_schema` altında kullanılan şemayı kaydeder.

@@ -156,7 +156,15 @@ def run_followup(source: Path, case: str, output_root: Path, *, live: bool):
             except Exception as exc:
                 report["status"] = "provider_or_configuration_failure"
                 report["provider_failure"] = safe_provider_failure(exc)
-            validation = load_research_state(context["workspace_id"], "n1").get("last_validation") or {}
+            saved_state = load_research_state(context["workspace_id"], "n1")
+            validation = saved_state.get("last_validation") or {}
+            report["research_context"] = {
+                "focus_column": saved_state.get("focus_column"),
+                "definition_availability": saved_state.get("definition_availability"),
+                "open_questions": saved_state.get("open_questions", []),
+                "proposal_statuses": [{"kind": item.get("kind"), "status": item.get("status")}
+                                      for item in saved_state.get("proposals", [])[-4:]],
+            }
             report["validation"] = validation
             report["progress_checks"] = progression_checks(validation, context)
             report["followup_tested"] = report["status"] == "completed"

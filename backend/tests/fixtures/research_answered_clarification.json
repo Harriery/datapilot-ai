@@ -1,0 +1,13 @@
+{
+  "source": "Actual report(9), 2026-10-21; repeated clarification selected by the live model and rejected",
+  "raw_plan": {
+    "next_action": {
+      "kind": "clarify",
+      "code": null
+    },
+    "evidence_ids": [
+      "8c67f8d112ebcdcdcab3"
+    ]
+  },
+  "message": "Bilmiyorum, veri sözlüğüm de yok. Mevcut veriye bakarak araştırmaya devam edebilir miyiz? Kod vermeden tek bir küçük adımla yönlendir."
+}

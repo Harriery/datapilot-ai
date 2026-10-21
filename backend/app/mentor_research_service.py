@@ -74,6 +74,24 @@ class GroundedResearchDecision(StrictModel):
     evidence_ids: list[str] = Field(description="1-3 current IDs including latest. Supply once here; never duplicate inside next_action.")
 
 
+class InspectionDecisionAction(ResearchDecisionAction):
+    kind: Literal["inspect"]
+    code: str = Field(min_length=1, description="One new supported read-only df expression; no data changes.")
+
+
+class GroundedInspectionDecision(GroundedResearchDecision):
+    """A definition already answered as unavailable cannot be asked again."""
+    next_action: InspectionDecisionAction | None
+
+
+def decision_schema(state: dict):
+    definition = state.get("definition_availability") or {}
+    if (definition.get("status") == "unavailable"
+            and definition.get("focus_column") == state.get("focus_column")):
+        return GroundedInspectionDecision
+    return GroundedResearchDecision
+
+
 class InvalidResearchDecision(ValueError):
     pass
 
@@ -167,7 +185,8 @@ def update_definition_availability(state: dict, message: str) -> None:
     ))
     proposals = state.get('proposals') or []
     pending = bool(proposals and proposals[-1].get('kind') == 'clarify'
-                   and proposals[-1].get('focus_column') == state.get('focus_column'))
+                   and proposals[-1].get('focus_column') == state.get('focus_column')
+                   and not str(proposals[-1].get('status', '')).startswith('answered_'))
     unknown_answer = pending and bool(re.match(
         r'\s*(?:bilmiyorum\b|emin degilim\b|i (?:do not|don\x27t) know\b|'
         r'ik weet (?:het|dat) niet\b|dat weet ik niet\b|weet ik niet\b)', text,
@@ -182,6 +201,24 @@ def update_definition_availability(state: dict, message: str) -> None:
             'status': 'unavailable' if unavailable or unknown_answer else 'available',
             'source': 'explicit_learner_response',
         }
+    definition = state.get('definition_availability') or {}
+    if definition.get('focus_column') != state.get('focus_column'):
+        return
+    if definition.get('status') in {'unavailable', 'available'}:
+        resolved = set()
+        for proposal in proposals:
+            if (proposal.get('kind') == 'clarify'
+                    and proposal.get('focus_column') == state.get('focus_column')
+                    and not str(proposal.get('status', '')).startswith('answered_')):
+                proposal['status'] = 'answered_' + definition['status']
+                if proposal.get('instruction'):
+                    resolved.add(proposal['instruction'])
+        # Historical proposals remain in the journal, but answered questions
+        # must not also be supplied to the model as outstanding work.
+        if resolved:
+            state['open_questions'] = [q for q in state.get('open_questions', []) if q not in resolved] or [
+                'Which new supported observation can advance the active research focus?'
+            ]
 
 
 def _evidence(notebook: dict) -> list[dict]:
@@ -297,6 +334,7 @@ def build_research_request(context: dict, state: dict, message: str, history: li
         "learner_setup": context.get("mentor_setup"), "focus": state.get("focus_column"),
         "research_goal": state["goal"], "open_questions": state["open_questions"],
         "definition_availability": state.get("definition_availability"),
+        "allowed_action_kinds": ["inspect"] if decision_schema(state) is GroundedInspectionDecision else ["inspect", "clarify"],
         "available_columns": state.get("available_columns", [])[:100],
         "current_observations": current[:6],
         "earlier_checks": [{key: x.get(key) for key in (
@@ -360,6 +398,10 @@ columns, preserving focus and uncertainty about domain meaning. If the current
 observation is a positive missing count, inspecting a few rows where that target
 is missing can add context without asserting a cause. Do not repeat that preview
 if already observed, invent a column meaning, or suggest filling/deleting values.
+Use only allowed_action_kinds. answered_unavailable/answered_available are resolved
+clarifications, not pending tasks. They must not be proposed again. A new inspect
+must add evidence; null remains valid when no warranted new action is available
+or the learner asks only for an explanation. Do not invent work to avoid null.
 For self-review or an explanation without a requested next task: next_action=null.
 If a useful inspection cannot be justified, choose clarify or null. Never invent
 new work just to fill the field. At most one action. The backend alone writes
@@ -645,10 +687,12 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
     payload = build_research_request(context, state, message, history)
     payload["response_language"] = state["response_language"]
     runtime = get_ai_runtime("mentor")
+    wire_schema = decision_schema(state)
     errors = []
     generation_options = research_generation_options(runtime.provider, runtime.model)
     output_limit = get_ai_usage_limits()["max_output_tokens_per_request"]
     runtime_info = {"provider": runtime.provider, "model": runtime.model,
+                    "decision_schema": wire_schema.__name__,
                     "max_output_tokens": output_limit if output_limit > 0 else None,
                     **generation_options}
     traces = []
@@ -668,7 +712,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
                 response = guarded_responses_parse(
                     runtime.client, provider=runtime.provider, purpose="mentor_research_turn",
                     model=runtime.model, instructions=RESEARCH_RULES,
-                    input=json.dumps(payload, ensure_ascii=False, default=str), text_format=GroundedResearchDecision,
+                    input=json.dumps(payload, ensure_ascii=False, default=str), text_format=wire_schema,
                     **generation_options,
                 )
                 request_stage = "response_validation"
@@ -687,7 +731,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
                 error_message = str(error.get("message", "")).casefold()
                 if "truncated" in error_message or "max completion tokens reached" in error_message:
                     raise IncompleteResearchOutput("Provider output token limit reached; regenerate a compact complete object with every required field")
-                raw_proposal = GroundedResearchDecision.model_validate_json(error["failed_generation"])
+                raw_proposal = wire_schema.model_validate_json(error["failed_generation"])
             proposal = raw_proposal
             if proposal is None:
                 errors = ["Provider returned no structured research turn"]

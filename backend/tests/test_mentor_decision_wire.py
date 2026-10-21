@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from backend.app import database
 from backend.app.mentor_research_service import (
-    GroundedResearchDecision, generate_research_reply, prepare_research_context,
+    GroundedResearchDecision, GroundedInspectionDecision, generate_research_reply, prepare_research_context,
 )
 from backend.app.mentor_research_store import load_research_state, save_research_state
 from backend.benchmarks.run_mentor_research_acceptance import CASES, snapshots
@@ -116,7 +116,7 @@ def test_minimal_wire_reaches_a_missing_row_inspection_across_schemas_and_langua
              'en':"I don't have a data dictionary. Guide me without code.",
              'nl':'Ik heb geen gegevenswoordenboek. Help me zonder code.'}[language]
     def respond(*args,**kwargs):
-        assert kwargs['text_format'] is GroundedResearchDecision
+        assert kwargs['text_format'] is GroundedInspectionDecision
         request=json.loads(kwargs['input'])
         assert request['definition_availability']['status']=='unavailable'
         raw={'next_action':{'kind':'inspect','code':f"df[df['{target}'].isna()].head()"},

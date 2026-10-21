@@ -42,6 +42,9 @@ def model_response(kind):
         assert len(data['recent_dialogue'])==2
         assert 'veri sözlüğündeki tanımını' in data['recent_dialogue'][1]['content']
         assert data['previous_proposals'][-1]['kind']=='clarify'
+        assert data['previous_proposals'][-1]['status']=='answered_unavailable'
+        assert data['allowed_action_kinds']==['inspect']
+        assert all('veri sözlüğündeki tanımını' not in question for question in data['open_questions'])
         ref=data['current_observations'][0]['id']
         action=None
         if kind is not None:
