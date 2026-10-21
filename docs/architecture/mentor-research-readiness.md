@@ -247,3 +247,31 @@ Bunlar API kotası harcamaz. Yeni wire protokolünün gerçek sağlayıcıyla ka
 yönlendirme kalitesi, SQL ve bütün proje aşamalarının tamamlanması henüz açık
 kriterlerdir. Bu çalışma notebook araştırmasının gözlem açıklaması çekirdeğini
 güçlendirir; bütün Mentor'un hazır olduğu anlamına gelmez.
+
+
+## Canlı test beklemesi ve kesinti kaydı
+
+Tek turluk smoke denemesinde Ctrl+C, ikinci düzeltme isteği öncesindeki 65 saniyelik
+pacing beklemesinde geldi. İlk önerinin ret kaydı yalnız tur sonunda yazıldığı için
+bu kesinti ilk ret nedenini kaybettirebiliyordu. Artık her tamamlanan ret önerisi,
+sonraki bekleme/istekten önce araştırma hafızasına kaydedilir. Bekleme nedeni ve
+süresi CLI'da görünür. KeyboardInterrupt beklemede veya sağlayıcı isteğinde olursa
+kesinti aşaması ve tamamlanmış önceki denemeler korunur. Runner kesilmiş turu
+başarısız olarak case.json ve report.json içine yazar; çıkış kodu 130'dur.
+
+Tanı için ek düzeltme denemesi yapmadan ilk model önerisini almak:
+
+```powershell
+python -m backend.benchmarks.run_mentor_research_acceptance --live --case sensors --max-turns 1 --model-attempts 1
+```
+
+`--max-turns` konuşma turunu, `--model-attempts` uygulamanın o turdaki üretim/düzeltme
+denemelerini sınırlar. Varsayılan iki deneme ve pacing korunur. Bir denemelik mod,
+ilk yanıt reddedilirse ret nedenini raporlar ve düzeltme isteği yapmaz. SDK'nın
+mevcut bağlantı/HTTP tekrar politikası değiştirilmemiştir; bu seçenek HTTP isteği
+sayısı için ayrı bir muhasebe garantisi değildir. Kesinti sırasında sağlayıcıya
+ulaşmış bir isteğin kota tüketip tüketmediği rapordan çıkarılamaz.
+
+Yerel kesinti regresyonları gerçek sağlayıcı çağırmaz veya gerçekten beklemez.
+Bu düzenleme testin görünürlüğünü ve tanı kayıtlarını iyileştirir; önerinin
+öğretici doğruluğu için yeni bir başarı kanıtı değildir.

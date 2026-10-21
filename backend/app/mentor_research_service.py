@@ -522,7 +522,9 @@ def research_response_metadata(response) -> dict:
     return result
 
 
-def generate_research_reply(context: dict, message: str, history: list[dict], *, request_pacer=None) -> str | None:
+def generate_research_reply(context: dict, message: str, history: list[dict], *, request_pacer=None, max_attempts=2) -> str | None:
+    if type(max_attempts) is not int or max_attempts not in (1, 2):
+        raise ValueError("Research model attempts must be 1 or 2")
     notebook = (context.get("artifacts") or {}).get("selected_notebook")
     if not isinstance(notebook, dict):
         return None
@@ -549,22 +551,26 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
                     "max_output_tokens": output_limit if output_limit > 0 else None,
                     **generation_options}
     traces = []
-    for attempt in range(2):
+    for attempt in range(max_attempts):
         proposal = None
         raw_proposal = None
         normalizations = []
         provider_recovery = None
         response_metadata = {}
+        request_stage = "preparing"
         try:
             try:
                 if request_pacer is not None:
+                    request_stage = "quota_wait"
                     request_pacer()
+                request_stage = "provider_request"
                 response = guarded_responses_parse(
                     runtime.client, provider=runtime.provider, purpose="mentor_research_turn",
                     model=runtime.model, instructions=RESEARCH_RULES,
                     input=json.dumps(payload, ensure_ascii=False, default=str), text_format=GroundedResearchPlan,
                     **generation_options,
                 )
+                request_stage = "response_validation"
                 response_metadata = research_response_metadata(response)
                 if response_metadata.get("status") == "incomplete" or response_metadata.get("incomplete_reason"):
                     raise IncompleteResearchOutput("Provider returned an incomplete research turn; regenerate a compact complete object")
@@ -591,6 +597,15 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
                     proposal, errors = compile_reply(raw_proposal, state, message)
                     if proposal is not None:
                         errors.extend(validate_turn(proposal, state, message))
+        except KeyboardInterrupt:
+            state["last_validation"] = {
+                "accepted": False, "status": "interrupted", "errors": ["interrupted"],
+                "previous_attempt_errors": list(errors), "interrupted_during": request_stage,
+                "model_attempts": traces, "runtime": runtime_info,
+                "rendering_contract": "grounded-v1", "model_factual_prose_published": False,
+            }
+            save_research_state(workspace_id, notebook_id, state)
+            raise
         except IncompleteResearchOutput as exc:
             errors = [str(exc)]
         except ValidationError as exc:
@@ -621,6 +636,14 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
             state["last_validation"] = {"accepted": True, "attempts": attempt + 1, "model_attempts": traces, "runtime": runtime_info, "rendering_contract": "grounded-v1", "model_factual_prose_published": False}
             save_research_state(workspace_id, notebook_id, state)
             return render_turn(proposal, state, message)
+        # Persist a completed rejected attempt BEFORE pacing or making another
+        # request. Ctrl+C must not erase the only evidence of why repair started.
+        state["last_validation"] = {
+            "accepted": False, "status": "repair_pending" if attempt + 1 < max_attempts else "rejected",
+            "errors": list(errors), "attempts": attempt + 1, "model_attempts": traces,
+            "runtime": runtime_info, "rendering_contract": "grounded-v1", "model_factual_prose_published": False,
+        }
+        save_research_state(workspace_id, notebook_id, state)
         payload["repair_required"] = errors
         payload["rejected_proposal"] = raw_proposal.model_dump() if raw_proposal is not None else None
         payload["required_internal_contract"] = {

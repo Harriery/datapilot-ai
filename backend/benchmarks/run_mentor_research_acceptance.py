@@ -141,7 +141,7 @@ def reusable_prefix(case, previous, max_turns):
     return prefix, history
 
 
-def run_live_case(case, report_path, delay, max_turns=4, previous=None):
+def run_live_case(case, report_path, delay, max_turns=4, previous=None, model_attempts=2):
     turns, history = reusable_prefix(case, previous or [], max_turns)
     reused = len(turns)
     if reused:
@@ -150,6 +150,12 @@ def run_live_case(case, report_path, delay, max_turns=4, previous=None):
     def pace_request():
         if last_request[0] is not None:
             deadline = last_request[0] + delay
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                saved = load_research_state(context["workspace_id"], "n1").get("last_validation", {})
+                if saved.get("status") == "repair_pending":
+                    print(f"{case}: first attempt rejected: " + "; ".join(saved.get("errors", []))[:500], flush=True)
+                print(f"{case}: waiting {remaining:.0f}s for request pacing; Ctrl+C saves an interrupted report.", flush=True)
             while time.monotonic() < deadline:
                 time.sleep(max(0, min(5, deadline - time.monotonic())))
         last_request[0] = time.monotonic()
@@ -157,13 +163,21 @@ def run_live_case(case, report_path, delay, max_turns=4, previous=None):
         # Synthetic fixture evidence is included so reports can be reviewed
         # without guessing what the model actually observed.
         evidence_snapshot = context["artifacts"]["selected_notebook"]
+        print(f"{case}: starting turn {len(turns) + 1}/{max_turns} (up to {model_attempts} model requests).", flush=True)
         try:
             # Pace every actual request, including a model correction within
             # a turn, rather than only the outer replay turns.
+            request_options = {"max_attempts": model_attempts} if model_attempts != 2 else {}
             if delay > 0:
-                reply = generate_research_reply(context, message, history, request_pacer=pace_request)
-            else:
-                reply = generate_research_reply(context, message, history)
+                request_options["request_pacer"] = pace_request
+            reply = generate_research_reply(context, message, history, **request_options)
+        except KeyboardInterrupt:
+            saved = load_research_state(context["workspace_id"], "n1")
+            turns.append({"message": message, "status": "interrupted", "accepted": False,
+                          "validation": saved.get("last_validation"), "evidence_snapshot": evidence_snapshot})
+            report_path.write_text(json.dumps({"case": case, "turns": turns, "human_review_required": True}, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"{case}: interrupted; completed attempt diagnostics saved to {report_path.resolve()}", flush=True)
+            break
         except Exception as exc:
             saved = load_research_state(context["workspace_id"], "n1")
             failure = safe_provider_failure(exc)
@@ -186,6 +200,7 @@ def run_live_case(case, report_path, delay, max_turns=4, previous=None):
         report_path.write_text(json.dumps({"case": case, "turns": turns, "human_review_required": True}, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"{case}: turn {len(turns)}/{max_turns}, structural acceptance={accepted}", flush=True)
         if not accepted:
+            print(f"{case}: rejection: " + "; ".join(state.get("last_validation", {}).get("errors", []))[:500], flush=True)
             # Later replay steps assume earlier guidance succeeded. Stop here
             # rather than consume quota after the first rejected turn.
             break
@@ -203,6 +218,8 @@ def run_live_case(case, report_path, delay, max_turns=4, previous=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--resume-latest", action="store_true", help="Resume the latest compatible live report using its isolated database.")
+    parser.add_argument("--model-attempts", type=int, choices=(1, 2), default=2,
+                        help="Maximum model calls per turn. Use 1 to capture a first rejection without a repair request or wait.")
     parser.add_argument("--live", action="store_true", help="Use existing local AI settings (consumes provider quota).")
     parser.add_argument("--case", choices=["all", *CASES], default="all")
     parser.add_argument("--max-turns", type=int, choices=range(1, 5), default=4,
@@ -253,7 +270,7 @@ def main(argv=None):
             while time.monotonic() < deadline:
                 time.sleep(max(0, min(5, deadline - time.monotonic())))
         result = run_live_case(case, folder / f"{case}.json", max(0, args.delay), args.max_turns,
-                               previous_results.get(case)) if args.live else offline_case(case)
+                               previous_results.get(case), args.model_attempts) if args.live else offline_case(case)
         results.append(result)
         if args.live and not result["all_structurally_accepted"]:
             break
@@ -268,6 +285,8 @@ def main(argv=None):
         print("Protocol smoke passed; full scenarios and mentor quality remain unverified.")
     else:
         print("Guard checks passed; semantic quality remains unverified." if passed else "Evaluation incomplete or rejected; inspect report.")
+    if any(turn.get("status") == "interrupted" for result in results for turn in result.get("turns", [])):
+        return 130
     return 0 if passed else 1
 
 
