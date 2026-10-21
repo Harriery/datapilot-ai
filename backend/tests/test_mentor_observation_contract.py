@@ -189,7 +189,7 @@ def test_direct_call_rejects_stale_result_even_with_valid_id(actual):
 
 
 def test_connected_checks_use_the_actual_previous_proposal_output():
-    from backend.app.mentor_research_service import ResearchAction
+    from backend.app.mentor_research_service import GroundedResearchDecision
     df=pd.DataFrame({'target':[None,7,None,4], 'flag':[0,1,1,0], 'reason':[None,'A','B',None]})
     untouched=df.copy(deep=True)
     expressions=[
@@ -215,10 +215,9 @@ def test_connected_checks_use_the_actual_previous_proposal_output():
             action=None
             if step<2:
                 next_code=expressions[step+1]
-                action=ResearchAction(instruction='UNTRUSTED factual prose must not be displayed',why='UNTRUSTED invented cause',
-                    kind='inspect',focus_column='target',columns=['target','flag'] if step==0 else ['target','flag','reason'],
-                    code=next_code,evidence_ids=[ref])
-            return SimpleNamespace(output_parsed=GroundedResearchPlan(next_action=action,evidence_ids=[ref]))
+                action={'kind':'inspect','code':next_code}
+            return SimpleNamespace(output_parsed=GroundedResearchDecision.model_validate_json(
+                json.dumps({'next_action':action,'evidence_ids':[ref]})))
         with patch('backend.app.mentor_research_service.get_ai_runtime',return_value=SimpleNamespace(client=None,provider='groq',model='test')), \
              patch('backend.app.mentor_research_service.guarded_responses_parse',side_effect=response) as model:
             reply=generate_research_reply(ctx,msg,history)

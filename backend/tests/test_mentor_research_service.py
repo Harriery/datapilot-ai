@@ -6,7 +6,7 @@ import pytest
 
 from backend.app import database
 from backend.app.mentor_research_service import (
-    ResearchTurn, GroundedResearchPlan, ResearchAction, ResearchClaim, prepare_research_context,
+    ResearchTurn, GroundedResearchPlan, GroundedResearchDecision, ResearchAction, ResearchClaim, prepare_research_context,
     validate_turn, render_turn, generate_research_reply, code_signature,
 )
 from backend.app.mentor_research_store import save_research_state, load_research_state
@@ -295,7 +295,7 @@ def test_notebook_chat_uses_the_validated_planner_instead_of_legacy_classifier(m
     def parsed_response(*args, **kwargs):
         import json
         request = json.loads(kwargs["input"])
-        return SimpleNamespace(output_parsed=GroundedResearchPlan(next_action=None, evidence_ids=[request["current_observations"][0]["id"]]))
+        return SimpleNamespace(output_parsed=GroundedResearchDecision(next_action=None, evidence_ids=[request["current_observations"][0]["id"]]))
     with patch("backend.app.mentor_research_service.get_ai_runtime", return_value=SimpleNamespace(client=None, provider="groq", model="test")), \
          patch("backend.app.mentor_research_service.guarded_responses_parse", side_effect=parsed_response) as provider, \
          patch("backend.app.chat_routes.get_mentor_response_from_message") as legacy:

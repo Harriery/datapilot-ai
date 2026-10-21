@@ -1,0 +1,48 @@
+{
+  "source": "Actual report(8), 2026-10-21; rejected provider document retained exactly, not repaired",
+  "failed_generation": "{\n  \"evidence_ids\": [\"8c67f8d112ebcdcdcab3\"],\n  \"next_action\": {\n    \"kind\": \"inspect\",\n    \"instruction\": \"Veri setindeki `temperature` değerinin eksik olduğu ilk 5 satırı göster.\",\n    \"why\": \"Eksik değerlerin hangi diğer sütunlarla birlikte göründüğünü inceleyerek, eksikliğin olası sebeplerine dair ipucu elde edebiliriz.\",\n    \"focus_column\": \"temperature\",\n    \"columns\": [\"temperature\", \"offline\", \"latency\", \"status_reason\"],\n    \"code\": \"df[df[\\\"temperature\\\"].isna()].head()\"\n  }\n}",
+  "evidence_snapshot": {
+    "notebook_id": "n1",
+    "dataset_kind": "working",
+    "configured_development_rows": 10000,
+    "current_input_version": "isolated-fixture-v1",
+    "latest_cell": {
+      "cell_id": "c0",
+      "section_title": "temperature",
+      "code": "df[\"temperature\"].isna().sum()",
+      "last_execution": {
+        "success": true,
+        "output": "5000",
+        "input_row_count": 10000,
+        "input_total_row_count": 10000,
+        "input_data_version": "isolated-fixture-v1",
+        "dataset_kind": "working",
+        "executed_at": "2026-10-18T10:00:00"
+      }
+    },
+    "recent_cells": [
+      {
+        "cell_id": "c0",
+        "section_title": "temperature",
+        "code": "df[\"temperature\"].isna().sum()",
+        "last_execution": {
+          "success": true,
+          "output": "5000",
+          "input_row_count": 10000,
+          "input_total_row_count": 10000,
+          "input_data_version": "isolated-fixture-v1",
+          "dataset_kind": "working",
+          "executed_at": "2026-10-18T10:00:00"
+        }
+      }
+    ],
+    "quality_checks": [],
+    "available_columns": [
+      "temperature",
+      "offline",
+      "latency",
+      "status_reason"
+    ]
+  },
+  "message": "Bilmiyorum, veri sözlüğüm de yok. Mevcut veriye bakarak araştırmaya devam edebilir miyiz? Kod vermeden tek bir küçük adımla yönlendir."
+}

@@ -17,9 +17,9 @@ from backend.app import database
 from backend.app.mentor_grounded_reply import compile_reply
 from backend.app.mentor_observation_contract import expression_contract
 from backend.app.mentor_research_service import (
-    GroundedResearchPlan, ResearchTurn, code_signature, generate_research_reply,
+    ResearchTurn, code_signature, generate_research_reply,
     prepare_research_context, render_turn, response_language, safe_provider_failure,
-    validate_turn,
+    validate_turn, read_saved_research_plan,
 )
 from backend.app.mentor_research_store import load_research_state, save_research_state
 from backend.benchmarks.run_mentor_research_acceptance import CASES, snapshots
@@ -54,11 +54,11 @@ def validate_source_report(path: Path, case: str):
     attempts = validation.get("model_attempts") or []
     if not isinstance(attempts, list) or not attempts or not isinstance(attempts[-1], dict) or not attempts[-1].get("raw_plan"):
         raise ValueError("Source has no recorded structured model plan")
-    plan = GroundedResearchPlan.model_validate(attempts[-1]["raw_plan"])
-    if plan.next_action is None or plan.next_action.kind != "clarify":
-        raise ValueError("Source must end with the data-dictionary clarification")
     state = prepare_research_context(notebook, message)
     state["response_language"] = response_language(context, message, [], state)
+    plan = read_saved_research_plan(attempts[-1]["raw_plan"], state)
+    if plan.next_action is None or plan.next_action.kind != "clarify":
+        raise ValueError("Source must end with the data-dictionary clarification")
     compiled, errors = compile_reply(plan, state, message)
     if errors or validate_turn(compiled, state, message):
         raise ValueError("Source plan no longer passes the current evidence/action checks")

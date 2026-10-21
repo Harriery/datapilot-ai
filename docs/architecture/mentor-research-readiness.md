@@ -13,6 +13,7 @@ Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin ye
 | Sayımı açıklama | 21 Ekim canlı `report(6)` denemesinde 5.000 eksik `temperature` sayımı tek denemede doğru gösterildi. Kaynak tur test fixture'ında saklı. | Diğer desteklenen işlemleri ve gerçek kullanıcı sorularını doğrulamak. |
 | Yardımcı kontrolün satır grubu | AST sözleşmesi ve gerçek `report(5)` regresyonları, seçilen grubu ölçülen sütundan ayırıyor. Sıfır için boş grup olasılığı belirtiliyor. | Birbirine bağlı canlı incelemelerde aynı disiplini korumak. |
 | Kaynak açıklaması isteme | `report(6)` veri sözlüğünü sordu. Canlı `report(7)`, kullanıcı sözlüğün olmadığını söylediğinde aynı sorunun tekrarlandığını ve ilerlemenin başarısız olduğunu gösterdi. | Aynı soruyu reddeden yeni bellek/denetim düzeltmesinden sonra canlı ilerlemeyi doğrulamak. |
+| İnceleme kararını aktarma | Canlı `report(8)` eksik hedef satırlarının önizlemesini seçti; eski şemada iç evidence_ids eksik olduğu için reddedildi. Yeni küçük sözleşmeyle aynı kod yerelde değişmeden kabul ediliyor. | Gerçek modelin yeni sözleşmeyle tek denemede geçerli karar vermesini ve sonraki çıktıyı doğru yorumlamasını doğrulamak. |
 | Araştırmayı ilerletme | Sabit model yanıtlarıyla üç bağlı yerel kontrolün çıktıları sonraki adıma taşındı. | Canlı mentorun önerileriyle aynı ilerlemeyi göstermek. |
 | Temizleme/dönüşüm kararı | Yeni inceleme yolu otomatik dönüşüm önerisini kabul etmez. | Kanıta ve kullanıcı hedefine dayalı karar, uygulama ve sonuç doğrulaması. |
 | SQL, veri modeli, KPI, dashboard, insights, docs | Önceki ürün yolları mevcut. Bu çalışma bunları kapsamlı biçimde yeniden doğrulamadı. | Aşamalar arası mentor rehberliğini ve kullanıcıya faydayı sınamak. |
@@ -26,7 +27,11 @@ anlamına gelmez. Kabul komutları yeni servisi doğrudan çağırır ve bu bayr
 Diğer ürün aşamaları kendi mevcut mentor yollarında çalışmaya devam eder.
 Normal kullanıcı akışını açmak ayrı bir kabul kararıdır.
 
-Yeni model şeması `GroundedResearchPlan`: `next_action` ve `evidence_ids`.
+Sağlayıcı model şeması artık `GroundedResearchDecision`: `next_action` ve
+`evidence_ids`. İşlem yalnızca `{kind, code}` içerir veya `null` olur; kanıt
+kimlikleri yalnızca üst düzeyde bulunur. Hedef, kullanılan sütunlar ve gösterim
+metinleri backend tarafından türetilir. `GroundedResearchPlan`, genişletilmiş iç
+plan ve eski kayıtları okumak için korunur; sağlayıcıya şema olarak gönderilmez.
 Modelin serbest gözlem açıklaması kullanıcıya gösterilmez. Backend şu bilgileri
 kaydedilmiş Python kodundan ve çıktısından çıkarıp gösterir:
 
@@ -175,3 +180,22 @@ olarak gösterilir. Sessizce hazır bir inceleme eklenmez ve veri çalıştırı
 Yerel test, gerçek hatanın tekrarını reddetmeyi ve kontrollü ikinci önerinin yeni
 incelemeye dönüşmesini doğrular. Gerçek modelin sonraki canlı yanıtı henüz
 ölçülmedi; projenin tamamlanması hâlâ kanıtlanmış değildir.
+
+## report(8) sonrasındaki karar sözleşmesi
+
+Gerçek `failed_generation` belgesi regresyon fixture'ında aynen saklanır.
+JSON çözüldüğünde kod Python açısından geçerlidir; görünümdeki kaçışlar bir
+sözdizimi hatası değildir. Eski şema işlem içinde aynı kanıtları ve koddan
+türetilebilen sütunları tekrar istiyordu. Yeni wire bunları istemez. Kodda açık
+projeksiyon bulunmayan önizleme bütün sütunları gösterir; filtrede geçen sütunlar
+ayrıca AST'den çıkarılır. Model bu iki kümeyi ayrı metinlerde yeniden üretmez.
+
+Eski hatalı sağlayıcı belgesi yeni üretim biçimi olarak sessizce çevrilmez veya
+onarılmaz. Yeni biçimde aynı kodun kullanılabildiği, farklı şema/dillerde geçiş,
+geçersiz/tekrarlanan kodun reddi, yeni biçimdeki ilk turun yeniden kullanılması,
+HTTP sohbet yönlendirmesi ve birbirine bağlı kayıtlı sonuçlar yerelde test edilir.
+Tam ve yeni şemaya uygun bir sağlayıcı hata belgesi kurtarıldığında da bütün
+kanıt/kod/odak denetimleri uygulanır; eksik veya kesilmiş belgeden karar üretilmez.
+Modelin sonraki canlı yanıtı ve gerçek acemi kullanıcının adımı uygulayabilmesi
+ayrı kabul ölçütleridir. Yeni desteklenmeyen bir model yanıtı otomatik olarak
+başarılı sayılmaz; aynı en fazla iki denemelik normal düzeltme sınırı korunur.
