@@ -15,6 +15,7 @@ Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin ye
 | Kaynak açıklaması isteme | `report(6)` veri sözlüğünü sordu. Canlı `report(7)`, kullanıcı sözlüğün olmadığını söylediğinde aynı sorunun tekrarlandığını ve ilerlemenin başarısız olduğunu gösterdi. | Aynı soruyu reddeden yeni bellek/denetim düzeltmesinden sonra canlı ilerlemeyi doğrulamak. |
 | İnceleme kararını aktarma | Canlı `report(8)` eksik hedef satırlarının önizlemesini seçti; eski şemada iç evidence_ids eksik olduğu için reddedildi. Yeni küçük sözleşmeyle aynı kod yerelde değişmeden kabul ediliyor. | Gerçek modelin yeni sözleşmeyle tek denemede geçerli karar vermesini ve sonraki çıktıyı doğru yorumlamasını doğrulamak. |
 | Cevaplanan soruyu kapatma | Canlı `report(9)` yeni şemaya uydu ama yine clarify seçti; tekrar denetimi bunu reddetti. İncelemede sözlük kısıtı kaydedilirken eski sorunun açık ve önerinin proposed kaldığı görüldü. | Düzeltilen soru yaşam döngüsü ve bağlama göre daraltılan işlem şemasıyla canlı ilerlemeyi doğrulamak. |
+| Güvenle seçilebilen küçük adım | `report(10)` kapanmış sorudan sonra null döndürdü; geçerli biçim ilerleme sağlamadı. Yeni yerel kural, güncel pozitif eksik sayımından ilk eksik örnekleri önermeyi gerçek üretim takip komutunda AI çağrısı olmadan geçti. | Kullanıcının bu adımı uygulamasını ve sonraki çıktıyla araştırmanın doğru sürmesini doğrulamak. Bu sonuç canlı modelin ilerlediğini kanıtlamaz. |
 | Araştırmayı ilerletme | Sabit model yanıtlarıyla üç bağlı yerel kontrolün çıktıları sonraki adıma taşındı. | Canlı mentorun önerileriyle aynı ilerlemeyi göstermek. |
 | Temizleme/dönüşüm kararı | Yeni inceleme yolu otomatik dönüşüm önerisini kabul etmez. | Kanıta ve kullanıcı hedefine dayalı karar, uygulama ve sonuç doğrulaması. |
 | SQL, veri modeli, KPI, dashboard, insights, docs | Önceki ürün yolları mevcut. Bu çalışma bunları kapsamlı biçimde yeniden doğrulamadı. | Aşamalar arası mentor rehberliğini ve kullanıcıya faydayı sınamak. |
@@ -109,7 +110,8 @@ Yeni kullanıcı mesajı:
 python -m backend.benchmarks.run_mentor_clarification_followup --from-latest
 ```
 
-Ardından tek yeni model denemesi:
+Ardından üretim mentoruyla takip: uygun yerel adım varsa AI çağrısı yapılmaz;
+yoksa en fazla tek yeni model denemesi kullanılır:
 
 ```powershell
 python -m backend.benchmarks.run_mentor_clarification_followup --live --from-latest
@@ -118,7 +120,7 @@ python -m backend.benchmarks.run_mentor_clarification_followup --live --from-lat
 Varsayılan kaynak arama yeri `backend/benchmarks/results/research-acceptance`;
 `--source-report <yol>` ile belirli rapor seçilebilir. Uyumlu kaynak yoksa test
 yeni bir başlangıç turunu sessizce üretmez. Canlı komut mevcut `.env`/sağlayıcı
-ayarlarını kullanır; gerçek sağlayıcı kotası tüketir.
+ayarlarını kullanır; yalnızca sağlayıcıya başvurulursa gerçek kotayı tüketir.
 
 Raporda yapısal kabul ve bu senaryonun ilerleme ölçütü ayrıdır. Ölçüt şunları ister:
 
@@ -223,3 +225,36 @@ cevaplanmış sorunun model isteğinde açık soru olarak kalmadığını, yeni 
 ve hedef değişikliğinin seçenekleri yeniden açtığını kontrol eder. Takip raporu
 artık `research_context` altında kısıtı, açık soruları ve öneri durumlarını;
 `validation.runtime.decision_schema` altında kullanılan şemayı kaydeder.
+
+## report(10): null yerine gerekçeli yerel inceleme
+
+Canlı modelin null yanıtı geçerli biçimdedir fakat araştırmayı ilerletmemiştir;
+bu eski sonuç regresyon fixture'ında başarısız olarak korunur. Üretim mentorunda
+artık `mentor_local_progress_service` küçük, kanıta dayalı bir adımı modelden önce
+seçebilir. Bu bir model hatasını sessizce düzeltme veya başarılı model cevabı
+uydurma değildir; önerinin kaynağı ayrı kaydedilir.
+
+İlk desteklenen geçiş: kullanıcı yönlendirme isterken hedef tanımı sağlanamıyorsa,
+güncel ve sürümü bilinen df'deki filtresiz hedef eksik sayımı pozitifse, eksik
+hedef satırlarının ilk beşini bütün sütunlarıyla incelemek. Daha önce aynı
+kapsamda eksik örnek önizlemesi kaydedilmişse veya bekleyen bir inceleme varsa bu
+adım yeniden önerilmez. Sıfır sayım, yardımcı sütun sayımı, filtreli grup,
+bilinmeyen/eski kapsam ve yalnız açıklama talebi yerel adım için uygun sayılmaz.
+Diğer durumlar mevcut planlayıcı yolunda kalır; genel bir görev doldurucusu yoktur.
+
+Üretilen yerel karar da aynı derleyici ve kanıt/odak/tekrar/kod denetiminden geçer.
+Hiçbir kod çalıştırılmaz, veri doldurulmaz/silinmez ve bir neden tahmin edilmez.
+`validation.origin=local_progress_policy`, `provider_calls=0`, boş
+`model_attempts` ve ayrı `local_plan`/`local_proposal` gerçek kaynağı gösterir.
+Takip testi yerel öneriyi de aynı ilerleme ölçütleriyle inceler ve konsolda AI
+çağrısı yapılmadığını açıkça yazar. Bu sonucun anlamı hibrit mentorun bu küçük
+adımı sunabilmesidir; canlı LLM kalitesi veya proje tamamlanması değildir.
+
+Gerçek üretim takip komutu yerelde kaynak turuyla çalıştırıldı; beş ilerleme
+ölçütü geçti, sağlayıcı çağrısı yapılmadı. Üç veri yapısı/üç dil, kapsam sınırları,
+tekrar önleme ve özel karakterli sütunun doğru satır seçimi ayrıca test edildi.
+Sağlayıcı hatası testleri, model yolunu bağımsız sınamak için yerel politikayı
+bilerek devre dışı bırakır; yerel politikanın üretim testlerinde modelden başarılı
+yanıt taklit edilmez. Gerçek veride sonraki hücre/çıktı ve aşamalar arası rehberlik
+hâlâ ayrı kabul çalışmalarını gerektirir. Notebook araştırma bayrağı varsayılan
+olarak kapalı kalır; diğer aşamaların mentor akışı bu kuralla değişmez.

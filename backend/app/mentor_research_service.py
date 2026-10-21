@@ -25,6 +25,7 @@ from backend.app.mentor_pedagogy_contract import is_mentor_reply_review_request
 from backend.app.mentor_observation_contract import observation_contract
 from backend.app.mentor_grounded_reply import compile_reply
 from backend.app.mentor_research_store import load_research_state, save_research_state
+from backend.app.mentor_local_progress_service import plan_missing_preview
 
 
 class StrictModel(BaseModel):
@@ -684,6 +685,24 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
         return {"tr": "Son hücrenin kodunu ve çıktısını bu inceleme yolunda güvenle eşleştiremiyorum veya çıktı güncel değil. Bu nedenle sonucu yorumlamıyor ve yeni işlem önermiyorum. Mevcut veriler değişmedi.",
                 "en": "The latest code and output cannot be safely matched by this review path, or the output is stale. No interpretation or new action is being presented; data is unchanged.",
                 "nl": "De laatste code en uitvoer zijn hier niet veilig te koppelen of de uitvoer is verouderd. Er wordt geen interpretatie of nieuwe opdracht gegeven; de gegevens zijn ongewijzigd."}[state["response_language"]]
+    local_plan = None if is_mentor_reply_review_request(message) else plan_missing_preview(state, message)
+    if local_plan is not None:
+        decision = GroundedResearchDecision.model_validate(local_plan)
+        compiled, local_errors = compile_reply(expand_research_decision(decision, state), state, message)
+        if compiled is not None:
+            local_errors.extend(validate_turn(compiled, state, message))
+        if compiled is not None and not local_errors:
+            state.setdefault('proposals', []).append({**compiled.next_action.model_dump(), 'status': 'proposed'})
+            state['proposals'] = state['proposals'][-12:]
+            state['open_questions'] = [compiled.next_action.instruction]
+            state['last_validation'] = {
+                'accepted': True, 'origin': 'local_progress_policy', 'policy': 'missing_examples_v1',
+                'provider_calls': 0, 'model_attempts': [], 'local_plan': local_plan,
+                'local_proposal': compiled.model_dump(), 'rendering_contract': 'grounded-v1',
+                'model_factual_prose_published': False,
+            }
+            save_research_state(workspace_id, notebook_id, state)
+            return render_turn(compiled, state, message)
     payload = build_research_request(context, state, message, history)
     payload["response_language"] = state["response_language"]
     runtime = get_ai_runtime("mentor")

@@ -78,7 +78,9 @@ def test_schema_still_allows_no_new_task_for_explanation_or_insufficient_evidenc
     assert result.next_action is None
 
 
-def test_followup_uses_context_schema_and_records_resolved_state(source,tmp_path):
+def test_followup_uses_context_schema_and_records_resolved_state(source,tmp_path,monkeypatch):
+    # The provider path still needs coverage when the local policy has no step.
+    monkeypatch.setattr('backend.app.mentor_research_service.plan_missing_preview',lambda *args: None)
     def respond(*args,**kwargs):
         payload=json.loads(kwargs['input'])
         assert kwargs['text_format'] is GroundedInspectionDecision

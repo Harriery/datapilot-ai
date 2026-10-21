@@ -16,6 +16,13 @@ from backend.benchmarks.run_mentor_clarification_followup import (
 )
 
 
+@pytest.fixture(autouse=True)
+def provider_planner_path(monkeypatch):
+    # This module exercises provider rejection/repair, independently of the
+    # separately tested deterministic progression policy.
+    monkeypatch.setattr('backend.app.mentor_research_service.plan_missing_preview',lambda *args: None)
+
+
 @pytest.fixture
 def source(tmp_path):
     data=json.loads((Path(__file__).parent/'fixtures/research_clarification_source.json').read_text(encoding='utf-8'))

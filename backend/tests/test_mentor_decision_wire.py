@@ -21,6 +21,8 @@ from backend.benchmarks.run_mentor_clarification_followup import validate_source
 
 @pytest.fixture(autouse=True)
 def memory(tmp_path,monkeypatch):
+    # Exercise wire parsing even where the production local policy could act.
+    monkeypatch.setattr('backend.app.mentor_research_service.plan_missing_preview',lambda *args: None)
     monkeypatch.setattr(database,'DATABASE_PATH',tmp_path/'wire.sqlite')
     database.init_db()
 

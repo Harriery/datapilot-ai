@@ -1,0 +1,99 @@
+{
+  "source": "Actual report(10), 2026-10-21; structurally accepted null is not progress",
+  "validation": {
+    "accepted": true,
+    "attempts": 1,
+    "model_attempts": [
+      {
+        "attempt": 1,
+        "raw_plan": {
+          "next_action": null,
+          "evidence_ids": [
+            "8c67f8d112ebcdcdcab3"
+          ]
+        },
+        "proposal": {
+          "next_action": null,
+          "answer": "Seçilen satırlar: notebook’taki mevcut df satırları. Ölçülen sütun: `temperature`. Bu gruptaki kayıtlı eksik değer sayısı: **5000**.",
+          "claims": [
+            {
+              "text": "Bu çıktılar eksikliğin nedenini veya bir iş kuralını tek başına kanıtlamaz. Araştırma hedefi değişmedi.",
+              "kind": "limitation",
+              "evidence_ids": [
+                "8c67f8d112ebcdcdcab3"
+              ],
+              "coverage": "shown_output"
+            }
+          ]
+        },
+        "visible_proposal": null,
+        "normalizations": [],
+        "provider_recovery": null,
+        "response_metadata": {
+          "status": "completed",
+          "input_tokens": 1809,
+          "output_tokens": 88,
+          "total_tokens": 1897,
+          "reasoning_tokens": 47
+        },
+        "errors": []
+      }
+    ],
+    "runtime": {
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "decision_schema": "GroundedInspectionDecision",
+      "max_output_tokens": 1500,
+      "reasoning": {
+        "effort": "low"
+      }
+    },
+    "rendering_contract": "grounded-v1",
+    "model_factual_prose_published": false
+  },
+  "evidence_snapshot": {
+    "notebook_id": "n1",
+    "dataset_kind": "working",
+    "configured_development_rows": 10000,
+    "current_input_version": "isolated-fixture-v1",
+    "latest_cell": {
+      "cell_id": "c0",
+      "section_title": "temperature",
+      "code": "df[\"temperature\"].isna().sum()",
+      "last_execution": {
+        "success": true,
+        "output": "5000",
+        "input_row_count": 10000,
+        "input_total_row_count": 10000,
+        "input_data_version": "isolated-fixture-v1",
+        "dataset_kind": "working",
+        "executed_at": "2026-10-18T10:00:00"
+      }
+    },
+    "recent_cells": [
+      {
+        "cell_id": "c0",
+        "section_title": "temperature",
+        "code": "df[\"temperature\"].isna().sum()",
+        "last_execution": {
+          "success": true,
+          "output": "5000",
+          "input_row_count": 10000,
+          "input_total_row_count": 10000,
+          "input_data_version": "isolated-fixture-v1",
+          "dataset_kind": "working",
+          "executed_at": "2026-10-18T10:00:00"
+        }
+      }
+    ],
+    "quality_checks": [],
+    "available_columns": [
+      "temperature",
+      "offline",
+      "latency",
+      "status_reason"
+    ]
+  },
+  "message": "Bilmiyorum, veri sözlüğüm de yok. Mevcut veriye bakarak araştırmaya devam edebilir miyiz? Kod vermeden tek bir küçük adımla yönlendir.",
+  "progress_passed": false
+}

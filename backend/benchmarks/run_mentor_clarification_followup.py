@@ -103,8 +103,9 @@ def progression_checks(validation: dict, context: dict) -> dict[str, bool]:
     """Do not label a repeated clarification as successful research progress."""
     action = None
     attempts = validation.get("model_attempts") or []
-    if validation.get("accepted") is True and attempts:
-        proposal = attempts[-1].get("proposal")
+    if validation.get("accepted") is True:
+        proposal = (validation.get('local_proposal') if validation.get('origin') == 'local_progress_policy'
+                    else attempts[-1].get('proposal') if attempts else None)
         if proposal:
             try:
                 action = ResearchTurn.model_validate(proposal).next_action
@@ -147,7 +148,7 @@ def run_followup(source: Path, case: str, output_root: Path, *, live: bool):
             database.DATABASE_PATH = folder / "isolated-followup.sqlite"
             database.init_db()
             save_research_state(context["workspace_id"], "n1", state)
-            print("Reused one locally revalidated clarification turn; requesting one follow-up attempt.", flush=True)
+            print("Reused one locally revalidated clarification turn; running the production Mentor follow-up (at most one provider attempt).", flush=True)
             try:
                 report["reply"] = generate_research_reply(context, FOLLOWUP_MESSAGE, history, max_attempts=1)
                 report["status"] = "completed"
@@ -166,6 +167,10 @@ def run_followup(source: Path, case: str, output_root: Path, *, live: bool):
                                       for item in saved_state.get("proposals", [])[-4:]],
             }
             report["validation"] = validation
+            report['guidance_origin'] = validation.get('origin', 'provider_planner')
+            if validation.get('origin') == 'local_progress_policy':
+                report['mode'] = 'local_clarification_followup'
+                report['provider_calls'] = 0
             report["progress_checks"] = progression_checks(validation, context)
             report["followup_tested"] = report["status"] == "completed"
             report["progress_passed"] = report["followup_tested"] and all(report["progress_checks"].values())
@@ -184,7 +189,7 @@ def main(argv=None):
     parser.add_argument("--source-root", type=Path, default=Path("backend/benchmarks/results/research-acceptance"))
     parser.add_argument("--output-dir", type=Path, default=Path("backend/benchmarks/results/clarification-followup"))
     parser.add_argument("--case", choices=tuple(CASES), default="sensors")
-    parser.add_argument("--live", action="store_true", help="Use configured AI for one new follow-up attempt; consumes provider quota.")
+    parser.add_argument("--live", action="store_true", help="Run the production Mentor follow-up. A local evidence step uses no AI; otherwise at most one provider attempt consumes quota.")
     args = parser.parse_args(argv)
     load_dotenv()
     try:
@@ -198,6 +203,8 @@ def main(argv=None):
         return 0
     for key, passed in report["progress_checks"].items():
         print(f"{key}: {passed}", flush=True)
+    if report.get('guidance_origin') == 'local_progress_policy':
+        print('Guidance came from the local evidence policy; no provider call was made. This does not prove live model progression.', flush=True)
     print("Progress criterion passed; human guidance review remains required." if report["progress_passed"]
           else "Progress criterion not passed; inspect the actual proposal and reply.", flush=True)
     if report["status"] == "interrupted":
