@@ -125,12 +125,54 @@ def test_structural_acceptance_does_not_mask_failure_to_advance(source,tmp_path,
          patch('backend.app.mentor_research_service.guarded_responses_parse',side_effect=model_response(kind)) as model:
         report,_=run_followup(source,'sensors',tmp_path/'out',live=True)
     assert model.call_count==1 and report['progress_passed'] is False
-    if kind in ('clarify',None,'all_rows'):
+    if kind in (None,'all_rows'):
         assert report['progress_checks']['structurally_accepted'] is True
     else:
         assert report['progress_checks']['structurally_accepted'] is False
     if kind=='all_rows':assert report['progress_checks']['selects_rows_with_missing_target'] is False
     if kind=='clarify':assert report['progress_checks']['proposes_an_inspection'] is False
+
+
+def test_actual_repeated_dictionary_request_is_rejected_without_publishing_it(source,tmp_path):
+    # report(7): a real accepted clarification was followed by the same question
+    # after the learner explicitly said the dictionary was unavailable.
+    with patch('backend.app.mentor_research_service.get_ai_runtime',return_value=runtime()), \
+         patch('backend.app.mentor_research_service.guarded_responses_parse',side_effect=model_response('clarify')) as model:
+        report,_=run_followup(source,'sensors',tmp_path/'out',live=True)
+    assert model.call_count==1
+    assert report['validation']['accepted'] is False
+    trace=report['validation']['model_attempts'][0]
+    assert trace['raw_plan']['next_action']['kind']=='clarify'
+    assert any('already cannot supply' in error for error in trace['errors'])
+    assert 'veri sözlüğündeki tanımını' not in report['reply']
+    assert report['progress_passed'] is False
+
+
+def test_bounded_repair_can_continue_with_a_new_inspection(source,tmp_path,monkeypatch):
+    from backend.app.mentor_research_service import generate_research_reply
+    from backend.app.mentor_research_store import save_research_state
+    context,state,history=validate_source_report(source,'sensors')
+    monkeypatch.setattr(database,'DATABASE_PATH',tmp_path/'repair.sqlite')
+    database.init_db()
+    save_research_state(context['workspace_id'],'n1',state)
+    responses=iter([model_response('clarify'),model_response('inspect')])
+    def respond(*args,**kwargs):
+        payload=json.loads(kwargs['input'])
+        assert payload['definition_availability']['status']=='unavailable'
+        if 'repair_required' in payload:
+            assert any('already cannot supply' in error for error in payload['repair_required'])
+        return next(responses)(*args,**kwargs)
+    with patch('backend.app.mentor_research_service.get_ai_runtime',return_value=runtime()), \
+         patch('backend.app.mentor_research_service.guarded_responses_parse',side_effect=respond) as model:
+        reply=generate_research_reply(context,FOLLOWUP_MESSAGE,history)
+    assert model.call_count==2
+    saved=load_research_state(context['workspace_id'],'n1')
+    assert saved['last_validation']['accepted'] is True
+    assert saved['last_validation']['model_attempts'][0]['errors']
+    assert saved['definition_availability']['status']=='unavailable'
+    assert saved['proposals'][-1]['kind']=='inspect'
+    assert 'ilk 5 satırı görüntüle' in reply
+    assert 'df[' not in reply
 
 
 def test_interrupt_keeps_diagnostics_and_restores_original_database(source,tmp_path):

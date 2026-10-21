@@ -12,6 +12,7 @@ from copy import deepcopy
 import hashlib
 import json
 import re
+import unicodedata
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -103,6 +104,39 @@ def fields_in_code(code: str) -> list[str]:
             if node.func.attr in {"groupby", "sort_values"} and node.args:
                 add_literals(node.args[0])
     return list(dict.fromkeys(fields))
+
+
+def update_definition_availability(state: dict, message: str) -> None:
+    """Remember an explicit answer to the definition question, per research focus.
+
+    This records a learner constraint, never a domain fact. Ambiguous wording
+    leaves the state unchanged; an explicit later source discovery can reopen it.
+    """
+    text = ''.join(c for c in unicodedata.normalize('NFKD', message.casefold())
+                   if not unicodedata.combining(c)).replace('ı', 'i').replace('’', "'")
+    source = r'(?:veri\s+sozlu\w*|data[ -]?dictionary|gegevenswoordenboek|bronbeschrijving)'
+    unavailable = bool(re.search(
+        source + r'.{0,45}?(?:\byok\b|\belimde degil\b|\bnot available\b|\bunavailable\b|\bniet beschikbaar\b|\bheb ik niet\b)'
+        r'|(?:\bno\b|\bgeen\b|\bi (?:do not|don\x27t) have\b).{0,30}?' + source,
+        text,
+    ))
+    proposals = state.get('proposals') or []
+    pending = bool(proposals and proposals[-1].get('kind') == 'clarify'
+                   and proposals[-1].get('focus_column') == state.get('focus_column'))
+    unknown_answer = pending and bool(re.match(
+        r'\s*(?:bilmiyorum\b|emin degilim\b|i (?:do not|don\x27t) know\b|'
+        r'ik weet (?:het|dat) niet\b|dat weet ik niet\b|weet ik niet\b)', text,
+    ))
+    found = bool(re.search(
+        source + r'.{0,25}?(?:\bbuldum\b|\belimde\b|\bavailable\b|\bgevonden\b|\bbeschikbaar\b)'
+        r'|\bi (?:found|have)\b.{0,30}?' + source, text,
+    ))
+    if unavailable or unknown_answer or found:
+        state['definition_availability'] = {
+            'focus_column': state.get('focus_column'),
+            'status': 'unavailable' if unavailable or unknown_answer else 'available',
+            'source': 'explicit_learner_response',
+        }
 
 
 def _evidence(notebook: dict) -> list[dict]:
@@ -203,6 +237,7 @@ def prepare_research_context(notebook: dict, message: str, state: dict | None = 
         ):
             pending["status"] = "observed"
     state["current_evidence_ids"] = [item["id"] for item in evidence]
+    update_definition_availability(state, message)
     return state
 
 
@@ -216,6 +251,7 @@ def build_research_request(context: dict, state: dict, message: str, history: li
         "message": message[:2000], "project_goal": str(context.get("task_brief") or "")[:500],
         "learner_setup": context.get("mentor_setup"), "focus": state.get("focus_column"),
         "research_goal": state["goal"], "open_questions": state["open_questions"],
+        "definition_availability": state.get("definition_availability"),
         "available_columns": state.get("available_columns", [])[:100],
         "current_observations": current[:6],
         "earlier_checks": [{key: x.get(key) for key in (
@@ -263,6 +299,14 @@ Supported operations: missing counts, single- or multiple-column value_counts, h
 min/max/mean/median/count/nunique on literal direct df selections. Filters may
 use literal comparisons, isna/notna and parenthesized &/|/~ conditions.
 Do not repeat already executed calculations. Do not transform data.
+Respect definition_availability: when unavailable, do not ask again for a data
+dictionary or treat it as a prerequisite for every exploratory inspection.
+The learner's "I don't know" answers the clarification; it is not a request to
+repeat it. Continue with a small supported read-only inspection using existing
+columns, preserving focus and uncertainty about domain meaning. If the current
+observation is a positive missing count, inspecting a few rows where that target
+is missing can add context without asserting a cause. Do not repeat that preview
+if already observed, invent a column meaning, or suggest filling/deleting values.
 For self-review or an explanation without a requested next task: next_action=null.
 If a useful inspection cannot be justified, choose clarify or null. Never invent
 new work just to fill the field. At most one action. Instruction/why are internal
@@ -373,6 +417,10 @@ def validate_turn(turn: ResearchTurn, state: dict, message: str) -> list[str]:
         errors.append("User-visible response language does not match the requested language")
     action = turn.next_action
     if action:
+        definition = state.get("definition_availability") or {}
+        if (action.kind == "clarify" and definition.get("status") == "unavailable"
+                and definition.get("focus_column") == state.get("focus_column")):
+            errors.append("The learner already cannot supply the definition; do not repeat that clarification. Choose a justified new inspection or no action")
         if is_mentor_reply_review_request(message):
             errors.append("Self review must not assign a new task")
         if not state.get("focus_column"):

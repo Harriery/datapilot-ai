@@ -72,6 +72,41 @@ def test_explicit_learner_topic_switch_changes_focus():
     assert updated["proposals"] == []
 
 
+@pytest.mark.parametrize('message',[
+    'Bilmiyorum, veri sözlüğüm de yok. Devam edelim.',
+    'Veri sozlugum yok.',
+    "I don't have a data dictionary. Can we investigate?",
+    'I have no data dictionary.',
+    'Ik heb geen gegevenswoordenboek.',
+    'Het gegevenswoordenboek is niet beschikbaar.',
+    'Bilmiyorum.', "I don't know.", 'Dat weet ik niet.',
+])
+def test_unavailable_definition_is_a_persistent_constraint_not_an_unanswered_question(message):
+    s=state()
+    s['proposals']=[{'kind':'clarify','focus_column':'sensor_value'}]
+    updated=prepare_research_context(notebook(),message,s)
+    assert updated['definition_availability']['status']=='unavailable'
+    later=prepare_research_context(notebook(),'Sonucu gördün mü?',updated)
+    assert later['definition_availability']==updated['definition_availability']
+    switched=prepare_research_context(notebook(),'helper sütununa geçelim',later)
+    assert 'definition_availability' not in switched
+
+
+@pytest.mark.parametrize('message',[
+    'Veri sözlüğünü buldum.', 'I found the data dictionary.',
+    'Het gegevenswoordenboek gevonden.',
+])
+def test_newly_found_definition_reopens_source_discussion(message):
+    s=state()
+    s['definition_availability']={'focus_column':'sensor_value','status':'unavailable'}
+    assert prepare_research_context(notebook(),message,s)['definition_availability']['status']=='available'
+
+
+@pytest.mark.parametrize('message',['No missing values here.', 'Bilmiyorum.', 'Bu sütunda sorun yok.'])
+def test_ambiguous_or_unrelated_negatives_do_not_change_definition_state(message):
+    assert 'definition_availability' not in prepare_research_context(notebook(),message,state())
+
+
 def test_valid_focus_related_action_is_accepted():
     s = state()
     assert validate_turn(proposal(s), s, "Sırada ne var?") == []

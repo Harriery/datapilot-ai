@@ -1,6 +1,6 @@
 # Mentor: güncel durum ve kabul ölçütleri
 
-Güncelleme: 21 Ekim 2026. Çalışma dalı: `mentor/reliability-review`.
+Güncelleme: 21 Ekim 2026. Kullanıcı kararıyla çalışma dalı artık `main`.
 Flight projesi beklemede. Ana hedef, acemi kullanıcının uygulamadaki mentorla
 veriyi tanımadan proje çıktılarının tamamlanmasına kadar ilerleyebilmesidir.
 Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin yerine geçmez.
@@ -12,7 +12,7 @@ Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin ye
 | Notebook kapsamı | Kullanıcı 10.000 satırın uygulamada göründüğünü doğruladı. Yürütmenin kendi kapsamı kaydediliyor. | Örneklem, mevcut df ve tam kaynak ayrımını uzun araştırmada korumak. |
 | Sayımı açıklama | 21 Ekim canlı `report(6)` denemesinde 5.000 eksik `temperature` sayımı tek denemede doğru gösterildi. Kaynak tur test fixture'ında saklı. | Diğer desteklenen işlemleri ve gerçek kullanıcı sorularını doğrulamak. |
 | Yardımcı kontrolün satır grubu | AST sözleşmesi ve gerçek `report(5)` regresyonları, seçilen grubu ölçülen sütundan ayırıyor. Sıfır için boş grup olasılığı belirtiliyor. | Birbirine bağlı canlı incelemelerde aynı disiplini korumak. |
-| Kaynak açıklaması isteme | `report(6)` model önerisi veri sözlüğünü sordu. | Kullanıcı açıklamayı bilmiyorsa araştırmayı sürdürebilmek. Yeni takip testi bunu ölçer; canlı sonucu henüz yok. |
+| Kaynak açıklaması isteme | `report(6)` veri sözlüğünü sordu. Canlı `report(7)`, kullanıcı sözlüğün olmadığını söylediğinde aynı sorunun tekrarlandığını ve ilerlemenin başarısız olduğunu gösterdi. | Aynı soruyu reddeden yeni bellek/denetim düzeltmesinden sonra canlı ilerlemeyi doğrulamak. |
 | Araştırmayı ilerletme | Sabit model yanıtlarıyla üç bağlı yerel kontrolün çıktıları sonraki adıma taşındı. | Canlı mentorun önerileriyle aynı ilerlemeyi göstermek. |
 | Temizleme/dönüşüm kararı | Yeni inceleme yolu otomatik dönüşüm önerisini kabul etmez. | Kanıta ve kullanıcı hedefine dayalı karar, uygulama ve sonuç doğrulaması. |
 | SQL, veri modeli, KPI, dashboard, insights, docs | Önceki ürün yolları mevcut. Bu çalışma bunları kapsamlı biçimde yeniden doğrulamadı. | Aşamalar arası mentor rehberliğini ve kullanıcıya faydayı sınamak. |
@@ -21,7 +21,7 @@ Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin ye
 ## Aktif kod yolu
 
 Yeni notebook araştırma yolu `AI_NOTEBOOK_RESEARCH_ENABLED` bayrağına bağlıdır;
-varsayılanı kapalıdır. Kodun dalda bulunması, normal UI sohbetinin bu yolu kullandığı
+varsayılanı kapalıdır. Kodun `main`de bulunması, normal UI sohbetinin bu yolu kullandığı
 anlamına gelmez. Kabul komutları yeni servisi doğrudan çağırır ve bu bayrağı açmaz.
 Diğer ürün aşamaları kendi mevcut mentor yollarında çalışmaya devam eder.
 Normal kullanıcı akışını açmak ayrı bir kabul kararıdır.
@@ -134,7 +134,44 @@ verileri bu testte açılmaz.
 
 ## Git üzerinden çalışma
 
-Kaynak kodu, testler ve bu durum belgesi açıklamalı commit'lerle aynı geliştirme
-dalında tutulur. Kullanıcı güncellemeyi Git üzerinden alır. Test sonuçları, aktarım
+Kaynak kodu, testler ve bu durum belgesi açıklamalı commit'lerle `main`de tutulur.
+Yeni çalışma dalı açılmaz. `main`de bulunmak ürünün hazır olduğu anlamına gelmez;
+deneysel notebook yolu, kabulü tamamlanana kadar mevcut bayrağıyla kapalı kalır.
+Kullanıcı güncellemeyi Git üzerinden alır. Test sonuçları, aktarım
 ZIP'leri ve eski yama dosyaları kaynak commit'lerine eklenmez. Her çalışma birimi
 bir kullanıcı davranışı ve onun kabul ölçütüyle değerlendirilir.
+
+Eski dalların ayrı commit'leri otomatik olarak ürüne birleştirilmez. Temizlik aracı
+önce bütün commit uçlarını GitHub `archive/<zaman>/...` etiketlerine taşır ve proje
+klasörünün dışında doğrulanmış bir `.bundle` yedeği oluşturur. Ardından `main`
+dışındaki remote dalları atomik ve SHA kontrollü siler; değişmiş bir dal silinmez.
+Yerel dallar da arşivlenir. Kaydedilmemiş kaynak değişikliği, yarım merge/rebase
+ve ek worktree varsa işlem durur. Takipsiz rapor/ZIP/veri dosyaları silinmez;
+Git bundle bu takipsiz dosyaların yedeği değildir. Arşivdeki bağımsız özellikler
+gerektiğinde incelenip ayrı commit olarak `main`e alınabilir.
+
+```powershell
+python scripts/consolidate_git_branches.py
+python scripts/consolidate_git_branches.py --apply
+```
+
+İlk komut yalnızca inceler; ikinci komut kullanıcının GitHub yazma yetkisiyle
+arşivler ve temizler. Önce güncel `main` alınmalıdır.
+
+## report(7) sonrasındaki konuşma düzeltmesi
+
+Eski kabul denetimi aynı `clarify` sorusunu geçirebiliyordu. Yeni düzen, kullanıcı
+tanımı/sözlüğü sağlayamadığını açıkça söylediğinde bunu aktif hedefe ait bir kısıt
+olarak saklar, sonraki istekte modele iletir ve aynı sözlük sorusunu reddeder.
+Hedef değiştiğinde kısıt taşınmaz; kullanıcı sözlüğü sonradan bulduğunu söylerse
+yeniden kaynak görüşmesi yapılabilir. Belirsiz veya ilgisiz olumsuz ifadelerden
+otomatik iş kuralı çıkarılmaz. TR/EN/NL açık yanıtları için sınırlı yerel tanıma
+vardır; bu bir genel doğal dil anlama garantisi değildir.
+
+Mevcut `clarify` gösterimi yalnızca veri sözlüğü sorusu üretebilir; bu nedenle bu
+kısıt altında `clarify` kabul edilmez. Öneri, mevcut normal en fazla iki denemelik
+akışta düzeltilebilir; model yine uygun inceleme seçmezse rehberlik başarısız
+olarak gösterilir. Sessizce hazır bir inceleme eklenmez ve veri çalıştırılmaz.
+Yerel test, gerçek hatanın tekrarını reddetmeyi ve kontrollü ikinci önerinin yeni
+incelemeye dönüşmesini doğrular. Gerçek modelin sonraki canlı yanıtı henüz
+ölçülmedi; projenin tamamlanması hâlâ kanıtlanmış değildir.
