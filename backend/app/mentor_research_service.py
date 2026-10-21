@@ -22,10 +22,11 @@ from backend.app.ai_provider_service import get_ai_runtime
 from backend.app.ai_usage_guard import guarded_responses_parse, get_ai_usage_limits
 from backend.app.mentor_evidence_contract import NOTEBOOK_EVIDENCE_RULES
 from backend.app.mentor_pedagogy_contract import is_mentor_reply_review_request
-from backend.app.mentor_observation_contract import observation_contract
+from backend.app.mentor_observation_contract import observation_contract, expression_contract
 from backend.app.mentor_grounded_reply import compile_reply
 from backend.app.mentor_research_store import load_research_state, save_research_state
-from backend.app.mentor_local_progress_service import plan_missing_preview
+from backend.app.mentor_local_progress_service import plan_missing_preview, plan_preview_continuation
+from backend.app.mentor_preview_evidence_service import preview_contradicts_selection
 
 
 class StrictModel(BaseModel):
@@ -143,6 +144,12 @@ def code_signature(code: str) -> str:
     return digest(normalized)
 
 
+def inspection_signature(code: str) -> str | None:
+    """Recognize supported equivalent selections, including head() vs head(5)."""
+    contract = expression_contract(code)
+    return None if contract.get('supported') is False else digest(contract)
+
+
 def fields_in_code(code: str) -> list[str]:
     # Extract literal column references, not arbitrary string constants.
     try:
@@ -248,13 +255,14 @@ def _evidence(notebook: dict) -> list[dict]:
             or (run.get("processed_dataset_id") != notebook.get("processed_dataset_id")
                 and run.get("dataset_kind") == "processed")
         )
-        items.append({
+        preview_rows = run.get('preview_rows')
+        item = {
             "id": key, "cell_id": cell.get("cell_id"), "section_title": cell.get("section_title"),
             "code": code[:1600], "signature": code_signature(code),
             "analysis_contract": observation_contract(code, run) if not cell.get("code_truncated") else {"supported": False, "reason": "recorded code was truncated"},
             "fields": fields_in_code(code), "success": run.get("success") is True,
             "output": str(run.get("output") or "")[:1000],
-            "preview_rows": (run.get("preview_rows") or [])[:5],
+            "preview_rows": preview_rows[:5] if isinstance(preview_rows, list) else [],
             "input_rows": input_rows, "dataset_kind": run.get("dataset_kind"),
             "input_data_version": run.get("input_data_version"),
             "version_verified": bool(run.get("input_data_version") and notebook.get("current_input_version")),
@@ -263,7 +271,10 @@ def _evidence(notebook: dict) -> list[dict]:
                        "head/preview is illustrative, not population evidence",
                        "value_counts excludes missing values unless dropna=False",
                        "printed ... means omitted values, not a complete distribution"],
-        })
+        }
+        if preview_contradicts_selection(item):
+            item['analysis_contract'] = {'supported': False, 'reason': 'recorded preview rows contradict the missing-target selection'}
+        items.append(item)
     return items[:8]
 
 
@@ -312,13 +323,22 @@ def prepare_research_context(notebook: dict, message: str, state: dict | None = 
         "What do the observations establish about the active target?",
         "What evidence or documented definition is missing before a treatment decision?",
     ]
+    observed_questions = set()
     for pending in state.get("proposals", []):
+        semantic = inspection_signature(pending.get('code') or '')
         if pending.get("code") and any(
             item["success"] and not item["stale_scope"]
-            and item["signature"] == code_signature(pending["code"])
+            and (item["signature"] == code_signature(pending["code"])
+                 or semantic is not None and semantic == inspection_signature(item['code']))
             for item in evidence
         ):
             pending["status"] = "observed"
+            if pending.get('instruction'):
+                observed_questions.add(pending['instruction'])
+    if observed_questions:
+        state['open_questions'] = [q for q in state['open_questions'] if q not in observed_questions] or [
+            'Which new supported observation can advance the active research focus?'
+        ]
     state["current_evidence_ids"] = [item["id"] for item in evidence]
     update_definition_availability(state, message)
     return state
@@ -557,11 +577,13 @@ def validate_turn(turn: ResearchTurn, state: dict, message: str) -> list[str]:
                 if state.get("focus_column") not in fields:
                     errors.append("Inspection code omits the active target")
                 signature = code_signature(action.code)
+                semantic = inspection_signature(action.code)
                 current_scopes = {(x["input_rows"], x["dataset_kind"], x["input_data_version"]) for x in evidence.values()
                                   if x["id"] in current_ids and not x["stale_scope"]}
                 for item in evidence.values():
                     same_scope = (item["input_rows"], item["dataset_kind"], item["input_data_version"]) in current_scopes
-                    if item["signature"] == signature and item["success"] and not item["stale_scope"] and same_scope and item["input_rows"] is not None:
+                    equivalent = item['signature'] == signature or semantic is not None and semantic == inspection_signature(item['code'])
+                    if equivalent and item["success"] and not item["stale_scope"] and same_scope and item["input_rows"] is not None:
                         errors.append("Calculation already completed in current evidence")
     return list(dict.fromkeys(errors))
 
@@ -666,7 +688,7 @@ def research_response_metadata(response) -> dict:
     return result
 
 
-def generate_research_reply(context: dict, message: str, history: list[dict], *, request_pacer=None, max_attempts=2) -> str | None:
+def generate_research_reply(context: dict, message: str, history: list[dict], *, request_pacer=None, max_attempts=2, allow_provider=True) -> str | None:
     if type(max_attempts) is not int or max_attempts not in (1, 2):
         raise ValueError("Research model attempts must be 1 or 2")
     notebook = (context.get("artifacts") or {}).get("selected_notebook")
@@ -686,23 +708,34 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
                 "en": "The latest code and output cannot be safely matched by this review path, or the output is stale. No interpretation or new action is being presented; data is unchanged.",
                 "nl": "De laatste code en uitvoer zijn hier niet veilig te koppelen of de uitvoer is verouderd. Er wordt geen interpretatie of nieuwe opdracht gegeven; de gegevens zijn ongewijzigd."}[state["response_language"]]
     local_plan = None if is_mentor_reply_review_request(message) else plan_missing_preview(state, message)
+    local_policy = 'missing_examples_v1'
+    if local_plan is None and not is_mentor_reply_review_request(message):
+        local_plan = plan_preview_continuation(state, message)
+        local_policy = 'preview_review_v1' if local_plan is not None and local_plan['next_action'] is None else 'preview_distribution_v1'
     if local_plan is not None:
         decision = GroundedResearchDecision.model_validate(local_plan)
         compiled, local_errors = compile_reply(expand_research_decision(decision, state), state, message)
         if compiled is not None:
             local_errors.extend(validate_turn(compiled, state, message))
         if compiled is not None and not local_errors:
-            state.setdefault('proposals', []).append({**compiled.next_action.model_dump(), 'status': 'proposed'})
-            state['proposals'] = state['proposals'][-12:]
-            state['open_questions'] = [compiled.next_action.instruction]
+            if compiled.next_action is not None:
+                state.setdefault('proposals', []).append({**compiled.next_action.model_dump(), 'status': 'proposed'})
+                state['proposals'] = state['proposals'][-12:]
+                state['open_questions'] = [compiled.next_action.instruction]
             state['last_validation'] = {
-                'accepted': True, 'origin': 'local_progress_policy', 'policy': 'missing_examples_v1',
+                'accepted': True, 'origin': 'local_progress_policy', 'policy': local_policy,
                 'provider_calls': 0, 'model_attempts': [], 'local_plan': local_plan,
                 'local_proposal': compiled.model_dump(), 'rendering_contract': 'grounded-v1',
                 'model_factual_prose_published': False,
             }
             save_research_state(workspace_id, notebook_id, state)
             return render_turn(compiled, state, message)
+    if not allow_provider:
+        state['last_validation'] = {'accepted': False, 'origin': 'local_probe', 'provider_calls': 0,
+                                    'model_attempts': [], 'errors': ['No justified local step; provider disabled for this probe']}
+        save_research_state(workspace_id, notebook_id, state)
+        copy = RESEARCH_COPY[state['response_language']]
+        return copy['blocked'] + ' ' + copy['focus'] + str(state.get('focus_column') or copy['unknown'])
     payload = build_research_request(context, state, message, history)
     payload["response_language"] = state["response_language"]
     runtime = get_ai_runtime("mentor")

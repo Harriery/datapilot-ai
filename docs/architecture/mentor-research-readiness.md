@@ -16,6 +16,7 @@ Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin ye
 | İnceleme kararını aktarma | Canlı `report(8)` eksik hedef satırlarının önizlemesini seçti; eski şemada iç evidence_ids eksik olduğu için reddedildi. Yeni küçük sözleşmeyle aynı kod yerelde değişmeden kabul ediliyor. | Gerçek modelin yeni sözleşmeyle tek denemede geçerli karar vermesini ve sonraki çıktıyı doğru yorumlamasını doğrulamak. |
 | Cevaplanan soruyu kapatma | Canlı `report(9)` yeni şemaya uydu ama yine clarify seçti; tekrar denetimi bunu reddetti. İncelemede sözlük kısıtı kaydedilirken eski sorunun açık ve önerinin proposed kaldığı görüldü. | Düzeltilen soru yaşam döngüsü ve bağlama göre daraltılan işlem şemasıyla canlı ilerlemeyi doğrulamak. |
 | Güvenle seçilebilen küçük adım | `report(10)` kapanmış sorudan sonra null döndürdü; geçerli biçim ilerleme sağlamadı. Yeni yerel kural, güncel pozitif eksik sayımından ilk eksik örnekleri önermeyi gerçek üretim takip komutunda AI çağrısı olmadan geçti. | Kullanıcının bu adımı uygulamasını ve sonraki çıktıyla araştırmanın doğru sürmesini doğrulamak. Bu sonuç canlı modelin ilerlediğini kanıtlamaz. |
+| Birbirine bağlı çıktı takibi | Üç sentetik şemada üretim mentorunun gerçek önerisi sınırlı yorumlayıcıyla uygulanıp sonraki hücreye kaydedildi: sayım → 5 eksik örnek → yardımcı dağılım → yalnız açıklama. Yerel zincir sağlayıcısız geçti. | Gerçek acemi UI kullanımı, belirsiz yardımcı seçimi ve daha uzun/diğer aşamalardaki rehberlik. |
 | Araştırmayı ilerletme | Sabit model yanıtlarıyla üç bağlı yerel kontrolün çıktıları sonraki adıma taşındı. | Canlı mentorun önerileriyle aynı ilerlemeyi göstermek. |
 | Temizleme/dönüşüm kararı | Yeni inceleme yolu otomatik dönüşüm önerisini kabul etmez. | Kanıta ve kullanıcı hedefine dayalı karar, uygulama ve sonuç doğrulaması. |
 | SQL, veri modeli, KPI, dashboard, insights, docs | Önceki ürün yolları mevcut. Bu çalışma bunları kapsamlı biçimde yeniden doğrulamadı. | Aşamalar arası mentor rehberliğini ve kullanıcıya faydayı sınamak. |
@@ -258,3 +259,50 @@ bilerek devre dışı bırakır; yerel politikanın üretim testlerinde modelden
 yanıt taklit edilmez. Gerçek veride sonraki hücre/çıktı ve aşamalar arası rehberlik
 hâlâ ayrı kabul çalışmalarını gerektirir. Notebook araştırma bayrağı varsayılan
 olarak kapalı kalır; diğer aşamaların mentor akışı bu kuralla değişmez.
+
+## Bağlı önizleme ve dağılım kontrolü
+
+Yerel devam kuralı kaydedilmiş örneklerin gerçekten hedefi eksik satırlar olduğunu
+kontrol eder. En çok beş örnekte, en çok iki yardımcı sütunun görünen değerlerini
+ayrı bir gözlem olarak sayar. "5 örnekte 2 true/3 false", eksik grubun tamamının
+dağılımı olarak sunulmaz. Kodun eksik filtrelediğini söylemesine rağmen kayıtlı
+örneklerde hedef doluysa yürütme/önizleme uyuşmazlığı sayılır ve AI çağrısı
+yapılmadan yorum durur. Eksik/uygunsuz metadata'dan bir dağılım tahmin edilmez.
+
+Bir sonraki yerel dağılım adımı için kullanıcı açıkça tek bir görünen yardımcı
+sütun seçebilir. Seçmediyse yalnız örneklerde tam olarak tek boolean aday varsa
+bu aday kullanılır. True/False'a iş anlamı atanmaz; sayısal 0/1 veya "True"
+metni boolean kabul edilmez. Birden fazla aday olduğunda rastgele tercih yapılmaz.
+Adım mevcut df içinde hedefi eksik grubun yardımcı değerlerini dropna=False ile
+sayar; diğer hedef grubuyla ilişki veya nedensellik bu kontrolden çıkarılmaz.
+Daha önce kaydedilmiş dağılım/pending inceleme tekrar önerilmez. Sadece sonuç
+açıklaması isteyen mesajda yeni görev verilmez.
+
+Desteklenen ifadenin anlamsal seçimi de karşılaştırılır: head() ve head(5),
+df[mask] ve df.loc[mask] gibi desteklenen eşdeğerler yapılmış görevi observed
+durumuna geçirir. Tamamlanan görevin eski yönergesi açık sorulardan çıkar.
+Bu sınırlı parser bütün Python ifadelerinin eşdeğerliğini kanıtlamaz.
+
+Yeni doğrulama komutu AI çağrısını açıkça kapatır:
+
+```powershell
+python -m backend.benchmarks.run_mentor_connected_followup
+```
+
+Komut her çalışmada ayrı test SQLite dosyası ve 10.000 satırlık sentetik veriler
+kullanır. Sonraki çıktılar önceden yerleştirilmez: üretim mentorunun önerdiği kodun
+desteklenen seçim sözleşmesi yalnızca beş eksik örnek/tek yardımcı dağılım için
+yorumlanır. eval veya genel Python çalıştırması yoktur. Çıkan veri gerçekten
+sonraki notebook hücresine kaydedilir ve tekrar üretim mentoruna verilir.
+Öneri sözleşmenin dışına çıkarsa veya yerel adım bulunmazsa test durur; sağlayıcıya
+sessizce geçmez. `allow_provider=False` yalnız bu çevrimdışı çağrı için kullanılır;
+normal ürün çağrısının varsayılan sağlayıcı davranışı korunur.
+
+Her şemada hedef, son çıktının kullanılması, yalnız eksik örnek seçimi, yardımcı
+dağılımının bağımsız referansla eşleşmesi, açıklama isteğinde görev olmaması ve
+ham çerçevenin değişmemesi kontrol edilir. Sonuçlar
+`backend/benchmarks/results/connected-followup/<zaman>/report.json` altındadır.
+Rapor local üretim zinciri olduğunu açıkça yazar; acemi kullanıcı, gerçek büyük
+veri, canlı LLM, aşamalar arası pedagojik yarar veya proje bitirme kanıtı değildir.
+Kodun gizli planını test yürütücüsünün uygulayabilmesi, acemi kullanıcının aynı
+adımı arayüzde yardımsız uygulayabildiğini göstermemektedir.

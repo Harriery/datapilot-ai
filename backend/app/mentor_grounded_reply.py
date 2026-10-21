@@ -2,6 +2,7 @@
 from copy import deepcopy
 
 from backend.app.mentor_observation_contract import expression_contract, observation_text, predicate_label, field_label
+from backend.app.mentor_preview_evidence_service import preview_summary, missing_preview_rows, preview_contradicts_selection
 
 
 def predicate_columns(where):
@@ -30,6 +31,8 @@ def compile_reply(plan, state, message):
             errors.append('Selected observation is failed or stale')
         if not (item.get('analysis_contract') or {}).get('supported'):
             errors.append('Selected expression/output has no supported observation contract')
+        if preview_contradicts_selection(item):
+            errors.append('Recorded preview rows contradict the missing-target selection')
     if errors:
         return None, list(dict.fromkeys(errors))
     # Latest first, at most two earlier observations: bounded, no recap loop.
@@ -48,6 +51,9 @@ def compile_reply(plan, state, message):
                    'nl':f' Deze hulpcontrole selecteert geen rijen met ontbrekende {field_label(focus)}; voor die rijen volgt niet dezelfde conclusie.'}[language]
     claims=[ResearchClaim(text=observation_text(item['analysis_contract'],language),kind='observation',
                           evidence_ids=[item['id']],coverage='shown_output') for item in selected[1:]]
+    summary = preview_summary(selected[0], language)
+    if summary:
+        claims.append(ResearchClaim(text=summary, kind='observation', evidence_ids=[selected[0]['id']], coverage='shown_output'))
     claims.append(ResearchClaim(text={
         'tr':'Bu çıktılar eksikliğin nedenini veya bir iş kuralını tek başına kanıtlamaz. Araştırma hedefi değişmedi.',
         'en':'These outputs alone establish neither the cause of missingness nor a business rule. The research focus is unchanged.',
@@ -79,6 +85,18 @@ def compile_reply(plan, state, message):
             action.why={'tr':f'Bu kontrol {field_label(focus)} araştırmasına ek bir gözlem sağlar; tek başına neden-sonuç ilişkisini kanıtlamaz.',
                         'en':f'This adds an observation to the {field_label(focus)} investigation; it does not alone prove causation.',
                         'nl':f'Dit voegt een waarneming toe aan het onderzoek naar {field_label(focus)}; het bewijst op zichzelf geen oorzakelijk verband.'}[language]
+            rows = missing_preview_rows(selected[0])
+            measured = contract.get('measured_columns') or []
+            if (contract['operation'] == 'distribution' and len(measured) == 1 and rows
+                    and measured[0] in rows[0] and contract['row_predicate'] == {'op': 'missing', 'column': focus}):
+                helper = field_label(measured[0])
+                preview_why = {
+                    'tr': f'Örneklerde gördüğümüz {helper} değerlerinin, mevcut df içinde {field_label(focus)} eksik olan grubun tamamındaki dağılımını inceleyeceğiz. Bu, tek başına eksikliğin nedenini açıklamaz.',
+                    'en': f'We will inspect the distribution of the observed {helper} values across the whole missing-{field_label(focus)} group in the current df. This alone does not explain the cause.',
+                    'nl': f'We bekijken de verdeling van de waargenomen {helper}-waarden in de hele groep met ontbrekende {field_label(focus)} in de huidige df. Dit verklaart op zichzelf niet de oorzaak.',
+                }[language]
+                if len(preview_why) <= 400:
+                    action.why = preview_why
         elif action.kind=='clarify':
             action.instruction={'tr':f'{field_label(focus)} sütununun veri sözlüğündeki tanımını ve hangi koşullarda boş kalmasının beklendiğini biliyor musun? Varsa kaynak açıklamasını paylaş.',
                                 'en':f'Do you know the data-dictionary definition of {field_label(focus)} and when it is expected to be missing? Share the source definition if available.',
