@@ -111,6 +111,11 @@ def build_relevant_workspace_artifacts(
             "truncated": len(findings) > 8,
         }
 
+    # Selected Notebook is relevant even when the active product path is
+    # unavailable: do not hide persisted evidence from an explicit question.
+    if selected_notebook_state is not None:
+        artifacts["selected_notebook"] = selected_notebook_state
+
     if _has_prefix(paths, "prepare.workbench"):
         artifacts["workbench_operations"] = [
             _dump(item)
@@ -245,6 +250,7 @@ def build_chat_mentor_workspace_context(
         build_trusted_notebook_state(
             workspace=workspace,
             ui_context=ui_context,
+            learner_message=message,
         )
     )
 

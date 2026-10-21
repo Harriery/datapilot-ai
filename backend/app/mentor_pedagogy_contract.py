@@ -78,3 +78,62 @@ def enforce_discovery_contract(message: str, reply: str) -> str:
         "İlk olarak veri profilinde hangi gözlemi incelememiz gerektiğini "
         "düşünüyorsun?"
     )
+
+
+# A review of Mentor's OWN preceding claim is not a request for another
+# learning assignment. Never hard-code dataset-specific column meanings here.
+_REPLY_REVIEW_MARKERS = (
+    "önceki açıklaman doğru",
+    "önceki cevabın doğru",
+    "önceki açıklaman yanlış",
+    "önceki cevabın yanlış",
+    "hatalı cevap verdin",
+    "yanlış söyledin",
+    "was your previous answer correct",
+    "was your earlier answer correct",
+    "your previous answer was wrong",
+    "you were wrong",
+    "önceki cevabını yeniden değerlendir",
+    "önceki cevabını teknik olarak yeniden değerlendir",
+    "önceki yanıtını yeniden değerlendir",
+    "önceki açıklamanı yeniden değerlendir",
+    "review your previous answer",
+    "re-evaluate your previous answer",
+)
+_UNSOLICITED_NEXT_STEP = re.compile(
+    r"(?im)^\s*(?:\*\*)?\s*(?:bir sonraki(?: küçük)? adım|"
+    r"sıradaki(?: küçük)? adım|next step|yeni görev)"
+    r"\s*(?:\*\*)?\s*[:：]"
+)
+
+
+def is_mentor_reply_review_request(message: str) -> bool:
+    """Explicit request to audit or correct Mentor's prior answer."""
+    normalized = message.casefold()
+    if any(marker in normalized for marker in _REPLY_REVIEW_MARKERS):
+        return True
+    earlier = any(term in normalized for term in (
+        "az önce", "biraz önce", "daha önce", "earlier you", "you said",
+    ))
+    assistant_claim = any(term in normalized for term in (
+        "söyledin", "dedin", "cevabın", "açıklaman",
+        "you said", "your answer", "your explanation",
+    ))
+    disputed = any(term in normalized for term in (
+        "doğru", "yanlış", "hata", "correct", "wrong", "mistake",
+    ))
+    return earlier and assistant_claim and disputed
+
+
+def enforce_reply_review_contract(message: str, reply: str) -> str:
+    """Preserve actual correction, strip unsolicited follow-up assignments.
+
+    No automatic 'you were wrong' is inserted: the previous claim may have
+    been right and only the AI plus trusted context can judge that.
+    """
+    if not is_mentor_reply_review_request(message):
+        return reply
+    match = _UNSOLICITED_NEXT_STEP.search(reply)
+    if match and reply[:match.start()].strip():
+        return reply[:match.start()].rstrip()
+    return reply

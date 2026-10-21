@@ -32,6 +32,7 @@ def build_trusted_notebook_state(
     *,
     workspace: Workspace,
     ui_context: dict | None,
+    learner_message: str = "",
 ) -> dict | None:
     selected_id = (
         (ui_context or {}).get(
@@ -54,43 +55,134 @@ def build_trusted_notebook_state(
     if notebook is None:
         return None
 
+    # Notebook evidence is persisted by the app; this is a READ-ONLY snapshot.
+    # Recent executions and saved review notes should survive chat history
+    # truncation. Never treat an execution result as full-dataset validation.
     executed_cells = [
-        cell
-        for cell in notebook.cells
-        if isinstance(
-            cell.last_execution,
-            dict,
-        )
+        (index, cell)
+        for index, cell in enumerate(notebook.cells)
+        if isinstance(cell.last_execution, dict)
     ]
-
-    latest_cell = None
-    if executed_cells:
-        latest = max(
-            executed_cells,
-            key=lambda cell: str(
-                (
-                    cell.last_execution
-                    or {}
-                ).get(
-                    "executed_at",
-                    "",
-                )
-            ),
+    executed_cells.sort(
+        key=lambda pair: (
+            str(pair[1].last_execution.get("executed_at") or ""),
+            pair[0],
         )
-        latest_cell = {
-            "cell_id": latest.cell_id,
-            "code": latest.code[-4000:],
-            "last_execution": latest.last_execution,
+    )
+
+    def _cell_snapshot(cell):
+        return {
+            "cell_id": cell.cell_id,
+            "code": cell.code[-1600:],
+            "last_execution": cell.last_execution,
         }
+
+    latest_cell = (
+        _cell_snapshot(executed_cells[-1][1])
+        if executed_cells else None
+    )
+    # Prefer executed cells that explicitly mention fields in the learner's
+    # current question; the last N cells alone can miss an earlier finding.
+    # This is retrieval, not a dataset-specific rule or a new computation.
+    import re
+    terms = {
+        token.casefold()
+        for token in re.findall(r"\b[A-Za-z][A-Za-z0-9_]{2,}\b", learner_message)
+    }
+    known_columns = set()
+    profile = getattr(workspace, "dataset_profile", None) or {}
+    if isinstance(profile, dict):
+        known_columns = {
+            str(column).casefold()
+            for column in (profile.get("columns") or [])
+        }
+    requested_fields = terms & known_columns
+    if not requested_fields:
+        # Not every workspace has a populated profile; quoted/exact names
+        # from executable notebook code are still useful retrieval keys.
+        used_fields = set()
+        for _, cell in executed_cells:
+            used_fields.update(
+                match.casefold() for match in re.findall(
+                    r"""['"]([A-Za-z_][A-Za-z0-9_]*)['"]""",
+                    cell.code,
+                )
+            )
+        requested_fields = terms & used_fields
+    ranked = list(reversed(executed_cells))
+    related = [
+        pair for pair in ranked
+        if any(re.search(r"(?<!\w)" + re.escape(field) + r"(?!\w)",
+                         pair[1].code, re.IGNORECASE)
+               for field in requested_fields)
+    ]
+    selected_pairs = []
+    chosen_ids = set()
+    # One best visible observation for each requested column, then other
+    # related cells, then recent context; preserve chronological ordering.
+    for field in sorted(requested_fields):
+        for pair in related:
+            if pair[1].cell_id in chosen_ids:
+                continue
+            if re.search(r"(?<!\w)" + re.escape(field) + r"(?!\w)",
+                         pair[1].code, re.IGNORECASE):
+                selected_pairs.append(pair)
+                chosen_ids.add(pair[1].cell_id)
+                break
+    for pair in related + ranked:
+        if len(selected_pairs) >= 8:
+            break
+        if pair[1].cell_id not in chosen_ids:
+            selected_pairs.append(pair)
+            chosen_ids.add(pair[1].cell_id)
+    recent_cells = [_cell_snapshot(cell) for _, cell in selected_pairs[:8]]
+
+    # Quality Checks are optional for pre-feature Notebook objects.
+    checks = list(getattr(notebook, "quality_checks", None) or [])
+    checks.sort(key=lambda check: str(
+        check.get("observed_at", "") if isinstance(check, dict)
+        else getattr(check, "observed_at", "")
+    ), reverse=True)
+    if requested_fields:
+        def _check_relevance(check):
+            item = check if isinstance(check, dict) else (
+                check.model_dump() if hasattr(check, "model_dump") else {}
+            )
+            text = " ".join(str(item.get(key) or "") for key in (
+                "title", "note", "result_summary",
+            )).casefold()
+            return sum(field in text for field in requested_fields)
+        checks.sort(key=_check_relevance, reverse=True)
+    recorded_checks = []
+    for check in checks[:5]:
+        item = (
+            check if isinstance(check, dict)
+            else check.model_dump() if hasattr(check, "model_dump")
+            else {}
+        )
+        recorded_checks.append({
+            key: item.get(key)
+            for key in (
+                "check_id", "title", "section_title", "note",
+                "result_summary", "status", "sample_row_count",
+                "total_row_count", "dataset_kind", "observed_at",
+            )
+            if item.get(key) is not None
+        })
 
     return {
         "notebook_id": notebook.notebook_id,
         "name": notebook.name,
         "dataset_kind": notebook.dataset_kind,
-        "processed_dataset_id":
-            notebook.processed_dataset_id,
+        "processed_dataset_id": notebook.processed_dataset_id,
         "cell_count": len(notebook.cells),
         "latest_cell": latest_cell,
+        "recent_cells": recent_cells,
+        "quality_checks": recorded_checks,
+        "evidence_scope": (
+            "Persisted Notebook executions and user-recorded Quality Checks; "
+            "these are observations, not independent full-data verification."
+        ),
     }
 
 

@@ -164,6 +164,7 @@ for _cell in _codes:
     _language = _cell.get("cell_type", "python")
     _stdout = io.StringIO()
     _expression_kind = "none"
+    _result_df = None
 
     try:
         with contextlib.redirect_stdout(_stdout):
@@ -224,6 +225,8 @@ for _cell in _codes:
                         if isinstance(_value, pd.DataFrame)
                         else "scalar"
                     )
+                    if isinstance(_value, pd.DataFrame):
+                        _result_df = _value
             else:
                 exec(compile(_tree, "<notebook>", "exec"), _env, _env)
 
@@ -231,8 +234,11 @@ for _cell in _codes:
         if not isinstance(_df, pd.DataFrame):
             raise TypeError("Notebook code must leave df as a pandas DataFrame.")
 
+        # A DataFrame expression returns its own rows, not all working df rows.
+        # Retain the working df in _env for downstream Notebook cells.
+        _display_df = _result_df if _result_df is not None else _df
         _results.append({
-            "rows": json.loads(_df.to_json(orient="records")),
+            "rows": json.loads(_display_df.to_json(orient="records")),
             "output": _stdout.getvalue(),
             "expressionKind": _expression_kind,
             "success": True,

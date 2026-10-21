@@ -1,3 +1,9 @@
+from backend.app.mentor_prompt_context_service import (
+    compact_mentor_workspace_context,
+    compact_mentor_history,
+    compact_mentor_review_history,
+)
+from backend.app.mentor_pedagogy_contract import is_mentor_reply_review_request
 import json
 from backend.app.models import (
     MentorDecision,
@@ -18,6 +24,11 @@ import pandas as pd
 from backend.app.transformation_validation_service import (
     validate_transformation_for_finding,
 )
+from openai import APIStatusError
+import logging
+
+mentor_logger = logging.getLogger("uvicorn.error")
+
 from backend.app.ai_usage_guard import (
     guarded_responses_create,
     guarded_responses_parse,
@@ -504,65 +515,20 @@ def generate_mentor_response(
         indent=2,
     )   
 
-    # Limit context to the current project and the evidence necessary for
-    # this turn. Full workspace artifacts are already stored server-side.
-    recent_history = (conversation_history or [])[-4:]
-    conversation_history_text = json.dumps(
-        [
-            {
-                "role": item.get("role"),
-                "content": str(item.get("content") or "")[-1200:],
-            }
-            for item in recent_history
-        ],
-        ensure_ascii=False,
-        separators=(",", ":"),
+    # An explicit self-review must include the Mentor's own actual previous
+    # answer, not just its final 700 characters. Other turns stay short.
+    is_self_review = is_mentor_reply_review_request(current_message)
+    selected_history = (
+        compact_mentor_review_history(conversation_history)
+        if is_self_review else compact_mentor_history(conversation_history)
     )
-
-    source_context = workspace_context or {}
-    compact_workspace = {
-        key: source_context.get(key)
-        for key in (
-            "workspace_id", "title", "task_brief", "desired_outcome",
-            "project_type", "mentor_setup", "dataset_filename",
-            "dataset_profile_summary", "sampling_context",
-            "verified_action_evidence",
-            "local_investigation",
-            "development_sample_size", "current_step", "checkpoint",
-            "mentor_execution_context",
-        )
-        if source_context.get(key) is not None
-    }
-    ui = source_context.get("ui_context") or {}
-    compact_workspace["ui_context"] = {
-        key: ui.get(key)
-        for key in (
-            "active_workspace_stage", "active_prepare_stage",
-            "workbench_view", "selected_workbench_column",
-        )
-        if ui.get(key) is not None
-    }
-    artifacts = source_context.get("artifacts") or {}
-    # Preserve the stage-specific evidence contract (model, KPI, analysis,
-    # dashboard etc.), but do not send complete large artifacts.
-    compact_artifacts = {}
-    for key, value in artifacts.items():
-        if key in {"dataset_profile", "dataset_analysis", "selected_notebook"}:
-            compact_artifacts[key] = value
-            continue
-        serialized = json.dumps(
-            value, ensure_ascii=False, separators=(",", ":"), default=str
-        )
-        compact_artifacts[key] = (
-            value if len(serialized) <= 1800
-            else {"preview": serialized[:1800], "truncated": True}
-        )
-    compact_workspace["artifacts"] = compact_artifacts
+    conversation_history_text = json.dumps(
+        selected_history,
+        ensure_ascii=False, separators=(",", ":"),
+    )
     workspace_context_text = json.dumps(
-        compact_workspace,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        default=str,
+        compact_mentor_workspace_context(workspace_context),
+        ensure_ascii=False, separators=(",", ":"), default=str,
     )
 
     current_step = (workspace_context or {}).get("current_step")
@@ -614,10 +580,20 @@ def generate_mentor_response(
         "active_processed_dataset_id":
             (workspace_context or {}).get("active_processed_dataset_id"),
     }
+    # Product metadata and execution diagnosis are duplicated in other
+    # context channels. Keep this state summary bounded as well.
+    mentor_state["notebooks"] = [
+        {"notebook_id": item.get("notebook_id"), "name": item.get("name")}
+        for item in notebook_summaries[:6] if isinstance(item, dict)
+    ]
+    mentor_state["product_context"] = (
+        str(mentor_state.get("product_context") or "")[:350]
+    )
+    mentor_state["execution_context"] = (
+        str(mentor_state.get("execution_context") or "")[:600]
+    )
     mentor_state_text = json.dumps(
-        mentor_state,
-        ensure_ascii=False,
-        indent=2,
+        mentor_state, ensure_ascii=False, separators=(",", ":"), default=str,
     )
 
     #BU MESAJDA hangi yardım seviyesinde davranacağıni belirliyoruz.
@@ -647,6 +623,18 @@ def generate_mentor_response(
     Sen DataPilot'un kıdemli Data Engineering mentorusun. Oyuncak bir chatbot gibi davranma.
 
     Soru önceliği ve güvenilirlik:
+    - Kullanıcı önceki Mentor cevabının doğru olup olmadığını soruyorsa bu bir
+      SELF-REVIEW (önceki cevabı denetleme) isteğidir, yeni analiz görevi değildir.
+      Previous Conversation içindeki son assistant yanıtını gerçekte ne söylediğini
+      belirlemek için kullan; başka bir turdaki eski yanlışını buna atfetme.
+      Önce kendi önceki iddianı kullanıcının verdiği kanıtlarla karşılaştır.
+      Geçmiş alıntısı eksik/kesilmişse görünmeyen iddialar uydurma.
+      Yanlışsa açıkça "Önceki açıklamam yanlıştı" de ve doğru açıklamayı yap.
+      Doğruysa nedenini açıkla. Emin değilsen belirsizliği dürüstçe belirt.
+      Kullanıcı açıkça istemedikçe yeni kontrol, kod, çalışma görevi,
+      alıştırma veya "bir sonraki adım" önerme; cevapla ve dur.
+      Bu kural GUIDE/TEACH/NONE gibi genel yardım seviyesi talimatlarından
+      ve her turda yeni soru sorma alışkanlığından önceliklidir.
     - Kullanıcı proje amacını, Mentor Setup tercihlerini, tam veri profilini veya development sample'ı
       soruyorsa önce ilgili sorularını Current Workspace alanlarından tek tek yanıtla.
       Ardından öğretim tercihine uygun tek bir küçük soru sor. Soruyu cevapsız bırakıp
@@ -662,6 +650,16 @@ def generate_mentor_response(
       güncelliği doğrulanmamış kayıtlardır; sayıyı kesin gerçek gibi sunma.
       Refresh edilmiş veya yeni hesaplanmış doğrulanmış profil dışında eski duplicate
       bulgularına dayanarak yönlendirme yapma.
+    - Notebook geçmişini soran kullanıcı için selected_notebook.latest_cell
+      yalnızca en son gözlemdir; selected_notebook.recent_cells ve quality_checks
+      kayıtlarını da incele. Yalnızca son hücreye dayanıp eski gözlemleri yok sayma.
+    - Quality Checks kullanıcı tarafından kaydedilmiş örneklem bulgularıdır;
+      bu notları silme, tam veri üzerinde doğrulanmış gibi sunma.
+    - Her bir sütunun değerini ayrı değerlendir. Bir alandan başka bir alanın
+      durumunu veya sebebini çıkarma; koşullu "eğer X=0 ise..." önerilerini
+      kayıtlı X=1 kanıtıyla çelişiyorsa ileri sürme.
+    - Kullanıcı önceki incelemeleri özetlemeni istiyorsa doğrulanabilen gözlemleri
+      ve henüz kanıtlanmamış açıklamaları açıkça ayır; görünmeyen eski kanıtı uydurma.
     - Kullanıcı Türkçe yazıyorsa Türkçe cevap ver. Kullanıcı farklı bir dil isterse onu izle.
     - verified_action_evidence yalnızca backend'in gerçekten çalıştırıp doğruladığı
       filtre, arama ve ilişki incelemelerini içerir. Burada mevcut bir filtre
@@ -805,6 +803,10 @@ def generate_mentor_response(
         "mentor"
     )
 
+    mentor_logger.info(
+        "Mentor primary request size: instructions_chars=%d input_chars=%d",
+        len(instructions), len(prompt),
+    )
     response = guarded_responses_create(
         runtime.client,
         provider=runtime.provider,
@@ -884,14 +886,24 @@ def get_mentor_response_from_message(
 
     # Junior'ın mevcut mesajı gerçek evidence içeriyorsa kaydet.
     # Sonraki mesajda mentor artık güncellenmiş state'i görecek.
-    process_learning_evidence(
-        learner_id=learner_id,
-        mentor_decision=mentor_decision,
-        current_message=current_message,
-        session_id=session_id,
-        conversation_history=conversation_history,
-        workspace_context=workspace_context,
-    )
+    try:
+        process_learning_evidence(
+            learner_id=learner_id,
+            mentor_decision=mentor_decision,
+            current_message=current_message,
+            session_id=session_id,
+            conversation_history=conversation_history,
+            workspace_context=workspace_context,
+        )
+    except APIStatusError as exc:
+        # This is secondary telemetry/progress classification, not the
+        # user-facing Mentor answer. Provider rejections must never discard
+        # an answer that was already successfully generated. Do not record
+        # fabricated evidence, advance skill state, or retry automatically.
+        mentor_logger.warning(
+            "Mentor secondary evidence classification skipped (provider_status=%d)",
+            exc.status_code,
+        )
 
     return mentor_response
 
@@ -942,51 +954,39 @@ def classify_learning_evidence(
     {learning_evidence_classifier_rules()}
     """
 
+    # This SECONDARY classifier runs after the user-facing Mentor response.
+    # Do not retransmit the full workspace or unlimited conversation.
     conversation_history_text = json.dumps(
-    conversation_history or [],
-    ensure_ascii=False,
-    indent=2,
+        compact_mentor_history(conversation_history, count=2),
+        ensure_ascii=False, separators=(",", ":"),
     )
-
+    compact = compact_mentor_workspace_context(workspace_context)
     workspace_evidence_context = {
-        "product":
-            (workspace_context or {}).get(
-                "mentor_product_context"
-            ),
-        "stage_playbooks":
-            (workspace_context or {}).get(
-                "mentor_stage_playbooks"
-            ),
-        "execution":
-            (workspace_context or {}).get(
-                "mentor_execution_context"
-            ),
-        "artifacts":
-            (workspace_context or {}).get(
-                "artifacts"
-            ),
+        "ui_context": compact.get("ui_context"),
+        "current_step": compact.get("current_step"),
+        "selected_notebook": (
+            (compact.get("artifacts") or {}).get("selected_notebook")
+        ),
     }
     workspace_evidence_text = json.dumps(
         workspace_evidence_context,
-        ensure_ascii=False,
-        default=str,
-    )[:24000]
+        ensure_ascii=False, separators=(",", ":"), default=str,
+    )[:2500]
 
     evidence_input = f"""
-    Previous Conversation:
-    {conversation_history_text}
-
-    Relevant Workspace Context:
-    {workspace_evidence_text}
-
-    Current Message:
-    {current_message}
+    Previous Conversation: {conversation_history_text}
+    Relevant Workspace Context: {workspace_evidence_text}
+    Current Message: {current_message[:1200]}
     """
 
     runtime = get_ai_runtime(
         "classifier"
     )
 
+    mentor_logger.info(
+        "Mentor secondary evidence request size: instructions_chars=%d input_chars=%d",
+        len(instructions), len(evidence_input),
+    )
     response = guarded_responses_parse(
         runtime.client,
         provider=runtime.provider,

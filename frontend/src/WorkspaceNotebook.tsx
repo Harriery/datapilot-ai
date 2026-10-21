@@ -16,6 +16,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useMemo,
 } from "react";
 
 import {
@@ -41,6 +42,23 @@ export type WorkspaceNotebookCellData = {
   } | null;
 };
 
+export type NotebookQualityCheck = {
+  check_id: string;
+  cell_id: string | null;
+  section_title: string | null;
+  title: string;
+  note: string;
+  code: string;
+  cell_type: "python" | "sql";
+  result_summary: string;
+  status: "recorded" | "sample_passed" | "needs_review";
+  sample_row_count: number;
+  total_row_count: number | null;
+  dataset_kind: "working" | "raw" | "processed";
+  processed_dataset_id: string | null;
+  observed_at: string;
+};
+
 export type WorkspaceNotebookData = {
   notebook_id: string;
   name: string;
@@ -56,6 +74,8 @@ export type WorkspaceNotebookData = {
 
   cells:
     WorkspaceNotebookCellData[];
+  quality_checks?: NotebookQualityCheck[];
+  section_mode?: "legacy" | "explicit";
 
   created_at: string;
   updated_at: string;
@@ -68,6 +88,39 @@ type ProcessedDataset = {
 
 type NotebookRunResult =
   NotebookCellRunResult;
+
+type NotebookDisplayResult = NotebookRunResult & {
+  restoredFromSave?: boolean;
+  savedRowCount?: number | null;
+};
+
+// Saved executions are persisted with their cell in the workspace. Restore
+// only that bounded snapshot; never silently rerun cells or infer full-data
+// validation from a saved sample preview.
+function restoreSavedNotebookResults(
+  cells: WorkspaceNotebookCellData[],
+): Record<string, NotebookDisplayResult> {
+  const restored: Record<string, NotebookDisplayResult> = {};
+  for (const cell of cells) {
+    const execution = cell.last_execution;
+    if (
+      !execution ||
+      typeof execution.success !== "boolean" ||
+      !["dataframe", "scalar", "none"].includes(execution.expression_kind)
+    ) {
+      continue;
+    }
+    restored[cell.cell_id] = {
+      rows: Array.isArray(execution.preview_rows) ? execution.preview_rows : [],
+      output: typeof execution.output === "string" ? execution.output : "",
+      expressionKind: execution.expression_kind,
+      success: execution.success,
+      restoredFromSave: true,
+      savedRowCount: execution.row_count ?? null,
+    };
+  }
+  return restored;
+}
 
 type Props = {
   workspaceId: string;
@@ -133,7 +186,8 @@ function WorkspaceNotebook({
       sampledRows: "sampled rows", fromTotal: "from", totalRows: "total rows",
       columns: "columns", askMentor: "Ask mentor", reviewing: "Reviewing...",
       sendPipeline: "Send to pipeline", deleteCell: "Delete cell", output: "OUTPUT",
-      addCell: "Add cell", cellLanguage: "Language", section: "Section", sectionPlaceholder: "Optional section title",
+      savedPreview: "saved preview",
+      addCell: "Add cell", sectionChoice: "Section", ungrouped: "No section", newSection: "New section", newSectionName: "New section name", cellKind: "Cell type", cellLanguage: "Language", section: "Section", sectionPlaceholder: "Optional section title",
     },
     nl: {
       notebook: "Notebook", dataset: "Dataset", working: "Ontwikkeldata / werkset",
@@ -143,7 +197,8 @@ function WorkspaceNotebook({
       sampledRows: "steekproefrijen", fromTotal: "van", totalRows: "totale rijen",
       columns: "kolommen", askMentor: "Vraag mentor", reviewing: "Beoordelen...",
       sendPipeline: "Naar pipeline", deleteCell: "Cel verwijderen", output: "UITVOER",
-      addCell: "Cel toevoegen", cellLanguage: "Taal", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
+      savedPreview: "opgeslagen voorbeeld",
+      addCell: "Cel toevoegen", sectionChoice: "Sectie", ungrouped: "Geen sectie", newSection: "Nieuwe sectie", newSectionName: "Nieuwe sectienaam", cellKind: "Celtype", cellLanguage: "Taal", section: "Sectie", sectionPlaceholder: "Optionele sectietitel",
     },
     tr: {
       notebook: "Not defteri", dataset: "Veri seti", working: "Geliştirme / çalışma verisi",
@@ -153,7 +208,8 @@ function WorkspaceNotebook({
       sampledRows: "örnek satır", fromTotal: "/", totalRows: "toplam satır",
       columns: "sütun", askMentor: "Mentora sor", reviewing: "İnceleniyor...",
       sendPipeline: "Pipeline'a gönder", deleteCell: "Cell'i sil", output: "ÇIKTI",
-      addCell: "Hücre ekle", cellLanguage: "Dil", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
+      savedPreview: "kayıtlı önizleme",
+      addCell: "Hücre ekle", sectionChoice: "Bölüm", ungrouped: "Bağımsız", newSection: "Yeni bölüm", newSectionName: "Yeni bölüm adı", cellKind: "Hücre türü", cellLanguage: "Dil", section: "Bölüm", sectionPlaceholder: "İsteğe bağlı bölüm başlığı",
     },
   }[language];
 
@@ -208,6 +264,7 @@ function WorkspaceNotebook({
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [collapsedOutputs, setCollapsedOutputs] = useState<Record<string, boolean>>({});
+  const [openLanguageMenu, setOpenLanguageMenu] = useState<string | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(
     Object.fromEntries(
       notebook.cells
@@ -216,6 +273,20 @@ function WorkspaceNotebook({
         .map((title) => [title, true])
     )
   );
+  const [qualityOpen, setQualityOpen] = useState(false);
+  const [qualityEditorId, setQualityEditorId] = useState<string | null>(null);
+  const [qualityTitle, setQualityTitle] = useState("");
+  const [qualityNote, setQualityNote] = useState("");
+  const [qualityStatus, setQualityStatus] = useState<NotebookQualityCheck["status"]>("recorded");
+  const [qualityExpandedId, setQualityExpandedId] = useState<string | null>(null);
+  const [addCellOpen, setAddCellOpen] = useState(false);
+  const [addSection, setAddSection] = useState("");
+  const [addNewSectionName, setAddNewSectionName] = useState("");
+  const [addCellType, setAddCellType] = useState<"python" | "sql" | "markdown">("python");
+  const newCellId = useRef<string | null>(null);
+  const availableSections = useMemo(() => [...new Set(
+    draft.cells.map(cell => cell.section_title?.trim()).filter((value): value is string => Boolean(value))
+  )], [draft.cells]);
   const autosaveTimer = useRef<number | null>(null);
 
   const [
@@ -250,13 +321,16 @@ function WorkspaceNotebook({
   ] = useState<
     Record<
       string,
-      NotebookRunResult
+      NotebookDisplayResult
     >
   >({});
 
   useEffect(() => {
     setDraft(notebook);
-    setResults({});
+    setAddCellOpen(false);
+    setAddSection("");
+    newCellId.current = null;
+    setResults(restoreSavedNotebookResults(notebook.cells));
     setMentorGuidance({});
     setCollapsedSections(
       Object.fromEntries(
@@ -408,6 +482,85 @@ function WorkspaceNotebook({
     setDirty(true);
   }
 
+  function explicitCells() {
+    if (draft.section_mode === "explicit") return draft.cells;
+    let current = "";
+    return draft.cells.map(cell => {
+      if (cell.section_title?.trim()) current = cell.section_title.trim();
+      return { ...cell, section_title: current || null };
+    });
+  }
+
+  function insertCell(section: string, kind: "python" | "sql" | "markdown") {
+    const normalized = section.trim();
+    if (normalized.length > 80) return;
+    const cells = explicitCells();
+    const cell = { ...createCell(kind), section_title: normalized || null };
+    let after = cells.length - 1;
+    if (normalized) {
+      const last = cells.findLastIndex(item => item.section_title === normalized);
+      if (last >= 0) after = last;
+    }
+    const updated = [...cells.slice(0, after + 1), cell, ...cells.slice(after + 1)];
+    markDraftChanged({ ...draft, section_mode: "explicit", cells: updated });
+    setCollapsedSections(prev => ({ ...prev, [normalized]: false }));
+    setAddCellOpen(false);
+    newCellId.current = cell.cell_id;
+    requestAnimationFrame(() => {
+      document.getElementById(`notebook-cell-${cell.cell_id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById(`notebook-code-${cell.cell_id}`)?.focus({ preventScroll: true });
+      newCellId.current = null;
+    });
+  }
+
+  function proposeCheckTitle(cell: WorkspaceNotebookCellData): string {
+    const comment = cell.code.split("\n").map(line => line.trim())
+      .find(line => line.startsWith("# ") || line.startsWith("-- "));
+    if (comment) return comment.replace(/^(#|--)\s*/, "").slice(0, 120);
+    const columns = [...new Set([...cell.code.matchAll(/df\[["']([^"']+)["']\]/g)].map(match => match[1]))];
+    return (columns.length ? columns.slice(0, 3).join(" / ") : "Notebook")
+      + " — quality check";
+  }
+
+  function openQualityEditor(cell: WorkspaceNotebookCellData) {
+    setQualityEditorId(cell.cell_id);
+    setQualityTitle(proposeCheckTitle(cell));
+    setQualityNote("");
+    setQualityStatus("recorded");
+  }
+
+  async function saveQualityCheck(cell: WorkspaceNotebookCellData) {
+    const result = results[cell.cell_id];
+    if (!result || result.success === false || !qualityTitle.trim()) return;
+    const summary = result.output.trim().slice(0, 1500) ||
+      (result.rows.length ? JSON.stringify(result.rows.slice(0, 5)).slice(0, 1500) : "Executed");
+    const check: NotebookQualityCheck = {
+      check_id: crypto.randomUUID(),
+      cell_id: cell.cell_id,
+      section_title: cell.section_title?.trim() || null,
+      title: qualityTitle.trim().slice(0, 120),
+      note: qualityNote.trim().slice(0, 1000),
+      code: cell.code,
+      cell_type: cell.cell_type as "python" | "sql",
+      result_summary: summary,
+      status: qualityStatus,
+      sample_row_count: inputRows.length,
+      total_row_count: inputTotalRowCount,
+      dataset_kind: draft.dataset_kind,
+      processed_dataset_id: draft.processed_dataset_id,
+      observed_at: new Date().toISOString(),
+    };
+    const saved = await saveDraft({
+      ...draft,
+      quality_checks: [...(draft.quality_checks ?? []), check],
+    });
+    if (saved) {
+      setQualityEditorId(null);
+      setQualityOpen(true);
+      setQualityExpandedId(check.check_id);
+    }
+  }
+
   function exportNotebook() {
     const payload = {
       nbformat: 4,
@@ -481,13 +634,7 @@ function WorkspaceNotebook({
               success,
               expression_kind:
                 result.expressionKind,
-              output:
-                (
-                  !success ||
-                  result.expressionKind === "scalar"
-                )
-                  ? result.output.slice(0, 1000)
-                  : null,
+              output: result.output.slice(0, 1000),
               row_count:
                 result.rows.length || null,
               columns:
@@ -586,14 +733,7 @@ function WorkspaceNotebook({
     result: NotebookRunResult,
     success = true,
   ) {
-    const compactOutput =
-      success === false
-        ? result.output.slice(0, 1000)
-        : (
-            result.expressionKind === "scalar"
-              ? result.output.slice(0, 1000)
-              : null
-          );
+    const compactOutput = result.output.slice(0, 1000);
     const previewRows =
       result.expressionKind === "dataframe"
         ? result.rows.slice(0, 5)
@@ -874,16 +1014,86 @@ function WorkspaceNotebook({
               )}
       </div>
 
+      <div className="notebook-quality-panel">
+        <button type="button" className="notebook-quality-toggle"
+          onClick={() => setQualityOpen(value => !value)}>
+          {qualityOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          Quality Checks <span>({(draft.quality_checks ?? []).length})</span>
+        </button>
+        {qualityOpen && (
+          <div className="notebook-quality-body">
+            {(draft.quality_checks ?? []).length === 0 && (
+              <p className="notebook-quality-hint">Run a Python/SQL cell, review its result, then choose “Save as Quality Check”.</p>
+            )}
+            {(() => {
+              const groups = new Map<string, NotebookQualityCheck[]>();
+              for (const check of draft.quality_checks ?? []) {
+                const section = check.section_title || "Ungrouped";
+                groups.set(section, [...(groups.get(section) ?? []), check]);
+              }
+              return [...groups].map(([section, checks]) => (
+                <div key={section} className="notebook-quality-group">
+                  <strong>{section}</strong>
+                  {checks.map(check => (
+                    <div key={check.check_id} className="notebook-quality-entry">
+                      <button type="button" className="notebook-quality-entry-head"
+                        onClick={() => setQualityExpandedId(value => value === check.check_id ? null : check.check_id)}>
+                        <span>{check.title}</span>
+                        <small>{check.status.replaceAll("_", " ")} · {check.sample_row_count.toLocaleString()} rows</small>
+                        {qualityExpandedId === check.check_id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                      {qualityExpandedId === check.check_id && (
+                        <div className="notebook-quality-detail">
+                          <div>Notebook sample: {check.sample_row_count.toLocaleString()} rows; source context: {check.total_row_count?.toLocaleString() ?? "unknown"} rows · Full-data verification: pending</div>
+                          {check.note && <p>{check.note}</p>}
+                          <pre>{check.code}</pre>
+                          <pre>{check.result_summary}</pre>
+                          <div className="notebook-quality-buttons">
+                            <button type="button" className="secondary-button"
+                              onClick={() => {
+                                if (check.cell_id) {
+                                  setCollapsedSections(previous => ({ ...previous, [check.section_title ?? ""]: false }));
+                                  requestAnimationFrame(() => document.getElementById(`notebook-cell-${check.cell_id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+                                }
+                              }}>Go to cell</button>
+                            <button type="button" className="secondary-button"
+                              onClick={() => {
+                                if (!window.confirm("Remove this saved check?")) return;
+                                markDraftChanged({ ...draft, quality_checks: (draft.quality_checks ?? []).filter(item => item.check_id !== check.check_id) });
+                              }}>Remove</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ));
+            })()}
+          </div>
+        )}
+      </div>
+
       <div className="notebook-cells">
         {(() => {
-          let activeSection = "";
-          return draft.cells.map(
-            (cell, index) => {
-              if (cell.section_title?.trim()) {
-                activeSection = cell.section_title.trim();
-              }
-
-              const sectionTitle = activeSection;
+          // Consolidate same-name sections visually; retain original cell indices for Run.
+          let currentSection = "";
+          const grouped = new Map<string, Array<{ cell: WorkspaceNotebookCellData; index: number; sectionTitle: string }>>();
+          draft.cells.forEach((cell, index) => {
+            if (draft.section_mode === "explicit") {
+              currentSection = cell.section_title?.trim() || "";
+            } else if (cell.section_title?.trim()) {
+              currentSection = cell.section_title.trim();
+            }
+            const sectionKey = currentSection || `__ungrouped_${index}`;
+            if (!grouped.has(sectionKey)) grouped.set(sectionKey, []);
+            grouped.get(sectionKey)!.push({ cell, index, sectionTitle: currentSection });
+          });
+          const displayCells = Array.from(grouped.values()).flat();
+          const renderedHeadings = new Set<string>();
+          return displayCells.map(
+            ({ cell, index, sectionTitle }) => {
+              const showSectionHeader = Boolean(sectionTitle && !renderedHeadings.has(sectionTitle));
+              if (showSectionHeader) renderedHeadings.add(sectionTitle);
               const sectionCollapsed =
                 Boolean(
                   sectionTitle &&
@@ -895,19 +1105,15 @@ function WorkspaceNotebook({
                   cell.cell_id
                 ];
 
-              if (
-                sectionCollapsed &&
-                !cell.section_title?.trim()
-              ) {
-                return null;
-              }
+              if (sectionCollapsed && !showSectionHeader) return null;
 
               return (
                 <div
                   className="notebook-cell-section-wrap"
                   key={cell.cell_id}
+                  id={`notebook-cell-${cell.cell_id}`}
                 >
-                  {cell.section_title?.trim() && (
+                  {showSectionHeader && (
                     <div className="notebook-section-header">
                       <button
                         type="button"
@@ -925,9 +1131,9 @@ function WorkspaceNotebook({
                           : <ChevronDown size={14} />}
                         <strong>{sectionTitle}</strong>
                       </button>
-                      <span>
-                        {ui.section}
-                      </span>
+                      <button type="button" className="notebook-section-add" onClick={() => insertCell(sectionTitle, "python")}>
+                        <Plus size={13} /> {ui.addCell}
+                      </button>
                     </div>
                   )}
 
@@ -962,37 +1168,53 @@ function WorkspaceNotebook({
                 </div>
 
                 <div className="notebook-cell-body">
-                  <div className="notebook-cell-language" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <label htmlFor={`cell-type-${cell.cell_id}`}>{ui.cellLanguage}</label>
-                    <select
-                      id={`cell-type-${cell.cell_id}`}
-                      value={cell.cell_type ?? "python"}
-                      disabled={runningCellId !== null}
-                      onChange={(event) => {
-                        const cellType = event.target.value as "python" | "sql" | "markdown";
-                        markDraftChanged({
-                          ...draft,
-                          cells: draft.cells.map((item) => item.cell_id === cell.cell_id
-                            ? { ...item, cell_type: cellType, last_execution: null }
-                            : item),
-                        });
-                        setResults((previous) => {
-                          const next = { ...previous };
-                          delete next[cell.cell_id];
-                          return next;
-                        });
-                      }}
-                    >
-                      <option value="python">Python</option>
-                      <option value="sql">SQL (read-only)</option>
-                      <option value="markdown">Markdown</option>
-                    </select>
+                  <div className="notebook-cell-language" onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenLanguageMenu(null);
+                  }}>
+                    <span className="notebook-language-label">{ui.cellLanguage}</span>
+                    <div className="notebook-language-select">
+                      <button type="button" className="notebook-language-trigger"
+                        aria-haspopup="listbox" aria-expanded={openLanguageMenu === cell.cell_id}
+                        aria-label={ui.cellLanguage} disabled={runningCellId !== null}
+                        onClick={() => setOpenLanguageMenu((current) => current === cell.cell_id ? null : cell.cell_id)}>
+                        <span className="notebook-language-dot" data-language={cell.cell_type ?? "python"} />
+                        {cell.cell_type === "sql" ? "SQL" : cell.cell_type === "markdown" ? "Markdown" : "Python"}
+                        <ChevronDown size={14} />
+                      </button>
+                      {openLanguageMenu === cell.cell_id && (
+                        <div className="notebook-language-menu" role="listbox" aria-label={ui.cellLanguage}>
+                          {(["python", "sql", "markdown"] as const).map((cellType) => (
+                            <button key={cellType} type="button" role="option"
+                              aria-selected={(cell.cell_type ?? "python") === cellType}
+                              className={(cell.cell_type ?? "python") === cellType ? "selected" : ""}
+                              onClick={() => {
+                                markDraftChanged({
+                                  ...draft,
+                                  cells: draft.cells.map((item) => item.cell_id === cell.cell_id
+                                    ? { ...item, cell_type: cellType, last_execution: null }
+                                    : item),
+                                });
+                                setResults((previous) => {
+                                  const next = { ...previous };
+                                  delete next[cell.cell_id];
+                                  return next;
+                                });
+                                setOpenLanguageMenu(null);
+                              }}>
+                              <span className="notebook-language-dot" data-language={cellType} />
+                              <span>{cellType === "python" ? "Python" : cellType === "sql" ? "SQL (read-only)" : "Markdown"}</span>
+                              {(cell.cell_type ?? "python") === cellType && <span className="notebook-language-check">✓</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="notebook-cell-section-editor">
                     <label>
                       <span>{ui.section}</span>
                       <input
-                        value={cell.section_title ?? ""}
+                        value={draft.section_mode === "explicit" ? (cell.section_title ?? "") : (cell.section_title ?? "")}
                         placeholder={ui.sectionPlaceholder}
                         onChange={(event) => {
                           const sectionTitle =
@@ -1000,13 +1222,10 @@ function WorkspaceNotebook({
 
                           markDraftChanged({
                             ...draft,
-                            cells: draft.cells.map((item) =>
+                            section_mode: "explicit",
+                            cells: explicitCells().map(item =>
                               item.cell_id === cell.cell_id
-                                ? {
-                                    ...item,
-                                    section_title:
-                                      sectionTitle || null,
-                                  }
+                                ? { ...item, section_title: sectionTitle || null }
                                 : item
                             ),
                           });
@@ -1016,6 +1235,7 @@ function WorkspaceNotebook({
                   </div>
 
                   <textarea
+                    id={`notebook-code-${cell.cell_id}`}
                     value={cell.code}
                     spellCheck={false}
                     onChange={(event) => {
@@ -1025,7 +1245,14 @@ function WorkspaceNotebook({
                       markDraftChanged({
                         ...draft,
                         cells: draft.cells.map((item) =>
-                          item.cell_id === cell.cell_id ? { ...item, code } : item
+                          item.cell_id === cell.cell_id
+                            ? {
+                                ...item,
+                                code,
+                                last_execution:
+                                  code === item.code ? item.last_execution : null,
+                              }
+                            : item
                         ),
                       });
 
@@ -1088,6 +1315,15 @@ function WorkspaceNotebook({
                       {ui.sendPipeline}
                     </button>
 
+                    {(cell.cell_type === "python" || cell.cell_type === "sql") && (
+                      <button type="button" className="secondary-button"
+                        disabled={!results[cell.cell_id] || results[cell.cell_id].success === false || runningCellId !== null}
+                        title="Save this executed result as a quality check"
+                        onClick={() => openQualityEditor(cell)}>
+                        <Save size={13} /> Save as Quality Check
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="notebook-cell-delete"
@@ -1102,6 +1338,27 @@ function WorkspaceNotebook({
                     </button>
                   </div>
 
+                  {qualityEditorId === cell.cell_id && (
+                    <div className="notebook-quality-editor">
+                      <strong>Save as Quality Check</strong>
+                      <label>Check name<input maxLength={120} value={qualityTitle} onChange={event => setQualityTitle(event.target.value)} /></label>
+                      <label>Decision note (optional)<textarea maxLength={1000} rows={2} value={qualityNote} onChange={event => setQualityNote(event.target.value)} /></label>
+                      <label>Review status
+                        <select value={qualityStatus} onChange={event => setQualityStatus(event.target.value as NotebookQualityCheck["status"])}>
+                          <option value="recorded">Recorded — not yet reviewed</option>
+                          <option value="sample_passed">Sample passed — reviewed</option>
+                          <option value="needs_review">Needs investigation</option>
+                        </select>
+                      </label>
+                      <small>Current result: {results[cell.cell_id]?.output.slice(0, 150) || "DataFrame result"} · {inputRows.length.toLocaleString()} Notebook rows · Full data not verified</small>
+                      <div className="notebook-quality-buttons">
+                        <button type="button" className="secondary-button" onClick={() => setQualityEditorId(null)}>Cancel</button>
+                        <button type="button" className="new-workspace-button" disabled={!qualityTitle.trim() || saving || dirty}
+                          onClick={() => void saveQualityCheck(cell)}>Save check</button>
+                      </div>
+                      {dirty && <small>Wait for the Notebook autosave to finish before saving this check.</small>}
+                    </div>
+                  )}
                   {mentorGuidance[
                     cell.cell_id
                   ] && (
@@ -1152,7 +1409,7 @@ function WorkspaceNotebook({
                         <strong>
                           {result.expressionKind === "scalar"
                             ? "value"
-                            : `${result.rows.length} rows`}
+                            : `${result.savedRowCount ?? result.rows.length} rows${result.restoredFromSave ? ` · ${ui.savedPreview}` : ""}`}
                         </strong>
                       </div>
 
@@ -1236,19 +1493,36 @@ function WorkspaceNotebook({
           );
         })()}
 
-        <button
-          type="button"
-          className="notebook-add-cell"
-          onClick={() => {
-            markDraftChanged({
-              ...draft,
-              cells: [...draft.cells, createCell()],
-            });
-          }}
-        >
-          <Plus size={14} />
-          {ui.addCell}
+        <button type="button" className="notebook-add-cell" onClick={() => setAddCellOpen(value => !value)}>
+          <Plus size={14} /> {ui.addCell}
         </button>
+        {addCellOpen && (
+          <div className="notebook-add-panel">
+            <label>{ui.sectionChoice}
+              <select value={addSection} onChange={event => setAddSection(event.target.value)}>
+                <option value="">{ui.ungrouped}</option>
+                {availableSections.map(section => <option key={section} value={section}>{section}</option>)}
+                <option value="__new__">{ui.newSection}</option>
+              </select>
+            </label>
+            {addSection === "__new__" && (
+              <input value={addNewSectionName} maxLength={80} placeholder={ui.newSectionName}
+                onChange={event => setAddNewSectionName(event.target.value)} />
+            )}
+            <label>{ui.cellKind}
+              <select value={addCellType} onChange={event => setAddCellType(event.target.value as "python" | "sql" | "markdown")}>
+                <option value="python">Python</option>
+                <option value="sql">SQL</option>
+                <option value="markdown">Markdown</option>
+              </select>
+            </label>
+            <button type="button" className="notebook-add-submit"
+              disabled={addSection === "__new__" && !addNewSectionName.trim()}
+              onClick={() => insertCell(addSection === "__new__" ? addNewSectionName : addSection, addCellType)}>
+              <Plus size={14} /> {ui.addCell}
+            </button>
+          </div>
+        )}
       </div>
 
       {message && (
