@@ -5,6 +5,7 @@ from backend.app.mentor_prompt_context_service import (
 )
 from backend.app.mentor_pedagogy_contract import is_mentor_reply_review_request
 import json
+from backend.app.mentor_evidence_contract import NOTEBOOK_EVIDENCE_RULES
 from backend.app.models import (
     MentorDecision,
     SkillDetection,
@@ -619,7 +620,7 @@ def generate_mentor_response(
         Current Message:
         {current_message}
     """
-    instructions = """
+    instructions = NOTEBOOK_EVIDENCE_RULES + """
     Sen DataPilot'un kıdemli Data Engineering mentorusun. Oyuncak bir chatbot gibi davranma.
 
     Soru önceliği ve güvenilirlik:

@@ -1,7 +1,8 @@
 """Conservative, zero-LLM dispatcher for verified local investigations.
 
 Only dispatches when a recent backend-verified missingness filter exists
-and a second column is explicitly named in the user's message. Never guesses
+and the learner explicitly requests a comparison. Notebook observations never
+inherit an Explorer filter as their target. Never guesses
 a business relationship or executes arbitrary user-provided SQL.
 """
 from __future__ import annotations
@@ -66,8 +67,12 @@ def _explicit_missingness_pair(message: str, available: list[str]) -> tuple[str,
     return target, next(col for col in mentioned if col != target)
 
 
-def dispatch_local_investigation(workspace, message: str, working_path: Path) -> dict:
+def dispatch_local_investigation(
+    workspace, message: str, working_path: Path, *, ui_context: dict | None = None,
+) -> dict:
     """Verify a specific column relationship without model calls or raw SQL."""
+    if (ui_context or {}).get("selected_notebook_id"):
+        return {"status": "not_applicable", "reason": "use_notebook_evidence"}
     if not working_path.is_file():
         return {"status": "unavailable", "reason": "no_working_dataset"}
     try:
@@ -90,9 +95,22 @@ def dispatch_local_investigation(workspace, message: str, working_path: Path) ->
         ),
         None,
     )
-    target = None
-    group_column = None
-    if recent is not None and recent.get("dataset") == "working":
+    # Naming a field is not a request to group an old investigation by it.
+    # In Notebook, even an implicit comparison must use the notebook evidence,
+    # not silently calculate against a different (working.csv) data scope.
+    explicit_pair = _explicit_missingness_pair(message, available)
+    comparison_requested = bool(re.search(
+        r"karşılaştır|karsilastir|compar|ilişki|iliski|relationship|"
+        r"(?:göre|gore|\bby\b).*(?:bak|incele|analiz|check|investigat)",
+        message, re.IGNORECASE,
+    ))
+    mentioned = [col for col in available if re.search(
+        r"(?<!\w)" + re.escape(col) + r"(?!\w)", message, re.IGNORECASE,
+    )]
+    if explicit_pair is None and mentioned and not comparison_requested:
+        return {"status": "not_applicable", "reason": "no_relationship_requested"}
+    target, group_column = explicit_pair or (None, None)
+    if target is None and comparison_requested and recent is not None and recent.get("dataset") == "working":
         if recent.get("data_version") == version:
             rules = [
                 item for item in recent["parameters"].get("filters", [])

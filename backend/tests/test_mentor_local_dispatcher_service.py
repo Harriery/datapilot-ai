@@ -70,7 +70,7 @@ def test_dispatcher_rejects_stale_filter_evidence(tmp_path):
         "optional": [None, "new"],
         "flag": [0, 1],
     }).to_csv(path, index=False)
-    result = dispatch_local_investigation(workspace, "check flag", path)
+    result = dispatch_local_investigation(workspace, "flag kolonuyla karşılaştır", path)
     assert result["status"] == "stale"
     assert len(workspace.action_evidence_events) == 1
 

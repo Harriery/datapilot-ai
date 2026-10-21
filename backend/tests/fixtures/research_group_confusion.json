@@ -1,0 +1,1317 @@
+{
+  "source": "Actual report(5), 2026-10-18; old accepted text retained verbatim",
+  "results": [
+    {
+      "case": "sensors",
+      "turns": [
+        {
+          "message": "temperature sütunundaki boşlukları araştırıyoruz. Sayımımı açıkla ve kod vermeden tek sonraki adımı söyle.",
+          "reply": "Araştırma hedefi: temperature\n\nSağlanan gözlem (id: 8c67f8d112ebcdcdcab3) kayıtlı hücre ifadesinin çıktısı 5000 olarak kaydedilmiş. Veri setinde toplam 10000 satır olduğuna göre, temperature sütununda %50 (5000 satır) eksik değer bulunuyor. Bu sadece bir sayı özetidir; eksik değerlerin nedenleri veya bir iş kuralı hakkında bilgi içermez.\n\ntemperature sütununda 5000 eksik değer var (toplam 10000 satırın %50'si).\n\nEksik temperature değerlerinin ne zaman ve neden oluştuğuna dair bir dokümantasyon veya tanım mevcut değildir; bu bilgi eksik olduğundan bir tedavi kararı verilemez.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.\n\nSonraki tek adım: temperature sütununda eksik değerlerin bulunduğu satırları inceleyerek bu satırların diğer sütunlardaki değerlerine bakın; örnek olarak ilk 10 satırı görüntüleyin.\n\nNeden: Eksik temperature değerlerinin hangi koşullarda ortaya çıktığını anlamak, olası veri toplama problemlerini veya sistematik eksiklikleri tespit etmeye yardımcı olur.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c0",
+              "section_title": "temperature",
+              "code": "df[\"temperature\"].isna().sum()",
+              "last_execution": {
+                "success": true,
+                "output": "5000",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:00:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c0",
+                "section_title": "temperature",
+                "code": "df[\"temperature\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "temperature",
+              "offline",
+              "latency",
+              "status_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "answer": "Sağlanan gözlem (id: 8c67f8d112ebcdcdcab3) df[\"temperature\"].isna().sum() ifadesinin çıktısı 5000 olarak kaydedilmiş. Veri setinde toplam 10000 satır olduğuna göre, temperature sütununda %50 (5000 satır) eksik değer bulunuyor. Bu sadece bir sayı özetidir; eksik değerlerin nedenleri veya bir iş kuralı hakkında bilgi içermez.",
+                  "claims": [
+                    {
+                      "text": "temperature sütununda 5000 eksik değer var (toplam 10000 satırın %50'si).",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "8c67f8d112ebcdcdcab3"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Eksik temperature değerlerinin ne zaman ve neden oluştuğuna dair bir dokümantasyon veya tanım mevcut değildir; bu bilgi eksik olduğundan bir tedavi kararı verilemez.",
+                      "kind": "limitation",
+                      "evidence_ids": [
+                        "8c67f8d112ebcdcdcab3"
+                      ],
+                      "coverage": "loaded_input"
+                    }
+                  ],
+                  "next_action": {
+                    "instruction": "temperature sütununda eksik değerlerin bulunduğu satırları inceleyerek bu satırların diğer sütunlardaki değerlerine bakın; örnek olarak ilk 10 satırı görüntüleyin.",
+                    "why": "Eksik temperature değerlerinin hangi koşullarda ortaya çıktığını anlamak, olası veri toplama problemlerini veya sistematik eksiklikleri tespit etmeye yardımcı olur.",
+                    "focus_column": "temperature",
+                    "columns": [
+                      "temperature"
+                    ],
+                    "kind": "inspect",
+                    "code": "df[df[\"temperature\"].isna()].head(10)",
+                    "evidence_ids": [
+                      "8c67f8d112ebcdcdcab3"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "message": "Son dağılım çıktısını açıkla. Ana araştırmayı koruyarak tek sonraki adımı söyle.",
+          "reply": "Araştırma hedefi: temperature\n\nSağlanan dağılım çıktısı, temperature değerinin eksik olduğu (NaN) satırlarda latency sütununun değerlerinin sayımını gösteriyor. -20 ile 20 arasındaki bütün çift ve tek sayılar (örneğin -20, -19, -18 … 19, 20) yaklaşık olarak aynı sıklıkta gözleniyor: çoğu değer 122 kez tekrarlanmış, sadece 17 ve 19 latency değerlerinde 121 kez görülmüş. Bu, eksik temperature değerlerinin ortaya çıktığı satırların latency dağılımının oldukça dengeli olduğunu, belirli bir latency aralığına kaymamış olduğunu gösterir. Ayrıca, temperature sütununda toplam 5000 eksik değer (NaN) olduğu (çift yarım) belirtilmiş, yani veri setinin %50'sinde temperature bilgisi bulunmuyor.\n\ntemperature NaN olan satırlarda latency değerleri -20 ile 20 arasında yaklaşık 122 kez, 17 ve 19 değerlerinde ise 121 kez görülmüş, dağılım dengelidir.\n\ntemperature sütununda eksik (NaN) değerlerin sayısı 5000, toplam satır sayısı 10000.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.\n\nSonraki tek adım: temperature sütunu NaN olan ilk 10 satırı görüntüleyin ve diğer sütunlardaki (status_reason, latency, offline) değerlerine bakın.\n\nNeden: Eksik temperature değerlerinin hangi bağlamda (status_reason, latency, offline) ortaya çıktığını görmek, olası veri toplama problemlerini tanımlamaya yardımcı olur.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c1",
+              "section_title": "temperature",
+              "code": "df.loc[df[\"temperature\"].isna(), \"latency\"].value_counts()",
+              "last_execution": {
+                "success": true,
+                "output": "latency\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:01:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c1",
+                "section_title": "temperature",
+                "code": "df.loc[df[\"temperature\"].isna(), \"latency\"].value_counts()",
+                "last_execution": {
+                  "success": true,
+                  "output": "latency\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:01:00"
+                }
+              },
+              {
+                "cell_id": "c0",
+                "section_title": "temperature",
+                "code": "df[\"temperature\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "temperature",
+              "offline",
+              "latency",
+              "status_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "answer": "Sağlanan dağılım çıktısı, temperature değerinin eksik olduğu (NaN) satırlarda latency sütununun değerlerinin sayımını gösteriyor. -20 ile 20 arasındaki bütün çift ve tek sayılar (örneğin -20, -19, -18 … 19, 20) yaklaşık olarak aynı sıklıkta gözleniyor: çoğu değer 122 kez tekrarlanmış, sadece 17 ve 19 latency değerlerinde 121 kez görülmüş. Bu, eksik temperature değerlerinin ortaya çıktığı satırların latency dağılımının oldukça dengeli olduğunu, belirli bir latency aralığına kaymamış olduğunu gösterir. Ayrıca, temperature sütununda toplam 5000 eksik değer (NaN) olduğu (çift yarım) belirtilmiş, yani veri setinin %50'sinde temperature bilgisi bulunmuyor.",
+                  "claims": [
+                    {
+                      "text": "temperature NaN olan satırlarda latency değerleri -20 ile 20 arasında yaklaşık 122 kez, 17 ve 19 değerlerinde ise 121 kez görülmüş, dağılım dengelidir.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "a24e14e17888a9831aa3"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "temperature sütununda eksik (NaN) değerlerin sayısı 5000, toplam satır sayısı 10000.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "8c67f8d112ebcdcdcab3"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ],
+                  "next_action": {
+                    "instruction": "temperature sütunu NaN olan ilk 10 satırı görüntüleyin ve diğer sütunlardaki (status_reason, latency, offline) değerlerine bakın.",
+                    "why": "Eksik temperature değerlerinin hangi bağlamda (status_reason, latency, offline) ortaya çıktığını görmek, olası veri toplama problemlerini tanımlamaya yardımcı olur.",
+                    "focus_column": "temperature",
+                    "columns": [
+                      "temperature",
+                      "status_reason",
+                      "latency",
+                      "offline"
+                    ],
+                    "kind": "inspect",
+                    "code": "df[df[\"temperature\"].isna()][[\"temperature\", \"status_reason\", \"latency\", \"offline\"]].head(10)",
+                    "evidence_ids": [
+                      "a24e14e17888a9831aa3",
+                      "8c67f8d112ebcdcdcab3"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "message": "Yardımcı kontrolü yaptım. Bu neyi kanıtlıyor, neyi kanıtlamıyor? Ana araştırmada nerede kaldık?",
+          "reply": "Araştırma hedefi: temperature\n\nYardımcı kontroller, temperature sütununda 10.000 satırın yarısında (5.000) eksik değer olduğunu, eksik temperature satırlarında latency değerlerinin -20 ile 20 arasında yaklaşık eşit dağıldığını ve offline = 1 olan satırlarda status_reason alanının eksik olmadığını gösteriyor. Ancak bu bulgular yalnızca ilgili satır ve sütunlar için geçerli \"kısmi gözlem\"dir; veri toplama süreci, neden‑sonuç ilişkileri veya bir iş kuralı hakkında tam kanıt sağlamaz. Ana araştırma hâlâ eksik temperature değerlerinin bağlamını (status_reason, latency, offline) inceleyerek nedenlerini ortaya çıkarmayı hedefliyor.\n\ntemperature sütununda 5.000 eksik (NaN) değer bulunuyor.\n\ntemperature NaN olduğunda latency değerleri -20 ile 20 arasında yaklaşık 122 kez görülüyor; 17 ve 19 değerlerinde 121 kez.\n\noffline = 1 olan satırlarda status_reason alanı hiçbir eksik (NaN) değere sahip değil.\n\nBu gözlemler, eksik temperature değerlerinin nedenini açıklamaz; sadece belirli sütun‑satır kombinasyonları için sınırlı bir kanıt sağlar.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.\n\nSonraki tek adım: temperature sütunu NaN olan ilk 10 satırı görüntüleyin ve status_reason, latency, offline sütunlarındaki değerlerine bakın.\n\nNeden: Eksik temperature değerlerinin hangi bağlamda (status_reason, latency, offline) ortaya çıktığını görmek, olası veri toplama problemlerini tanımlamaya yardımcı olur.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c2",
+              "section_title": "temperature",
+              "code": "df.loc[df[\"offline\"] == 1, \"status_reason\"].isna().sum()",
+              "last_execution": {
+                "success": true,
+                "output": "0",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:02:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c2",
+                "section_title": "temperature",
+                "code": "df.loc[df[\"offline\"] == 1, \"status_reason\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "0",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:02:00"
+                }
+              },
+              {
+                "cell_id": "c1",
+                "section_title": "temperature",
+                "code": "df.loc[df[\"temperature\"].isna(), \"latency\"].value_counts()",
+                "last_execution": {
+                  "success": true,
+                  "output": "latency\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:01:00"
+                }
+              },
+              {
+                "cell_id": "c0",
+                "section_title": "temperature",
+                "code": "df[\"temperature\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "temperature",
+              "offline",
+              "latency",
+              "status_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "answer": "Yardımcı kontroller, temperature sütununda 10.000 satırın yarısında (5.000) eksik değer olduğunu, eksik temperature satırlarında latency değerlerinin -20 ile 20 arasında yaklaşık eşit dağıldığını ve offline = 1 olan satırlarda status_reason alanının eksik olmadığını gösteriyor. Ancak bu bulgular yalnızca ilgili satır ve sütunlar için geçerli \"kısmi gözlem\"dir; veri toplama süreci, neden‑sonuç ilişkileri veya bir iş kuralı hakkında tam kanıt sağlamaz. Ana araştırma hâlâ eksik temperature değerlerinin bağlamını (status_reason, latency, offline) inceleyerek nedenlerini ortaya çıkarmayı hedefliyor.",
+                  "claims": [
+                    {
+                      "text": "temperature sütununda 5.000 eksik (NaN) değer bulunuyor.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "8c67f8d112ebcdcdcab3"
+                      ],
+                      "coverage": "loaded_input"
+                    },
+                    {
+                      "text": "temperature NaN olduğunda latency değerleri -20 ile 20 arasında yaklaşık 122 kez görülüyor; 17 ve 19 değerlerinde 121 kez.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "a24e14e17888a9831aa3"
+                      ],
+                      "coverage": "loaded_input"
+                    },
+                    {
+                      "text": "offline = 1 olan satırlarda status_reason alanı hiçbir eksik (NaN) değere sahip değil.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "dd64ad100cfa5f353431"
+                      ],
+                      "coverage": "loaded_input"
+                    },
+                    {
+                      "text": "Bu gözlemler, eksik temperature değerlerinin nedenini açıklamaz; sadece belirli sütun‑satır kombinasyonları için sınırlı bir kanıt sağlar.",
+                      "kind": "limitation",
+                      "evidence_ids": [
+                        "8c67f8d112ebcdcdcab3",
+                        "a24e14e17888a9831aa3",
+                        "dd64ad100cfa5f353431"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ],
+                  "next_action": {
+                    "instruction": "temperature sütunu NaN olan ilk 10 satırı görüntüleyin ve status_reason, latency, offline sütunlarındaki değerlerine bakın.",
+                    "why": "Eksik temperature değerlerinin hangi bağlamda (status_reason, latency, offline) ortaya çıktığını görmek, olası veri toplama problemlerini tanımlamaya yardımcı olur.",
+                    "focus_column": "temperature",
+                    "columns": [
+                      "temperature",
+                      "status_reason",
+                      "latency",
+                      "offline"
+                    ],
+                    "kind": "inspect",
+                    "code": "df[df[\"temperature\"].isna()][[\"temperature\", \"status_reason\", \"latency\", \"offline\"]].head(10)",
+                    "evidence_ids": [
+                      "8c67f8d112ebcdcdcab3",
+                      "a24e14e17888a9831aa3",
+                      "dd64ad100cfa5f353431"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "message": "Önceki cevabını teknik olarak yeniden değerlendir. Yeni görev verme.",
+          "reply": "Araştırma hedefi: temperature\n\nÖnceki yanıt, temperature sütunundaki eksik (NaN) değerlerin sayısını (5.000) ve bu eksiklerin diğer sütunlardaki (status_reason, latency, offline) dağılımlarını özetlemişti. Ancak bu özet, sadece kaydedilmiş çıktıların (shown_output) üzerine dayanıyor; veri setinin tamamını (full_source) kapsayan bir kanıt sunmuyor. Dolayısıyla eksik temperature değerlerinin nedenleri hâlâ belirsiz ve ana araştırma, bu eksiklerin bağlamını daha derinlemesine incelemeye yönelmiş durumda.\n\ntemperature sütununda 5.000 NaN değeri bulunuyor.\n\noffline = 1 olan satırlarda status_reason sütununda eksik değer (NaN) yoktur.\n\ntemperature NaN olduğunda latency değerleri -20 ile 20 arasında dağılım gösteriyor; çoğu değer 122 kez tekrarlanmış, 17 ve 19 değerleri ise 121 kez görülmüş.\n\nMevcut gözlemler kısıtlıdır; sadece kaydedilen çıktıların bir kısmını (partial observation) temsil eder, bu yüzden eksik temperature değerlerinin kökenine dair tam bir açıklama sağlanamaz.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c2",
+              "section_title": "temperature",
+              "code": "df.loc[df[\"offline\"] == 1, \"status_reason\"].isna().sum()",
+              "last_execution": {
+                "success": true,
+                "output": "0",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:02:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c2",
+                "section_title": "temperature",
+                "code": "df.loc[df[\"offline\"] == 1, \"status_reason\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "0",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:02:00"
+                }
+              },
+              {
+                "cell_id": "c1",
+                "section_title": "temperature",
+                "code": "df.loc[df[\"temperature\"].isna(), \"latency\"].value_counts()",
+                "last_execution": {
+                  "success": true,
+                  "output": "latency\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:01:00"
+                }
+              },
+              {
+                "cell_id": "c0",
+                "section_title": "temperature",
+                "code": "df[\"temperature\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "temperature",
+              "offline",
+              "latency",
+              "status_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "answer": "Önceki yanıt, temperature sütunundaki eksik (NaN) değerlerin sayısını (5.000) ve bu eksiklerin diğer sütunlardaki (status_reason, latency, offline) dağılımlarını özetlemişti. Ancak bu özet, sadece kaydedilmiş çıktıların (shown_output) üzerine dayanıyor; veri setinin tamamını (full_source) kapsayan bir kanıt sunmuyor. Dolayısıyla eksik temperature değerlerinin nedenleri hâlâ belirsiz ve ana araştırma, bu eksiklerin bağlamını daha derinlemesine incelemeye yönelmiş durumda.",
+                  "claims": [
+                    {
+                      "text": "temperature sütununda 5.000 NaN değeri bulunuyor.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "8c67f8d112ebcdcdcab3"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "offline = 1 olan satırlarda status_reason sütununda eksik değer (NaN) yoktur.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "dd64ad100cfa5f353431"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "temperature NaN olduğunda latency değerleri -20 ile 20 arasında dağılım gösteriyor; çoğu değer 122 kez tekrarlanmış, 17 ve 19 değerleri ise 121 kez görülmüş.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "a24e14e17888a9831aa3"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Mevcut gözlemler kısıtlıdır; sadece kaydedilen çıktıların bir kısmını (partial observation) temsil eder, bu yüzden eksik temperature değerlerinin kökenine dair tam bir açıklama sağlanamaz.",
+                      "kind": "limitation",
+                      "evidence_ids": [
+                        "8c67f8d112ebcdcdcab3",
+                        "dd64ad100cfa5f353431",
+                        "a24e14e17888a9831aa3"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ],
+                  "next_action": null
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case": "retail",
+      "turns": [
+        {
+          "message": "delivery_days sütunundaki boşlukları araştırıyoruz. Sayımımı açıkla ve kod vermeden tek sonraki adımı söyle.",
+          "reply": "Araştırma hedefi: delivery_days\n\ndelivery_days sütununda toplam 10.000 satırdan 5.000'inde eksik değer var; bu da %50 eksikliğe işaret ediyor.\n\ndelivery_days sütununda 5.000 eksik (NaN) değer tespit edildi.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.\n\nSonraki tek adım: delivery_days boş olan satırları inceleyin ve diğer sütunların değerlerini kontrol edin.\n\nNeden: Eksik değerlerin neden oluştuğunu anlamak için diğer değişkenlerle ilişkisini görmek, uygun bir eksik veri stratejisi belirlemede yardımcı olur.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c0",
+              "section_title": "delivery_days",
+              "code": "df[\"delivery_days\"].isna().sum()",
+              "last_execution": {
+                "success": true,
+                "output": "5000",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:00:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c0",
+                "section_title": "delivery_days",
+                "code": "df[\"delivery_days\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "delivery_days",
+              "returned",
+              "order_value",
+              "return_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "answer": "delivery_days sütununda toplam 10.000 satırdan 5.000'inde eksik değer var; bu da %50 eksikliğe işaret ediyor.",
+                  "claims": [
+                    {
+                      "text": "delivery_days sütununda 5.000 eksik (NaN) değer tespit edildi.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "ccf117d2d76165f016fc"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ],
+                  "next_action": {
+                    "instruction": "delivery_days boş olan satırları inceleyin ve diğer sütunların değerlerini kontrol edin.",
+                    "why": "Eksik değerlerin neden oluştuğunu anlamak için diğer değişkenlerle ilişkisini görmek, uygun bir eksik veri stratejisi belirlemede yardımcı olur.",
+                    "focus_column": "delivery_days",
+                    "columns": [
+                      "delivery_days",
+                      "returned",
+                      "order_value",
+                      "return_reason"
+                    ],
+                    "kind": "inspect",
+                    "code": "df[df['delivery_days'].isna()][['delivery_days','returned','order_value','return_reason']].head()",
+                    "evidence_ids": [
+                      "ccf117d2d76165f016fc"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "message": "Son dağılım çıktısını açıkla. Ana araştırmayı koruyarak tek sonraki adımı söyle.",
+          "reply": "Araştırma hedefi: delivery_days\n\nSon dağılım çıktısı, delivery_days eksik olan 5.000 satırda order_value değerlerinin neredeyse eşit olarak dağıldığını gösteriyor. -20'dan 20'ye kadar olan tüm değerler yaklaşık 122 kez görülmüş, sadece 17 ve 19 değerleri 121 kez ortaya çıkmış. Bu durum, eksik delivery_days değerlerinin order_value ile güçlü bir ilişki göstermediğini işaret eder.\n\ndelivery_days sütununda 10.000 satırdan 5.000'inde (yüzde 50) eksik değer bulunuyor.\n\nEksik delivery_days satırlarında order_value dağılımı -20 ile 20 arasında neredeyse eşit sıklıkta (çoğunlukla 122 kez) görülüyor; 17 ve 19 değerleri 121 kez tekrar ediyor.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.\n\nSonraki tek adım: delivery_days boş olan satırlarda returned ve return_reason sütunlarının dağılımlarını inceleyin.\n\nNeden: Bu sütunların dağılımları, eksik delivery_days değerlerinin başka değişkenlerle ilişkili olup olmadığını göstererek eksik veri mekanizmasını anlamamıza yardımcı olur.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c1",
+              "section_title": "delivery_days",
+              "code": "df.loc[df[\"delivery_days\"].isna(), \"order_value\"].value_counts()",
+              "last_execution": {
+                "success": true,
+                "output": "order_value\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:01:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c1",
+                "section_title": "delivery_days",
+                "code": "df.loc[df[\"delivery_days\"].isna(), \"order_value\"].value_counts()",
+                "last_execution": {
+                  "success": true,
+                  "output": "order_value\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:01:00"
+                }
+              },
+              {
+                "cell_id": "c0",
+                "section_title": "delivery_days",
+                "code": "df[\"delivery_days\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "delivery_days",
+              "returned",
+              "order_value",
+              "return_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "answer": "Son dağılım çıktısı, delivery_days eksik olan 5.000 satırda order_value değerlerinin neredeyse eşit olarak dağıldığını gösteriyor. -20'dan 20'ye kadar olan tüm değerler yaklaşık 122 kez görülmüş, sadece 17 ve 19 değerleri 121 kez ortaya çıkmış. Bu durum, eksik delivery_days değerlerinin order_value ile güçlü bir ilişki göstermediğini işaret eder.",
+                  "claims": [
+                    {
+                      "text": "delivery_days sütununda 10.000 satırdan 5.000'inde (yüzde 50) eksik değer bulunuyor.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "ccf117d2d76165f016fc"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Eksik delivery_days satırlarında order_value dağılımı -20 ile 20 arasında neredeyse eşit sıklıkta (çoğunlukla 122 kez) görülüyor; 17 ve 19 değerleri 121 kez tekrar ediyor.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "0f20c0e98ee482182005"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ],
+                  "next_action": {
+                    "instruction": "delivery_days boş olan satırlarda returned ve return_reason sütunlarının dağılımlarını inceleyin.",
+                    "why": "Bu sütunların dağılımları, eksik delivery_days değerlerinin başka değişkenlerle ilişkili olup olmadığını göstererek eksik veri mekanizmasını anlamamıza yardımcı olur.",
+                    "focus_column": "delivery_days",
+                    "columns": [
+                      "delivery_days",
+                      "returned",
+                      "return_reason"
+                    ],
+                    "kind": "inspect",
+                    "code": "df[df['delivery_days'].isna()][['returned','return_reason']].value_counts()",
+                    "evidence_ids": [
+                      "0f20c0e98ee482182005",
+                      "ccf117d2d76165f016fc"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "message": "Yardımcı kontrolü yaptım. Bu neyi kanıtlıyor, neyi kanıtlamıyor? Ana araştırmada nerede kaldık?",
+          "reply": "Araştırma hedefi: delivery_days\n\nMevcut kontroller, delivery_days sütununda 10.000 satırdan 5.000'inin eksik olduğunu ve returned=1 iken return_reason'ın hiç eksik olmadığını gösteriyor. Ancak bu gözlemler, eksik değerlerin neden ortaya çıktığına dair bir alan kuralı ya da tam bir kanıt sağlamaz.\n\ndelivery_days sütununda 5.000 NaN değer (yüzde 50) tespit edildi.\n\nBu gözlemler, eksik delivery_days değerlerinin iş kurallarına veya veri toplama sürecine bağlı olup olmadığını kanıtlamaz.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.\n\nSonraki tek adım: delivery_days boş olan satırlarda returned ve return_reason sütunlarının dağılımlarını inceleyin.\n\nNeden: Bu dağılımlar, eksik delivery_days değerlerinin iade durumlarıyla ilişkisini göstererek eksik veri nedenini anlamamıza yardımcı olur.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c2",
+              "section_title": "delivery_days",
+              "code": "df.loc[df[\"returned\"] == 1, \"return_reason\"].isna().sum()",
+              "last_execution": {
+                "success": true,
+                "output": "0",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:02:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c2",
+                "section_title": "delivery_days",
+                "code": "df.loc[df[\"returned\"] == 1, \"return_reason\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "0",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:02:00"
+                }
+              },
+              {
+                "cell_id": "c1",
+                "section_title": "delivery_days",
+                "code": "df.loc[df[\"delivery_days\"].isna(), \"order_value\"].value_counts()",
+                "last_execution": {
+                  "success": true,
+                  "output": "order_value\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:01:00"
+                }
+              },
+              {
+                "cell_id": "c0",
+                "section_title": "delivery_days",
+                "code": "df[\"delivery_days\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "delivery_days",
+              "returned",
+              "order_value",
+              "return_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "next_action": {
+                    "instruction": "delivery_days boş olan satırlarda returned ve return_reason sütunlarının dağılımlarını inceleyin.",
+                    "why": "Bu dağılımlar, eksik delivery_days değerlerinin iade durumlarıyla ilişkisini göstererek eksik veri nedenini anlamamıza yardımcı olur.",
+                    "focus_column": "delivery_days",
+                    "columns": [
+                      "delivery_days",
+                      "returned",
+                      "return_reason"
+                    ],
+                    "kind": "inspect",
+                    "code": "df[df['delivery_days'].isna()][['returned','return_reason']].value_counts()",
+                    "evidence_ids": [
+                      "ccf117d2d76165f016fc"
+                    ]
+                  },
+                  "answer": "Mevcut kontroller, delivery_days sütununda 10.000 satırdan 5.000'inin eksik olduğunu ve returned=1 iken return_reason'ın hiç eksik olmadığını gösteriyor. Ancak bu gözlemler, eksik değerlerin neden ortaya çıktığına dair bir alan kuralı ya da tam bir kanıt sağlamaz.",
+                  "claims": [
+                    {
+                      "text": "delivery_days sütununda 5.000 NaN değer (yüzde 50) tespit edildi.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "ccf117d2d76165f016fc"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Bu gözlemler, eksik delivery_days değerlerinin iş kurallarına veya veri toplama sürecine bağlı olup olmadığını kanıtlamaz.",
+                      "kind": "limitation",
+                      "evidence_ids": [
+                        "ccf117d2d76165f016fc"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "message": "Önceki cevabını teknik olarak yeniden değerlendir. Yeni görev verme.",
+          "reply": "Araştırma hedefi: delivery_days\n\nYapılan yardımcı kontrol, veri setinde delivery_days sütununda 5.000 eksik (NaN) kayıt olduğunu ve bu eksik kayıtlarda return_reason değerinin eksik olmadığını gösteriyor. Ancak bu bulgular, eksik delivery_days değerlerinin nedenini ya da iş kurallarını kanıtlamaz; sadece mevcut eksikliği belgelemektedir.\n\ndelivery_days sütununda 5.000 eksik (NaN) değer tespit edildi.\n\nreturned = 1 olan satırlarda return_reason eksik değildir.\n\nBu bulgular, eksik delivery_days değerlerinin nedenini açıklamaz; sadece veri setindeki mevcut eksikliği belgelemektedir.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c2",
+              "section_title": "delivery_days",
+              "code": "df.loc[df[\"returned\"] == 1, \"return_reason\"].isna().sum()",
+              "last_execution": {
+                "success": true,
+                "output": "0",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:02:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c2",
+                "section_title": "delivery_days",
+                "code": "df.loc[df[\"returned\"] == 1, \"return_reason\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "0",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:02:00"
+                }
+              },
+              {
+                "cell_id": "c1",
+                "section_title": "delivery_days",
+                "code": "df.loc[df[\"delivery_days\"].isna(), \"order_value\"].value_counts()",
+                "last_execution": {
+                  "success": true,
+                  "output": "order_value\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:01:00"
+                }
+              },
+              {
+                "cell_id": "c0",
+                "section_title": "delivery_days",
+                "code": "df[\"delivery_days\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "delivery_days",
+              "returned",
+              "order_value",
+              "return_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "next_action": null,
+                  "answer": "Yapılan yardımcı kontrol, veri setinde delivery_days sütununda 5.000 eksik (NaN) kayıt olduğunu ve bu eksik kayıtlarda return_reason değerinin eksik olmadığını gösteriyor. Ancak bu bulgular, eksik delivery_days değerlerinin nedenini ya da iş kurallarını kanıtlamaz; sadece mevcut eksikliği belgelemektedir.",
+                  "claims": [
+                    {
+                      "text": "delivery_days sütununda 5.000 eksik (NaN) değer tespit edildi.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "ccf117d2d76165f016fc"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "returned = 1 olan satırlarda return_reason eksik değildir.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "d07e1a268b82cdc6c419"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Bu bulgular, eksik delivery_days değerlerinin nedenini açıklamaz; sadece veri setindeki mevcut eksikliği belgelemektedir.",
+                      "kind": "limitation",
+                      "evidence_ids": [
+                        "ccf117d2d76165f016fc",
+                        "d07e1a268b82cdc6c419"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case": "service",
+      "turns": [
+        {
+          "message": "response_seconds sütunundaki boşlukları araştırıyoruz. Sayımımı açıkla ve kod vermeden tek sonraki adımı söyle.",
+          "reply": "Araştırma hedefi: response_seconds\n\nresponse_seconds sütununda 10,000 satırın 5,000'i boş (NaN) olarak tespit edildi. Bu, veri setinin yarısında bu alanın eksik olduğu anlamına geliyor.\n\nresponse_seconds sütununda 5,000 eksik değer bulunuyor.\n\nEksik değerlerin nasıl ele alınacağına dair bir tanım veya iş kuralı henüz sağlanmadı.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.\n\nSonraki tek adım: Lütfen response_seconds sütunu için geçerli bir değer aralığı, birim veya beklenen doldurma kuralı gibi bir tanım ya da dokümantasyon sağlayın.\n\nNeden: Eksik veriyi ele almanın uygun yolunu belirlemek için sütunun neyi temsil ettiğini ve hangi değerlerin geçerli olduğunu bilmemiz gerekir.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c0",
+              "section_title": "response_seconds",
+              "code": "df[\"response_seconds\"].isna().sum()",
+              "last_execution": {
+                "success": true,
+                "output": "5000",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:00:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c0",
+                "section_title": "response_seconds",
+                "code": "df[\"response_seconds\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "response_seconds",
+              "closed",
+              "queue_minutes",
+              "closure_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "next_action": {
+                    "instruction": "Lütfen response_seconds sütunu için geçerli bir değer aralığı, birim veya beklenen doldurma kuralı gibi bir tanım ya da dokümantasyon sağlayın.",
+                    "why": "Eksik veriyi ele almanın uygun yolunu belirlemek için sütunun neyi temsil ettiğini ve hangi değerlerin geçerli olduğunu bilmemiz gerekir.",
+                    "focus_column": "response_seconds",
+                    "columns": [
+                      "response_seconds"
+                    ],
+                    "kind": "clarify",
+                    "code": null,
+                    "evidence_ids": [
+                      "b9e0dfb28be4535d2548"
+                    ]
+                  },
+                  "answer": "response_seconds sütununda 10,000 satırın 5,000'i boş (NaN) olarak tespit edildi. Bu, veri setinin yarısında bu alanın eksik olduğu anlamına geliyor.",
+                  "claims": [
+                    {
+                      "text": "response_seconds sütununda 5,000 eksik değer bulunuyor.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "b9e0dfb28be4535d2548"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Eksik değerlerin nasıl ele alınacağına dair bir tanım veya iş kuralı henüz sağlanmadı.",
+                      "kind": "limitation",
+                      "evidence_ids": [
+                        "b9e0dfb28be4535d2548"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "message": "Son dağılım çıktısını açıkla. Ana araştırmayı koruyarak tek sonraki adımı söyle.",
+          "reply": "Araştırma hedefi: response_seconds\n\nResponse_seconds sütununda 10,000 kayıttan 5,000 tanesi eksik (NaN) olduğu tespit edildi. Eksik kayıtların queue_minutes dağılımı ise -20'den 20'ye kadar (tek sayı) her bir değerde yaklaşık 122 kez görülmüş, 17 ve 19 değerlerinde ise 121 kez tekrarlanmıştır.\n\nresponse_seconds sütununda 5,000 eksik değer bulunuyor.\n\nEksik response_seconds kayıtlarının queue_minutes değerleri -20 ile 20 arasında, çoğunlukla 122 kez tekrarlanmış; 17 ve 19 değerleri 121 kez görülmüştür.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.\n\nSonraki tek adım: Lütfen response_seconds sütunu için geçerli bir değer aralığı, birim veya doldurma kuralı gibi bir tanım ya da dokümantasyon sağlayın.\n\nNeden: Sütunun neyi temsil ettiğini ve hangi değerlerin geçerli olduğunu bilmeden eksik değerleri nasıl ele alacağımızı belirleyemeyiz.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c1",
+              "section_title": "response_seconds",
+              "code": "df.loc[df[\"response_seconds\"].isna(), \"queue_minutes\"].value_counts()",
+              "last_execution": {
+                "success": true,
+                "output": "queue_minutes\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:01:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c1",
+                "section_title": "response_seconds",
+                "code": "df.loc[df[\"response_seconds\"].isna(), \"queue_minutes\"].value_counts()",
+                "last_execution": {
+                  "success": true,
+                  "output": "queue_minutes\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:01:00"
+                }
+              },
+              {
+                "cell_id": "c0",
+                "section_title": "response_seconds",
+                "code": "df[\"response_seconds\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "response_seconds",
+              "closed",
+              "queue_minutes",
+              "closure_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "next_action": {
+                    "instruction": "Lütfen response_seconds sütunu için geçerli bir değer aralığı, birim veya doldurma kuralı gibi bir tanım ya da dokümantasyon sağlayın.",
+                    "why": "Sütunun neyi temsil ettiğini ve hangi değerlerin geçerli olduğunu bilmeden eksik değerleri nasıl ele alacağımızı belirleyemeyiz.",
+                    "focus_column": "response_seconds",
+                    "columns": [
+                      "response_seconds"
+                    ],
+                    "kind": "clarify",
+                    "code": null,
+                    "evidence_ids": [
+                      "b9e0dfb28be4535d2548"
+                    ]
+                  },
+                  "answer": "Response_seconds sütununda 10,000 kayıttan 5,000 tanesi eksik (NaN) olduğu tespit edildi. Eksik kayıtların queue_minutes dağılımı ise -20'den 20'ye kadar (tek sayı) her bir değerde yaklaşık 122 kez görülmüş, 17 ve 19 değerlerinde ise 121 kez tekrarlanmıştır.",
+                  "claims": [
+                    {
+                      "text": "response_seconds sütununda 5,000 eksik değer bulunuyor.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "b9e0dfb28be4535d2548"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Eksik response_seconds kayıtlarının queue_minutes değerleri -20 ile 20 arasında, çoğunlukla 122 kez tekrarlanmış; 17 ve 19 değerleri 121 kez görülmüştür.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "32c90b670f762623518b"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "message": "Yardımcı kontrolü yaptım. Bu neyi kanıtlıyor, neyi kanıtlamıyor? Ana araştırmada nerede kaldık?",
+          "reply": "Araştırma hedefi: response_seconds\n\nYardımcı kontroller, veri setinde 10.000 satırın yarısında response_seconds değerinin eksik olduğunu (5.000 eksik) ve bu eksik kayıtların closure_reason alanının hiçbirinde NA olmadığını gösteriyor. Ancak bu gözlemler, response_seconds için geçerli bir değer aralığı, birim ya da doldurma kuralı gibi bir iş kuralını kanıtlamaz; bu bilgi hâlâ eksiktir.\n\nresponse_seconds sütununda 5.000 eksik değer bulunuyor (b9e0dfb28be4535d2548).\n\nBu gözlem, response_seconds değerlerinin beklenen aralığı, birimi veya doldurma kuralı hakkında bilgi vermez.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.\n\nSonraki tek adım: Lütfen response_seconds sütunu için geçerli bir değer aralığı, birim veya doldurma kuralı gibi bir tanım ya da dokümantasyon sağlayın.\n\nNeden: Sütunun neyi temsil ettiğini ve hangi değerlerin geçerli olduğunu bilmeden eksik veriyi nasıl ele alacağımızı belirleyemeyiz.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c2",
+              "section_title": "response_seconds",
+              "code": "df.loc[df[\"closed\"] == 1, \"closure_reason\"].isna().sum()",
+              "last_execution": {
+                "success": true,
+                "output": "0",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:02:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c2",
+                "section_title": "response_seconds",
+                "code": "df.loc[df[\"closed\"] == 1, \"closure_reason\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "0",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:02:00"
+                }
+              },
+              {
+                "cell_id": "c1",
+                "section_title": "response_seconds",
+                "code": "df.loc[df[\"response_seconds\"].isna(), \"queue_minutes\"].value_counts()",
+                "last_execution": {
+                  "success": true,
+                  "output": "queue_minutes\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:01:00"
+                }
+              },
+              {
+                "cell_id": "c0",
+                "section_title": "response_seconds",
+                "code": "df[\"response_seconds\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "response_seconds",
+              "closed",
+              "queue_minutes",
+              "closure_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "next_action": {
+                    "instruction": "Lütfen response_seconds sütunu için geçerli bir değer aralığı, birim veya doldurma kuralı gibi bir tanım ya da dokümantasyon sağlayın.",
+                    "why": "Sütunun neyi temsil ettiğini ve hangi değerlerin geçerli olduğunu bilmeden eksik veriyi nasıl ele alacağımızı belirleyemeyiz.",
+                    "focus_column": "response_seconds",
+                    "columns": [
+                      "response_seconds"
+                    ],
+                    "kind": "clarify",
+                    "code": null,
+                    "evidence_ids": [
+                      "b9e0dfb28be4535d2548",
+                      "9882f04489eb41fa94ed",
+                      "32c90b670f762623518b"
+                    ]
+                  },
+                  "answer": "Yardımcı kontroller, veri setinde 10.000 satırın yarısında response_seconds değerinin eksik olduğunu (5.000 eksik) ve bu eksik kayıtların closure_reason alanının hiçbirinde NA olmadığını gösteriyor. Ancak bu gözlemler, response_seconds için geçerli bir değer aralığı, birim ya da doldurma kuralı gibi bir iş kuralını kanıtlamaz; bu bilgi hâlâ eksiktir.",
+                  "claims": [
+                    {
+                      "text": "response_seconds sütununda 5.000 eksik değer bulunuyor (b9e0dfb28be4535d2548).",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "b9e0dfb28be4535d2548"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Bu gözlem, response_seconds değerlerinin beklenen aralığı, birimi veya doldurma kuralı hakkında bilgi vermez.",
+                      "kind": "limitation",
+                      "evidence_ids": [
+                        "b9e0dfb28be4535d2548",
+                        "9882f04489eb41fa94ed",
+                        "32c90b670f762623518b"
+                      ],
+                      "coverage": "shown_output"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "message": "Önceki cevabını teknik olarak yeniden değerlendir. Yeni görev verme.",
+          "reply": "Araştırma hedefi: response_seconds\n\nYardımcı kontrol, response_seconds sütununda 5.000 eksik değer olduğunu ve bu eksik kayıtların queue_minutes değerlerinin -20 ile 20 arasında, çoğunlukla 122 kez tekrar ettiğini gösterir. Ancak bu gözlem, response_seconds için geçerli bir değer aralığı, birim veya doldurma kuralı hakkında herhangi bir bilgi sağlamaz, dolayısıyla sütunun anlamını ve nasıl ele alınacağını belirlemek için yeterli değildir.\n\nYardımcı kontrol, eksik response_seconds kayıtlarının sayısını ve bunların queue_minutes dağılımını kanıtlamaktadır.\n\nBu kontrol, response_seconds için geçerli değer aralığı, birim veya doldurma kuralı gibi bir tanım sağlamaz, bu yüzden eksik verinin nasıl ele alınacağı konusunda karar veremez.\n\nAna araştırma hâlâ response_seconds sütunu için bir tanım veya dokümantasyon elde etmeye odaklanmaktadır.\n\nKanıt kapsamı: 10,000 satırlık yüklemelerden kayıtlı çıktılar. Tam kaynak doğrulanmış sayılmaz.",
+          "accepted": true,
+          "evidence_snapshot": {
+            "notebook_id": "n1",
+            "dataset_kind": "working",
+            "configured_development_rows": 10000,
+            "current_input_version": "isolated-fixture-v1",
+            "latest_cell": {
+              "cell_id": "c2",
+              "section_title": "response_seconds",
+              "code": "df.loc[df[\"closed\"] == 1, \"closure_reason\"].isna().sum()",
+              "last_execution": {
+                "success": true,
+                "output": "0",
+                "input_row_count": 10000,
+                "input_total_row_count": 10000,
+                "input_data_version": "isolated-fixture-v1",
+                "dataset_kind": "working",
+                "executed_at": "2026-10-18T10:02:00"
+              }
+            },
+            "recent_cells": [
+              {
+                "cell_id": "c2",
+                "section_title": "response_seconds",
+                "code": "df.loc[df[\"closed\"] == 1, \"closure_reason\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "0",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:02:00"
+                }
+              },
+              {
+                "cell_id": "c1",
+                "section_title": "response_seconds",
+                "code": "df.loc[df[\"response_seconds\"].isna(), \"queue_minutes\"].value_counts()",
+                "last_execution": {
+                  "success": true,
+                  "output": "queue_minutes\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:01:00"
+                }
+              },
+              {
+                "cell_id": "c0",
+                "section_title": "response_seconds",
+                "code": "df[\"response_seconds\"].isna().sum()",
+                "last_execution": {
+                  "success": true,
+                  "output": "5000",
+                  "input_row_count": 10000,
+                  "input_total_row_count": 10000,
+                  "input_data_version": "isolated-fixture-v1",
+                  "dataset_kind": "working",
+                  "executed_at": "2026-10-18T10:00:00"
+                }
+              }
+            ],
+            "quality_checks": [],
+            "available_columns": [
+              "response_seconds",
+              "closed",
+              "queue_minutes",
+              "closure_reason"
+            ]
+          },
+          "validation": {
+            "model_attempts": [
+              {
+                "proposal": {
+                  "next_action": null,
+                  "answer": "Yardımcı kontrol, response_seconds sütununda 5.000 eksik değer olduğunu ve bu eksik kayıtların queue_minutes değerlerinin -20 ile 20 arasında, çoğunlukla 122 kez tekrar ettiğini gösterir. Ancak bu gözlem, response_seconds için geçerli bir değer aralığı, birim veya doldurma kuralı hakkında herhangi bir bilgi sağlamaz, dolayısıyla sütunun anlamını ve nasıl ele alınacağını belirlemek için yeterli değildir.",
+                  "claims": [
+                    {
+                      "text": "Yardımcı kontrol, eksik response_seconds kayıtlarının sayısını ve bunların queue_minutes dağılımını kanıtlamaktadır.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "b9e0dfb28be4535d2548",
+                        "32c90b670f762623518b"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Bu kontrol, response_seconds için geçerli değer aralığı, birim veya doldurma kuralı gibi bir tanım sağlamaz, bu yüzden eksik verinin nasıl ele alınacağı konusunda karar veremez.",
+                      "kind": "limitation",
+                      "evidence_ids": [
+                        "b9e0dfb28be4535d2548"
+                      ],
+                      "coverage": "shown_output"
+                    },
+                    {
+                      "text": "Ana araştırma hâlâ response_seconds sütunu için bir tanım veya dokümantasyon elde etmeye odaklanmaktadır.",
+                      "kind": "observation",
+                      "evidence_ids": [
+                        "b9e0dfb28be4535d2548"
+                      ],
+                      "coverage": "loaded_input"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

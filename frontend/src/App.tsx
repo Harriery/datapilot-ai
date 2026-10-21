@@ -10033,12 +10033,14 @@ async function restoreWorkspaceVersion(
                 : null,
             selected_notebook_id:
               activeWorkspaceStage === "prepare" &&
-              activePrepareStage === "workbench"
+              activePrepareStage === "workbench" &&
+              workbenchView === "notebook"
                 ? selectedNotebookId
                 : null,
             selected_notebook_dataset_kind:
               activeWorkspaceStage === "prepare" &&
-              activePrepareStage === "workbench"
+              activePrepareStage === "workbench" &&
+              workbenchView === "notebook"
                 ? (
                     (dashboardWorkspace.notebooks ?? [])
                       .find(

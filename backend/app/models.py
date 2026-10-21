@@ -633,6 +633,7 @@ class WorkspaceWorkingDataResponse(
     # notebook/browser execution intentionally receives only a sample.
     total_row_count: int | None = None
     sampled: bool = False
+    input_data_version: str | None = None
 
 
 class WorkspaceDataPreviewResponse(BaseModel):

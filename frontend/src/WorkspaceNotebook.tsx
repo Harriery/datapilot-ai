@@ -39,6 +39,11 @@ export type WorkspaceNotebookCellData = {
     columns?: string[];
     preview_rows?: Record<string, unknown>[];
     executed_at: string;
+    input_row_count?: number;
+    input_data_version?: string | null;
+    input_total_row_count?: number | null;
+    dataset_kind?: "working" | "raw" | "processed";
+    processed_dataset_id?: string | null;
   } | null;
 };
 
@@ -227,6 +232,8 @@ function WorkspaceNotebook({
     Record<string, unknown>[]
   >([]);
 
+  const [inputDataVersion, setInputDataVersion] = useState<string | null>(null);
+
   const [
     inputColumns,
     setInputColumns,
@@ -371,6 +378,7 @@ function WorkspaceNotebook({
             columns: string[];
             row_count: number;
             total_row_count?: number | null;
+            input_data_version?: string | null;
             sampled?: boolean;
             rows:
               Record<
@@ -387,6 +395,7 @@ function WorkspaceNotebook({
         setInputRows(
           data.rows
         );
+        setInputDataVersion(data.input_data_version ?? null);
 
         setInputTotalRowCount(
           data.total_row_count ??
@@ -478,7 +487,21 @@ function WorkspaceNotebook({
   }, [dirty]);
 
   function markDraftChanged(next: WorkspaceNotebookData) {
-    setDraft(next);
+    let prefixChanged = next.dataset_kind !== draft.dataset_kind ||
+      next.processed_dataset_id !== draft.processed_dataset_id;
+    const invalidated = new Set<string>();
+    const cells = next.cells.map((cell, index) => {
+      const previous = draft.cells[index];
+      prefixChanged ||= !previous || previous.cell_id !== cell.cell_id ||
+        previous.code !== cell.code || previous.cell_type !== cell.cell_type;
+      if (!prefixChanged) return cell;
+      invalidated.add(cell.cell_id);
+      return { ...cell, last_execution: null };
+    });
+    setResults(previous => Object.fromEntries(
+      Object.entries(previous).filter(([id]) => !invalidated.has(id))
+    ));
+    setDraft({ ...next, cells });
     setDirty(true);
   }
 
@@ -532,6 +555,14 @@ function WorkspaceNotebook({
   async function saveQualityCheck(cell: WorkspaceNotebookCellData) {
     const result = results[cell.cell_id];
     if (!result || result.success === false || !qualityTitle.trim()) return;
+    const execution = cell.last_execution;
+    // Never label an old output using the dataset currently loaded in the UI.
+    if (execution?.input_row_count == null || !execution.dataset_kind) {
+      setMessage(language === "tr"
+        ? "Bu eski çıktının veri kapsamı kayıtlı değil. Kontrolü kaydetmeden önce ilgili hücreyi yeniden çalıştır."
+        : "This older output has no saved input scope. Rerun the cell before saving a quality check.");
+      return;
+    }
     const summary = result.output.trim().slice(0, 1500) ||
       (result.rows.length ? JSON.stringify(result.rows.slice(0, 5)).slice(0, 1500) : "Executed");
     const check: NotebookQualityCheck = {
@@ -544,11 +575,11 @@ function WorkspaceNotebook({
       cell_type: cell.cell_type as "python" | "sql",
       result_summary: summary,
       status: qualityStatus,
-      sample_row_count: inputRows.length,
-      total_row_count: inputTotalRowCount,
-      dataset_kind: draft.dataset_kind,
-      processed_dataset_id: draft.processed_dataset_id,
-      observed_at: new Date().toISOString(),
+      sample_row_count: execution.input_row_count,
+      total_row_count: execution.input_total_row_count ?? null,
+      dataset_kind: execution.dataset_kind,
+      processed_dataset_id: execution.processed_dataset_id ?? null,
+      observed_at: execution.executed_at,
     };
     const saved = await saveDraft({
       ...draft,
@@ -647,6 +678,11 @@ function WorkspaceNotebook({
                 previewRows,
               executed_at:
                 new Date().toISOString(),
+              input_row_count: inputRows.length,
+              input_data_version: inputDataVersion,
+              input_total_row_count: inputTotalRowCount,
+              dataset_kind: draft.dataset_kind,
+              processed_dataset_id: draft.processed_dataset_id,
             },
           };
         }),
@@ -757,6 +793,11 @@ function WorkspaceNotebook({
                 columns,
                 preview_rows: previewRows,
                 executed_at: new Date().toISOString(),
+                input_row_count: inputRows.length,
+                input_data_version: inputDataVersion,
+                input_total_row_count: inputTotalRowCount,
+                dataset_kind: draft.dataset_kind,
+                processed_dataset_id: draft.processed_dataset_id,
               },
             }
           : item
@@ -1350,7 +1391,7 @@ function WorkspaceNotebook({
                           <option value="needs_review">Needs investigation</option>
                         </select>
                       </label>
-                      <small>Current result: {results[cell.cell_id]?.output.slice(0, 150) || "DataFrame result"} · {inputRows.length.toLocaleString()} Notebook rows · Full data not verified</small>
+                      <small>Current result: {results[cell.cell_id]?.output.slice(0, 150) || "DataFrame result"} · {cell.last_execution?.input_row_count?.toLocaleString() ?? "unknown scope"} input rows at execution · Full data not verified</small>
                       <div className="notebook-quality-buttons">
                         <button type="button" className="secondary-button" onClick={() => setQualityEditorId(null)}>Cancel</button>
                         <button type="button" className="new-workspace-button" disabled={!qualityTitle.trim() || saving || dirty}
@@ -1412,6 +1453,12 @@ function WorkspaceNotebook({
                             : `${result.savedRowCount ?? result.rows.length} rows${result.restoredFromSave ? ` · ${ui.savedPreview}` : ""}`}
                         </strong>
                       </div>
+
+                      {!collapsedOutputs[cell.cell_id] && (
+                        <small>
+                          {language === "tr" ? "Çalıştırmada yüklenen başlangıç verisi" : language === "nl" ? "Geladen invoer bij uitvoering" : "Input loaded at execution"}: {cell.last_execution?.input_row_count?.toLocaleString() ?? (language === "tr" ? "eski kayıtta kapsam belirtilmemiş" : language === "nl" ? "bereik niet vastgelegd" : "scope not recorded")}
+                        </small>
+                      )}
 
                       {!collapsedOutputs[cell.cell_id] && result.output && (
                         <pre>

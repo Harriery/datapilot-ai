@@ -20,7 +20,9 @@ from openai import (
 )
 import backend.app.database as database
 from backend.app.models import ChatRequest, ChatResponse
+from backend.app.mentor_research_service import generate_research_reply
 from backend.app.prompts import SYSTEM_PROMPT
+from backend.app.mentor_evidence_contract import NOTEBOOK_EVIDENCE_RULES
 from backend.app.database import (
     delete_last_message,
     get_messages_by_session,
@@ -178,6 +180,7 @@ def chat(request: ChatRequest):
             workspace,
             message,
             get_workspace_data_dir(workspace.workspace_id) / "working.csv",
+            ui_context=request.ui_context,
         )
         if local_result.get("status") == "verified":
             database.save_workspace(workspace=workspace)
@@ -231,7 +234,16 @@ def chat(request: ChatRequest):
         local_evidence = (
             (workspace_context or {}).get("local_investigation") or {}
         )
-        if local_evidence.get("status") == "verified":
+        # Notebook research uses one shared structured planner/validator. It
+        # must not fall through to a free-text answer or a skill classifier.
+        research_reply = generate_research_reply(
+            workspace_context, message, previous_history,
+        ) if workspace_context is not None and os.getenv(
+            "AI_NOTEBOOK_RESEARCH_ENABLED", "false",
+        ).strip().casefold() in {"1", "true", "yes"} else None
+        if research_reply is not None:
+            reply = research_reply
+        elif local_evidence.get("status") == "verified":
             evidence = local_evidence["evidence"]
             lines = [
                 f"{evidence['target_column']} eksikliği, "
@@ -296,6 +308,7 @@ def chat(request: ChatRequest):
             # catalogued skill are still mentor turns. The generic fallback
             # must preserve the same guided, one-step pedagogy.
             if workspace_context is not None:
+                fallback_instructions += NOTEBOOK_EVIDENCE_RULES
                 fallback_instructions += """
                 
                 WORKSPACE MENTOR MODE:

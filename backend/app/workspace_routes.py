@@ -3603,23 +3603,20 @@ def update_workspace_notebook(
     # Never persist an old execution as evidence for changed source code.
     # The frontend normally clears this on edit; enforce the same invariant
     # for direct API clients and concurrent/stale saves.
-    original_cells = {
-        cell.cell_id: cell for cell in existing.cells
-    }
     dataset_changed = (
         existing.dataset_kind != request.dataset_kind
         or existing.processed_dataset_id != request.processed_dataset_id
     )
     verified_cells = []
-    for cell in request.cells:
-        original = original_cells.get(cell.cell_id)
-        source_changed = (
-            dataset_changed
-            or (original is not None and (
-                original.code != cell.code
-                or original.cell_type != cell.cell_type
-            ))
+    prefix_changed = dataset_changed
+    for index, cell in enumerate(request.cells):
+        original = existing.cells[index] if index < len(existing.cells) else None
+        prefix_changed = prefix_changed or original is None or (
+            original.cell_id != cell.cell_id
+            or original.code != cell.code
+            or original.cell_type != cell.cell_type
         )
+        source_changed = prefix_changed
         if source_changed and cell.last_execution is not None:
             cell = cell.model_copy(update={"last_execution": None})
         verified_cells.append(cell)
@@ -3793,14 +3790,15 @@ def get_workspace_notebook_data(
             detail="Notebook bulunamadı.",
         )
 
-    notebook_limit = min(
-        (
-            workspace.development_sample_size
-            or workspace.development_sample_row_count
-            or workspace.development_sample_max_size
-            or 1000
-        ),
-        5000,
+    from backend.app.notebook_scope_service import notebook_input_version
+
+    # Honor the selected development scope; an independent 5,000-row cap
+    # silently made notebook findings disagree with the rest of the workspace.
+    notebook_limit = (
+        workspace.development_sample_size
+        or workspace.development_sample_row_count
+        or workspace.development_sample_max_size
+        or 1000
     )
 
     if (
@@ -3829,6 +3827,7 @@ def get_workspace_notebook_data(
             ) from exc
 
         return WorkspaceWorkingDataResponse(
+            input_data_version=notebook_input_version(workspace_id, notebook, notebook_limit),
             columns=df.columns.tolist(),
             row_count=len(df),
             rows=dataframe_to_records(
@@ -3899,6 +3898,7 @@ def get_workspace_notebook_data(
         )
 
     return WorkspaceWorkingDataResponse(
+        input_data_version=notebook_input_version(workspace_id, notebook, notebook_limit),
         columns=df.columns.tolist(),
         row_count=len(df),
         rows=dataframe_to_records(df),

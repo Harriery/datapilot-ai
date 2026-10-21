@@ -73,3 +73,34 @@ def test_notebook_update_discards_prior_execution_when_code_changes(tmp_path):
     assert changed.status_code == 200, changed.text
     assert changed.json()["cells"][0]["code"] == "df.tail()"
     assert changed.json()["cells"][0]["last_execution"] is None
+
+
+@pytest.mark.parametrize("change", ["code", "order", "delete", "section"])
+def test_upstream_changes_invalidate_downstream_execution_evidence(tmp_path, monkeypatch, change):
+    from fastapi.testclient import TestClient
+    from backend.app.main import app
+    import backend.app.database as database
+    monkeypatch.setattr(database, "DATABASE_PATH", tmp_path / "dependencies.db")
+    database.init_db()
+    database.insert_learner_profile(learner_id="dependencies", answer_length="concise", learning_style="guided", code_support="medium")
+    client = TestClient(app)
+    workspace = client.post("/workspaces", json={"learner_id": "dependencies", "title": "Dependencies", "workspace_type": "data_engineering"}).json()
+    url = f'/workspaces/dependencies/{workspace["workspace_id"]}/notebooks'
+    notebook = client.post(url, json={"name": "Analysis", "dataset_kind": "raw"}).json()
+    url += "/" + notebook["notebook_id"]
+    cells = [{"cell_id": str(i), "code": f"print({i})", "cell_type": "python"} for i in range(3)]
+    first = client.put(url, json={"name": "Analysis", "dataset_kind": "raw", "cells": cells})
+    assert first.status_code == 200, first.text
+    for cell in cells:
+        cell["last_execution"] = {"success": True, "output": cell["cell_id"], "executed_at": "2026-10-18"}
+    saved = client.put(url, json={"name": "Analysis", "dataset_kind": "raw", "cells": cells})
+    assert all(c["last_execution"] for c in saved.json()["cells"])
+    if change == "code": cells[1]["code"] = "print(99)"
+    elif change == "order": cells[1], cells[2] = cells[2], cells[1]
+    elif change == "delete": cells.pop(1)
+    else: cells[1]["section_title"] = "New label"
+    updated = client.put(url, json={"name": "Analysis", "dataset_kind": "raw", "cells": cells})
+    assert updated.status_code == 200, updated.text
+    result = updated.json()["cells"]
+    assert result[0]["last_execution"] is not None
+    assert all((c["last_execution"] is not None) == (change == "section") for c in result[1:])

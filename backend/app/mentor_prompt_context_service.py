@@ -52,18 +52,21 @@ def _selected_notebook(value: object) -> dict | None:
     latest = value.get("latest_cell")
     compact = {
         key: value.get(key)
-        for key in ("notebook_id", "name", "dataset_kind", "processed_dataset_id", "cell_count")
+        for key in ("notebook_id", "name", "dataset_kind", "processed_dataset_id", "cell_count",
+                    "configured_development_rows", "scope_rule")
         if value.get(key) is not None
     }
     if not isinstance(latest, dict):
         compact["latest_cell"] = None
-        return compact
+    latest = latest if isinstance(latest, dict) else {}
     execution = latest.get("last_execution")
     evidence = None
     if isinstance(execution, dict):
         evidence = {
             key: execution.get(key)
-            for key in ("success", "expression_kind", "executed_at", "row_count")
+            for key in ("success", "expression_kind", "executed_at", "row_count",
+                        "input_row_count", "input_total_row_count", "dataset_kind",
+                        "processed_dataset_id")
             if execution.get(key) is not None
         }
         if execution.get("output") is not None:
@@ -77,7 +80,7 @@ def _selected_notebook(value: object) -> dict | None:
         "code": _clip(str(latest.get("code") or ""), 1100),
         "last_execution": evidence,
         "execution_evidence": "persisted Notebook observation; source/code version match not independently verified",
-    }
+    } if latest else None
     # Promote bounded evidence from earlier cells and saved human review notes.
     # These observations are not proof that the full dataset was verified.
     checks = value.get("quality_checks") or []
@@ -89,6 +92,8 @@ def _selected_notebook(value: object) -> dict | None:
                 "result_summary": _clip(str(x.get("result_summary") or ""), 240),
                 "status": x.get("status"),
                 "sample_row_count": x.get("sample_row_count"),
+                "total_row_count": x.get("total_row_count"),
+                "dataset_kind": x.get("dataset_kind"),
             }
             for x in checks[:3] if isinstance(x, dict)
         ]
@@ -103,6 +108,9 @@ def _selected_notebook(value: object) -> dict | None:
                     ((x.get("last_execution") or {}).get("preview_rows") or [])[:1], 280
                 ),
                 "executed_at": (x.get("last_execution") or {}).get("executed_at"),
+                "success": (x.get("last_execution") or {}).get("success"),
+                "input_row_count": (x.get("last_execution") or {}).get("input_row_count"),
+                "dataset_kind": (x.get("last_execution") or {}).get("dataset_kind"),
             }
             for x in recent[:5]
             if isinstance(x, dict) and isinstance(x.get("last_execution"), dict)

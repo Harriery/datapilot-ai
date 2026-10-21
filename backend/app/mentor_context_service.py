@@ -74,6 +74,8 @@ def build_trusted_notebook_state(
         return {
             "cell_id": cell.cell_id,
             "code": cell.code[-1600:],
+            "section_title": getattr(cell, "section_title", None),
+            "code_truncated": len(cell.code) > 1600,
             "last_execution": cell.last_execution,
         }
 
@@ -170,12 +172,26 @@ def build_trusted_notebook_state(
             if item.get(key) is not None
         })
 
+    from backend.app.notebook_scope_service import notebook_input_version
+    configured = (getattr(workspace, "development_sample_size", None)
+                  or getattr(workspace, "development_sample_row_count", None)
+                  or getattr(workspace, "development_sample_max_size", None) or 1000)
     return {
+        "current_input_version": notebook_input_version(
+            getattr(workspace, "workspace_id", None), notebook, configured,
+        ),
         "notebook_id": notebook.notebook_id,
         "name": notebook.name,
         "dataset_kind": notebook.dataset_kind,
         "processed_dataset_id": notebook.processed_dataset_id,
         "cell_count": len(notebook.cells),
+        "configured_development_rows": getattr(workspace, "development_sample_size", None),
+        "scope_rule": (
+            "Configured rows are a selection, not proof of execution scope. "
+            "Use last_execution.input_row_count for loaded input at execution; "
+            "row_count is output rows, not input rows. Legacy executions without "
+            "input_row_count have unknown scope. recorded means saved, not passed."
+        ),
         "latest_cell": latest_cell,
         "recent_cells": recent_cells,
         "quality_checks": recorded_checks,

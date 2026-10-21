@@ -1,0 +1,110 @@
+{
+  "message": "Yardımcı kontrolü yaptım. Bu neyi kanıtlıyor, neyi kanıtlamıyor? Ana araştırmada nerede kaldık?",
+  "evidence_snapshot": {
+    "notebook_id": "n1",
+    "dataset_kind": "working",
+    "configured_development_rows": 10000,
+    "current_input_version": "isolated-fixture-v1",
+    "latest_cell": {
+      "cell_id": "c2",
+      "section_title": "temperature",
+      "code": "df.loc[df[\"offline\"] == 1, \"status_reason\"].isna().sum()",
+      "last_execution": {
+        "success": true,
+        "output": "0",
+        "input_row_count": 10000,
+        "input_total_row_count": 10000,
+        "input_data_version": "isolated-fixture-v1",
+        "dataset_kind": "working",
+        "executed_at": "2026-10-18T10:02:00"
+      }
+    },
+    "recent_cells": [
+      {
+        "cell_id": "c2",
+        "section_title": "temperature",
+        "code": "df.loc[df[\"offline\"] == 1, \"status_reason\"].isna().sum()",
+        "last_execution": {
+          "success": true,
+          "output": "0",
+          "input_row_count": 10000,
+          "input_total_row_count": 10000,
+          "input_data_version": "isolated-fixture-v1",
+          "dataset_kind": "working",
+          "executed_at": "2026-10-18T10:02:00"
+        }
+      },
+      {
+        "cell_id": "c1",
+        "section_title": "temperature",
+        "code": "df.loc[df[\"temperature\"].isna(), \"latency\"].value_counts()",
+        "last_execution": {
+          "success": true,
+          "output": "latency\n-20    122\n-18    122\n-16    122\n-14    122\n-12    122\n-10    122\n-8     122\n-6     122\n-4     122\n-2     122\n 0     122\n 2     122\n 4     122\n 6     122\n 8     122\n 10    122\n 12    122\n 14    122\n 16    122\n 18    122\n 20    122\n-19    122\n-17    122\n-15    122\n-13    122\n-11    122\n-9     122\n-7     122\n-5     122\n-3     122\n-1     122\n 1     122\n 3     122\n 5     122\n 7     122\n 9     122\n 11    122\n 13    122\n 15    122\n 17    121\n 19    121\nName: count, dtype: int64",
+          "input_row_count": 10000,
+          "input_total_row_count": 10000,
+          "input_data_version": "isolated-fixture-v1",
+          "dataset_kind": "working",
+          "executed_at": "2026-10-18T10:01:00"
+        }
+      },
+      {
+        "cell_id": "c0",
+        "section_title": "temperature",
+        "code": "df[\"temperature\"].isna().sum()",
+        "last_execution": {
+          "success": true,
+          "output": "5000",
+          "input_row_count": 10000,
+          "input_total_row_count": 10000,
+          "input_data_version": "isolated-fixture-v1",
+          "dataset_kind": "working",
+          "executed_at": "2026-10-18T10:00:00"
+        }
+      }
+    ],
+    "quality_checks": [],
+    "available_columns": [
+      "temperature",
+      "offline",
+      "latency",
+      "status_reason"
+    ]
+  },
+  "model_attempts": [
+    {
+      "attempt": 1,
+      "proposal": null,
+      "visible_proposal": null,
+      "normalizations": [],
+      "provider_recovery": {
+        "error_type": "BadRequestError",
+        "http_status": 400,
+        "code": "json_validate_failed",
+        "type": "invalid_request_error",
+        "message": "max completion tokens reached before generating a valid document: the output was truncated to fit max_completion_tokens and is missing required content. Increase max_completion_tokens. See 'failed_generation' for the truncated output. Error: jsonschema: '' does not validate with /required: missing properties: 'next_action'",
+        "failed_generation": "{\"answer\":\"Yapılan yardımcı kontroller, mevcut veri setindeki eksik temperature değerlerine dair bazı somut gözlemler sunuyor ancak bu gözlemler neden‑sonuç ilişkisi ya da bir iş kuralı kanıtlamıyor. İlk kontrol (ID 8c67f8d112…) temperature sütununda 5 000 NaN olduğunu, yani %50 veri eksikliği olduğunu gösteriyor – bu, eksikliğin varlığını kanıtlar fakat kaynağını açıklamaz. İkinci kontrol (ID dd64ad100c…) offline = 1 olan satırlarda status_reason alanının hiçbir eksik değeri olmadığını gösteriyor; bu, offline satırlarında status_reason’ın tam olduğunu kanıtlar fakat offline’ın temperature eksikliğiyle ilişkisini kanıtlamaz. Üçüncü kontrol (ID a24e14e178…) temperature NaN olan satırlardaki latency değerlerinin -20 ile 20 arasında yaklaşık eşit dağıldığını gösteriyor; dağılımın dengeli olduğu kanıtlanır, ancak latency’nin eksik temperature ile bir nedeni olup olmadığı hakkında bilgi vermez. Dolayısıyla bu gözlemler, eksik temperature’ın miktarını ve bazı yan sütunlardaki mevcut durumları gösterir, fakat eksikliğin kökeni, veri toplama hatası ya da sistematik bir problem gibi bir açıklama sunmaz. Ana araştırma şu aşamada: eksik temperature satırlarının bağlamını daha iyi anlamak için bu satırların diğer sütunlardaki (status_reason, latency, offline) değerlerine bakacağız.\",\"claims\":[{\"coverage\":\"shown_output\",\"evidence_ids\":[\"8c67f8d112ebcdcdcab3\"],\"kind\":\"observation\",\"text\":\"temperature sütununda 5 000 NaN değer bulunuyor; bu, veri setindeki satırların yarısının sıcaklık bilgisinden yoksun olduğunu kanıtlar.\"},{\"coverage\":\"shown_output\",\"evidence_ids\":[\"dd64ad100cfa5f353431\"],\"kind\":\"observation\",\"text\":\"offline = 1 olan satırlarda status_reason alanı tamamen dolu; yani offline durumunda status_reason eksikliği yoktur.\"},{\"coverage\":\"shown_output\",\"evidence_ids\":[\"a24e14e17888a9831aa3\"],\"kind\":\"observation\",\"text\":\"temperature NaN olan satırlardaki latency değerleri -20 ile 20 arasında yaklaşık 122 kez tekrarlanıyor; dağılım dengeli ancak 17 ve 19 değerlerinde 121 kez görülmüş.\"},{\"coverage\":\"shown_output\",\"evidence_ids\":[\"8c67f8d112ebcdcdcab3\",\"dd64ad100cfa5f353431\",\"a24e14e17888a9831aa3\"],\"kind\":\"limitation\",\"text\":\"Bu gözlemler eksik temperature değerlerinin miktarını ve yan sütunlardaki mevcut dağılımları gösterir, fakat eksikliğin nedenini, veri toplama hatası ya da sistematik bir sorun olup olmadığını kanıtlamaz; domain kuralı mevcut değildir.\"}]}"
+      },
+      "errors": [
+        "Invalid research field next_action: missing"
+      ]
+    },
+    {
+      "attempt": 2,
+      "proposal": null,
+      "visible_proposal": null,
+      "normalizations": [],
+      "provider_recovery": {
+        "error_type": "BadRequestError",
+        "http_status": 400,
+        "code": "json_validate_failed",
+        "type": "invalid_request_error",
+        "message": "max completion tokens reached before generating a valid document: the output was truncated to fit max_completion_tokens and is missing required content. Increase max_completion_tokens. See 'failed_generation' for the truncated output. Error: jsonschema: '' does not validate with /required: missing properties: 'next_action'",
+        "failed_generation": "{\"answer\":\"Yardımcı kontroller şunları kanıtlıyor: temperature sütununda 10 000 satırın 5 000'i NaN (dd64ad100cfa5f353431 id'si), bu eksik değerlerin sayısal dağılımı (latency) yaklaşık olarak -20 … 20 arasında eşit (a24e14e17888a9831aa3), ve offline = 1 olduğunda status_reason hiç eksik değil (dd64ad100cfa5f353431). Kanıtlamayan yönleri ise; eksik temperature değerlerinin status_reason ve offline ile nasıl ilişkili olduğu, eksikliğin neden kaynaklandığı ve diğer sütunlarda olası örüntüler. Bu aşamada ana araştırma, eksik temperature kayıtlarını daha detaylı incelemeye, özellikle status_reason, latency ve offline değerlerine bakmaya yöneliyor.\",\"claims\":[{\"text\":\"temperature sütununda 5 000 NaN değer bulunuyor, bu da veri setinin %50'sinde temperature eksik demektir.\",\"kind\":\"observation\",\"evidence_ids\":[\"8c67f8d112ebcdcdcab3\"],\"coverage\":\"loaded_input\"}]}"
+      },
+      "errors": [
+        "Invalid research field next_action: missing"
+      ]
+    }
+  ]
+}
