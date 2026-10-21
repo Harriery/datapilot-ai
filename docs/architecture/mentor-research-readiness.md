@@ -349,3 +349,23 @@ notebook bağlamının kaynağı test görüntüsüyle sabitlenir. Böylece sohb
 gösterimi/kayıt ve kod-vermeme davranışı sınanır; tarayıcı veya bütün bağlam toplama
 zinciri için uçtan uca doğrulama sayılmaz. Araştırma bayrağının varsayılanı kapalı
 kalmıştır; Windows'taki normal sohbetin yeni yolu kullandığı varsayılmaz.
+
+### Kaydedilmiş notebook ile sohbet bağlamı kontrolü
+
+`test_mentor_saved_notebook_chat.py`, üç farklı alan çifti için geçici SQLite
+çalışma alanı ve gerçek 10.000 satırlık CSV oluşturur. `/chat` uç noktası,
+bağlam oluşturucu ve mentor servisi birlikte çalışır; notebook bağlamı ve mentor
+yanıtı mock edilmez. Yalnız veri dizini geçici konuma yönlendirilir, AI ve eski
+mentor yolu çağrılmadığı doğrulanır.
+
+Kaydedilmiş sayımın 5.000 eksik ve 10.000 giriş satırı olarak alınması, yardımda
+görevin korunması, kaydedilmiş eşdeğer önizleme ifadesinin önceki görevi observed
+yapması ve yardımcı dağılımına geçiş kontrol edilir. En yeni çalıştırma hücre
+sırasından değil zamanından bulunur. Seçim 5.000 satıra değiştirildiğinde eski
+10.000 satırlık çıktı güncel kabul edilmez ve eski görev kodu gösterilmez.
+
+Önizleme sonucu testte bilinen salt okunur pandas ifadesiyle hesaplanıp kaydedilir;
+notebook çalıştırma uç noktası veya tarayıcı kullanılmaz. Bu kontrol, kaydedilmiş
+kanıttan sohbete aktarımı doğrular; canlı model kalitesi, insan öğrenmesi veya
+baştan sona proje tamamlama kanıtı değildir. Araştırma yolu testte açıkça
+etkinleştirilir; ürünün varsayılan ayarı değiştirilmez.
