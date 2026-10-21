@@ -17,6 +17,7 @@ Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin ye
 | Cevaplanan soruyu kapatma | Canlı `report(9)` yeni şemaya uydu ama yine clarify seçti; tekrar denetimi bunu reddetti. İncelemede sözlük kısıtı kaydedilirken eski sorunun açık ve önerinin proposed kaldığı görüldü. | Düzeltilen soru yaşam döngüsü ve bağlama göre daraltılan işlem şemasıyla canlı ilerlemeyi doğrulamak. |
 | Güvenle seçilebilen küçük adım | `report(10)` kapanmış sorudan sonra null döndürdü; geçerli biçim ilerleme sağlamadı. Yeni yerel kural, güncel pozitif eksik sayımından ilk eksik örnekleri önermeyi gerçek üretim takip komutunda AI çağrısı olmadan geçti. | Kullanıcının bu adımı uygulamasını ve sonraki çıktıyla araştırmanın doğru sürmesini doğrulamak. Bu sonuç canlı modelin ilerlediğini kanıtlamaz. |
 | Birbirine bağlı çıktı takibi | Üç sentetik şemada üretim mentorunun gerçek önerisi sınırlı yorumlayıcıyla uygulanıp sonraki hücreye kaydedildi: sayım → 5 eksik örnek → yardımcı dağılım → yalnız açıklama. Yerel zincir sağlayıcısız geçti. | Gerçek acemi UI kullanımı, belirsiz yardımcı seçimi ve daha uzun/diğer aşamalardaki rehberlik. |
+| Bekleyen adımda yardım | Aynı üretim zincirine "nasıl yapacağımı bilmiyorum", daha basit açıklama, kodu gösterme ve açık kod isteği eklendi; üç şemada yerel destek geçti. `/chat` bağlama kaynağı sabitlenmiş entegrasyon kontrolü de geçti. | Gerçek kullanıcının ipucunu anlayıp uygulayabilmesi; hata ayıklama, diğer işlemler ve UI kullanılabilirliği. |
 | Araştırmayı ilerletme | Sabit model yanıtlarıyla üç bağlı yerel kontrolün çıktıları sonraki adıma taşındı. | Canlı mentorun önerileriyle aynı ilerlemeyi göstermek. |
 | Temizleme/dönüşüm kararı | Yeni inceleme yolu otomatik dönüşüm önerisini kabul etmez. | Kanıta ve kullanıcı hedefine dayalı karar, uygulama ve sonuç doğrulaması. |
 | SQL, veri modeli, KPI, dashboard, insights, docs | Önceki ürün yolları mevcut. Bu çalışma bunları kapsamlı biçimde yeniden doğrulamadı. | Aşamalar arası mentor rehberliğini ve kullanıcıya faydayı sınamak. |
@@ -306,3 +307,45 @@ Rapor local üretim zinciri olduğunu açıkça yazar; acemi kullanıcı, gerçe
 veri, canlı LLM, aşamalar arası pedagojik yarar veya proje bitirme kanıtı değildir.
 Kodun gizli planını test yürütücüsünün uygulayabilmesi, acemi kullanıcının aynı
 adımı arayüzde yardımsız uygulayabildiğini göstermemektedir.
+
+## Aynı bekleyen işlem için öğretici destek
+
+`mentor_tutoring_service`, yalnız doğrulanmış ve hâlâ proposed olan bir eksik-hedef
+önizlemesi/tek yardımcı dağılımı için destek sunar. Hedef, güncel kanıt kimlikleri
+ve sürüm eşleşmesi korunur; aynı kod normal derleyici/denetimden tekrar geçirilir.
+Yardım yeni bir görev değildir: öneri listesi değişmez, görev observed/completed
+olmaz ve kod çalıştırılmaz. Tamamlanan, eski, bilinmeyen veya mutasyon içeren
+göreve destek bağlanmaz.
+
+Birinci istek temel kavrama ait kısa ipucu, sonraki istek süzgeç/seçim veya sütun
+sayımı açıklaması verir. Ayrıntı seviyesi görev imzasına bağlıdır ve yeni görevde
+yeniden başlar. Tam kod yalnız mevcut mesajdaki açık istekle gösterilir; geçmişte
+kod istenmiş olması sonraki turda otomatik izin sayılmaz. "Kodu gösterme" gibi
+olumsuz istekler, "kodu göster" alt dizisine sahip diye kod isteği sayılmaz.
+TR/EN/NL kontrollü ifadeleri için yerel intent kuralları vardır; genel doğal dil
+anlama veya her belirsiz isteğin doğru çözülmesi garantisi yoktur.
+
+Yardım yanıtı mevcut görevi ve ipucunu gösterir; her tur bütün sayım/çıktı
+geçmişini yeniden dökmez. Destek `validation.origin=local_tutoring`, provider_calls=0,
+boş model_attempts, support_level ve supported_proposal ile kaydedilir. Gösterim
+planındaki next_action null kalır; destek verilen eski kod ayrı tutulur. Bu,
+sayım sonrasında hiç yönlendirme vermeyen eski null problemiyle aynı olay değildir.
+
+Bu zinciri burada sağlayıcı çağrısı olmadan çalıştırıp sonuçları incelemek için:
+
+```powershell
+python -m backend.benchmarks.run_mentor_connected_followup --beginner-support
+```
+
+Her şemada beş yazılı yardım isteği gerçek üretim servisine verilir. Kod
+istenmeden gösterilmemesi, açık istekte aynı doğrulanmış kodun gösterilmesi,
+bekleyen işin değişmemesi, destekten sonra gerçek çıktıyla devam ve görev
+seviyesinin sıfırlanması denetlenir. Senaryo yardıma ihtiyaç duyan bir insan
+değildir; senaryo sürücüsü kodu sınırlı yorumlayıcıyla uygular. İnsan anlama düzeyi,
+öğrenme kazanımı ve gerçek UI kullanım kolaylığı bu testten çıkarılmaz.
+
+HTTP entegrasyon testi gerçek `/chat` uç noktasından yardım isteğini geçirir;
+notebook bağlamının kaynağı test görüntüsüyle sabitlenir. Böylece sohbet
+gösterimi/kayıt ve kod-vermeme davranışı sınanır; tarayıcı veya bütün bağlam toplama
+zinciri için uçtan uca doğrulama sayılmaz. Araştırma bayrağının varsayılanı kapalı
+kalmıştır; Windows'taki normal sohbetin yeni yolu kullandığı varsayılmaz.

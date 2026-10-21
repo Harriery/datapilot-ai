@@ -47,7 +47,7 @@ def recorded_cell(cell_id: str, code: str, result, target: str, version: str, ro
     return {'cell_id': cell_id, 'section_title': target, 'code': code, 'last_execution': execution}
 
 
-def run_case(case: str) -> dict:
+def run_case(case: str, *, with_support=False) -> dict:
     target, helper, measure, reason = CASES[case]
     frame = pd.DataFrame({target: [None if i % 2 == 0 else i for i in range(10000)],
                           helper: [i % 3 == 0 for i in range(10000)],
@@ -57,10 +57,13 @@ def run_case(case: str) -> dict:
     version = 'connected-' + case + '-v1'
     count = int(frame[target].isna().sum())
     cells = [recorded_cell('count', f'df[{target!r}].isna().sum()', count, target, version, len(frame))]
-    history, turns = [], []
+    history, turns, support_turns = [], [], []
     checks = {'all_turns_accepted': True, 'focus_preserved': True, 'latest_output_addressed': True,
               'preview_is_missing_target_only': False, 'distribution_matches_reference': False,
               'no_task_on_review_only': False, 'frame_unchanged': True}
+    if with_support:
+        checks.update(support_stays_on_task=True, support_does_not_show_unrequested_code=True,
+                      explicit_code_matches_task=True, support_does_not_complete_task=True)
     messages = [f'{target} sayımını yaptım. Veri sözlüğüm yok. Kod vermeden sonraki tek adımı söyle.',
                 'Örneklerin sonucunu gördün mü? Ne anlıyoruz? Kod vermeden sonraki tek adımı söyle.',
                 'Son dağılım sonucunu açıkla. Yeni görev verme.']
@@ -88,6 +91,30 @@ def run_case(case: str) -> dict:
             if not action or action.get('kind') != 'inspect':
                 checks['all_turns_accepted'] = False
                 break
+            if with_support:
+                history.extend([{'role':'user','content':message},{'role':'assistant','content':reply}])
+                help_messages = (['Bunu nasıl yapacağımı bilmiyorum. Kodu gösterme; ipucu ver.',
+                                  'Hâlâ anlamadım; daha basit anlat. Kodu verme.',
+                                  'Şimdi kodu göster.'] if step == 0 else
+                                 ['Bunu nasıl yapacağımı bilmiyorum. Kod vermeden ipucu ver.',
+                                  'Kodu gösterebilir misin?'])
+                for help_index, help_message in enumerate(help_messages):
+                    before = load_research_state(context['workspace_id'],'n1')
+                    help_reply = generate_research_reply(context,help_message,history,allow_provider=False)
+                    after = load_research_state(context['workspace_id'],'n1')
+                    v = after.get('last_validation') or {}
+                    supported = (v.get('supported_proposal') or {}).get('next_action') or {}
+                    same_task = v.get('accepted') is True and v.get('origin') == 'local_tutoring' and supported.get('code') == action['code']
+                    new_task = (v.get('local_proposal') or {}).get('next_action') is not None
+                    checks['support_stays_on_task'] &= same_task and after.get('focus_column') == target and after['proposals'] == before['proposals'] and not new_task
+                    checks['support_does_not_complete_task'] &= after['proposals'][-1].get('status') == 'proposed'
+                    wants_code = help_index == len(help_messages) - 1
+                    if wants_code:
+                        checks['explicit_code_matches_task'] &= v.get('code_shown') is True and '```python\n' + action['code'] + '\n```' in help_reply
+                    else:
+                        checks['support_does_not_show_unrequested_code'] &= v.get('code_shown') is False and '```' not in help_reply
+                    support_turns.append({'message':help_message,'reply':help_reply,'validation':v,'new_task_assigned':new_task})
+                    history.extend([{'role':'user','content':help_message},{'role':'assistant','content':help_reply}])
             # Execute the actual proposal through the narrow contract, not a
             # prewritten replacement or arbitrary Python interpreter.
             try:
@@ -105,17 +132,20 @@ def run_case(case: str) -> dict:
             cells.append(recorded_cell('step-' + str(step), action['code'], result, target, version, len(frame)))
         else:
             checks['no_task_on_review_only'] = action is None
-        history.extend([{'role': 'user', 'content': message}, {'role': 'assistant', 'content': reply}])
+        if not with_support or step == 2:
+            history.extend([{'role': 'user', 'content': message}, {'role': 'assistant', 'content': reply}])
     checks['frame_unchanged'] = frame.equals(original)
     return {'case': case, 'mode': 'connected_local_production', 'input_rows': len(frame),
             'provider_calls': 0, 'live_model_quality_tested': False, 'beginner_usability_tested': False,
             'project_completion_proven': False, 'human_review_required': True,
-            'checks': checks, 'passed': len(turns) == 3 and all(checks.values()), 'turns': turns}
+            'checks': checks, 'passed': len(turns) == 3 and all(checks.values()), 'turns': turns,
+            'support_turns':support_turns, 'support_scenarios_tested':with_support}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--case', choices=['all', *CASES], default='all')
+    parser.add_argument('--beginner-support', action='store_true', help='Insert scripted help/no-code/explicit-code requests before executing each pending task. This is not a human usability test.')
     parser.add_argument('--output-dir', type=Path, default=Path('backend/benchmarks/results/connected-followup'))
     args = parser.parse_args(argv)
     folder = args.output_dir / datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
@@ -124,7 +154,7 @@ def main(argv=None):
     try:
         database.DATABASE_PATH = folder / 'isolated.sqlite'
         database.init_db()
-        results = [run_case(case) for case in CASES if args.case in ('all', case)]
+        results = [run_case(case,with_support=args.beginner_support) for case in CASES if args.case in ('all', case)]
     finally:
         database.DATABASE_PATH = previous
     report = {'mode': 'connected_local_production', 'results': results, 'passed': all(x['passed'] for x in results)}
