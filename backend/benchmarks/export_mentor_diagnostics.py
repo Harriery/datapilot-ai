@@ -25,7 +25,8 @@ def decision(source):
 def summarize(state):
     validation = state.get('last_validation') or {}
     report = pick(state, ('schema_version', 'focus_column', 'response_language',
-                          'current_evidence_ids', 'available_columns', 'definition_availability'))
+                          'current_evidence_ids', 'available_columns', 'definition_availability',
+                          'pending_evidence_refresh'))
     report['observations'] = [pick(item, (
         'id', 'cell_id', 'section_title', 'code', 'fields', 'success', 'analysis_contract',
         'input_rows', 'dataset_kind', 'input_data_version', 'version_verified',
@@ -36,6 +37,7 @@ def summarize(state):
     report['last_validation'] = pick(validation, (
         'accepted', 'status', 'origin', 'policy', 'errors', 'previous_attempt_errors',
         'attempts', 'provider_calls', 'rendering_contract', 'model_factual_prose_published',
+        'validation_kind', 'refresh_action',
     ))
     report['last_validation']['model_attempts'] = [
         {**pick(item, ('attempt', 'errors', 'evidence_binding')),

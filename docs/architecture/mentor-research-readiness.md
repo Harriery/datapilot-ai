@@ -426,3 +426,33 @@ yolu kontrolü canlı AI veya acemi kullanıcının projeyi bitirme kanıtı de�
 Kullanıcının gerçek tanılama dosyası ve hücre içerikleri depoya eklenmez. Depodaki
 regresyon aynı son-hücre/ilgili-eski-gözlem durumunu yapay alan adları, sonuçlar
 ve ifadelerle oluşturur; gerçek kayıtla inceleme ayrı yerel kontroldür.
+
+### Kaynak yok cevabından sonra tek hücreyi güncelleme
+
+Kaynak sorusuna verilen "Bunu bilmiyorum" ve "Kaynak açıklaması elimde yok"
+cevapları artık bekleyen soruyu `answered_unavailable` olarak kapatır. Yalnız
+"bilmiyorum" ile başlayan veya "veri sözlüğü" kelimesi içeren cevaplarla sınırlı
+eşleştirme, bu doğal ifadeleri atlıyordu. Kaynak bulunamadığı bilgisi hedefe bağlı
+olarak korunur; sonraki yardım isteğinde aynı soru yeniden açılmaz.
+
+Kaynak bulunamıyorsa ve hedefin mevcut sürümü doğrulanmış önizlemesi yoksa,
+`mentor_evidence_refresh_service` kayıtlı, başarılı ve desteklenen bir eksik-hedef
+önizleme hücresini seçebilir. Bu, yeni bir hesaplama önerisi değildir: Kullanıcıdan
+aynı kayıtlı hücrenin ▶ düğmesine basarak eski çıktıyı güncellemesi istenir. Kod
+çalıştırılmaz veya üretilmez; mevcut tekrar denetimi gevşetilmez. Gösterimde eski
+sayım/çıktı dökümü yerine kısa bir konum ve tıklama yönlendirmesi kullanılır.
+
+Bu yol yalnız rehberlik/yardım isteğinde çalışır. Yeni görev reddi, bekleyen başka
+inceleme, zaten güncel önizleme, başarısız/eski/desteklenmeyen ya da kapsamı
+bilinmeyen aday bu yolu kapatır. `pending_evidence_refresh` hücre kimliğini ve
+`requested` durumunu tutar. "Anlamadım, beraber ilerleyelim" yardımında aynı
+hücre korunur, açıklama sadeleşir ve görev tamamlanmış sayılmaz. Aynı hücreden
+başarılı, sürümü eşleşen bir eksik-hedef önizlemesi kaydedilince `observed` olur;
+normal inceleme rehberliği tekrar kullanılabilir.
+
+Tanılama kaydı `origin=local_evidence_refresh`, `validation_kind=evidence_refresh_only`
+ve `provider_calls=0` bilgisini taşır. Bu kabul, analiz sonucunun doğruluğunu
+veya veri kalitesini onaylamak değildir. Yapay notebook zinciri; kaynak yok cevabı,
+ikinci yardım isteği ve güncel çıktı sonrası dağılım adımına dönüşü birlikte
+doğrular. Hücre çıktısı testte kaydedilir; tarayıcıda kullanıcı tarafından yeniden
+çalıştırma ve canlı model davranışı ayrıca doğrulanmalıdır.

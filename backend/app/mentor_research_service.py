@@ -28,6 +28,7 @@ from backend.app.mentor_research_store import load_research_state, save_research
 from backend.app.mentor_local_progress_service import plan_missing_preview, plan_preview_continuation
 from backend.app.mentor_preview_evidence_service import preview_contradicts_selection
 from backend.app.mentor_tutoring_service import plan_pending_support, explicit_code_requested
+from backend.app.mentor_evidence_refresh_service import plan_evidence_refresh, render_evidence_refresh
 
 
 class StrictModel(BaseModel):
@@ -196,7 +197,7 @@ def update_definition_availability(state: dict, message: str) -> None:
     """
     text = ''.join(c for c in unicodedata.normalize('NFKD', message.casefold())
                    if not unicodedata.combining(c)).replace('ı', 'i').replace('’', "'")
-    source = r'(?:veri\s+sozlu\w*|data[ -]?dictionary|gegevenswoordenboek|bronbeschrijving)'
+    source = r'(?:veri\s+sozlu\w*|kaynak\s+aciklama\w*|data[ -]?dictionary|source\s+description|gegevenswoordenboek|bronbeschrijving)'
     unavailable = bool(re.search(
         source + r'.{0,45}?(?:\byok\b|\belimde degil\b|\bnot available\b|\bunavailable\b|\bniet beschikbaar\b|\bheb ik niet\b)'
         r'|(?:\bno\b|\bgeen\b|\bi (?:do not|don\x27t) have\b).{0,30}?' + source,
@@ -207,7 +208,7 @@ def update_definition_availability(state: dict, message: str) -> None:
                    and proposals[-1].get('focus_column') == state.get('focus_column')
                    and not str(proposals[-1].get('status', '')).startswith('answered_'))
     unknown_answer = pending and bool(re.match(
-        r'\s*(?:bilmiyorum\b|emin degilim\b|i (?:do not|don\x27t) know\b|'
+        r'\s*(?:(?:bunu|onu|bu tanimi|tanimi)\s+)?(?:bilmiyorum\b|emin degilim\b|i (?:do not|don\x27t) know\b|'
         r'ik weet (?:het|dat) niet\b|dat weet ik niet\b|weet ik niet\b)', text,
     ))
     found = bool(re.search(
@@ -351,6 +352,15 @@ def prepare_research_context(notebook: dict, message: str, state: dict | None = 
             'Which new supported observation can advance the active research focus?'
         ]
     state["current_evidence_ids"] = [item["id"] for item in evidence]
+    refresh = state.get('pending_evidence_refresh')
+    if isinstance(refresh, dict) and refresh.get('status') == 'requested':
+        for item in evidence:
+            contract = item.get('analysis_contract') or {}
+            if (item['cell_id'] == refresh.get('cell_id') and item.get('success')
+                    and not item.get('stale_scope') and item.get('version_verified')
+                    and contract.get('supported') and contract.get('operation') == 'preview_head'
+                    and contract.get('row_predicate') == {'op': 'missing', 'column': state.get('focus_column')}):
+                refresh['status'] = 'observed'
     update_definition_availability(state, message)
     return state
 
@@ -735,6 +745,17 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
         return {"tr": "Son hücrenin kodunu ve çıktısını bu inceleme yolunda güvenle eşleştiremiyorum veya çıktı güncel değil. Bu nedenle sonucu yorumlamıyor ve yeni işlem önermiyorum. Mevcut veriler değişmedi.",
                 "en": "The latest code and output cannot be safely matched by this review path, or the output is stale. No interpretation or new action is being presented; data is unchanged.",
                 "nl": "De laatste code en uitvoer zijn hier niet veilig te koppelen of de uitvoer is verouderd. Er wordt geen interpretatie of nieuwe opdracht gegeven; de gegevens zijn ongewijzigd."}[state["response_language"]]
+    refresh = None if is_mentor_reply_review_request(message) else plan_evidence_refresh(state, message)
+    if refresh is not None:
+        state['pending_evidence_refresh'] = refresh
+        state['last_validation'] = {
+            'accepted': True, 'origin': 'local_evidence_refresh', 'provider_calls': 0,
+            'model_attempts': [], 'validation_kind': 'evidence_refresh_only',
+            'refresh_action': refresh, 'rendering_contract': 'grounded-v1',
+            'model_factual_prose_published': False,
+        }
+        save_research_state(workspace_id, notebook_id, state)
+        return render_evidence_refresh(refresh, state['response_language'])
     support = None if is_mentor_reply_review_request(message) else plan_pending_support(state, message)
     if support is not None:
         decision = GroundedResearchDecision.model_validate(support['decision'])

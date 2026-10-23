@@ -7,11 +7,15 @@ import re
 from backend.app.mentor_preview_evidence_service import missing_preview_rows
 
 
+def new_task_declined(message: str) -> bool:
+    return bool(re.search(r'(?:yeni\s+(?:görev|gorev|işlem|islem).{0,15}(?:verme|önerme|onerme)|'
+                 r'no\s+(?:new\s+)?(?:task|exercise)|geen\s+(?:nieuwe\s+)?opdracht)', message, re.I))
+
+
 def guidance_requested(message: str) -> bool:
-    if re.search(r'(?:yeni\s+(?:görev|gorev|işlem|islem).{0,15}(?:verme|önerme|onerme)|'
-                 r'no\s+(?:new\s+)?(?:task|exercise)|geen\s+(?:nieuwe\s+)?opdracht)', message, re.I):
+    if new_task_declined(message):
         return False
-    return bool(re.search(r'devam|yönlendir|yonlendir|sonraki|sıradaki|siradaki|'
+    return bool(re.search(r'devam|ilerle|yönlendir|yonlendir|sonraki|sıradaki|siradaki|'
                           r'next\s+step|continue|guide\s+me|volgende\s+stap|verder|help\s+me', message, re.I))
 
 
