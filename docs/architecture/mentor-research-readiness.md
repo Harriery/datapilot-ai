@@ -369,3 +369,29 @@ notebook çalıştırma uç noktası veya tarayıcı kullanılmaz. Bu kontrol, k
 kanıttan sohbete aktarımı doğrular; canlı model kalitesi, insan öğrenmesi veya
 baştan sona proje tamamlama kanıtı değildir. Araştırma yolu testte açıkça
 etkinleştirilir; ürünün varsayılan ayarı değiştirilmez.
+
+### Mevcut uygulama reddinin nedenini inceleme
+
+Ekrandaki genel "konu, tekrar veya kanıt denetiminden geçmedi" yanıtı tek başına
+hangi kontrolün başarısız olduğunu göstermez. Bu yanıt, yanlış bir önerinin
+gerçekten engellendiğini veya denetimin hatalı ret verdiğini ayırt ettirmez.
+Kullanıcıya aynı soruyu tekrar sordurmak yerine mevcut `last_validation`
+kaydı ve her model denemesindeki gerçek kod/kanıt referansları incelenmelidir.
+
+```powershell
+python -m backend.benchmarks.export_mentor_diagnostics --focus AIR_SYSTEM_DELAY
+```
+
+Komut SQLite veritabanını salt okunur açar. Model çağırmaz, hücre çalıştırmaz,
+hafızayı veya çalışma alanını değiştirmez. Eşleşen her notebook için son kayıtlı
+denetimi `backend/benchmarks/results/mentor-diagnostics/<zaman>/report.json`
+dosyasına çıkarır. Birden fazla eşleşme varsa hepsini listeler; tablo satır sırasını
+son etkinlik zamanı gibi yorumlamaz. Ham çıktı metni, örnek satırlar, sohbet
+geçmişi ve sağlayıcı yanıt gövdeleri dışarı aktarılmaz. Kanıtın ifade sözleşmesi,
+kodu, kapsam/sürüm bilgileri ve denetim hataları korunur.
+
+Bu araç hatayı düzeltmez veya canlı öneriyi yeniden üretmez. Hata nedenini
+bilgisayardaki mevcut kayıttan almak içindir. İlgili kaydı almadan bu ekranın
+kesin hata nedeni açıklanmış sayılmaz ve sırf devam edebilmek için denetimler
+gevşetilmez. Geçerli bir veritabanı veya eşleşen kayıt yoksa yeni boş hafıza
+oluşturmak yerine açıkça durur.
