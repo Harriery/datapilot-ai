@@ -38,7 +38,7 @@ def summarize(state):
         'attempts', 'provider_calls', 'rendering_contract', 'model_factual_prose_published',
     ))
     report['last_validation']['model_attempts'] = [
-        {**pick(item, ('attempt', 'errors')),
+        {**pick(item, ('attempt', 'errors', 'evidence_binding')),
          'raw_plan': decision(item.get('raw_plan')),
          'compiled_proposal': decision(item.get('proposal'))}
         for item in validation.get('model_attempts', [])

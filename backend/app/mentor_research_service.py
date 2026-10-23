@@ -74,7 +74,7 @@ class ResearchDecisionAction(StrictModel):
 class GroundedResearchDecision(StrictModel):
     """Provider wire: decisions only; backend owns derived bookkeeping/prose."""
     next_action: ResearchDecisionAction | None
-    evidence_ids: list[str] = Field(description="1-3 current IDs including latest. Supply once here; never duplicate inside next_action.")
+    evidence_ids: list[str] = Field(description="Select 1-2 supported relevant current IDs. The backend also includes the latest execution automatically. Supply once here; never duplicate inside next_action.")
 
 
 class InspectionDecisionAction(ResearchDecisionAction):
@@ -103,13 +103,23 @@ def expand_research_decision(decision: GroundedResearchDecision, state: dict) ->
     action = decision.next_action
     if action is not None and action.kind == "clarify" and action.code is not None:
         raise InvalidResearchDecision("Clarification must have null code")
+    refs = list(dict.fromkeys(decision.evidence_ids))
+    current = state.get('current_evidence_ids') or []
+    # The latest factual observation is mandatory backend bookkeeping, not a
+    # model selection task. Keep the raw provider decision intact for diagnosis.
+    # This does not admit unknown, unsupported, stale or failed selected IDs:
+    # the compiler still checks every reference, including this anchor.
+    if refs and current and current[0] not in refs:
+        refs.insert(0, current[0])
+    if len(refs) > 3:
+        raise InvalidResearchDecision("Select at most two additional observations when omitting the latest execution")
     return GroundedResearchPlan(
-        evidence_ids=decision.evidence_ids,
+        evidence_ids=refs,
         next_action=ResearchAction(
             kind=action.kind, code=action.code,
             focus_column=state.get("focus_column") or "",
             columns=fields_in_code(action.code or "") if action.kind == "inspect" else [],
-            evidence_ids=decision.evidence_ids,
+            evidence_ids=refs,
             instruction="Backend renders the validated action.",
             why="Backend renders the validated reason.",
         ) if action is not None else None,
@@ -358,6 +368,7 @@ def build_research_request(context: dict, state: dict, message: str, history: li
         "definition_availability": state.get("definition_availability"),
         "allowed_action_kinds": ["inspect"] if decision_schema(state) is GroundedInspectionDecision else ["inspect", "clarify"],
         "available_columns": state.get("available_columns", [])[:100],
+        "latest_observation_id": (state.get("current_evidence_ids") or [None])[0],
         "current_observations": current[:6],
         "earlier_checks": [{key: x.get(key) for key in (
             "id", "cell_id", "signature", "fields", "success", "input_rows", "dataset_kind",
@@ -402,8 +413,10 @@ Never generate instruction, why, columns, focus_column or nested evidence_ids;
 the backend derives these from the active focus, checked code and selected IDs.
 The backend renders the factual explanation from analysis_contract; never
 reconstruct a different population or invent a domain meaning from column names.
-Choose 1-3 current IDs including latest, with supported contracts and nonstale
-successful executions. Helper checks do not change the learner-controlled focus.
+Choose 1-2 relevant current IDs with supported contracts and nonstale successful
+executions. The backend automatically includes latest_observation_id in the
+compiled reply even when it concerns a different helper. Do not select an
+unsupported observation to satisfy recency. Helper checks do not change focus.
 For inspect supply a minimal direct df expression referencing the active focus;
 internal code is required even when user requests no visible code. Use Python
 single-quoted column names inside the JSON string, e.g. df['field'].isna().sum().
@@ -595,6 +608,7 @@ RESEARCH_COPY = {
            "loaded": " satırlık yüklemelerden kayıtlı çıktılar.", "unknown_scope": "Eski yürütmelerde yüklenen satır sayısı kayıtlı değil.",
            "not_full": " Tam kaynak doğrulanmış sayılmaz.",
            "stale": "Bazı çıktılar önceki veri veya örneklem sürümüne ait; güncel kanıt olarak kullanılmadı.",
+           "version_unknown": "Bazı eski çıktıların veri sürümü kaydedilmemiş. Bunlar geçmiş gözlemlerdir; şu anki veriyle eşleşmeleri doğrulanmış değildir.",
            "next": "Sonraki tek adım: ", "why": "Neden: ",
            "incomplete": "Mentor yanıtı tamamlanamadan kesildi. Eksik yanıtı bir öneri olarak sunmuyorum; bu tur rehberlik tamamlanamadı ve verilerin değiştirilmedi.",
            "blocked": "Mentorun önerisi konu, tekrar veya kanıt denetiminden geçmedi; seni bu öneriyle yeni bir işleme yönlendirmiyorum. Bu tur rehberlik tamamlanamadı; mevcut veriler değiştirilmedi."},
@@ -603,6 +617,7 @@ RESEARCH_COPY = {
            "loaded": " rows loaded at execution; saved observations.", "unknown_scope": "Loaded input size was not recorded for older executions.",
            "not_full": " This does not establish full-source verification.",
            "stale": "Some outputs belong to an earlier data or sample version and were not used as current evidence.",
+           "version_unknown": "Some older outputs have no recorded data version. They are historical observations; their match to the current data is unverified.",
            "next": "One next step: ", "why": "Why: ",
            "incomplete": "The Mentor response was cut off before completion. The partial response is not being assigned as a task; guidance is incomplete and your data was not changed.",
            "blocked": "The Mentor proposal failed the focus, repetition or evidence checks. It is not being assigned as a task. Guidance could not be completed this turn; no project data was changed."},
@@ -611,6 +626,7 @@ RESEARCH_COPY = {
            "loaded": " geladen rijen bij uitvoering; opgeslagen waarnemingen.", "unknown_scope": "Bij oudere uitvoeringen is het aantal geladen rijen niet vastgelegd.",
            "not_full": " Hiermee is de volledige bron niet gevalideerd.",
            "stale": "Sommige resultaten horen bij een eerdere data- of steekproefversie en gelden niet als actueel bewijs.",
+           "version_unknown": "Bij sommige oudere resultaten is de dataversie niet vastgelegd. Het zijn eerdere waarnemingen; de overeenkomst met de huidige gegevens is niet bevestigd.",
            "next": "Eén volgende stap: ", "why": "Waarom: ",
            "incomplete": "Het mentorantwoord is afgebroken voordat het volledig was. Het onvolledige antwoord wordt niet als opdracht aangeboden; de begeleiding is niet afgerond en je gegevens zijn niet gewijzigd.",
            "blocked": "Het voorstel van de mentor voldoet niet aan de controles op doel, herhaling of bewijs. Je krijgt dit voorstel niet als opdracht. De begeleiding is deze beurt niet afgerond; er zijn geen projectgegevens gewijzigd."},
@@ -637,6 +653,8 @@ def render_turn(turn: ResearchTurn, state: dict, message: str, *, support: dict 
     lines.append(copy["scope"] + (", ".join(f"{n:,}" for n in scopes) + copy["loaded"] if scopes else copy["unknown_scope"]) + copy["not_full"])
     if any(item["stale_scope"] for item in evidence):
         lines.append(copy["stale"])
+    if any(not item.get('version_verified') for item in evidence):
+        lines.append(copy['version_unknown'])
     if turn.next_action:
         lines.extend([copy["next"] + turn.next_action.instruction, copy["why"] + turn.next_action.why])
         if explicit_code_requested(message):
@@ -782,6 +800,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
     for attempt in range(max_attempts):
         proposal = None
         raw_proposal = None
+        expanded = None
         normalizations = []
         provider_recovery = None
         response_metadata = {}
@@ -854,6 +873,11 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
         traces.append({
             "attempt": attempt + 1,
             "raw_plan": raw_proposal.model_dump() if raw_proposal is not None else None,
+            "evidence_binding": {
+                'selected_ids': list(raw_proposal.evidence_ids),
+                'compiled_ids': list(expanded.evidence_ids),
+                'added_latest_ids': [ref for ref in expanded.evidence_ids if ref not in raw_proposal.evidence_ids],
+            } if isinstance(raw_proposal, GroundedResearchDecision) and expanded is not None else None,
             "proposal": proposal.model_dump() if proposal is not None else None,
             "visible_proposal": proposal.model_dump() if normalizations else None,
             "normalizations": normalizations,
@@ -884,7 +908,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
             "inspect_code": "nonempty backend-only read-only Python, even when user requests no code",
             "derived_fields": "Do not generate columns, focus_column, instruction, why or nested evidence_ids; backend derives them",
             "user_visible_code": "omit unless explicitly requested",
-            "complete_compact_output": "next_action (null or exactly {kind, code}), evidence_ids (1-3 current IDs including latest); no other fields",
+            "complete_compact_output": "next_action (null or exactly {kind, code}), evidence_ids (1-2 supported relevant current IDs; backend includes latest automatically); no other fields",
             "output_token_limit": output_limit if output_limit > 0 else None,
         }
         # Keep correction requests bounded too: recording a rejected proposal

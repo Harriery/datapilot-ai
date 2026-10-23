@@ -1,6 +1,6 @@
 # Mentor: güncel durum ve kabul ölçütleri
 
-Güncelleme: 21 Ekim 2026. Kullanıcı kararıyla çalışma dalı artık `main`.
+Güncelleme: 23 Ekim 2026. Kullanıcı kararıyla çalışma dalı artık `main`.
 Flight projesi beklemede. Ana hedef, acemi kullanıcının uygulamadaki mentorla
 veriyi tanımadan proje çıktılarının tamamlanmasına kadar ilerleyebilmesidir.
 Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin yerine geçmez.
@@ -14,6 +14,7 @@ Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin ye
 | Yardımcı kontrolün satır grubu | AST sözleşmesi ve gerçek `report(5)` regresyonları, seçilen grubu ölçülen sütundan ayırıyor. Sıfır için boş grup olasılığı belirtiliyor. | Birbirine bağlı canlı incelemelerde aynı disiplini korumak. |
 | Kaynak açıklaması isteme | `report(6)` veri sözlüğünü sordu. Canlı `report(7)`, kullanıcı sözlüğün olmadığını söylediğinde aynı sorunun tekrarlandığını ve ilerlemenin başarısız olduğunu gösterdi. | Aynı soruyu reddeden yeni bellek/denetim düzeltmesinden sonra canlı ilerlemeyi doğrulamak. |
 | İnceleme kararını aktarma | Canlı `report(8)` eksik hedef satırlarının önizlemesini seçti; eski şemada iç evidence_ids eksik olduğu için reddedildi. Yeni küçük sözleşmeyle aynı kod yerelde değişmeden kabul ediliyor. | Gerçek modelin yeni sözleşmeyle tek denemede geçerli karar vermesini ve sonraki çıktıyı doğru yorumlamasını doğrulamak. |
+| Son çıktıyı yanıta bağlama | 23 Ekim gerçek Flight kaydında iki karar da son hücre kimliği seçilmediği için reddedildi. Backend artık son gözlemi derlenmiş plana kendisi ekler. Gerçek ilk karar yerelde geçerken desteklenmeyen kanıt seçen ikinci karar reddedilmeye devam eder. | Aynı kullanıcının canlı sohbetinde gereksiz ret olmadan devamı doğrulamak. |
 | Cevaplanan soruyu kapatma | Canlı `report(9)` yeni şemaya uydu ama yine clarify seçti; tekrar denetimi bunu reddetti. İncelemede sözlük kısıtı kaydedilirken eski sorunun açık ve önerinin proposed kaldığı görüldü. | Düzeltilen soru yaşam döngüsü ve bağlama göre daraltılan işlem şemasıyla canlı ilerlemeyi doğrulamak. |
 | Güvenle seçilebilen küçük adım | `report(10)` kapanmış sorudan sonra null döndürdü; geçerli biçim ilerleme sağlamadı. Yeni yerel kural, güncel pozitif eksik sayımından ilk eksik örnekleri önermeyi gerçek üretim takip komutunda AI çağrısı olmadan geçti. | Kullanıcının bu adımı uygulamasını ve sonraki çıktıyla araştırmanın doğru sürmesini doğrulamak. Bu sonuç canlı modelin ilerlediğini kanıtlamaz. |
 | Birbirine bağlı çıktı takibi | Üç sentetik şemada üretim mentorunun gerçek önerisi sınırlı yorumlayıcıyla uygulanıp sonraki hücreye kaydedildi: sayım → 5 eksik örnek → yardımcı dağılım → yalnız açıklama. Yerel zincir sağlayıcısız geçti. | Gerçek acemi UI kullanımı, belirsiz yardımcı seçimi ve daha uzun/diğer aşamalardaki rehberlik. |
@@ -395,3 +396,33 @@ bilgisayardaki mevcut kayıttan almak içindir. İlgili kaydı almadan bu ekran�
 kesin hata nedeni açıklanmış sayılmaz ve sırf devam edebilmek için denetimler
 gevşetilmez. Geçerli bir veritabanı veya eşleşen kayıt yoksa yeni boş hafıza
 oluşturmak yerine açıkça durur.
+
+### 23 Ekim Flight: son gözlemi backend bağlar
+
+Alınan gerçek tanılama dosyasında her iki model denemesi de
+`The latest executed observation must be addressed` hatasını verdi. Son hücre
+iptal edilen uçuşların iptal nedeni eksikliğiyle ilgiliydi; kullanıcının aktif
+hedefi AIR_SYSTEM_DELAY idi. Model eski hedef kontrollerini seçerken son hücrenin
+kimliğini seçmedi. Bu kayıt gerçek hatayı açıklar; yanlış veri yorumu yaptığı
+sonucunu tek başına göstermez.
+
+`expand_research_decision`, seçili kimlikleri değiştirmeden son gözlemin kimliğini
+genişletilmiş plana ekler. Son çıktı backend'in kendi AST sözleşmesinden açıklanır;
+ilişkili eski hedef kontrolleri ayrı iddialar olarak kalır. Ham model kararı
+değiştirilmez. `model_attempts.evidence_binding`, seçilen, derlenen ve eklenen
+kimlikleri ayrı kaydeder; tanılama dışa aktarımı bunu korur.
+
+Derleyicinin son gözlemi ele alma şartı korunur. Bilinmeyen/eski/başarısız veya
+desteklenmeyen kanıt hâlâ reddedilir. Dört kanıtı sınıra sığdırmak için modelin
+seçimi sessizce atılmaz. Gerçek ilk clarify kararı bu bağlama sonrası geçer;
+ikinci inspect kararı desteklenmeyen boolean-mask toplamını kanıt seçtiği için
+geçmez. Yeni kod bu ifadeyi destekleniyor gibi işaretlemez.
+
+Dosyadaki eski yürütmelerde `input_data_version` bulunmuyordu. Bunların kayıtlı
+10.000 giriş satırı bilgisi korunur, ancak veri sürümünün güncelliği doğrulanmış
+sayılmaz; yanıtta bu ayrım belirtilir. Geçmiş satır sayısından yeni sürüm kimliği
+üretilmez. Gerçek karar tekrar oynatımı ve kontrollü sağlayıcı cevabıyla üretim
+yolu kontrolü canlı AI veya acemi kullanıcının projeyi bitirme kanıtı değildir.
+Kullanıcının gerçek tanılama dosyası ve hücre içerikleri depoya eklenmez. Depodaki
+regresyon aynı son-hücre/ilgili-eski-gözlem durumunu yapay alan adları, sonuçlar
+ve ifadelerle oluşturur; gerçek kayıtla inceleme ayrı yerel kontroldür.
