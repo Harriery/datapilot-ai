@@ -34,6 +34,7 @@ from backend.app.mentor_investigation_service import (
     pending_step, prompt_workflow, document_deferral, schema_start_action,
 )
 from backend.app.mentor_investigation_presenter import render_pending_step, render_concise_turn, detailed_evidence_requested
+from backend.app.mentor_relationship_planner import plan_relationship_comparison
 
 
 class StrictModel(BaseModel):
@@ -858,8 +859,12 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
             save_research_state(workspace_id, notebook_id, state)
             return render_turn(display, state, message, support={**support, 'code': supported.next_action.code,
                                                               'task_instruction': supported.next_action.instruction})
-    local_plan = None if is_mentor_reply_review_request(message) else plan_missing_preview(state, message)
-    local_policy = 'missing_examples_v1'
+    local_plan = None if is_mentor_reply_review_request(message) else plan_relationship_comparison(
+        state, notebook, context.get('local_relationship_map') or {}, message)
+    local_policy = 'relationship_comparison_v1'
+    if local_plan is None and not is_mentor_reply_review_request(message):
+        local_plan = plan_missing_preview(state, message)
+        local_policy = 'missing_examples_v1'
     if local_plan is None and not is_mentor_reply_review_request(message):
         local_plan = plan_preview_continuation(state, message)
         local_policy = 'preview_review_v1' if local_plan is not None and local_plan['next_action'] is None else 'preview_distribution_v1'

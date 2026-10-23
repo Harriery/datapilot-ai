@@ -114,11 +114,22 @@ def expression_contract(code: str) -> dict:
             pass
         else:
             raise UnsupportedObservation('unsupported aggregation')
+        transform = None
+        if (operation == 'distribution' and isinstance(base, ast.Call)
+                and isinstance(base.func, ast.Attribute) and base.func.attr in {'isna', 'isnull'}
+                and not base.args and not base.keywords):
+            transform = 'missing_indicator'
+            base = base.func.value
         where, columns = selection(base)
         if not operation.startswith('preview_') and (columns is None or (operation != 'distribution' and len(columns) != 1)):
             raise UnsupportedObservation('measurement is not one literal column')
-        return {'version':1, 'row_predicate':where, 'measured_columns':columns,
-                'operation':operation, 'options':kwargs, 'frame':'current_notebook_df'}
+        result = {'version':1, 'row_predicate':where, 'measured_columns':columns,
+                  'operation':operation, 'options':kwargs, 'frame':'current_notebook_df'}
+        if transform:
+            if columns is None or len(columns) != 1:
+                raise UnsupportedObservation('missing indicator requires one literal column')
+            result['measurement_transform'] = transform
+        return result
     except (SyntaxError, ValueError, TypeError, RecursionError) as exc:
         return {'version':1, 'supported':False, 'reason':str(exc)[:120]}
 
@@ -189,6 +200,10 @@ def observation_text(contract: dict, language='tr') -> str:
     heading = {'tr':f'Seçilen satırlar: {group}. İncelenen sütunlar: {cols or "tüm sütunlar"}. Kayıtlı çıktı: {name}.',
             'en':f'Selected rows: {group}. Inspected columns: {cols or "all columns"}. Recorded output: {name}.',
             'nl':f'Geselecteerde rijen: {group}. Onderzochte kolommen: {cols or "alle kolommen"}. Opgeslagen resultaat: {name}.'}[language]
+    if contract.get('measurement_transform') == 'missing_indicator':
+        heading += {'tr': ' Ölçülen gösterge: True=boş, False=dolu; bunlar sütunun ham değerleri değil.',
+                    'en': ' Measured indicator: True=missing, False=present; these are not raw column values.',
+                    'nl': 'Gemeten indicator: True=ontbrekend, False=aanwezig; dit zijn geen ruwe kolomwaarden.'}[language]
     output = contract.get('recorded_output','')
     lines = output.splitlines()
     shown = ' / '.join(field_label(line[:80]) for line in lines[:6])
@@ -196,7 +211,7 @@ def observation_text(contract: dict, language='tr') -> str:
         heading += {'tr':' Görünen çıktı: ','en':' Visible output: ','nl':' Zichtbaar resultaat: '}[language] + shown
     if len(lines)>6 or contract.get('output_truncated'):
         heading += {'tr':' (Gösterim kısaltıldı.)','en':' (Display shortened.)','nl':' (Weergave ingekort.)'}[language]
-    if op=='distribution':
+    if op=='distribution' and contract.get('measurement_transform') != 'missing_indicator':
         heading += {'tr':' Eksikler dağılıma yalnız dropna=False kullanıldıysa dahildir.',
                     'en':' Missing values are included only with dropna=False.',
                     'nl':' Ontbrekende waarden tellen alleen mee bij dropna=False.'}[language]

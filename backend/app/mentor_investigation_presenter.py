@@ -2,10 +2,22 @@
 from backend.app.mentor_observation_contract import expression_contract, field_label, predicate_label
 from backend.app.mentor_preview_evidence_service import preview_summary
 from backend.app.mentor_tutoring_service import explicit_code_requested, normalized
+from backend.app.mentor_relationship_interpretation import render_relationship_comparison
 
 
 def task_purpose(contract, state, language):
     operation = contract['operation']
+    relationship = state.get('relationship_investigation') or {}
+    predicate = contract.get('row_predicate') or {}
+    if (operation == 'distribution' and predicate.get('column') == relationship.get('target_column')
+            and predicate.get('op') in {'missing', 'present'}
+            and contract.get('measured_columns') == [relationship.get('helper_column')]
+            and contract.get('options', {}).get('normalize') is True):
+        return {
+            'tr': 'Yerel girdi örnekleminde bu iki alan arasında bir ilişki adayı bulundu; bu, notebook’taki df için henüz doğrulanmış değil. Eksik ve dolu grupların dağılımlarını ayrı ayrı oran olarak karşılaştıracağız; farklı büyüklükte grupların ham sayılarını karşılaştırmayacağız. Bu kontrol neden veya iş kuralı kanıtlamaz.',
+            'en': 'Local input discovery identified a candidate association, not yet verified in the notebook df. Compare separate proportions in the missing and present groups rather than raw counts of differently sized groups. This establishes neither causality nor a business rule.',
+            'nl': 'Lokale invoerverkenning vond een mogelijke samenhang, nog niet bevestigd in de notebook-df. Vergelijk verhoudingen in de ontbrekende en aanwezige groepen, geen ruwe aantallen van ongelijk grote groepen. Dit bewijst geen oorzaak of bedrijfsregel.',
+        }[language]
     if operation == 'missing_count':
         historical = any(x.get('analysis_contract', {}).get('operation') == 'missing_count'
                          and x.get('analysis_contract', {}).get('measured_columns') == contract.get('measured_columns')
@@ -67,6 +79,10 @@ def render_pending_step(step, state, message):
         'nunique': ('`nunique` boş olmayan farklı değerlerin sayısını bulur.', '`nunique` counts distinct nonmissing values.', '`nunique` telt verschillende aanwezige waarden.'),
     }
     concept = concepts[operation][{'tr': 0, 'en': 1, 'nl': 2}[language]]
+    if contract.get('measurement_transform') == 'missing_indicator':
+        concept = {'tr': 'Önce yardımcı sütuna `isna` uygularız: boş hücre True, dolu hücre False olur. Sonra bu iki durumun oranlarını sayarız; sütun değerlerini değiştirmeyiz.',
+                   'en': 'Apply `isna` to the helper: missing becomes True and present becomes False. Compare the proportions of these indicators without changing values.',
+                   'nl': 'Pas `isna` toe op de hulpkolom: ontbrekend wordt True en aanwezig False. Vergelijk hun verhoudingen zonder waarden te wijzigen.'}[language]
     if step.get('help_requests', 0) >= 2:
         examples = {
             'missing_count': ('Temsili örnek: boş, 8, boş hücreleri için iki boş hücre sayarız. Bu örnek senin verinden alınmadı.',
@@ -76,6 +92,10 @@ def render_pending_step(step, state, message):
                              'Illustrative example: in A, A, B, A occurs twice and B once. Apply this idea within the selected group.',
                              'Fictief voorbeeld: bij A, A, B komt A twee keer voor en B één keer. Pas dit idee toe binnen de geselecteerde groep.'),
         }.get(operation)
+        if contract.get('measurement_transform') == 'missing_indicator':
+            examples = ('Temsili örnek: True, True, False için boşluk göstergesinin oranı 2/3, doluluk göstergesinin oranı 1/3 olur. Bunlar senin verinin sonuçları değildir.',
+                        'Illustrative example, not your results: True, True, False gives missing proportion 2/3 and present proportion 1/3.',
+                        'Fictief voorbeeld, niet jouw resultaten: True, True, False geeft ontbrekend 2/3 en aanwezig 1/3.')
         if examples:
             concept += ' ' + examples[{'tr': 0, 'en': 1, 'nl': 2}[language]]
         elif operation in {'min', 'max', 'mean', 'median', 'count', 'nunique'}:
@@ -85,7 +105,12 @@ def render_pending_step(step, state, message):
                         'nl': f' Bij de fictieve waarden 2, 2, 8, ontbrekend geeft deze bewerking {sample}; dit is niet jouw data.'}[language]
     if operation == 'distribution':
         included = contract['options'].get('dropna', True) is False
-        concept += {'tr': ' `dropna=False` ise boş değerler de sayılır.' if included else ' Bu görevde boş değerler dağılım sayımına dahil değildir.',
+        if contract.get('measurement_transform') == 'missing_indicator':
+            concept += {'tr': ' Burada kaynak boşlukları True göstergesiyle temsil edilir.',
+                        'en': ' Here source missingness is represented by True.',
+                        'nl': ' Hier wordt ontbrekendheid in de bron weergegeven als True.'}[language]
+        else:
+            concept += {'tr': ' `dropna=False` ise boş değerler de sayılır.' if included else ' Bu görevde boş değerler dağılım sayımına dahil değildir.',
                     'en': ' Missing values are included.' if included else ' Missing values are excluded.',
                     'nl': ' Ontbrekende waarden tellen mee.' if included else ' Ontbrekende waarden tellen niet mee.'}[language]
         if contract['options'].get('normalize'):
@@ -154,6 +179,9 @@ def render_concise_turn(turn, state, message):
                              if not latest.get('input_data_version') else 'Bu çıktının güncel veri sürümüyle eşleşmesi doğrulanmadı.'),
                       'en': 'This older output has no verified match to the current data version.',
                       'nl': 'Deze oude uitvoer is niet bevestigd voor de huidige dataversie.'}[language])
+    comparison = render_relationship_comparison(state, language)
+    if comparison:
+        lines.append(comparison)
     if turn.next_action:
         action = turn.next_action
         lines.append({'tr': 'Sonraki tek adım: ', 'en': 'One next step: ', 'nl': 'Eén volgende stap: '}[language] + action.instruction)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import backend.app.database as database
 
 from backend.app.mentor_context_service import (
@@ -280,6 +282,11 @@ def build_chat_mentor_workspace_context(
         selected_notebook_state=selected_notebook_state,
     )
 
+    relationship_map = None
+    if os.getenv('AI_NOTEBOOK_RESEARCH_ENABLED', 'false').strip().casefold() in {'1', 'true', 'yes'}:
+        from backend.app.mentor_relationship_service import load_local_relationship_map
+        relationship_map = load_local_relationship_map(workspace, selected_notebook_state)
+
     return {
         "workspace_id": workspace.workspace_id,
         "title": workspace.title,
@@ -327,6 +334,9 @@ def build_chat_mentor_workspace_context(
             ),
         "mentor_execution_context": execution_context,
         "artifacts": artifacts,
+        # Local planning only. Neither provider request builder includes this
+        # key; category values and raw rows are not stored in the map itself.
+        "local_relationship_map": relationship_map,
         "learner_skills": [
             dict(item)
             for item in database.get_skill_states_by_learner(

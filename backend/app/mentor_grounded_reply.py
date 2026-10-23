@@ -67,6 +67,10 @@ def compile_reply(plan, state, message):
                 return None,['Inspection cannot be explained safely: use a supported direct df expression or clarify']
             group=predicate_label(contract['row_predicate'],language)
             columns=', '.join(field_label(x) for x in contract.get('measured_columns') or [])
+            if contract.get('measurement_transform') == 'missing_indicator':
+                columns += {'tr': ' eksiklik göstergesi (True=boş, False=dolu)',
+                            'en': ' missing indicator (True=missing, False=present)',
+                            'nl': ' ontbrekend-indicator (True=ontbrekend, False=aanwezig)'}[language]
             name={'missing_count':{'tr':'eksik değer sayısını bul','en':'count missing values','nl':'tel ontbrekende waarden'},
                   'distribution':{'tr':'değer dağılımını incele','en':'inspect the value distribution','nl':'bekijk de waardeverdeling'},
                   'preview_head':{'tr':f"ilk {contract['options'].get('limit',5)} satırı görüntüle",'en':f"show the first {contract['options'].get('limit',5)} rows",'nl':f"toon de eerste {contract['options'].get('limit',5)} rijen"},
@@ -87,7 +91,8 @@ def compile_reply(plan, state, message):
             rows = missing_preview_rows(selected[0])
             measured = contract.get('measured_columns') or []
             if (contract['operation'] == 'distribution' and len(measured) == 1 and rows
-                    and measured[0] in rows[0] and contract['row_predicate'] == {'op': 'missing', 'column': focus}):
+                    and measured[0] in rows[0] and not contract['options'].get('normalize')
+                    and contract['row_predicate'] == {'op': 'missing', 'column': focus}):
                 helper = field_label(measured[0])
                 preview_why = {
                     'tr': f'Örneklerde gördüğümüz {helper} değerlerinin, mevcut df içinde {field_label(focus)} eksik olan grubun tamamındaki dağılımını inceleyeceğiz. Bu, tek başına eksikliğin nedenini açıklamaz.',

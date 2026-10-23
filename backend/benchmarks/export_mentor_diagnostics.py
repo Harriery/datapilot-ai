@@ -26,7 +26,7 @@ def summarize(state):
     validation = state.get('last_validation') or {}
     report = pick(state, ('schema_version', 'focus_column', 'response_language',
                           'current_evidence_ids', 'available_columns', 'definition_availability',
-                          'pending_evidence_refresh'))
+                          'pending_evidence_refresh', 'relationship_investigation'))
     report['observations'] = [pick(item, (
         'id', 'cell_id', 'section_title', 'code', 'fields', 'success', 'analysis_contract',
         'input_rows', 'dataset_kind', 'input_data_version', 'version_verified',

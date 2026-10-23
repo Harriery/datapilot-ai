@@ -5,6 +5,13 @@ Flight projesi beklemede. Ana hedef, acemi kullanıcının uygulamadaki mentorla
 veriyi tanımadan proje çıktılarının tamamlanmasına kadar ilerleyebilmesidir.
 Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin yerine geçmez.
 
+Yerel ilişki araştırması eklendi: çalışma girdisinde birlikte eksilme ve az
+kategorili gruplara bağlı eksiklik adayları bulunur, ayrı bir bölümde aynı
+karşılaştırma kontrol edilir. Mentor ardından notebook'ta eksik ve dolu grupların
+oranlarını ayrı ayrı incelemeyi önerir. Girdi haritası notebook df kanıtı sayılmaz;
+aynı görev yaşam döngüsüne bağlıdır. Kapsam, bütçe ve gizlilik sınırları
+[`mentor-relationship-discovery.md`](mentor-relationship-discovery.md) belgesinde.
+
 ## Neyi doğruladık, neyi doğrulamadık?
 
 23 Ekim mimari değişikliği: Notebook incelemesi artık tek bir kalıcı etkin adım
