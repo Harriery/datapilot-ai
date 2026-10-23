@@ -1,7 +1,8 @@
 # Mentor progress review — 23 October 2026
 
-Status: architecture diagnosis and acceptance plan, not a shipped redesign.
-Baseline: main at 1239e2c. Flight acceptance remains paused.
+Status: the bounded investigation controller is implemented; live-model,
+browser and novice acceptance remain open. This is not full-product readiness.
+Diagnosis baseline: main at 1239e2c. Flight acceptance remains paused.
 
 The product goal is a novice completing a data project through the application
 mentor. Passing evidence-contract tests is necessary but does not establish
@@ -9,7 +10,7 @@ that goal. The recent local fixes addressed real failures without demonstrating
 general teaching or sustained progress. This review changes the next unit of
 work from another phrase-specific fix to one coherent investigation lifecycle.
 
-## Findings from current code
+## Findings at the diagnosis baseline
 
 | Finding | Evidence in the repository | Consequence |
 | --- | --- | --- |
@@ -45,7 +46,7 @@ This is a reproducible structural failure under a controlled response, not a
 live-model quality result. No uploaded diagnostic payload or real notebook
 contents are included in this document.
 
-## Next implementation boundary
+## Implementation boundary
 
 Keep the evidence parser, scope/version tracking, source constraints and safe
 inspection validation. Reconcile the research path with existing learning
@@ -78,6 +79,66 @@ This is a dataset-neutral control structure. It must allow alternate
 investigation paths and an explicit unresolved outcome when evidence or source
 definitions are insufficient. It must not impose filling/deleting values or
 claim that an investigation succeeded merely because no further action exists.
+
+## Implemented controller and remaining boundary
+
+`mentor_investigation_service.py` now owns one active task, task history and
+the learner-requested finding ledger. Existing proposal lists and refresh
+metadata are compatibility projections. The research entry point reconciles
+execution evidence before planning, refreshes or teaching. A pending inspection
+is taught rather than reassigned, regardless of whether the user's wording
+matches the old support router. The old specialized preview/distribution hints
+remain presentation helpers; they no longer independently own task completion.
+
+A step closes only on a new, successful, supported, scope-verified execution
+whose semantic signature matches the assignment. Evidence identity and a
+separate execution receipt both have to be new. Editing saved code beside an
+old result, saying "done", running unrelated code or encountering an error does
+not close it. A scope change marks it for revalidation. Old open proposals
+migrate into the controller; explicit topic changes archive pending work and
+preserve findings. State remains in the existing notebook-scoped SQLite store.
+
+The teaching presenter supports missing counts, distributions, head/tail and
+min/max/mean/median/count/nunique. It uses the existing stage playbook and skill
+assistance policy, explains the calculation and purpose, adds clearly fictional
+examples after repeated requests and reveals complete code only when explicitly
+requested. It does not award mastery from chat frequency. Default observation
+replies are shorter; an explicit evidence-details request retains the full
+compiled account. Scope and uncertainty are still disclosed.
+
+Recorded previews up to 256 fields are validated before a maximum twelve-field
+typed view is selected. Target and at least two observed boolean candidates
+are retained before optional fields, so width reduction cannot falsely remove
+helper ambiguity. Numeric flags are not silently assigned boolean meanings.
+
+An empty notebook can start a target missing count from a known source/working
+schema and configured input version, without invented observations. A processed
+table cannot use the source profile as proof of its current schema. After at
+least two distinct current observations, the learner can explicitly record a
+deferred finding. This saves a note in the mentor journal, not a QualityCheck,
+dataset transformation, full-source validation or completed project.
+
+Verification includes the production `/chat` route with a saved workspace,
+real context construction, empty notebook entry and subsequent executions.
+The scripted workflow scenarios use 1,000-row, 31-column synthetic tables and
+execute only code actually displayed after a code request. They cover a bounded
+count → preview → distribution → deferred finding route without provider calls.
+They are not a general autonomous novice, live-model or learning-benefit test.
+
+Local verification on 23 October: 942 backend tests passed. The three scripted
+wide-table workflows also passed; their actual replies were reviewed. Checks
+include revalidation completing after a fresh execution in the new version or
+dataset kind, rather than merely detecting the scope change. A browser run was
+attempted but could not start because Chromium downloads were invalid/truncated
+in this environment. No browser success is claimed. There is no configured
+Groq key in this runtime, so no new live-provider result is claimed either.
+
+Remaining: provider-backed choices with ambiguous/numeric helpers, arbitrary
+natural-language interpretation, handling analyses outside the safe expression
+contract, real browser interaction and novice comprehension. Transformations,
+SQL, modelling, KPIs, dashboards and documentation still have their existing
+paths; the new controller does not yet orchestrate all project stages. No
+end-to-end product acceptance is claimed.
 
 ## First acceptance target
 

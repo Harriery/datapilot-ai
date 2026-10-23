@@ -20,7 +20,7 @@ def preview_contradicts_selection(observation: dict) -> bool:
     return False
 
 
-def missing_preview_rows(observation: dict) -> list[dict]:
+def missing_preview_rows(observation: dict, preferred_columns=()) -> list[dict]:
     contract = observation.get('analysis_contract') or {}
     where = contract.get('row_predicate') or {}
     rows = observation.get('preview_rows')
@@ -32,7 +32,7 @@ def missing_preview_rows(observation: dict) -> list[dict]:
     projection = contract.get('measured_columns')
     clean = []
     for row in rows:
-        if not isinstance(row, dict) or target not in row or len(row) > 12:
+        if not isinstance(row, dict) or target not in row or len(row) > 256:
             return []
         if projection is not None and set(row) - set(projection):
             return []
@@ -46,7 +46,14 @@ def missing_preview_rows(observation: dict) -> list[dict]:
                       for key, value in row.items()})
     if any(set(row) != set(clean[0]) for row in clean):
         return []
-    return clean
+    # Deliberately select a bounded typed view instead of dropping wide rows.
+    # Preserve every boolean candidate until ambiguity is visible (at least
+    # two); never turn a truncated candidate list into an apparent unique one.
+    boolean = [key for key in clean[0] if key != target and all(type(row[key]) is bool for row in clean)]
+    ordered = list(dict.fromkeys([target] + boolean[:2]
+                                 + [key for key in preferred_columns if key in clean[0]]
+                                 + boolean[2:] + list(clean[0])))[:12]
+    return [{key: row[key] for key in ordered} for row in clean]
 
 
 def preview_summary(observation: dict, language: str) -> str | None:

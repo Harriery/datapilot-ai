@@ -72,7 +72,9 @@ def plan_preview_continuation(state: dict, message: str) -> dict | None:
         if re.search(r'sonu[cç]|[cç][ıi]kt[ıi]|result|output|uitvoer|uitkomst', message, re.I):
             return {'next_action': None, 'evidence_ids': [latest['id']]}
         return None
-    rows = missing_preview_rows(latest)
+    preferred = [key for key in state.get('available_columns', [])
+                 if re.search(r'(?<!\w)' + re.escape(key) + r'(?!\w)', message, re.I)]
+    rows = missing_preview_rows(latest, preferred)
     if not rows:
         return None
     definition = state.get('definition_availability') or {}

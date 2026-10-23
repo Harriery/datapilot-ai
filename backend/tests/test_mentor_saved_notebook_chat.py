@@ -15,8 +15,9 @@ from backend.app.notebook_scope_service import notebook_input_version
     ('temperature', 'offline'), ('delivery_days', 'returned'),
     ('response_seconds', 'closed'),
 ])
+@pytest.mark.parametrize('empty_start', [False, True])
 def test_saved_notebook_guidance_uses_actual_context_and_advances_only_after_execution(
-    tmp_path, monkeypatch, target, helper,
+    tmp_path, monkeypatch, target, helper, empty_start,
 ):
     monkeypatch.setenv('AI_NOTEBOOK_RESEARCH_ENABLED', 'true')
     monkeypatch.setattr(database, 'DATABASE_PATH', tmp_path / 'chat.sqlite')
@@ -45,11 +46,12 @@ def test_saved_notebook_guidance_uses_actual_context_and_advances_only_after_exe
     assert version
     scope = dict(success=True, input_row_count=10000, input_total_row_count=10000,
                  input_data_version=version, dataset_kind='working')
-    notebook.cells = [WorkspaceNotebookCell(
+    count_cell = WorkspaceNotebookCell(
         cell_id='count', code=f'df["{target}"].isna().sum()',
         last_execution={**scope, 'output': str(int(frame[target].isna().sum())),
                         'executed_at': '2026-10-21T10:00:00'},
-    )]
+    )
+    notebook.cells = [] if empty_start else [count_cell]
     workspace.notebooks = [notebook]
     database.save_workspace(workspace=workspace)
     request = dict(learner_id='saved', workspace_id=workspace.workspace_id,
@@ -63,6 +65,18 @@ def test_saved_notebook_guidance_uses_actual_context_and_advances_only_after_exe
 
     with patch('backend.app.mentor_research_service.get_ai_runtime') as provider, \
          patch('backend.app.chat_routes.get_mentor_response_from_message') as legacy:
+        if empty_start:
+            reply, state = chat(f'{target} eksikliğini inceleyelim. Kaynak açıklaması elimde yok. Kodu verme.')
+            assert state['last_validation']['validation_kind'] == 'schema_start_only'
+            start_id = state['workflow']['active_step']['id']
+            assert state['observations'] == [] and '```' not in reply
+            reply, state = chat('Nereden başlayacağımı anlamadım. Beraber ilerleyelim, kodu gösterme.')
+            assert 'isna' in reply and '```' not in reply
+            assert state['workflow']['active_step']['id'] == start_id
+            assert len(state['proposals']) == 1
+            notebook.cells = [count_cell]
+            workspace.notebooks = [notebook]
+            database.save_workspace(workspace=workspace)
         reply, state = chat(f'{target} sayımını yaptım. Veri sözlüğüm yok; sonraki tek adımı söyle.')
         assert state['last_validation']['accepted'], reply
         assert state['proposals'][-1]['status'] == 'proposed'

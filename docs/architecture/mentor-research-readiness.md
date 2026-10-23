@@ -7,6 +7,32 @@ Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin ye
 
 ## Neyi doğruladık, neyi doğrulamadık?
 
+23 Ekim mimari değişikliği: Notebook incelemesi artık tek bir kalıcı etkin adım
+üzerinden ilerliyor. Kapsamlı teşhis, kod sahipliği ve açık sınırlar
+[`mentor-progress-review.md`](mentor-progress-review.md) belgesinde tutuluyor.
+Bu değişiklik diğer ürün aşamalarını henüz tek bir proje planında birleştirmiyor.
+
+| Yeni kontrol | Doğrulanan davranış | Henüz kanıtlanmayan |
+| --- | --- | --- |
+| Etkin görev yaşam döngüsü | Yardım sorusunda aynı görev korunur; yeni, eşleşen ve güncel yürütme olmadan kapanmaz. Kod düzenlemesi eski çıktıyı yeni kanıt yapmaz. | Uzun gerçek kullanıcı oturumunda kesintisiz öğretici ilerleme. |
+| İşlem bazında öğretme | Eksik sayımı, dağılım, head/tail ve altı basit özet için açıklama, ipucu ve açık istekle kod. | Aceminin açıklamayı anlayıp kendi başına uygulaması. |
+| Geniş tablo bağlamı | 31 sütunlu üç sentetik yapıda sondaki hedef ve yardımcı alanlar, değer türleri korunarak taşındı. | Her veri yapısında doğru iş sorusunu ve yardımcıyı seçmek. |
+| Boş notebook başlangıcı | Bilinen kaynak/çalışma şemasıyla ilk sayım önerilir; kayıtlı workspace → gerçek bağlam → `/chat` zincirinde sınanır. | Hiç hedef belirtmeyen kullanıcının bütün proje başlangıcını yönetmek. |
+| Araştırma notu | Kullanıcının açık isteğiyle gözlemler ve belirsizlikler mentor günlüğüne ertelenmiş karar olarak kaydedilir. | Temizleme kararı, QualityCheck veya proje raporuna otomatik aktarım. |
+
+Yeni bağlı sistem denemesi:
+
+```powershell
+python -m backend.benchmarks.run_mentor_workflow_scenarios
+```
+
+Bu komut kendi SQLite dosyasını oluşturur. Model yanıtı taklit etmeden,
+sağlayıcı kapalı üretim yollarını çalıştırır. Sürücü yalnız mentorun açık kod
+isteğine cevap olarak gösterdiği izinli inceleme kodunu uygular; gizli öneriyi
+uzman çözümü gibi kullanmaz. Üç tablo için sayım → önizleme → dağılım → ertelenmiş
+bulgu akışını sınar. Rapor öğrenme faydası, canlı model ve acemi UI kabulünün
+kanıtlanmadığını ayrıca belirtir.
+
 | Alan | Mevcut kanıt | Açık kabul ölçütü |
 | --- | --- | --- |
 | Notebook kapsamı | Kullanıcı 10.000 satırın uygulamada göründüğünü doğruladı. Yürütmenin kendi kapsamı kaydediliyor. | Örneklem, mevcut df ve tam kaynak ayrımını uzun araştırmada korumak. |

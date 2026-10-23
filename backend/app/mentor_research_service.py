@@ -22,13 +22,18 @@ from backend.app.ai_provider_service import get_ai_runtime
 from backend.app.ai_usage_guard import guarded_responses_parse, get_ai_usage_limits
 from backend.app.mentor_evidence_contract import NOTEBOOK_EVIDENCE_RULES
 from backend.app.mentor_pedagogy_contract import is_mentor_reply_review_request
-from backend.app.mentor_observation_contract import observation_contract, expression_contract
+from backend.app.mentor_observation_contract import observation_contract, expression_contract, field_label
 from backend.app.mentor_grounded_reply import compile_reply
 from backend.app.mentor_research_store import load_research_state, save_research_state
 from backend.app.mentor_local_progress_service import plan_missing_preview, plan_preview_continuation
-from backend.app.mentor_preview_evidence_service import preview_contradicts_selection
-from backend.app.mentor_tutoring_service import plan_pending_support, explicit_code_requested
+from backend.app.mentor_preview_evidence_service import preview_contradicts_selection, missing_preview_rows
+from backend.app.mentor_tutoring_service import plan_pending_support, explicit_code_requested, support_requested
 from backend.app.mentor_evidence_refresh_service import plan_evidence_refresh, render_evidence_refresh
+from backend.app.mentor_investigation_service import (
+    reconcile_workflow, register_action, register_refresh, bind_learning_context,
+    pending_step, prompt_workflow, document_deferral, schema_start_action,
+)
+from backend.app.mentor_investigation_presenter import render_pending_step, render_concise_turn, detailed_evidence_requested
 
 
 class StrictModel(BaseModel):
@@ -312,8 +317,15 @@ def prepare_research_context(notebook: dict, message: str, state: dict | None = 
             ranked = counts.most_common()
             candidate = ranked[0][0] if ranked and (len(ranked) == 1 or ranked[0][1] > ranked[1][1]) else None
         if candidate and candidate != focus:
+            archives = list(state.get('workflow_archive', []))
+            if state.get('workflow'):
+                previous = deepcopy(state['workflow'])
+                if (previous.get('active_step') or {}).get('status') in {'awaiting_execution', 'awaiting_answer', 'needs_revalidation'}:
+                    previous['active_step']['status'] = 'superseded_by_topic_change'
+                archives.append(previous)
             state = {"schema_version": 1, "focus_column": candidate,
-                     "observations": [], "proposals": [], "open_questions": [], "available_columns": known}
+                     "observations": [], "proposals": [], "open_questions": [], "available_columns": known,
+                     "workflow_archive": archives[-10:], 'finding_ledger': deepcopy(state.get('finding_ledger', []))}
     state.setdefault("schema_version", 1)
     state.setdefault("observations", [])
     observed = {item["id"] for item in state["observations"]}
@@ -362,6 +374,7 @@ def prepare_research_context(notebook: dict, message: str, state: dict | None = 
                     and contract.get('row_predicate') == {'op': 'missing', 'column': state.get('focus_column')}):
                 refresh['status'] = 'observed'
     update_definition_availability(state, message)
+    reconcile_workflow(state, notebook)
     return state
 
 
@@ -375,6 +388,7 @@ def build_research_request(context: dict, state: dict, message: str, history: li
         "message": message[:2000], "project_goal": str(context.get("task_brief") or "")[:500],
         "learner_setup": context.get("mentor_setup"), "focus": state.get("focus_column"),
         "research_goal": state["goal"], "open_questions": state["open_questions"],
+        "learning_workflow": prompt_workflow(state),
         "definition_availability": state.get("definition_availability"),
         "allowed_action_kinds": ["inspect"] if decision_schema(state) is GroundedInspectionDecision else ["inspect", "clarify"],
         "available_columns": state.get("available_columns", [])[:100],
@@ -398,8 +412,13 @@ def build_research_request(context: dict, state: dict, message: str, history: li
     for item in request["current_observations"]:
         item["code"] = item["code"][:1000]
         item["output"] = item["output"][:650]
-        item["preview_rows"] = [{str(k): str(v)[:100] for k, v in list(row.items())[:12]}
-                                for row in item["preview_rows"][:2]]
+        focused = missing_preview_rows(item)
+        item['preview_projection'] = {
+            'original_field_count': len(item['preview_rows'][0]) if item['preview_rows'] and isinstance(item['preview_rows'][0], dict) else 0,
+            'shown_fields': list(focused[0]) if focused else [],
+            'policy': 'target, observed boolean candidates, then bounded remaining fields; values retain their types',
+        }
+        item["preview_rows"] = focused[:2]
         item["limits"] = ["Persisted partial observation, not a domain rule or full-source proof"]
     size = lambda: len(json.dumps(request, ensure_ascii=False, default=str))
     for key in ("recent_dialogue", "quality_checks", "previous_proposals", "earlier_checks"):
@@ -654,6 +673,8 @@ def render_turn(turn: ResearchTurn, state: dict, message: str, *, support: dict 
         if support.get('show_code') and explicit_code_requested(message) and support.get('code'):
             lines.append('```python\n' + support['code'] + '\n```')
         return '\n\n'.join(lines)
+    if state.get('workflow', {}).get('schema_version') == 2 and not detailed_evidence_requested(message):
+        return render_concise_turn(turn, state, message)
     lines = [copy["focus"] + str(state.get("focus_column") or copy["unknown"]), turn.answer]
     for claim in turn.claims:
         prefix = copy["hypothesis"] if claim.kind == "hypothesis" else ""
@@ -736,7 +757,66 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
     workspace_id, notebook_id = context["workspace_id"], notebook["notebook_id"]
     state = prepare_research_context(notebook, message, load_research_state(workspace_id, notebook_id))
     state["response_language"] = response_language(context, message, history, state)
+    bind_learning_context(state, context)
+    finding = None if is_mentor_reply_review_request(message) else document_deferral(state, message)
+    if finding is not None:
+        state['last_validation'] = {
+            'accepted': True, 'origin': 'investigation_workflow', 'provider_calls': 0,
+            'model_attempts': [], 'validation_kind': 'documented_deferral', 'finding_id': finding['id'],
+            'model_factual_prose_published': False,
+        }
+        save_research_state(workspace_id, notebook_id, state)
+        return {
+            'tr': 'Araştırma notunu mentor günlüğüne kaydettim: Kayıtlı gözlemler korunuyor; eksikliğin nedeni ve uygun müdahale henüz kanıtlanmadığı için karar ertelendi. Veri değiştirilmedi. Bu not, tam kaynak doğrulaması veya bütün projenin tamamlanması anlamına gelmez.',
+            'en': 'Saved an investigation note in the mentor journal: the recorded observations are retained and the treatment decision is deferred. No missingness cause is established and no data was changed. This is not full-source verification or completion of the whole project.',
+            'nl': 'Onderzoeksnotitie opgeslagen in het mentorlogboek: de waarnemingen blijven bewaard en de bewerkingsbeslissing is uitgesteld. De oorzaak is niet vastgesteld en gegevens zijn niet gewijzigd. Dit is geen volledige bronvalidatie of afronding van het hele project.',
+        }[state['response_language']]
+    active = None if is_mentor_reply_review_request(message) else pending_step(state, message)
+    if active is not None and active['kind'] == 'clarify':
+        state['last_validation'] = {
+            'accepted': True, 'origin': 'investigation_workflow', 'provider_calls': 0,
+            'model_attempts': [], 'validation_kind': 'pending_clarification_support',
+            'active_step_id': active['id'], 'model_factual_prose_published': False,
+        }
+        save_research_state(workspace_id, notebook_id, state)
+        return render_pending_step(active, state, message)
+    if active is not None and active['kind'] == 'refresh':
+        refresh = dict(state.get('pending_evidence_refresh') or active)
+        refresh['requests'] = refresh.get('requests', 0) + 1
+        refresh['help_requested'] = support_requested(message)
+        state['pending_evidence_refresh'] = refresh
+        state['last_validation'] = {
+            'accepted': True, 'origin': 'local_evidence_refresh', 'provider_calls': 0,
+            'model_attempts': [], 'validation_kind': 'evidence_refresh_only',
+            'refresh_action': refresh, 'active_step_id': active['id'],
+            'model_factual_prose_published': False,
+        }
+        save_research_state(workspace_id, notebook_id, state)
+        return render_evidence_refresh(refresh, state['response_language'])
+    if active is not None and active['kind'] == 'inspect' and plan_pending_support(state, message) is None:
+        state['last_validation'] = {
+            'accepted': active['status'] != 'needs_revalidation', 'origin': 'investigation_workflow', 'provider_calls': 0,
+            'model_attempts': [], 'validation_kind': 'pending_step_support',
+            'active_step_id': active['id'], 'rendering_contract': 'grounded-v1',
+            'model_factual_prose_published': False,
+        }
+        save_research_state(workspace_id, notebook_id, state)
+        return render_pending_step(active, state, message)
     latest = next((item for item in state["observations"] if item["id"] == (state.get("current_evidence_ids") or [None])[0]), None)
+    if latest is None:
+        start = schema_start_action(state, notebook)
+        if start is not None:
+            label = field_label(start['focus_column'])
+            start['instruction'] = {'tr': f'{label} sütunundaki eksik değer sayısını bul.',
+                                    'en': f'Count missing values in {label}.',
+                                    'nl': f'Tel ontbrekende waarden in {label}.'}[state['response_language']]
+            step = register_action(state, start, notebook)
+            state['last_validation'] = {'accepted': True, 'origin': 'investigation_workflow',
+                'provider_calls': 0, 'model_attempts': [], 'validation_kind': 'schema_start_only',
+                'active_step_id': step['id'], 'local_proposal': {'next_action': start},
+                'model_factual_prose_published': False}
+            save_research_state(workspace_id, notebook_id, state)
+            return render_pending_step(step, state, message)
     if not latest or not latest.get("success") or latest.get("stale_scope") or not latest.get("analysis_contract", {}).get("supported"):
         reason = (latest or {}).get("analysis_contract", {}).get("reason", "missing, failed or stale execution")
         state["last_validation"] = {"accepted": False, "errors": ["Observation contract unavailable: " + reason],
@@ -748,6 +828,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
     refresh = None if is_mentor_reply_review_request(message) else plan_evidence_refresh(state, message)
     if refresh is not None:
         state['pending_evidence_refresh'] = refresh
+        register_refresh(state, refresh, notebook)
         state['last_validation'] = {
             'accepted': True, 'origin': 'local_evidence_refresh', 'provider_calls': 0,
             'model_attempts': [], 'validation_kind': 'evidence_refresh_only',
@@ -789,9 +870,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
             local_errors.extend(validate_turn(compiled, state, message))
         if compiled is not None and not local_errors:
             if compiled.next_action is not None:
-                state.setdefault('proposals', []).append({**compiled.next_action.model_dump(), 'status': 'proposed'})
-                state['proposals'] = state['proposals'][-12:]
-                state['open_questions'] = [compiled.next_action.instruction]
+                register_action(state, compiled.next_action.model_dump(), notebook)
             state['last_validation'] = {
                 'accepted': True, 'origin': 'local_progress_policy', 'policy': local_policy,
                 'provider_calls': 0, 'model_attempts': [], 'local_plan': local_plan,
@@ -908,9 +987,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
         })
         if not errors:
             if proposal.next_action:
-                state.setdefault("proposals", []).append({**proposal.next_action.model_dump(), "status": "proposed"})
-                state["open_questions"] = [proposal.next_action.instruction]
-                state["proposals"] = state["proposals"][-12:]
+                register_action(state, proposal.next_action.model_dump(), notebook)
             state["last_validation"] = {"accepted": True, "attempts": attempt + 1, "model_attempts": traces, "runtime": runtime_info, "rendering_contract": "grounded-v1", "model_factual_prose_published": False}
             save_research_state(workspace_id, notebook_id, state)
             return render_turn(proposal, state, message)

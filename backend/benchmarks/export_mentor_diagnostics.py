@@ -45,6 +45,16 @@ def summarize(state):
          'compiled_proposal': decision(item.get('proposal'))}
         for item in validation.get('model_attempts', [])
     ]
+    flow = state.get('workflow') or {}
+    if flow:
+        report['workflow'] = pick(flow, ('schema_version', 'focus_column', 'question', 'phase', 'status'))
+        report['workflow']['active_step'] = pick(flow.get('active_step') or {}, (
+            'id', 'kind', 'status', 'code', 'cell_id', 'signature', 'expected_version',
+            'completion_evidence_id', 'help_requests', 'assistance_level', 'blocker',
+        ))
+        report['workflow']['step_history'] = [pick(item, ('id', 'kind', 'status', 'completion_evidence_id'))
+                                               for item in flow.get('step_history', [])]
+        report['workflow']['finding_ids'] = [item['id'] for item in flow.get('findings', [])]
     # Local decisions have no model attempt, so retain their actual selected code too.
     for key in ('local_plan', 'local_proposal', 'supported_proposal'):
         if key in validation:

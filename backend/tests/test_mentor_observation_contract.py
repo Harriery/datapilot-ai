@@ -203,7 +203,7 @@ def test_connected_checks_use_the_actual_previous_proposal_output():
         output=eval(compile(code,'synthetic-fixed-test','eval'),{'__builtins__':{}},{'df':df})
         cell={'cell_id':str(step),'code':code,'section_title':'target','last_execution':{
             'success':True,'output':str(output),'input_row_count':4,'input_total_row_count':4,
-            'dataset_kind':'working','input_data_version':'connected-v1'}}
+            'dataset_kind':'working','input_data_version':'connected-v1','executed_at':f'fixed-execution-{step}'}}
         cells.append(cell)
         n={'notebook_id':'connected','dataset_kind':'working','configured_development_rows':4,
            'current_input_version':'connected-v1','latest_cell':cell,'recent_cells':list(reversed(cells)),

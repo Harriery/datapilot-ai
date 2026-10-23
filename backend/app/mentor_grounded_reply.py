@@ -3,6 +3,7 @@ from copy import deepcopy
 
 from backend.app.mentor_observation_contract import expression_contract, observation_text, predicate_label, field_label
 from backend.app.mentor_preview_evidence_service import preview_summary, missing_preview_rows, preview_contradicts_selection
+from backend.app.mentor_investigation_presenter import task_purpose
 
 
 def predicate_columns(where):
@@ -82,9 +83,7 @@ def compile_reply(plan, state, message):
             action.instruction={'tr':f'Satır seçimi: {group}. {columns or "Tüm sütunlar"} için {name[language]}.',
                                 'en':f'Row selection: {group}. For {columns or "all columns"}, {name[language]}.',
                                 'nl':f'Rijselectie: {group}. Voor {columns or "alle kolommen"}: {name[language]}.'}[language]
-            action.why={'tr':f'Bu kontrol {field_label(focus)} araştırmasına ek bir gözlem sağlar; tek başına neden-sonuç ilişkisini kanıtlamaz.',
-                        'en':f'This adds an observation to the {field_label(focus)} investigation; it does not alone prove causation.',
-                        'nl':f'Dit voegt een waarneming toe aan het onderzoek naar {field_label(focus)}; het bewijst op zichzelf geen oorzakelijk verband.'}[language]
+            action.why = task_purpose(contract, state, language)
             rows = missing_preview_rows(selected[0])
             measured = contract.get('measured_columns') or []
             if (contract['operation'] == 'distribution' and len(measured) == 1 and rows
