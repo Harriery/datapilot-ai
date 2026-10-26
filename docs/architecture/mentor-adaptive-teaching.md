@@ -295,3 +295,35 @@ failure retention. A live attempt in the development environment stopped at
 `blocked_configuration` with zero attempts: no Groq key/runtime was configured.
 No live comparison winner, novice-learning benefit or improved mentor quality is
 claimed. Human review scores remain empty until actual answers are assessed.
+
+### Partial comparison runs and safe failure diagnostics
+
+A live pilot produced one complete orders pair, a simple-arm error explanation,
+and a current-arm `BadRequestError`; the service/evidence pair was not reached.
+This is not a completed comparison or evidence that the simple arm is superior.
+The simple answer also exceeded the requested step and incorrectly described
+ordinary value_counts output as proportions. Lower token use on one pair does
+not establish a teaching-quality or general efficiency result.
+
+The experiment now records exception class, HTTP status and allowlisted provider
+error type/code at the guarded-call boundary, before the application catches the
+exception. It never records the provider message, failed-generation text,
+credentials or request headers. Unknown or malformed type/code values become
+`other`. A provider's explicit HTTP 400 / json_validate_failed rejection is
+recorded as that arm's failed output, without retry, and remaining fixed arms
+can still be collected. This applies to both arms. The final status retains
+completed_with_arm_failures, never a success or winner. Configuration, quota and
+other unclassified provider failures still stop the run. No production-mentor
+recovery is added and no unknown BadRequest cause is guessed.
+
+Completed pairs can be skipped using their fixed one-based schedule position:
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --paired-comparison --start-pair 2 --pairs 2
+```
+
+This makes a fresh matched attempt for sensors/error and service/evidence,
+retaining their original arm order and unchanged inputs/model budget (at most
+four attempts). It does not rerun orders or reuse previous model text as input.
+The earlier report remains a separate record, not merged into a success result.
+The application mentor remains unchanged while comparison data is collected.

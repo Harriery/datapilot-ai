@@ -338,7 +338,29 @@ def _response_usage(response):
             if isinstance((value := getattr(usage, key, None)), int)}
 
 
-def run_paired_comparison(*, live=False, max_pairs=3, delay=45, checkpoint=None):
+
+def comparison_failure_metadata(exc):
+    """Keep diagnostic categories, never messages, failed output or request data."""
+    result = {'error_type': type(exc).__name__}
+    status = getattr(exc, 'status_code', None)
+    if type(status) is int and 100 <= status <= 599:
+        result['http_status'] = status
+    body = getattr(exc, 'body', None)
+    error = body.get('error', body) if isinstance(body, dict) else {}
+    if isinstance(error, dict):
+        allowed_codes = {'json_validate_failed', 'rate_limit_exceeded', 'context_length_exceeded',
+            'invalid_api_key', 'invalid_json_schema', 'invalid_request_error', 'model_not_found',
+            'model_not_active', 'model_decommissioned', 'insufficient_quota', 'invalid_value'}
+        allowed_types = {'invalid_request_error', 'rate_limit_error', 'tokens', 'server_error',
+            'authentication_error', 'permission_error', 'not_found_error', 'api_error'}
+        for source, target, allowed in [('code', 'provider_error_code', allowed_codes),
+                                         ('type', 'provider_error_type', allowed_types)]:
+            value = error.get(source)
+            if value is not None:
+                result[target] = value if isinstance(value, str) and value in allowed else 'other'
+    return result
+
+def run_paired_comparison(*, live=False, max_pairs=3, start_pair=1, delay=45, checkpoint=None):
     """Compare whole context/rules/rendering bundles, not context alone.
 
     Offline prepares source-locked requests, with zero provider access. Live uses
@@ -347,11 +369,13 @@ def run_paired_comparison(*, live=False, max_pairs=3, delay=45, checkpoint=None)
     """
     if type(max_pairs) is not int or not 1 <= max_pairs <= len(COMPARISON_SCHEDULE):
         raise ValueError('max_pairs must be between 1 and 9')
+    if type(start_pair) is not int or not 1 <= start_pair <= len(COMPARISON_SCHEDULE) or start_pair - 1 + max_pairs > len(COMPARISON_SCHEDULE):
+        raise ValueError('Requested comparison range is outside the fixed schedule')
     report = {'experiment': 'current_vs_simple_frozen_checkpoints_v1',
         'mode': 'live' if live else 'offline_preparation', 'synthetic_data_only': True,
         'independent_checkpoints': True, 'same_model_required': True, 'project_state_isolated': True,
         'usage_ledger': 'normal_application_ledger', 'provider_call_count_kind': 'guarded_request_attempts', 'provider_calls': 0, 'max_provider_calls': 2 * max_pairs,
-        'status': 'running', 'pairs': [], 'comparison_winner': None, 'human_review_required': True,
+        'status': 'running', 'start_pair': start_pair, 'pairs_requested': max_pairs, 'pairs': [], 'comparison_winner': None, 'human_review_required': True,
         'novice_usability_accepted': False, 'project_completion_proven': False,
         'limitations': ['Context, rules, output schema and rendering differ together; this does not isolate context alone.',
             'The simple arm sees actual supplied code and outputs; compare recorded provider inputs to see omissions in current context.',
@@ -398,12 +422,19 @@ def run_paired_comparison(*, live=False, max_pairs=3, delay=45, checkpoint=None)
             raise ValueError('Comparison request exceeds the common input bound')
         pace(); report['provider_calls'] += 1; persist()
         started = time.monotonic()
-        response = guarded_responses_parse(*args, **kwargs)
-        capture.update(elapsed_seconds=round(time.monotonic()-started, 3), usage=_response_usage(response))
+        try:
+            response = guarded_responses_parse(*args, **kwargs)
+        except Exception as exc:
+            capture['failure'] = comparison_failure_metadata(exc)
+            raise
+        finally:
+            capture['elapsed_seconds'] = round(time.monotonic()-started, 3)
+        capture['usage'] = _response_usage(response)
         return response
     try:
         with isolated_comparison_memory() as memory:
-            for index, (case, scenario) in enumerate(COMPARISON_SCHEDULE[:max_pairs]):
+            selected = COMPARISON_SCHEDULE[start_pair-1:start_pair-1+max_pairs]
+            for index, (case, scenario) in enumerate(selected, start=start_pair-1):
                 context, state, message, common = comparison_snapshot(case, scenario)
                 key = (context['workspace_id'], 'n1'); memory[key] = deepcopy(state)
                 current_preview = teaching.build_teaching_request(context, state, state['workflow']['active_step'], message)
@@ -412,7 +443,7 @@ def run_paired_comparison(*, live=False, max_pairs=3, delay=45, checkpoint=None)
                 for item in current_preview['investigation_context']['verified_checks']: item.pop('data_version', None)
                 if not teaching.bound_teaching_context(current_preview) or len(json.dumps(common, ensure_ascii=False)) > 9000:
                     raise ValueError('Frozen comparison input exceeds common bound')
-                pair = {'case': case, 'scenario': scenario, 'source_snapshot': common,
+                pair = {'schedule_pair': index+1, 'case': case, 'scenario': scenario, 'source_snapshot': common,
                     'call_order': ['current', 'simple'] if index % 2 == 0 else ['simple', 'current'],
                     'arms': {}, 'human_scores': {'current_raw': None, 'current_displayed': None, 'simple': None}}
                 report['pairs'].append(pair); persist()
@@ -423,7 +454,7 @@ def run_paired_comparison(*, live=False, max_pairs=3, delay=45, checkpoint=None)
                         'response_schema': 'ComparisonAnswer', 'max_output_tokens': cap}}
                     persist(); continue
                 for arm in pair['call_order']:
-                    print(f'PAIR {index+1}/{max_pairs}: {case}/{scenario} — {arm}', flush=True)
+                    print(f'PAIR {index+1} (run {index-start_pair+2}/{max_pairs}): {case}/{scenario} — {arm}', flush=True)
                     capture = {}; pair['arms'][arm] = capture
                     if arm == 'current':
                         with patch.object(teaching, 'get_ai_runtime', return_value=runtime), patch.object(teaching, 'guarded_responses_parse', side_effect=lambda *a, **k: send(capture, *a, **k)):
@@ -433,17 +464,31 @@ def run_paired_comparison(*, live=False, max_pairs=3, delay=45, checkpoint=None)
                         if candidate is None: candidate = (final_state.get('last_rejected_teaching') or {}).get('candidate')
                         capture.update(provider_candidate=candidate, diagnostics=trace)
                         if trace.get('provider_calls') != 1 or trace.get('reason') in {'provider_or_schema_error', 'incomplete_response'}:
+                            failure = capture.get('failure') or {}
+                            if failure.get('http_status') == 400 and failure.get('provider_error_code') == 'json_validate_failed':
+                                capture['comparison_outcome'] = 'provider_schema_rejection'
+                                persist(); continue
                             raise RuntimeError('Current arm did not complete one provider attempt')
                     else:
                         options = {'reasoning': {'effort': 'low'}} if runtime.model in {'openai/gpt-oss-120b', 'openai/gpt-oss-20b'} else {}
-                        response = send(capture, runtime.client, provider=runtime.provider, purpose='mentor_isolated_paired_comparison',
-                            model=runtime.model, instructions=SIMPLE_COMPARISON_RULES, input=json.dumps(common, ensure_ascii=False),
-                            text_format=ComparisonAnswer, max_output_tokens=cap, **options)
+                        try:
+                            response = send(capture, runtime.client, provider=runtime.provider, purpose='mentor_isolated_paired_comparison',
+                                model=runtime.model, instructions=SIMPLE_COMPARISON_RULES, input=json.dumps(common, ensure_ascii=False),
+                                text_format=ComparisonAnswer, max_output_tokens=cap, **options)
+                        except Exception:
+                            failure = capture.get('failure') or {}
+                            if failure.get('http_status') == 400 and failure.get('provider_error_code') == 'json_validate_failed':
+                                capture['comparison_outcome'] = 'provider_schema_rejection'
+                                persist(); continue
+                            raise
                         if getattr(response, 'status', None) == 'incomplete': raise RuntimeError('Simple arm output incomplete')
                         capture['provider_candidate'] = ComparisonAnswer.model_validate(response.output_parsed).model_dump()
                         capture['displayed_reply'] = capture['provider_candidate']['answer']
                     persist()
-            report['status'] = 'completed_requires_human_review' if live else 'prepared_not_live_tested'
+            arm_failures = any(arm.get('comparison_outcome') == 'provider_schema_rejection'
+                for pair in report['pairs'] for arm in pair['arms'].values())
+            report['status'] = ('completed_with_arm_failures' if arm_failures else
+                'completed_requires_human_review') if live else 'prepared_not_live_tested'
     except KeyboardInterrupt:
         report['status'] = 'interrupted'; persist(); raise
     except Exception as exc:
@@ -457,6 +502,7 @@ def main(argv=None):
     mode.add_argument('--live', action='store_true', help='Allow configured provider calls within the selected experiment cap.')
     mode.add_argument('--offline', action='store_true', help='Prepare paired requests without provider access.')
     parser.add_argument('--paired-comparison', action='store_true', help='Isolated current versus simple comparison; no runtime mentor changes.')
+    parser.add_argument('--start-pair', type=int, default=1, choices=range(1,10), help='Start at this fixed comparison pair; completed earlier pairs are not repeated.')
     parser.add_argument('--pairs', type=int, default=3, choices=range(1,10), help='Comparison pairs, default 3 (at most 6 provider calls).')
     parser.add_argument('--dialogue-suite', action='store_true', help='Frozen six-turn synthetic conversation; at most six provider calls.')
     parser.add_argument('--case', choices=tuple(DIALOGUE_CASES), default='orders')
@@ -474,7 +520,7 @@ def main(argv=None):
     folder.mkdir(parents=True, exist_ok=False)
     if args.paired_comparison:
         path = folder / 'report.json'
-        report = run_paired_comparison(live=args.live, max_pairs=args.pairs, delay=args.delay,
+        report = run_paired_comparison(live=args.live, max_pairs=args.pairs, start_pair=args.start_pair, delay=args.delay,
             checkpoint=lambda value: path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8'))
         print('REPORT:', path.resolve())
         print('STATUS:', report['status'], 'PROVIDER CALLS:', report['provider_calls'])

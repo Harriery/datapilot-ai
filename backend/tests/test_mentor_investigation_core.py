@@ -501,3 +501,89 @@ def test_paired_experiment_retains_normal_usage_guards_while_research_state_is_i
         assert connection.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='mentor_research_memory'").fetchone()[0] == 0
     finally:
         connection.close()
+
+
+def test_comparison_range_skips_completed_pairs_without_changing_order_or_budget():
+    from backend.benchmarks import run_mentor_teaching_probe as probe
+    report = probe.run_paired_comparison(live=False, start_pair=2, max_pairs=2)
+    assert report['max_provider_calls'] == 4 and report['provider_calls'] == 0
+    assert [(p['schedule_pair'],p['case'],p['scenario']) for p in report['pairs']] == [
+        (2,'sensors','error'), (3,'service','evidence')]
+    assert report['pairs'][0]['call_order'] == ['simple','current']
+    assert report['pairs'][1]['call_order'] == ['current','simple']
+    with pytest.raises(ValueError): probe.run_paired_comparison(live=True, start_pair=9, max_pairs=2)
+
+
+def test_current_provider_failure_records_safe_categories_even_when_app_catches_exception():
+    from backend.benchmarks import run_mentor_teaching_probe as probe
+    class SyntheticBadRequest(Exception):
+        status_code = 400
+        body = {'error': {'code':'json_validate_failed','type':'invalid_request_error',
+                          'message':'private-provider-text', 'failed_generation':'private-candidate'}}
+    runtime = SimpleNamespace(provider='groq', model='controlled', client=object())
+    def provider(*args, **kwargs):
+        if kwargs['text_format'] is probe.ComparisonAnswer:
+            return SimpleNamespace(status='completed', output_parsed=probe.ComparisonAnswer(answer='Kısa sentetik cevap.'))
+        raise SyntheticBadRequest('private-exception-text')
+    with patch.object(probe, 'get_ai_runtime', return_value=runtime), \
+         patch.object(probe, 'get_ai_billing_policy', return_value={'free_only':True,'allowed_free_providers':['groq']}), \
+         patch.object(probe, 'guarded_responses_parse', side_effect=provider) as model:
+        report = probe.run_paired_comparison(live=True, start_pair=2, max_pairs=2, delay=0)
+    assert model.call_count == 4 and report['status'] == 'completed_with_arm_failures'
+    assert report['pairs'][0]['arms']['current']['comparison_outcome'] == 'provider_schema_rejection'
+    failure = report['pairs'][0]['arms']['current']['failure']
+    assert failure == {'error_type':'SyntheticBadRequest','http_status':400,
+        'provider_error_code':'json_validate_failed','provider_error_type':'invalid_request_error'}
+    assert 'private-' not in json.dumps(report)
+    assert report['pairs'][0]['arms']['simple']['provider_candidate']['answer']
+    assert report['comparison_winner'] is None
+
+
+def test_unknown_provider_metadata_does_not_disclose_arbitrary_values():
+    from backend.benchmarks.run_mentor_teaching_probe import comparison_failure_metadata
+    class Failure(Exception):
+        status_code = 400
+        body = {'error':{'code':'private-code','type':'private-type','message':'private-message'}}
+    result = comparison_failure_metadata(Failure('private-error'))
+    assert result['provider_error_code'] == result['provider_error_type'] == 'other'
+    assert 'private-' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('value', [{'nested':'private'}, ['private'], 7])
+def test_malformed_provider_error_codes_do_not_mask_the_original_failure(value):
+    from backend.benchmarks.run_mentor_teaching_probe import comparison_failure_metadata
+    class Failure(Exception):
+        status_code = 400
+        body = {'error': {'code':value,'type':value}}
+    result = comparison_failure_metadata(Failure())
+    assert result['http_status'] == 400
+    assert result['provider_error_code'] == result['provider_error_type'] == 'other'
+
+
+@pytest.mark.parametrize('rejected_arm', ['current','simple'])
+@pytest.mark.parametrize('status,code', [(400,'json_validate_failed'),(429,'rate_limit_exceeded')])
+def test_comparison_classifies_schema_failure_symmetrically_and_stops_on_quota(rejected_arm, status, code):
+    from backend.benchmarks import run_mentor_teaching_probe as probe
+    class Failure(Exception):
+        status_code = status
+        body = {'error':{'code':code,'type':'invalid_request_error'}}
+    def provider(*args, **kwargs):
+        arm = 'simple' if kwargs['text_format'] is probe.ComparisonAnswer else 'current'
+        if arm == rejected_arm: raise Failure()
+        if arm == 'simple': parsed = probe.ComparisonAnswer(answer='Kısa sentetik cevap.')
+        else:
+            payload = json.loads(kwargs['input'])
+            parsed = TeachingExplanation(task_id=payload['task_id'],approach='contrast',
+                explanation='Sayım ile seçim farklı işlemlerdir.',first_action=None,why=None)
+        return SimpleNamespace(status='completed',output_parsed=parsed)
+    with patch.object(probe,'get_ai_runtime',return_value=SimpleNamespace(provider='groq',model='controlled',client=object())), \
+         patch.object(probe,'get_ai_billing_policy',return_value={'free_only':True,'allowed_free_providers':['groq']}), \
+         patch.object(probe,'guarded_responses_parse',side_effect=provider) as model:
+        report = probe.run_paired_comparison(live=True,max_pairs=2,delay=0)
+    if status == 400:
+        assert report['status'] == 'completed_with_arm_failures' and model.call_count == 4
+        assert len(report['pairs']) == 2
+    else:
+        assert report['status'] == 'blocked' and model.call_count == (1 if rejected_arm == 'current' else 2)
+        assert len(report['pairs']) == 1
+    assert report['comparison_winner'] is None
