@@ -104,7 +104,7 @@ def run_case(case: str, *, with_support=False) -> dict:
                     after = load_research_state(context['workspace_id'],'n1')
                     v = after.get('last_validation') or {}
                     supported = (v.get('supported_proposal') or {}).get('next_action') or {}
-                    same_task = v.get('accepted') is True and v.get('origin') == 'local_tutoring' and supported.get('code') == action['code']
+                    same_task = v.get('accepted') is True and v.get('active_step_id') == (before.get('workflow', {}).get('active_step') or {}).get('id') and supported.get('code') == action['code']
                     new_task = (v.get('local_proposal') or {}).get('next_action') is not None
                     checks['support_stays_on_task'] &= same_task and after.get('focus_column') == target and after['proposals'] == before['proposals'] and not new_task
                     checks['support_does_not_complete_task'] &= after['proposals'][-1].get('status') == 'proposed'

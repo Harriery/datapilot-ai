@@ -85,7 +85,7 @@ def test_saved_notebook_guidance_uses_actual_context_and_advances_only_after_exe
         assert latest['output'] == '5000' and latest['input_rows'] == 10000
         assert latest['version_verified'] and not latest['stale_scope']
         reply, state = chat('Bunu nasıl yapacağımı bilmiyorum. Kodu gösterme; ipucu ver.')
-        assert 'Aynı adım için ipucu' in reply and '```' not in reply
+        assert 'yerel yedek rehber' in reply and '```' not in reply
         assert state['proposals'][-1] == pending
 
         # Save a known, read-only equivalent expression, not arbitrary agent code.

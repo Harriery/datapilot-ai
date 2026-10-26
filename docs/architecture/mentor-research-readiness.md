@@ -5,6 +5,13 @@ Flight projesi beklemede. Ana hedef, acemi kullanıcının uygulamadaki mentorla
 veriyi tanımadan proje çıktılarının tamamlanmasına kadar ilerleyebilmesidir.
 Bu hedef henüz kanıtlanmadı. Test sayısı veya yapısal kabul, bu hedefin yerine geçmez.
 
+26 Ekim öğreticilik değişikliği: üç sabit ipucundan seçim yapan yol kaldırıldı.
+Bekleyen görevi değiştirmeden, son işlem türleri ve önceki açıklamalarla modelden
+kısa öğretici açıklama alınır. Model kullanılamıyorsa yerel yedek olduğu açıkça
+belirtilir. Veri sınırı, mekanik kontroller ve canlı kabul sınırları
+[`mentor-adaptive-teaching.md`](mentor-adaptive-teaching.md) belgesinde.
+Bu değişikliğin gerçek model öğreticiliği henüz doğrulanmadı.
+
 Yerel ilişki araştırması eklendi: çalışma girdisinde birlikte eksilme ve az
 kategorili gruplara bağlı eksiklik adayları bulunur, ayrı bir bölümde aynı
 karşılaştırma kontrol edilir. Mentor ardından notebook'ta eksik ve dolu grupların

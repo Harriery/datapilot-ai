@@ -27,7 +27,8 @@ from backend.app.mentor_grounded_reply import compile_reply
 from backend.app.mentor_research_store import load_research_state, save_research_state
 from backend.app.mentor_local_progress_service import plan_missing_preview, plan_preview_continuation
 from backend.app.mentor_preview_evidence_service import preview_contradicts_selection, missing_preview_rows
-from backend.app.mentor_tutoring_service import plan_pending_support, explicit_code_requested, support_requested
+from backend.app.mentor_tutoring_service import explicit_code_requested, support_requested
+from backend.app.mentor_adaptive_teaching_service import explain_pending_task
 from backend.app.mentor_evidence_refresh_service import plan_evidence_refresh, render_evidence_refresh
 from backend.app.mentor_investigation_service import (
     reconcile_workflow, register_action, register_refresh, bind_learning_context,
@@ -663,17 +664,8 @@ RESEARCH_COPY = {
 }
 
 
-def render_turn(turn: ResearchTurn, state: dict, message: str, *, support: dict | None = None) -> str:
+def render_turn(turn: ResearchTurn, state: dict, message: str) -> str:
     copy = RESEARCH_COPY[state.get("response_language", "tr")]
-    if support:
-        language = state.get('response_language', 'tr')
-        current_label = {'tr': 'Mevcut görev: ', 'en': 'Current task: ', 'nl': 'Huidige opdracht: '}[language]
-        hint_label = {'tr': 'Aynı adım için ipucu: ', 'en': 'Hint for the same task: ', 'nl': 'Hint voor dezelfde opdracht: '}[language]
-        lines = [copy['focus'] + str(state.get('focus_column') or copy['unknown']),
-                 current_label + support['task_instruction'], hint_label + support['hint']]
-        if support.get('show_code') and explicit_code_requested(message) and support.get('code'):
-            lines.append('```python\n' + support['code'] + '\n```')
-        return '\n\n'.join(lines)
     if state.get('workflow', {}).get('schema_version') == 2 and not detailed_evidence_requested(message):
         return render_concise_turn(turn, state, message)
     lines = [copy["focus"] + str(state.get("focus_column") or copy["unknown"]), turn.answer]
@@ -794,15 +786,32 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
         }
         save_research_state(workspace_id, notebook_id, state)
         return render_evidence_refresh(refresh, state['response_language'])
-    if active is not None and active['kind'] == 'inspect' and plan_pending_support(state, message) is None:
+    if active is not None and active['kind'] == 'inspect':
+        lesson, trace = explain_pending_task(context, state, active, message,
+            allow_provider=allow_provider, request_pacer=request_pacer)
+        code_shown = explicit_code_requested(message) and active['status'] != 'needs_revalidation'
+        if lesson is not None:
+            reply = '\n\n'.join((lesson.explanation, lesson.first_action, lesson.why))
+            if code_shown:
+                reply += '\n\n```python\n' + active['code'] + '\n```'
+        else:
+            reply = render_pending_step(active, state, message)
+            if allow_provider:
+                reply = {
+                    'tr': 'Uyarlanabilir açıklama şu anda kullanılamıyor; aşağıdaki açıklama yerel yedek rehberdir.',
+                    'en': 'Adaptive teaching is unavailable; the explanation below is local fallback guidance.',
+                    'nl': 'Adaptieve uitleg is niet beschikbaar; hieronder staat lokale reserve-uitleg.',
+                }[state['response_language']] + '\n\n' + reply
         state['last_validation'] = {
-            'accepted': active['status'] != 'needs_revalidation', 'origin': 'investigation_workflow', 'provider_calls': 0,
-            'model_attempts': [], 'validation_kind': 'pending_step_support',
-            'active_step_id': active['id'], 'rendering_contract': 'grounded-v1',
+            **trace, 'accepted': active['status'] != 'needs_revalidation',
+            'teaching_accepted': lesson is not None, 'validation_kind': 'pending_step_support',
+            'active_step_id': active['id'], 'code_shown': code_shown,
+            'supported_proposal': {'next_action': {'kind': 'inspect', 'code': active['code']}},
+            'local_proposal': {'next_action': None}, 'rendering_contract': 'grounded-v1',
             'model_factual_prose_published': False,
         }
         save_research_state(workspace_id, notebook_id, state)
-        return render_pending_step(active, state, message)
+        return reply
     latest = next((item for item in state["observations"] if item["id"] == (state.get("current_evidence_ids") or [None])[0]), None)
     if latest is None:
         start = schema_start_action(state, notebook)
@@ -838,27 +847,6 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
         }
         save_research_state(workspace_id, notebook_id, state)
         return render_evidence_refresh(refresh, state['response_language'])
-    support = None if is_mentor_reply_review_request(message) else plan_pending_support(state, message)
-    if support is not None:
-        decision = GroundedResearchDecision.model_validate(support['decision'])
-        supported, support_errors = compile_reply(expand_research_decision(decision, state), state, message)
-        if supported is not None:
-            support_errors.extend(validate_turn(supported, state, message))
-        if supported is not None and not support_errors and len(support['hint']) <= 900:
-            # Validate the SAME pending code, but do not assign or append it
-            # again. Helping is not task execution or completion.
-            display = supported.model_copy(update={'next_action': None})
-            state['tutoring'] = {key: support[key] for key in ('task_signature', 'level', 'requests')}
-            state['last_validation'] = {
-                'accepted': True, 'origin': 'local_tutoring', 'provider_calls': 0, 'model_attempts': [],
-                'support_level': support['level'], 'support_for_task': support['task_signature'],
-                'code_shown': support['show_code'], 'support_hint': support['hint'],
-                'supported_proposal': supported.model_dump(), 'local_proposal': display.model_dump(),
-                'rendering_contract': 'grounded-v1', 'model_factual_prose_published': False,
-            }
-            save_research_state(workspace_id, notebook_id, state)
-            return render_turn(display, state, message, support={**support, 'code': supported.next_action.code,
-                                                              'task_instruction': supported.next_action.instruction})
     local_plan = None if is_mentor_reply_review_request(message) else plan_relationship_comparison(
         state, notebook, context.get('local_relationship_map') or {}, message)
     local_policy = 'relationship_comparison_v1'

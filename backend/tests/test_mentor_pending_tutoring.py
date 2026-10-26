@@ -8,7 +8,7 @@ from backend.app import database
 from backend.app.mentor_research_service import generate_research_reply
 from backend.app.mentor_research_service import ResearchTurn, render_turn
 from backend.app.mentor_research_store import load_research_state
-from backend.app.mentor_tutoring_service import explicit_code_requested, plan_pending_support
+from backend.app.mentor_tutoring_service import explicit_code_requested
 from backend.benchmarks.run_mentor_research_acceptance import CASES, snapshots
 from backend.benchmarks.run_mentor_connected_followup import run_case
 
@@ -66,33 +66,21 @@ def test_help_scaffolds_same_pending_task_and_only_explicitly_shows_code(case,la
         for index,message in enumerate(messages):
             reply=generate_research_reply(context,message,[],allow_provider=False)
             state=load_research_state(context['workspace_id'],'n1');validation=state['last_validation']
-            assert validation['accepted'] and validation['origin']=='local_tutoring'
-            assert validation['support_level']==[1,2,3,3][index]
+            assert validation['accepted'] and validation['origin']=='adaptive_teaching'
+            assert validation['teaching_accepted'] is False
+            assert validation['reason']=='provider_disabled'
             assert validation['code_shown'] is (index==2)
             assert state['proposals']==before['proposals']
             assert state['proposals'][-1]['status']=='proposed'
             assert state['focus_column']==CASES[case][0]
             assert validation['local_proposal']['next_action'] is None
             assert validation['supported_proposal']['next_action']['code']==code
-            assert validation['provider_calls']==0 and validation['model_attempts']==[]
+            assert validation['provider_calls']==0
             assert ('```python\n'+code+'\n```' in reply) is (index==2)
-            assert len(reply)<1000 and '5000' not in reply  # do not recap every observation on each hint
+            assert len(reply)<1800 and '5000' not in reply  # do not recap every observation on each hint
             replies.append(reply)
-    assert replies[0]!=replies[1]
+    assert all(replies)  # Offline fallback does not prove adaptive teaching.
     runtime.assert_not_called();provider.assert_not_called()
-
-
-@pytest.mark.parametrize('change',['observed','wrong_focus','unknown_ref','stale','unknown_version','unsafe_code'])
-def test_help_is_not_bound_to_completed_stale_or_unknown_work(change):
-    _,state=seed()
-    task=state['proposals'][-1]
-    if change=='observed':task['status']='observed'
-    elif change=='wrong_focus':task['focus_column']='offline'
-    elif change=='unknown_ref':task['evidence_ids']=['unknown-id']
-    elif change=='stale':state['observations'][0]['stale_scope']=True
-    elif change=='unknown_version':state['observations'][0]['version_verified']=False
-    else:task['code']="df['temperature'] = 0"
-    assert plan_pending_support(state,'Bunu nasıl yapacağımı bilmiyorum. Kodu göster.') is None
 
 
 def test_regular_action_renderer_also_respects_negative_code_requests():
@@ -108,7 +96,7 @@ def test_help_requests_fit_in_the_real_connected_production_chain(case):
         report=run_case(case,with_support=True)
     runtime.assert_not_called()
     assert report['passed'] and len(report['support_turns'])==5
-    assert [t['validation']['support_level'] for t in report['support_turns']]==[1,2,3,1,3]
+    assert all(t['validation']['teaching_accepted'] is False for t in report['support_turns'])
     assert [t['validation']['code_shown'] for t in report['support_turns']]==[False,False,True,False,True]
     assert all(not t['new_task_assigned'] for t in report['support_turns'])
     assert not report['beginner_usability_tested']
@@ -134,7 +122,7 @@ def test_workspace_http_chat_preserves_no_code_help_and_pending_task(monkeypatch
         before=deepcopy(load_research_state(workspace.workspace_id,'n1')['proposals'])
         response=client.post('/chat',json={**request,'message':'Bunu nasıl yapacağımı bilmiyorum. Kodu gösterme; ipucu ver.'})
     assert response.status_code==200,response.text
-    assert 'Aynı adım için ipucu' in response.json()['reply']
+    assert 'yerel yedek rehber' in response.json()['reply']
     assert '```' not in response.json()['reply']
     assert load_research_state(workspace.workspace_id,'n1')['proposals']==before
     runtime.assert_not_called();legacy.assert_not_called()

@@ -289,6 +289,12 @@ def build_chat_mentor_workspace_context(
 
     return {
         "workspace_id": workspace.workspace_id,
+        "teaching_data_policy": {
+            "usage_context": workspace.usage_context,
+            "data_sensitivity": workspace.data_sensitivity,
+            "organization_id": workspace.organization_id,
+            "organization_ai_allowed": None,
+        },
         "title": workspace.title,
         "workspace_type": workspace.workspace_type,
         "status": workspace.status,
