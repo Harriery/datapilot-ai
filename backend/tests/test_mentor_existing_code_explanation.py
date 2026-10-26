@@ -128,3 +128,73 @@ def test_quoted_explanation_passes_actual_pipeline_without_completing_task(tmp_p
     assert 'isna adımı boş hücreleri işaretler' in reply
     # The journal stores the displayed prose, not unapproved generated code.
     assert 'df[' not in json.dumps(after['teaching_journal'])
+
+
+@pytest.mark.parametrize('fragment', ['df[row_flags]', 'df[condition_vector]', 'df.loc[chosen_rows]', 'df.iloc[positions]'])
+@pytest.mark.parametrize('language', ['tr', 'en', 'nl'])
+def test_conceptual_selection_reference_is_prose_not_execution_evidence(fragment, language):
+    from backend.app.mentor_adaptive_teaching_service import render_conceptual_selection_references
+    request = payload(language=language)
+    original = response(f'`{fragment}` is an illustrative selection, not a completed action.')
+    rendered, count = render_conceptual_selection_references(original, request)
+    assert count == 1
+    assert '[' not in rendered.explanation and '`' not in rendered.explanation
+    assert fragment in original.explanation
+    assert rendered.first_action == original.first_action
+    assert validate_teaching(rendered, request, ['signal_value', 'device_state']) is None
+
+
+@pytest.mark.parametrize('fragment', [
+    'df.dropna()', "df[df['signal_value'].isna()]", "df['another_field']",
+    'df[make_mask()]', 'df[[chosen_rows]]', 'other_frame[chosen_rows]',
+    'df.loc[chosen_rows, secret_field]', 'df[chosen_rows] = 0',
+    '__import__("os").system("example")', 'df.loc[lambda x: x]',
+])
+def test_conceptual_reference_rendering_cannot_authorize_new_code_or_fields(fragment):
+    from backend.app.mentor_adaptive_teaching_service import render_conceptual_selection_references
+    request = payload()
+    rendered, count = render_conceptual_selection_references(response(f'`{fragment}` is a reference.'), request)
+    assert count == 0 and validate_teaching(rendered, request, ['signal_value', 'device_state']) == 'code_or_numeric_claim'
+
+
+@pytest.mark.parametrize('source', [None, '', "df.dropna(inplace=True)"])
+def test_generic_or_unsupported_source_cannot_enable_conceptual_code_rendering(source):
+    from backend.app.mentor_adaptive_teaching_service import render_conceptual_selection_references
+    rendered, count = render_conceptual_selection_references(response('`df[row_flags]` selects data.'), payload(source=source))
+    assert count == 0 and '[' in rendered.explanation
+
+
+@pytest.mark.parametrize('field', ['first_action', 'why'])
+def test_conceptual_code_is_not_rendered_in_an_instruction(field):
+    from backend.app.mentor_adaptive_teaching_service import render_conceptual_selection_references
+    candidate = response('An ordinary explanation.').model_copy(update={field: '`df[row_flags]`'})
+    rendered, count = render_conceptual_selection_references(candidate, payload())
+    assert count == 0 and validate_teaching(rendered, payload(), ['signal_value', 'device_state']) == 'code_or_numeric_claim'
+
+
+def test_concept_rendering_does_not_hide_fences_or_unverified_measurements():
+    from backend.app.mentor_adaptive_teaching_service import render_conceptual_selection_references
+    for text in ('```python\ndf[row_flags]\n```', '`df[row_flags]` selected 927 records.'):
+        rendered, _ = render_conceptual_selection_references(response(text), payload())
+        assert validate_teaching(rendered, payload(), ['signal_value', 'device_state']) == 'code_or_numeric_claim'
+
+
+@pytest.mark.parametrize('generic', [False, True])
+def test_concept_only_reply_needs_no_new_assignment_and_does_not_complete_task(tmp_path, monkeypatch, generic):
+    monkeypatch.setattr(database, 'DATABASE_PATH', tmp_path / 'concept-only.sqlite')
+    database.init_db()
+    context, state, step = setup_task()
+    if generic:
+        context['teaching_data_policy']['data_sensitivity'] = None
+    candidate = lesson(step, task_id='pending-task' if generic else step['id'], first_action=None, why=None,
+        explanation='True olan satırların kalmasına, False olanların dışarıda kalmasına filtre karar verir.')
+    with runtime(), provider(candidate) as model:
+        visible = generate_research_reply(context, 'İşaretleri nasıl kullanacağımı yalnızca açıkla, yeni görev verme.', [])
+    after = load_research_state(context['workspace_id'], 'n1')
+    assert model.call_count == 1
+    assert visible == candidate.explanation
+    assert after['last_validation']['content_accepted'] and after['last_validation']['workflow_valid']
+    assert after['workflow']['active_step']['status'] == 'awaiting_execution'
+    assert after['proposals'] == state['proposals']
+    assert after['teaching_journal'][-1]['first_action'] is None
+    assert after['teaching_journal'][-1]['why'] is None

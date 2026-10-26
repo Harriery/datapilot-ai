@@ -27,14 +27,15 @@ class TeachingExplanation(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list, max_length=3)
     approach: Literal['break_down', 'analogy', 'contrast', 'check_understanding']
     explanation: str = Field(min_length=1, max_length=700)
-    first_action: str = Field(min_length=1, max_length=300)
-    why: str = Field(min_length=1, max_length=240)
+    first_action: str | None = Field(default=None, min_length=1, max_length=300)
+    why: str | None = Field(default=None, min_length=1, max_length=240)
 
 
 TEACHING_RULES = """Respond to a beginner inside ONE ongoing investigation. First distinguish the
 current conversational need: concept, attempt, evidence interpretation, plan
 reassessment, or decision. Return conversation_kind and a short inferred
-learner_need; this is a working guess, never proof of understanding.
+learner_need from the CURRENT question, not a copy of the previous difficulty;
+this is a working guess, never proof of understanding.
 Use investigation_context to connect the project, research question, checked
 operations and current task. Preserve the task while answering a side question;
 do not reduce every question to the full pending task. If asked how True/False
@@ -66,8 +67,11 @@ Use the supplied execution surface, Python notebook. Do not invent Explorer
 buttons or switch surfaces. Address the requested concept before restating the
 task. When asked about parts of the last expression, explain those parts using
 latest_verified_expression and its contract; never claim to see missing code.
-first_action is ONE small prerequisite of this task, not the entire pipeline or
-another investigation. State why it helps. Do not supply code, expressions,
+A concept-only question may be answered without assigning work: set first_action
+and why to null when the explanation itself answers the question. Do not force a
+new task or repeat an already understood prerequisite merely to fill these fields.
+When an action is useful, first_action is ONE small prerequisite of this task,
+not the entire pipeline or another investigation. State why it helps. Do not supply code, expressions,
 method calls, code fences, links, dataset measurements, category values, numerical
 results or factual conclusions. first_action and why use only task_contract columns.
 The explanation may also discuss columns in latest_verified_expression or
@@ -268,6 +272,44 @@ def render_existing_code_references(reply, payload):
     return rendered, references
 
 
+
+def render_conceptual_selection_references(reply, payload):
+    """Render an illustrative selection reference as a generic prose role.
+
+    This is NOT verified code or a solution artifact. Only a bare placeholder
+    index on the source dataframe (or its loc/iloc accessor) is eligible. No
+    calls, literals, nested expressions, assignments or field inference. The
+    label makes no claim that the placeholder exists, is boolean, or was run.
+    First_action/why and fenced/unquoted code still receive normal validation.
+    """
+    if reply.conversation_kind != 'concept':
+        return reply, 0
+    source = payload.get('latest_verified_expression')
+    if not isinstance(source, str) or expression_contract(source).get('supported') is False:
+        return reply, 0
+    language = payload.get('response_language', 'tr')
+    label = {'tr': 'temsili veri seçimi işlemi', 'en': 'the illustrative data selection operation',
+             'nl': 'de illustratieve gegevensselectie'}.get(language, 'the illustrative data selection operation')
+    references = 0
+    def replace(match):
+        nonlocal references
+        try:
+            node = ast.parse(match.group(1).strip(), mode='eval').body
+        except (SyntaxError, ValueError, TypeError, RecursionError):
+            return match.group()
+        if not isinstance(node, ast.Subscript) or not isinstance(node.slice, ast.Name):
+            return match.group()
+        base = node.value
+        frame = base.value if isinstance(base, ast.Attribute) and base.attr in {'loc', 'iloc'} else base
+        if not isinstance(frame, ast.Name) or frame.id != 'df':
+            return match.group()
+        if isinstance(base, ast.Attribute) and base.attr not in {'loc', 'iloc'}:
+            return match.group()
+        references += 1
+        return label
+    text = re.sub(r'(?<!`)`([^`\n]+)`(?!`)', replace, reply.explanation)
+    return TeachingExplanation.model_validate({**reply.model_dump(), 'explanation': text}), references
+
 def normalize_teaching_presentation(reply):
     """Remove harmless presentation, not code, numbers or factual content.
 
@@ -278,6 +320,8 @@ def normalize_teaching_presentation(reply):
     changes = {}
     for field in ('explanation', 'first_action', 'why'):
         value = getattr(reply, field)
+        if value is None:
+            continue
         value = re.sub(r'(?<!`)`([^\W\d]\w*)`(?!`)', r'\1', value)
         value = re.sub(r'\A\s*1[.)]\s+', '', value)
         changes[field] = value.strip()
@@ -334,6 +378,8 @@ def teaching_content_violations(reply, payload):
     violations = []
     for field in ('explanation', 'first_action', 'why'):
         checked = getattr(reply, field)
+        if checked is None:
+            continue
         allowed = explanation_columns(reply, payload) if field == 'explanation' else task_columns(payload)
         for column in sorted(allowed, key=len, reverse=True):
             checked = re.sub(r'(?<!\w)' + re.escape(column) + r'(?!\w)', 'column', checked)
@@ -350,6 +396,8 @@ def validate_teaching(reply, payload, available_columns):
         return 'code_or_numeric_claim'
     for field in ('explanation', 'first_action', 'why'):
         text = getattr(reply, field)
+        if text is None:
+            continue
         allowed = explanation_columns(reply, payload) if field == 'explanation' else task_columns(payload)
         if any(x not in allowed for x in re.findall(r'\bFIELD_[A-Z]\b', text)):
             return 'unrelated_column'
@@ -427,8 +475,10 @@ def explain_pending_task(context, state, step, message, *, allow_provider, reque
             return None, {**trace, 'reason': 'incomplete_response'}
         raw_reply = TeachingExplanation.model_validate(response.output_parsed)
         referenced_reply, references = render_existing_code_references(raw_reply, payload)
-        reply = normalize_teaching_presentation(referenced_reply)
+        conceptual_reply, conceptual_references = render_conceptual_selection_references(referenced_reply, payload)
+        reply = normalize_teaching_presentation(conceptual_reply)
         trace['existing_code_references_rendered'] = references
+        trace['conceptual_references_rendered'] = conceptual_references
         trace['presentation_normalized'] = reply != raw_reply
         error = validate_teaching(reply, payload, list(aliases.values()) if generic else state.get('available_columns') or [])
         if error:
@@ -447,7 +497,7 @@ def explain_pending_task(context, state, step, message, *, allow_provider, reque
     if generic:
         replacements = {v: k for k, v in aliases.items()}
         reply = reply.model_copy(update={**{k: re.sub(r'\bFIELD_[A-Z]\b', lambda m: replacements.get(m.group(), m.group()),
-            getattr(reply, k)) for k in ('explanation', 'first_action', 'why')}, 'task_id': step['id']})
+            getattr(reply, k)) if getattr(reply, k) is not None else None for k in ('explanation', 'first_action', 'why')}, 'task_id': step['id']})
     entry = {**reply.model_dump(), 'question': message[:1200], 'task_key': task_key(step),
         'mode': trace['teaching_context_mode'], 'neutral_lesson': neutral if generic else None}
     state['last_teaching_attempt'] = {'task_key': task_key(step), 'context_mode': trace['teaching_context_mode'],

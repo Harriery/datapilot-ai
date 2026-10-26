@@ -122,6 +122,7 @@ def run_dialogue_suite(case, *, delay=45, checkpoint=None):
             'Does each answer address the current question rather than recap the distribution task?',
             'Does mask help explain keeping True rows and excluding False rows without claiming execution?',
             'Does the tutor change explanation when the learner remains confused?',
+            'Does a concept-only answer avoid assigning an unnecessary or already understood prerequisite?',
             'Does it acknowledge partial/failed attempts without inventing correctness or error causes?',
             'After execution, does it use actual evidence and retain exceptions as unresolved?',
             'Are source definitions and treatment decisions kept separate from statistical patterns?']}
@@ -238,7 +239,12 @@ def main(argv=None):
         print('LEARNER:', turn['message'])
         print('MENTOR:', turn.get('displayed_reply', turn.get('reply')))
         print('TEACHING:', turn['diagnostics'].get('teaching_accepted'), turn['diagnostics'].get('reason', ''))
-    print('Mechanical checks:', report.get('mechanical_checks_passed', 'Human review required'))
+        if not turn['diagnostics'].get('teaching_accepted'):
+            print('VIOLATIONS:', json.dumps(turn['diagnostics'].get('validation_violations', []), ensure_ascii=False))
+            candidate = turn.get('provider_candidate') or {}
+            if candidate:
+                print('REJECTED CANDIDATE:', json.dumps(candidate, ensure_ascii=False))
+    print('Mechanical checks:', report.get('mechanical_checks_passed', report.get('protocol_checks_passed', False)))
     print('Novice learning and project completion are unproven. Human review required.')
     return 0 if report.get('mechanical_checks_passed') or report.get('status') == 'completed_requires_human_review' else 1
 

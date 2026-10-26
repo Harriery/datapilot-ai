@@ -164,3 +164,41 @@ cell output. See [the core implementation and retirement review](mentor-core-aud
 for the new contract, six-turn probe, privacy boundaries and outstanding live
 acceptance. Accepted provider candidates are retained separately from the
 normalized teaching journal and are not replayed into provider prompts.
+
+## Concept explanations without forced assignments
+
+The October 26 live orders probe passed its first turn and rejected the second
+because the model included a new illustrative selection expression despite the
+no-code request. That rejection was a code-display-policy decision, not a numeric
+claim or evidence that the model could not explain boolean filtering. The useful
+prose and the weak follow-up instruction must be evaluated separately.
+
+Two changes address the interface rather than accepting the whole raw proposal:
+
+- `first_action` and `why` may be null. A concept-only question does not require
+  another assignment. The current question should update the inferred learner
+  need rather than repeat the previous difficulty. The workflow remains pending;
+  an explanation is never an execution or proof of understanding.
+- A narrow AST renderer can turn an inline, illustrative placeholder selection
+  on the verified source dataframe into a generic prose role. This applies only
+  to concept explanations, never instructions or reasons. It does not infer the
+  placeholder's existence/type, execute it, validate its result, or display its
+  syntax. It is counted separately from verified source references. Calls,
+  nested filters, literals, unknown fields, assignments, fences and unquoted
+  code retain the existing checks. Generic privacy mode has no source expression
+  and cannot enable this rendering.
+
+A zero-provider-call local replay of both actual synthetic probe candidates
+retained the same pending task and displayed no unrequested code. The second
+candidate required one conceptual-reference rendering; it did not become a
+verified source reference. Its old first_action was retained and remains a weak
+teaching step. Presentation acceptance is not pedagogical acceptance, and the
+new nullable-action behavior still needs live testing.
+
+No uploaded diagnostic transcript is checked into the repository. Invented
+regression cases cover alternate placeholder names/accessors, all supported
+languages, protected rendering boundaries, null actions in generic/detailed
+contexts and task continuity. The CLI now prints failed-candidate details and
+violation fields for synthetic probes and explicitly reports failed protocol
+checks. `workflow_valid`, `content_accepted` and `teaching_accepted` distinguish
+valid retained state from an accepted answer; legacy `accepted` is preserved.

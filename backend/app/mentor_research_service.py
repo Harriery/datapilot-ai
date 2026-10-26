@@ -822,7 +822,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
                                  'en': f" Scope: {item['input_rows']:,} rows in the recorded notebook input.",
                                  'nl': f" Bereik: {item['input_rows']:,} rijen in de vastgelegde notebookinvoer."}[state['response_language']]
                     sections.append(fact)
-            sections += [lesson.first_action, lesson.why]
+            sections += [text for text in (lesson.first_action, lesson.why) if text]
             reply = '\n\n'.join(sections)
             if code_shown:
                 reply += '\n\n```python\n' + active['code'] + '\n```'
@@ -841,7 +841,8 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
                     reply += '\n\n```python\n' + active['code'] + '\n```'
         state['last_validation'] = {
             **trace, 'accepted': active['status'] != 'needs_revalidation',
-            'teaching_accepted': lesson is not None, 'validation_kind': 'pending_step_support',
+            'teaching_accepted': lesson is not None, 'content_accepted': lesson is not None,
+            'workflow_valid': active['status'] != 'needs_revalidation', 'validation_kind': 'pending_step_support',
             'active_step_id': active['id'], 'code_shown': code_shown,
             'supported_proposal': {'next_action': {'kind': 'inspect', 'code': active['code']}},
             'local_proposal': {'next_action': None}, 'rendering_contract': 'grounded-v1',
