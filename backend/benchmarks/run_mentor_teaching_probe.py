@@ -59,7 +59,7 @@ def run_probe(*, public=False, shared=False):
         if index < 2 and not trace.get('teaching_accepted'):
             break
     passed = (len(turns) == 3 and all(x['same_pending_task'] for x in turns)
-              and all(x['diagnostics'].get('teaching_accepted') for x in turns[:2]))
+              and all(x['diagnostics'].get('teaching_accepted') and x['diagnostics'].get('provider_contract_accepted') for x in turns[:2]))
     if passed:
         passed = all('```' not in x['reply'] for x in turns[:2]) and '```python\n' + task['code'] + '\n```' in turns[2]['reply']
     return {'synthetic_data_only': True, 'turns': turns, 'mechanical_checks_passed': passed,
@@ -116,7 +116,7 @@ def run_dialogue_suite(case, *, delay=45, checkpoint=None):
         raise ValueError('The frozen dialogue requires a pending inspection')
     history, turns = [], []
     report = {'case': case, 'synthetic_data_only': True, 'fixed_learner_scenario': True,
-        'ui_tested': False, 'novice_usability_accepted': False, 'project_completion_proven': False,
+        'ui_tested': False, 'scripted_execution_receipts': True, 'novice_usability_accepted': False, 'project_completion_proven': False,
         'human_review_required': True, 'status': 'running', 'turns': turns,
         'review_questions': [
             'Does each answer address the current question rather than recap the distribution task?',
@@ -177,22 +177,34 @@ def run_dialogue_suite(case, *, delay=45, checkpoint=None):
                 else rejected.get('candidate') if rejected.get('reason') == trace.get('reason') else None)
             turns.append({'case': name, 'message': message, 'displayed_reply': reply,
                 'provider_candidate': candidate, 'diagnostics': trace,
+                'continuation_after_blocked_reply': any(not x['diagnostics'].get('teaching_accepted') for x in turns),
                 'pending_task': {k: (state.get('workflow', {}).get('active_step') or {}).get(k)
                                  for k in ('id', 'kind', 'status')},
                 'provider_calls': trace.get('provider_calls', len(trace.get('model_attempts') or []))})
             history += [{'role': 'user', 'content': message}, {'role': 'assistant', 'content': reply}]
             persist()
-            if not trace.get('teaching_accepted'):
+            if not trace.get('teaching_accepted') and trace.get('reason') not in {
+                'code_or_numeric_claim', 'unrelated_column', 'repeated_explanation',
+                'task_mismatch', 'unavailable_evidence_reference'}:
+                # Do not repeat configuration, policy, quota or schema failures.
+                # Content rejections are collected across the fixed scenario,
+                # explicitly marked as scripted continuation, never recovery proof.
                 break
         checks = {
             'six_turns_completed': len(turns) == 6,
-            'responses_protocol_valid': all(x['diagnostics'].get('teaching_accepted') for x in turns),
+            'responses_protocol_valid': bool(turns) and all(x['diagnostics'].get('teaching_accepted')
+                and x['diagnostics'].get('provider_contract_accepted') for x in turns),
             'initial_task_retained_before_receipt': all(x['pending_task'].get('id') == initial['id']
                 and x['pending_task'].get('status') == 'awaiting_execution' for x in turns[:4]),
             'task_advanced_after_receipt': len(turns) >= 5 and turns[4]['pending_task'].get('id') != initial['id'],
             'result_question_uses_evidence': len(turns) >= 5 and turns[4]['diagnostics'].get('conversation_kind') == 'evidence',
             'no_unrequested_code': all('```' not in x['displayed_reply'] for x in turns),
             'bounded_provider_calls': sum(x['provider_calls'] for x in turns) <= 6,
+        }
+        report['delivery_checks'] = {
+            'all_explanations_delivered': len(turns) == 6 and all(x['diagnostics'].get('teaching_accepted') for x in turns),
+            'guidance_was_omitted': any(x['diagnostics'].get('omitted_sections') for x in turns),
+            'blocked_reply_occurred': any(not x['diagnostics'].get('teaching_accepted') for x in turns),
         }
         report['protocol_checks'] = checks
         report['protocol_checks_passed'] = all(checks.values())
@@ -239,7 +251,9 @@ def main(argv=None):
         print('LEARNER:', turn['message'])
         print('MENTOR:', turn.get('displayed_reply', turn.get('reply')))
         print('TEACHING:', turn['diagnostics'].get('teaching_accepted'), turn['diagnostics'].get('reason', ''))
-        if not turn['diagnostics'].get('teaching_accepted'):
+        print('MODEL_CONTRACT:', turn['diagnostics'].get('provider_contract_accepted'))
+        print('DELIVERY:', turn['diagnostics'].get('delivery_mode'), 'OMITTED:', turn['diagnostics'].get('omitted_sections', []))
+        if turn['diagnostics'].get('provider_contract_accepted') is False:
             print('VIOLATIONS:', json.dumps(turn['diagnostics'].get('validation_violations', []), ensure_ascii=False))
             candidate = turn.get('provider_candidate') or {}
             if candidate:

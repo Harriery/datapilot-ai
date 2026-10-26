@@ -299,9 +299,12 @@ def test_auxiliary_evidence_can_be_explained_without_changing_the_pending_task()
     visible, after, _ = teach(context, response, 'Yaptığım yardımcı kontrolü açıklar mısın?')
     assert after['last_validation']['teaching_accepted'] and 'side_field' in visible
     assert after['workflow']['active_step']['id'] == state['workflow']['active_step']['id']
+    response.explanation = 'side_field kontrolü ayrı bir ölçümdür; araştırmanın hedefi değişmedi.'
     response.first_action = 'side_field üzerinde yeni bir dağılım incele.'
     _, after, _ = teach(context, response, 'Sırada ne var?')
-    assert after['last_validation']['reason'] == 'unrelated_column'
+    assert after['last_validation']['reason'] == 'optional_guidance_omitted'
+    assert after['last_validation']['guidance_rejection_reason'] == 'unrelated_column'
+    assert after['last_validation']['provider_contract_accepted'] is False
 
 
 def test_probe_cli_loads_local_provider_config_without_overwriting_shell_settings(tmp_path, monkeypatch):
@@ -323,3 +326,55 @@ def test_probe_cli_loads_local_provider_config_without_overwriting_shell_setting
     assert seen == [('groq', 'synthetic-config-choice')]
     assert database.DATABASE_PATH == previous_database
     assert len(list((tmp_path / 'reports').glob('*/report.json'))) == 1
+
+
+def test_probe_collects_section_failures_without_counting_scripted_continuation_as_success():
+    from backend.benchmarks.run_mentor_teaching_probe import run_dialogue_suite
+    calls = []
+    def model(*args, **kwargs):
+        payload = json.loads(kwargs['input']); calls.append(payload)
+        n = len(calls)
+        evidence = n == 5
+        return SimpleNamespace(status='completed', output_parsed=TeachingExplanation(
+            task_id=payload['task_id'], conversation_kind='evidence' if evidence else 'concept',
+            evidence_ids=[payload['investigation_context']['verified_checks'][0]['id']] if evidence else [],
+            approach='break_down',
+            explanation=['Sayım bir toplamdır; seçim ilgili kayıtları ayırır.',
+                '`df[unverified_flags]` ile seç.', 'Koşul tek başına satır seçimi değildir.',
+                'Hata nedenini bu bağlamla kesinleştiremiyorum.',
+                'Kayıtlı dağılım tek başına iş kuralı kanıtlamaz.',
+                'Kaynak tanımı olmadan nedeni kesinleştiremeyiz.'][n-1],
+            first_action='df.dropna(inplace=True)' if n == 1 else None,
+            why='Önce bu işlemi yap.' if n == 1 else None))
+    runtime = SimpleNamespace(provider='groq', model='controlled', client=object())
+    with patch('backend.app.mentor_adaptive_teaching_service.get_ai_runtime', return_value=runtime), \
+         patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse', side_effect=model):
+        report = run_dialogue_suite('sensors', delay=0)
+    assert len(calls) == 6 and len(report['turns']) == 6
+    first, second = report['turns'][:2]
+    assert first['diagnostics']['teaching_accepted']
+    assert first['diagnostics']['provider_contract_accepted'] is False
+    assert first['diagnostics']['delivery_mode'] == 'explanation_only'
+    assert 'dropna' not in first['displayed_reply']
+    assert not second['diagnostics']['teaching_accepted']
+    assert not second['continuation_after_blocked_reply']
+    assert all(x['continuation_after_blocked_reply'] for x in report['turns'][2:])
+    assert not report['protocol_checks_passed']
+    assert report['status'] == 'completed_with_protocol_failures'
+    assert report['delivery_checks'] == {'all_explanations_delivered': False,
+        'guidance_was_omitted': True, 'blocked_reply_occurred': True}
+    assert report['scripted_execution_receipts'] and not report['project_completion_proven']
+    # The invalid model instruction must not seed the next model request.
+    assert 'df.dropna(inplace=True)' not in json.dumps(calls[1])
+
+
+def test_probe_stops_on_provider_failure_without_repeating_failed_requests():
+    from backend.benchmarks.run_mentor_teaching_probe import run_dialogue_suite
+    runtime = SimpleNamespace(provider='groq', model='controlled', client=object())
+    with patch('backend.app.mentor_adaptive_teaching_service.get_ai_runtime', return_value=runtime), \
+         patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse',
+               side_effect=RuntimeError('synthetic provider failure')) as model:
+        report = run_dialogue_suite('service', delay=0)
+    assert model.call_count == 1 and len(report['turns']) == 1
+    assert not report['protocol_checks_passed']
+    assert report['turns'][0]['diagnostics']['reason'] == 'provider_or_schema_error'

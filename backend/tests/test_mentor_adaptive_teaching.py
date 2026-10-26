@@ -95,9 +95,8 @@ def test_protected_or_unknown_context_never_calls_provider(policy):
 
 @pytest.mark.parametrize('changes,reason', [
     ({'task_id': 'another-task'}, 'task_mismatch'),
-    ({'first_action': 'df[delivery_days].isna()'}, 'code_or_numeric_claim'),
     ({'explanation': 'Eksik değer sayısı 207.'}, 'code_or_numeric_claim'),
-    ({'first_action': 'private_reason sütununu incele.'}, 'unrelated_column')])
+    ({'explanation': 'private_reason sütununu incele.'}, 'unrelated_column')])
 def test_invalid_explanation_uses_explicit_fallback_and_preserves_task(changes, reason):
     context, state, step = setup_task()
     context['dataset_profile_summary']['columns'].append('private_reason')

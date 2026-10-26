@@ -173,32 +173,61 @@ no-code request. That rejection was a code-display-policy decision, not a numeri
 claim or evidence that the model could not explain boolean filtering. The useful
 prose and the weak follow-up instruction must be evaluated separately.
 
-Two changes address the interface rather than accepting the whole raw proposal:
+The nullable-action change is retained: `first_action` and `why` may be null;
+concept explanations do not require an assignment. An explanation never completes
+a task or proves understanding.
 
-- `first_action` and `why` may be null. A concept-only question does not require
-  another assignment. The current question should update the inferred learner
-  need rather than repeat the previous difficulty. The workflow remains pending;
-  an explanation is never an execution or proof of understanding.
-- A narrow AST renderer can turn an inline, illustrative placeholder selection
-  on the verified source dataframe into a generic prose role. This applies only
-  to concept explanations, never instructions or reasons. It does not infer the
-  placeholder's existence/type, execute it, validate its result, or display its
-  syntax. It is counted separately from verified source references. Calls,
-  nested filters, literals, unknown fields, assignments, fences and unquoted
-  code retain the existing checks. Generic privacy mode has no source expression
-  and cannot enable this rendering.
+An earlier generic-placeholder renderer converted new illustrative selection
+syntax to prose. That shortcut has been retired. Only exact references to the
+verified source expression are eligible for source-reference rendering. New
+code inside an explanation is rejected rather than translated or removed
+sentence by sentence. The earlier replay established presentation behavior only;
+it did not establish pedagogical quality.
 
-A zero-provider-call local replay of both actual synthetic probe candidates
-retained the same pending task and displayed no unrequested code. The second
-candidate required one conceptual-reference rendering; it did not become a
-verified source reference. Its old first_action was retained and remains a weak
-teaching step. Presentation acceptance is not pedagogical acceptance, and the
-new nullable-action behavior still needs live testing.
+## Independent explanation, guidance and code contract
 
-No uploaded diagnostic transcript is checked into the repository. Invented
-regression cases cover alternate placeholder names/accessors, all supported
-languages, protected rendering boundaries, null actions in generic/detailed
-contexts and task continuity. The CLI now prints failed-candidate details and
-violation fields for synthetic probes and explicitly reports failed protocol
-checks. `workflow_valid`, `content_accepted` and `teaching_accepted` distinguish
-valid retained state from an accepted answer; legacy `accepted` is preserved.
+The existing provider fields now pass through one delivery compiler, rather than
+one all-or-nothing content gate. No new mentor route or task owner is introduced.
+
+| Section | Authority and checks | Failure behavior |
+| --- | --- | --- |
+| Explanation | Self-contained prose; same task, current verified evidence references, existing code/measurement/field and repetition checks. | Block delivery if invalid. Do not trim sentences, discard provenance, or rewrite new code into an approved explanation. |
+| Optional guidance | One action and its dependent reason; same field/content checks. No generated code or unsupported measurements. | If either field is invalid, omit both, retain a valid explanation and record model noncompliance. A reason without an action is also omitted. |
+| Code artifact | Only the existing validated pending-task expression, displayed by the backend after positive user consent. | Model prose and omitted guidance cannot become a code artifact or execute anything. |
+
+The compiler validates the explanation independently before considering optional
+guidance. Task/evidence/repetition failures remain blocking. Safe degradation
+returns the original valid prose with null guidance; it does not invent replacement
+instructions. `provider_contract_accepted=false`, `delivery_mode=explanation_only`,
+field-level violations and omitted sections remain visible in diagnostics.
+`teaching_accepted`/`content_accepted` describe delivered content, not full
+compliance or learning quality. `workflow_valid` describes retained state;
+legacy `accepted` still must not be read as a quality score.
+
+Only displayed text enters subsequent teaching history. The original rejected
+candidate remains a bounded local diagnostic and is not replayed in provider
+prompts. No extra model/repair call is made. Privacy modes, protected-data gates,
+execution receipts, explicit code consent and task completion remain unchanged.
+
+Local zero-provider-call replays of the two actual synthetic reports distinguish
+three outcomes: a fully admissible old turn; a code-contaminated explanation
+that remains blocked; and a valid explanation delivered without its invalid
+optional action/reason. All retained the pending task and displayed no
+unrequested code. These are presentation/control results, not improved live
+teaching acceptance. Uploaded transcripts are not committed as fixtures.
+
+The six-turn scripted probe now separates content delivery from model compliance.
+It collects deterministic content failures across the fixed scenario instead of
+hiding later cases behind the first failure. Continuations after blocked replies
+are marked explicitly; later fixed execution receipts are supplied test inputs,
+not evidence that a novice learned or followed the mentor successfully. It stops
+on provider/configuration/policy/schema failures rather than repeatedly spending
+requests on them. The maximum remains six requests, one per turn, no retries.
+Any model contract rejection keeps the protocol result failed, even if valid
+explanations reached the screen. Raw candidates, omitted sections and the final
+visible responses are reported separately for human review.
+
+Live model consistency, question fulfillment, teaching quality and independent
+novice project completion are still unproven. Retaining valid prose does not
+establish that it answers a request for an actionable next step. Evaluate that
+separately; never count a degraded reply as a complete pedagogical success.
