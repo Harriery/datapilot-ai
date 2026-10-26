@@ -231,3 +231,67 @@ Live model consistency, question fulfillment, teaching quality and independent
 novice project completion are still unproven. Retaining valid prose does not
 establish that it answers a request for an actionable next step. Evaluate that
 separately; never count a degraded reply as a complete pedagogical success.
+
+## Isolated paired comparison: current versus simple
+
+The existing probe CLI includes `--paired-comparison`. It does not change the
+application's mentor, task ownership, prompts or validators. It compares two
+bundles with the same configured free Groq model:
+
+- **Current:** the production pending-task path, its actual provider input and
+  structured proposal, followed by the current compiler/displayed reply.
+- **Simple:** project goal, beginner level, question, known columns, sample scope,
+  the unexecuted pending step and the supplied notebook code/output. It has no
+  backend analysis-contract keys. A small answer-only schema returns the raw
+  mentor answer; this experiment does not install that answer in the application.
+
+This changes context, rules, output schema and rendering together. It cannot
+attribute a difference exclusively to context. Comparing the current arm's raw
+proposal with its displayed answer helps identify presentation losses separately.
+A successful simple answer demonstrates only a capability on that checkpoint,
+not a general model-quality or product-readiness result. Failure of both arms
+alone does not prove model incapacity.
+
+Both arms use the same source checkpoint and question, model, output-token cap
+(at most 1200), input-character bound (9000), reasoning option and one guarded
+request attempt. Prompt lengths/schema overhead intentionally differ and are
+recorded. Call order alternates. There are no repair retries or automatic winner.
+Usage tokens, elapsed time, actual instructions/inputs, raw candidates and final
+current output are retained for human review. Guarded request counts can include
+an attempt stopped locally before network access.
+
+Three datasets have different missingness patterns, category labels and exception
+structures. Checkpoints cover counting versus selecting, a syntax-error attempt
+and a normalized-distribution result. They are independent frozen checkpoints,
+not a live novice conversation: previous model answers are never used to seed the
+other arm, and supplied execution receipts are not proof of learning. The default
+three pairs cover all three schemas and question types (at most six attempts).
+`--pairs 9` explicitly expands to the full matrix (at most eighteen attempts).
+
+Project/research state is held in isolated memory. No suggested code is executed
+and no real workspace, notebook or dataset is loaded or changed. The real
+application AI usage ledger and normal guarded request/billing policies are
+retained; isolation must not reset spending limits. Only a free-only, allowlisted
+Groq runtime is accepted. API keys/provider exception bodies are never reported.
+Configuration/provider failures stop the experiment and completed pairs remain
+checkpointed. This is not an enterprise privacy guarantee for other app paths.
+
+Prepare requests with zero provider access:
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --offline --paired-comparison
+```
+
+Collect matched live answers using the computer's existing `.env` configuration:
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --paired-comparison --pairs 3
+```
+
+At implementation time, all nine request pairs were prepared locally with zero
+provider calls and controlled tests verified state isolation, the actual usage
+guard/ledger, model/budget equality, raw-versus-displayed separation and partial
+failure retention. A live attempt in the development environment stopped at
+`blocked_configuration` with zero attempts: no Groq key/runtime was configured.
+No live comparison winner, novice-learning benefit or improved mentor quality is
+claimed. Human review scores remain empty until actual answers are assessed.

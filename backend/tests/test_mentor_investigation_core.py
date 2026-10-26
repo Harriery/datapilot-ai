@@ -378,3 +378,126 @@ def test_probe_stops_on_provider_failure_without_repeating_failed_requests():
     assert model.call_count == 1 and len(report['turns']) == 1
     assert not report['protocol_checks_passed']
     assert report['turns'][0]['diagnostics']['reason'] == 'provider_or_schema_error'
+
+
+def test_paired_offline_prepares_same_source_checkpoints_without_provider_or_sqlite_access():
+    from backend.benchmarks.run_mentor_teaching_probe import run_paired_comparison
+    with patch('backend.benchmarks.run_mentor_teaching_probe.get_ai_runtime') as model, \
+         patch('backend.benchmarks.run_mentor_teaching_probe.guarded_responses_parse') as provider, \
+         patch.object(database, 'get_connection', side_effect=AssertionError('Unexpected SQLite access')):
+        report = run_paired_comparison(live=False, max_pairs=9)
+    model.assert_not_called(); provider.assert_not_called()
+    assert report['provider_calls'] == 0 and report['status'] == 'prepared_not_live_tested'
+    assert len(report['pairs']) == 9 and report['comparison_winner'] is None
+    schemas, scenarios, sources = set(), set(), {}
+    for pair in report['pairs']:
+        schemas.add(pair['case']); scenarios.add(pair['scenario'])
+        current, simple = pair['arms']['current'], pair['arms']['simple']
+        assert current['max_output_tokens'] == simple['max_output_tokens']
+        assert len(json.dumps(current['input'], ensure_ascii=False)) <= 9000
+        assert simple['input'] == pair['source_snapshot']
+        assert current['input']['learner_question'] == simple['input']['question']
+        assert not simple['input']['scope']['full_source_verified']
+        assert 'row_predicate' not in json.dumps(simple['input'])
+        assert simple['input']['history'] == []
+        if pair['scenario'] == 'count_vs_filter':
+            sources[pair['case']] = simple['input']['recorded_cells'][0]['output']
+        if pair['scenario'] == 'error':
+            assert simple['input']['recorded_cells'][0]['success'] is False
+            assert 'SyntaxError' in simple['input']['recorded_cells'][0]['output']
+    assert len(schemas) == 3 and len(scenarios) == 3
+    assert len(set(sources.values())) == 3  # Patterns differ, not only field names.
+    assert not report['novice_usability_accepted'] and not report['project_completion_proven']
+
+
+def test_paired_live_wiring_uses_same_model_budget_and_keeps_candidates_separate_from_display():
+    from backend.benchmarks import run_mentor_teaching_probe as probe
+    calls = []
+    runtime = SimpleNamespace(provider='groq', model='openai/gpt-oss-120b', client=object())
+    def provider(*args, **kwargs):
+        calls.append(kwargs)
+        if kwargs['text_format'] is probe.ComparisonAnswer:
+            parsed = probe.ComparisonAnswer(answer='Bu serbest deney cevabıdır; kod çalıştırılmaz.')
+        else:
+            payload = json.loads(kwargs['input'])
+            parsed = TeachingExplanation(task_id=payload['task_id'], approach='break_down',
+                explanation='Sayım ile satır seçimi farklı işlemlerdir.',
+                first_action='df.dropna(inplace=True)', why=None)
+        return SimpleNamespace(output_parsed=parsed, status='completed',
+            usage=SimpleNamespace(input_tokens=100, output_tokens=20, total_tokens=120))
+    original_database = database.DATABASE_PATH
+    with patch.object(probe, 'get_ai_runtime', return_value=runtime), \
+         patch.object(probe, 'get_ai_billing_policy', return_value={'free_only': True, 'allowed_free_providers': ['groq']}), \
+         patch.object(probe, 'guarded_responses_parse', side_effect=provider), \
+         patch.object(database, 'get_connection', side_effect=AssertionError('Unexpected project DB access')):
+        report = probe.run_paired_comparison(live=True, max_pairs=3, delay=0)
+    assert database.DATABASE_PATH == original_database
+    assert report['provider_calls'] == 6 and len(calls) == 6
+    assert report['status'] == 'completed_requires_human_review'
+    assert report['comparison_winner'] is None
+    assert report['pairs'][0]['call_order'] == ['current', 'simple']
+    assert report['pairs'][1]['call_order'] == ['simple', 'current']
+    for pair in report['pairs']:
+        current, simple = pair['arms']['current'], pair['arms']['simple']
+        assert current['input']['learner_question'] == simple['input']['question']
+        assert current['max_output_tokens'] == simple['max_output_tokens']
+        assert current['reasoning'] == simple['reasoning']
+        assert 'dropna' in current['provider_candidate']['first_action']
+        assert 'dropna' not in current['displayed_reply']
+        assert current['diagnostics']['provider_contract_accepted'] is False
+        assert current['usage']['total_tokens'] == simple['usage']['total_tokens'] == 120
+        assert all(score is None for score in pair['human_scores'].values())
+    assert {(x['provider'],x['model']) for x in calls} == {('groq','openai/gpt-oss-120b')}
+
+
+@pytest.mark.parametrize('free_only,provider', [(False,'groq'), (True,'openai')])
+def test_comparison_refuses_paid_or_unapproved_runtime(free_only, provider):
+    from backend.benchmarks import run_mentor_teaching_probe as probe
+    with patch.object(probe, 'get_ai_runtime', return_value=SimpleNamespace(provider=provider)), \
+         patch.object(probe, 'get_ai_billing_policy', return_value={'free_only': free_only, 'allowed_free_providers':['groq']}), \
+         patch.object(probe, 'guarded_responses_parse') as model:
+        report = probe.run_paired_comparison(live=True)
+    model.assert_not_called()
+    assert report['status'] == 'blocked_configuration' and report['provider_calls'] == 0
+
+
+def test_comparison_saves_partial_pair_on_provider_failure_and_does_not_retry():
+    from backend.benchmarks import run_mentor_teaching_probe as probe
+    checkpoints = []
+    with patch.object(probe, 'get_ai_runtime', return_value=SimpleNamespace(provider='groq', model='controlled', client=object())), \
+         patch.object(probe, 'get_ai_billing_policy', return_value={'free_only':True,'allowed_free_providers':['groq']}), \
+         patch.object(probe, 'guarded_responses_parse', side_effect=RuntimeError('private-provider-error')) as model:
+        report = probe.run_paired_comparison(live=True, delay=0, checkpoint=lambda x: checkpoints.append(deepcopy(x)))
+    assert model.call_count == 1 and report['provider_calls'] == 1
+    assert report['status'] == 'blocked' and len(report['pairs']) == 1
+    assert 'private-provider-error' not in json.dumps(report)
+    assert checkpoints[-1]['status'] == 'blocked'
+
+
+def test_paired_experiment_retains_normal_usage_guards_while_research_state_is_isolated(monkeypatch):
+    from backend.benchmarks import run_mentor_teaching_probe as probe
+    monkeypatch.setenv('AI_FREE_ONLY', 'true')
+    monkeypatch.setenv('AI_FREE_PROVIDER_ALLOWLIST', 'groq')
+    monkeypatch.setenv('AI_DAILY_REQUEST_LIMIT', '100')
+    monkeypatch.setenv('AI_MONTHLY_REQUEST_LIMIT', '100')
+    before = database.get_ai_usage_counts()
+    def parse(**kwargs):
+        if kwargs['text_format'] is probe.ComparisonAnswer:
+            parsed = probe.ComparisonAnswer(answer='Sentetik karşılaştırma cevabı.')
+        else:
+            request = json.loads(kwargs['input'])
+            parsed = TeachingExplanation(task_id=request['task_id'], approach='contrast',
+                explanation='Sayım toplam verir; seçim satırları ayırır.', first_action=None, why=None)
+        return SimpleNamespace(status='completed', output_parsed=parsed)
+    runtime = SimpleNamespace(provider='groq', model='openai/gpt-oss-120b',
+                              client=SimpleNamespace(responses=SimpleNamespace(parse=parse)))
+    with patch.object(probe, 'get_ai_runtime', return_value=runtime):
+        report = probe.run_paired_comparison(live=True, max_pairs=1, delay=0)
+    assert report['status'] == 'completed_requires_human_review'
+    assert database.get_ai_usage_counts()['daily_requests'] - before['daily_requests'] == 2
+    # No real provider was used: this verifies ledger routing through the real guard.
+    connection = database.get_connection()
+    try:
+        assert connection.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='mentor_research_memory'").fetchone()[0] == 0
+    finally:
+        connection.close()
