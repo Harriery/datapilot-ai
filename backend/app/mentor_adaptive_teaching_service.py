@@ -48,6 +48,9 @@ another investigation. State why it helps. Do not supply code, expressions,
 method calls, code fences, links, dataset measurements, category values, numerical
 results or factual conclusions. Use only columns in task_contract. Do not claim
 to see results or know the learner's understanding. No numerical examples.
+For existing-code questions prefer operation names and plain descriptions.
+Inline references to exact parts of latest_verified_expression can be rendered
+as prose by the backend, but never introduce a new expression or method argument.
 Do not repeat a request for a source definition or suggest cleaning/imputation.
 Optional code is rendered separately by the backend. last_attempt_shape is only
 syntax, never proof of correctness. If the learner tried a partial condition or
@@ -148,6 +151,75 @@ def conceptual_request(payload, message):
     if result['learner_level'] not in {'beginner', 'intermediate', 'advanced'}:
         result['learner_level'] = 'beginner'
     return result, aliases
+
+
+def render_existing_code_references(reply, payload):
+    """Render only verified source quotations as prose, never new solution code.
+
+    Eligibility comes from the supplied, supported read-only expression, not
+    the model's assertion that code is old. Only the explanation field permits
+    these references; first_action and why retain their no-code constraints.
+    """
+    source = payload.get('latest_verified_expression')
+    if not isinstance(source, str) or not source or len(source) > 1200:
+        return reply, 0
+    contract = expression_contract(source)
+    if contract.get('supported') is False:
+        return reply, 0
+    language = payload.get('response_language', 'tr')
+    language = language if language in {'tr', 'en', 'nl'} else 'en'
+    try:
+        tree = ast.parse(source, mode='eval')
+    except (SyntaxError, ValueError, TypeError, RecursionError):
+        return reply, 0
+    def key(node):
+        return ast.dump(node, include_attributes=False)
+    def method_label(name):
+        return {'tr': f'{name} adımı', 'en': f'the {name} operation', 'nl': f'de bewerking {name}'}[language]
+    roles, methods = {}, {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id == 'df':
+            roles[key(node)] = {'tr': 'veri çerçevesi', 'en': 'the data frame', 'nl': 'het dataframe'}[language]
+        elif (isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant)
+              and isinstance(node.slice.value, str)):
+            column = node.slice.value
+            roles[key(node)] = {'tr': f'{column} sütunu', 'en': f'the {column} column', 'nl': f'de kolom {column}'}[language]
+        elif isinstance(node, ast.Subscript):
+            roles[key(node)] = {'tr': 'mevcut satır ve sütun seçimi', 'en': 'the existing row and column selection', 'nl': 'de bestaande rij- en kolomselectie'}[language]
+        elif (isinstance(node, (ast.Compare, ast.BoolOp))
+              or isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.Invert, ast.Not))
+              or isinstance(node, ast.BinOp) and isinstance(node.op, (ast.BitAnd, ast.BitOr))):
+            roles[key(node)] = {'tr': 'mevcut seçim koşulu', 'en': 'the existing selection condition', 'nl': 'de bestaande selectievoorwaarde'}[language]
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            label = method_label(node.func.attr)
+            roles[key(node)] = label
+            signature = ast.Call(func=ast.Name(id=node.func.attr, ctx=ast.Load()), args=node.args, keywords=node.keywords)
+            methods[key(signature)] = label
+        elif isinstance(node, ast.Attribute):
+            roles[key(node)] = method_label(node.attr)
+    roles[key(tree.body)] = {'tr': 'mevcut notebook işlemi', 'en': 'the existing notebook operation', 'nl': 'de bestaande notebookbewerking'}[language]
+    references = 0
+    def replace(match):
+        nonlocal references
+        fragment = match.group(1).strip()
+        try:
+            parsed = ast.parse('reference' + fragment if fragment.startswith('.') else fragment, mode='eval').body
+        except (SyntaxError, ValueError, TypeError, RecursionError):
+            return match.group()
+        label = roles.get(key(parsed))
+        if label is None and isinstance(parsed, ast.Call):
+            if isinstance(parsed.func, ast.Name):
+                label = methods.get(key(parsed))
+            elif fragment.startswith('.') and isinstance(parsed.func, ast.Attribute) and isinstance(parsed.func.value, ast.Name) and parsed.func.value.id == 'reference':
+                signature = ast.Call(func=ast.Name(id=parsed.func.attr, ctx=ast.Load()), args=parsed.args, keywords=parsed.keywords)
+                label = methods.get(key(signature))
+        if label is None:
+            return match.group()
+        references += 1
+        return label
+    text = re.sub(r'(?<!`)`([^`\n]+)`(?!`)', replace, reply.explanation)
+    rendered = TeachingExplanation.model_validate({**reply.model_dump(), 'explanation': text})
+    return rendered, references
 
 
 def normalize_teaching_presentation(reply):
@@ -264,7 +336,9 @@ def explain_pending_task(context, state, step, message, *, allow_provider, reque
         if getattr(response, 'status', None) == 'incomplete':
             return None, {**trace, 'reason': 'incomplete_response'}
         raw_reply = TeachingExplanation.model_validate(response.output_parsed)
-        reply = normalize_teaching_presentation(raw_reply)
+        referenced_reply, references = render_existing_code_references(raw_reply, payload)
+        reply = normalize_teaching_presentation(referenced_reply)
+        trace['existing_code_references_rendered'] = references
         trace['presentation_normalized'] = reply != raw_reply
         error = validate_teaching(reply, payload, list(aliases.values()) if generic else state.get('available_columns') or [])
         if error:

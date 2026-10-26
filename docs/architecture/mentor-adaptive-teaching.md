@@ -61,6 +61,29 @@ it keeps anonymous aliases; no actual user candidate is published in fixtures.
 This makes a future rejection inspectable without guessing or another model
 request. A fresh live-model acceptance turn is still required.
 
+### Existing-code explanation versus new solution code (26 October)
+
+A subsequent local replay of the actual rejected response established a more
+specific failure: the model correctly explained the recorded expression, while
+the no-code validator rejected its quotations of that existing expression.
+The replay required no provider call. The actual user transcript is not included
+in repository fixtures; regression tests use invented fields and explanations.
+
+The backend now renders inline references to the latest verified expression as
+prose before validating teaching. Eligibility is derived from the supported
+source AST: an exact subexpression or observed method signature can be named as
+the existing column selection, condition or operation. Quotes with different
+fields, calls or method arguments remain code violations. Fences remain rejected.
+Only the explanation field permits source references; first_action and why keep
+the no-code constraints. Source references are displayed as prose labels rather
+than reproducing a program when the learner has requested no code.
+
+Generic mode has no verified expression and receives no such allowance. Raw
+measurements are not excused by the presence of an existing-code reference.
+No code is executed, no task is assigned/completed, and no second provider call
+is made by this rendering step. Diagnostics count the references rendered. This
+is a bounded provenance check, not proof of semantic teaching quality.
+
 ## Data boundary
 
 For policy-allowed data the bounded learner question, structural contracts,
