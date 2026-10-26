@@ -12,13 +12,14 @@ from fastapi import (
     Response,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 import backend.app.database as database
 
 from backend.app.models import (
     Workspace,
     WorkspaceCreateRequest,
+    ProjectMentorSetup,
     WorkspaceCheckpointUpdateRequest,
     WorkspaceResumeResponse,
     WorkspaceStatusUpdateRequest,
@@ -237,6 +238,28 @@ from backend.app.mentor_local_investigation_service import (
 
 
 router = APIRouter()
+
+
+class NotebookTeachingPreferenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: Literal["generic", "question_and_code"]
+
+
+@router.patch("/workspaces/{learner_id}/{workspace_id}/notebook-teaching", response_model=Workspace)
+def update_notebook_teaching_preference(
+    learner_id: str, workspace_id: str, request: NotebookTeachingPreferenceRequest,
+):
+    workspace = database.get_workspace(workspace_id=workspace_id, learner_id=learner_id)
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Workspace bulunamadı.")
+    if workspace.usage_context != "personal":
+        raise HTTPException(status_code=403, detail="This preference is available for personal projects only.")
+    if request.mode == "question_and_code" and workspace.data_sensitivity in {"confidential", "restricted"}:
+        raise HTTPException(status_code=409, detail="Protected data cannot enable external notebook teaching context.")
+    setup = workspace.mentor_setup or ProjectMentorSetup()
+    workspace.mentor_setup = setup.model_copy(update={"notebook_teaching_context": request.mode})
+    database.save_workspace(workspace=workspace)
+    return workspace
 
 
 @router.post(

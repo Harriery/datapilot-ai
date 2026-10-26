@@ -29,6 +29,10 @@ type WorkspaceLearningLoop = {
 
 type Props = {
   workspaceId: string;
+  usageContext?: "personal" | "work";
+  dataSensitivity?: "public" | "internal" | "unknown" | "confidential" | "restricted" | null;
+  teachingContext?: "generic" | "question_and_code" | null;
+  onTeachingContextChange?: (mode: "generic" | "question_and_code") => Promise<void>;
   sessionId: string | null;
   language: "en" | "nl" | "tr";
   contextualPrompt?: string | null;
@@ -43,6 +47,10 @@ type Props = {
 
 export default function WorkspaceMentorPanel({
   workspaceId,
+  usageContext,
+  dataSensitivity,
+  teachingContext,
+  onTeachingContextChange,
   sessionId,
   language,
   contextualPrompt,
@@ -67,7 +75,57 @@ export default function WorkspaceMentorPanel({
   const [learningLoopLoading,setLearningLoopLoading]=useState(false);
   const [input,setInput]=useState("");
   const [loading,setLoading]=useState(false);
+  const effectiveTeachingContext = teachingContext ?? (
+    dataSensitivity === "public" || dataSensitivity === "internal" ? "question_and_code" : "generic"
+  );
+  const [teachingDraft, setTeachingDraft] = useState(effectiveTeachingContext);
+  const [teachingSaving, setTeachingSaving] = useState(false);
+  const [teachingError, setTeachingError] = useState<string | null>(null);
+  const protectedData = dataSensitivity === "confidential" || dataSensitivity === "restricted";
+  const teachingCopy = {
+    tr: {
+      title: "Notebook’ta ayrıntılı yardım",
+      limited: "Notebook öğretimi genel modda: Bu öğretici yolda sorunun tam metni modele gönderilmiyor; ayrıntılı kod soruları yeterince yanıtlanamayabilir.",
+      shared: "Notebook öğretimi, mesajlarını ve doğrulanmış inceleme kodunu kullanabilir.",
+      protected: "Bu verinin koruma sınıfı, bu öğretici yolda harici AI bağlam paylaşımını engelliyor.",
+      description: "Ayrıntılı yardım seçeneği, mesajlarını, ilgili sütun adlarını ve doğrulanmış inceleme kodunu harici AI sağlayıcısına gönderir. Mesaj veya kodda yazdığın değerler de paylaşılabilir. Ham veri satırları ve hücre çıktıları bu öğretici isteğine eklenmez. Bu seçim diğer mentor yollarının veri politikasını değiştirmez.",
+      generic: "Genel kavramlarla yardım", detailed: "Mesajım ve inceleme kodumla yardım",
+      save: "Seçimi kaydet", saving: "Kaydediliyor…", label: "Notebook öğretim bağlamı",
+    },
+    en: {
+      title: "Detailed notebook help",
+      limited: "Notebook teaching is in general mode: This teaching path does not send your full question to the model, so detailed code questions may not be answered adequately.",
+      shared: "Notebook teaching can use your messages and verified inspection code.",
+      protected: "This data classification blocks external AI context sharing in this teaching path.",
+      description: "Detailed help sends your messages, relevant column names and verified inspection code to the external AI provider. Values written in messages or code may also be shared. Raw rows and cell outputs are not added to this teaching request. This choice does not change data policies for other mentor paths.",
+      generic: "Help with general concepts", detailed: "Help using my messages and inspection code",
+      save: "Save choice", saving: "Saving…", label: "Notebook teaching context",
+    },
+    nl: {
+      title: "Gedetailleerde notebookhulp",
+      limited: "Algemene notebookuitleg: dit uitlegpad stuurt je volledige vraag niet naar het model. Gedetailleerde codevragen worden daardoor mogelijk onvoldoende beantwoord.",
+      shared: "Notebookuitleg kan je berichten en gecontroleerde onderzoekscode gebruiken.",
+      protected: "Deze gegevensclassificatie blokkeert externe AI-context in dit uitlegpad.",
+      description: "Gedetailleerde hulp stuurt je berichten, relevante kolomnamen en gecontroleerde onderzoekscode naar de externe AI-aanbieder. Waarden in berichten of code kunnen ook worden gedeeld. Ruwe rijen en celuitvoer worden niet aan dit uitlegverzoek toegevoegd. Deze keuze verandert het gegevensbeleid voor andere mentorpaden niet.",
+      generic: "Hulp met algemene begrippen", detailed: "Hulp met mijn berichten en onderzoekscode",
+      save: "Keuze opslaan", saving: "Opslaan…", label: "Context voor notebookuitleg",
+    },
+  }[language];
   const endRef=useRef<HTMLDivElement|null>(null);
+
+  useEffect(() => {
+    setTeachingDraft(effectiveTeachingContext);
+    setTeachingError(null);
+  }, [workspaceId, effectiveTeachingContext]);
+
+  async function saveTeachingContext() {
+    if (!onTeachingContextChange || teachingSaving || loading) return;
+    setTeachingSaving(true);
+    setTeachingError(null);
+    try { await onTeachingContextChange(teachingDraft); }
+    catch (error) { setTeachingError(error instanceof Error ? error.message : "Preference could not be saved."); }
+    finally { setTeachingSaving(false); }
+  }
 
   useEffect(()=>{
     if(!sessionId){ setMessages([]); return; }
@@ -216,7 +274,7 @@ export default function WorkspaceMentorPanel({
   async function submit(event?:FormEvent){
     event?.preventDefault();
     const message=input.trim();
-    if(!message || !sessionId || loading) return;
+    if(!message || !sessionId || loading || teachingSaving) return;
 
     const structuredPhase =
       activeMode==="learning" &&
@@ -339,6 +397,25 @@ export default function WorkspaceMentorPanel({
         </button>
       </div>
 
+      {activeMode==="chat" && usageContext==="personal" && onTeachingContextChange && (
+        <div className="mentor-teaching-preference">
+          <p role="status">{protectedData ? teachingCopy.protected : effectiveTeachingContext === "generic" ? teachingCopy.limited : teachingCopy.shared}</p>
+          {!protectedData && <details>
+            <summary>{teachingCopy.title}</summary>
+            <p>{teachingCopy.description}</p>
+            <label htmlFor="notebook-teaching-context">{teachingCopy.label}</label>
+            <select id="notebook-teaching-context" value={teachingDraft} disabled={teachingSaving || loading}
+              onChange={event => setTeachingDraft(event.target.value as "generic" | "question_and_code")}>
+              <option value="generic">{teachingCopy.generic}</option>
+              <option value="question_and_code">{teachingCopy.detailed}</option>
+            </select>
+            <button type="button" disabled={teachingSaving || loading || teachingDraft === effectiveTeachingContext}
+              onClick={() => { void saveTeachingContext(); }}>{teachingSaving ? teachingCopy.saving : teachingCopy.save}</button>
+          </details>}
+          {teachingError && <p role="alert">{teachingError}</p>}
+        </div>
+      )}
+
       {activeMode==="learning" && learningLoop && (
         <div className="mentor-learning-loop-status">
           <div>
@@ -439,6 +516,7 @@ export default function WorkspaceMentorPanel({
           disabled={
             !input.trim() ||
             loading ||
+            teachingSaving ||
             (
               activeMode==="learning" &&
               (

@@ -38,6 +38,11 @@ rows just because they counted missing cells. Completed operations are the only
 verified actions, not a claim about everything they might have done.
 If an explanation failed, address the sticking point using a different approach,
 not a paraphrase. Explain normalized distributions as proportions, not raw counts.
+Normalized output is a fraction, not automatically a percentage display.
+Use the supplied execution surface, Python notebook. Do not invent Explorer
+buttons or switch surfaces. Address the requested concept before restating the
+task. When asked about parts of the last expression, explain those parts using
+latest_verified_expression and its contract; never claim to see missing code.
 first_action is ONE small prerequisite of this task, not the entire pipeline or
 another investigation. State why it helps. Do not supply code, expressions,
 method calls, code fences, links, dataset measurements, category values, numerical
@@ -87,8 +92,18 @@ def build_teaching_request(context, state, step, message):
             operations.append({k: item['analysis_contract'].get(k) for k in
                 ('operation', 'row_predicate', 'measured_columns', 'options', 'measurement_transform')})
     previous = [x for x in state.get('teaching_journal', []) if x.get('task_key') == task_key(step)][-2:]
+    expression = None
+    current_ids = state.get('current_evidence_ids') or []
+    latest = next((x for x in state.get('observations', []) if current_ids and x.get('id') == current_ids[0]), None)
+    if (latest and latest.get('success') and latest.get('version_verified') and not latest.get('stale_scope')
+            and (latest.get('analysis_contract') or {}).get('supported')):
+        # Canonical AST rendering strips comments; only the supported read-only
+        # observation grammar is eligible, not arbitrary notebook code.
+        rendered = ast.unparse(ast.parse(latest['code']))
+        expression = rendered if len(rendered) <= 1200 else None
     return {'task_id': step['id'], 'response_language': state.get('response_language', 'tr'),
         'learner_question': message[:1200], 'task_contract': expression_contract(step['code']),
+        'execution_surface': 'python_notebook', 'latest_verified_expression': expression,
         'completed_operations': operations[:6], 'last_attempt_shape': last_attempt_shape(state),
         'learner_level': (context.get('mentor_setup') or {}).get('experience_level') or 'beginner',
         'previous_explanations': [{k: x.get(k) for k in
@@ -99,6 +114,7 @@ def build_teaching_request(context, state, step, message):
 def conceptual_request(payload, message):
     """Unclassified personal data: generic concepts, no free text or labels."""
     result, aliases = deepcopy(payload), {}
+    result.pop('latest_verified_expression', None)
     def alias(column):
         if column not in aliases:
             aliases[column] = 'FIELD_' + chr(65 + len(aliases))
@@ -216,18 +232,23 @@ def explain_pending_task(context, state, step, message, *, allow_provider, reque
     if not allow_provider:
         return None, {**trace, 'reason': 'provider_disabled'}
     policy = context.get('teaching_data_policy') or {}
+    preference = (context.get('mentor_setup') or {}).get('notebook_teaching_context')
     decision = evaluate_external_ai_policy(policy.get('usage_context', ''), policy.get('data_sensitivity') or 'unknown',
         policy.get('organization_id'), policy.get('organization_ai_allowed'))
-    generic = (not decision.external_ai_allowed and policy.get('usage_context') == 'personal'
-               and policy.get('data_sensitivity') in {None, 'unknown'})
-    if not decision.external_ai_allowed and not generic:
+    personal = policy.get('usage_context') == 'personal'
+    protected = policy.get('data_sensitivity') in {'confidential', 'restricted'}
+    scoped_sharing = personal and not protected and preference == 'question_and_code'
+    generic = personal and not protected and (preference == 'generic' or
+        (not decision.external_ai_allowed and not scoped_sharing))
+    if not decision.external_ai_allowed and not generic and not scoped_sharing:
         return None, {**trace, 'reason': 'external_ai_policy', 'policy_reason': decision.reason_code}
     payload, aliases = build_teaching_request(context, state, step, message), {}
     if generic:
         payload, aliases = conceptual_request(payload, message)
         payload['previous_explanations'] = [x['neutral_lesson'] for x in state.get('teaching_journal', [])
             if x.get('task_key') == task_key(step) and x.get('mode') == 'generic_concepts_only' and x.get('neutral_lesson')][-2:]
-    trace['teaching_context_mode'] = 'generic_concepts_only' if generic else 'policy_allowed_context'
+    trace['teaching_context_mode'] = 'generic_concepts_only' if generic else (
+        'user_shared_question_and_code' if scoped_sharing else 'policy_allowed_context')
     if len(aliases) > 26 or len(json.dumps(payload, ensure_ascii=False)) > 9000:
         return None, {**trace, 'reason': 'context_budget'}
     try:

@@ -66,16 +66,43 @@ request. A fresh live-model acceptance turn is still required.
 For policy-allowed data the bounded learner question, structural contracts,
 experience enum and previous explanations may leave the process. Rows, execution
 output and the relationship map are excluded. Questions and schema can still
-contain sensitive information; this mode requires the existing external AI policy.
+contain sensitive information; this mode requires classification policy approval
+or the scoped personal-project choice described below.
 
-Personal projects currently have no sensitivity selector. For absent/unknown
-classification, a generic concept mode sends only operation types, anonymous
+For absent/unknown personal classification without scoped sharing permission,
+a generic concept mode sends only operation types, anonymous
 FIELD aliases, boolean display options, fixed help intent flags, language and an
 experience enum. It excludes actual column labels, comparison literals, the
 original question, outputs, workspace IDs and arbitrary metadata. Prior lessons
 are reused only in their original neutral form. Real column labels are restored
 locally in the reply. This can teach general concepts, but cannot understand
-nuances removed from the original question. Known confidential/restricted data
+nuances removed from the original question. This limitation was visible in a
+live conceptual question: the original question was reduced to generic flags,
+and the answer repeated the task instead of explaining the requested operations.
+It was an information-loss problem, not evidence that the learner needed to
+repeat the question more clearly.
+
+The personal-project Mentor panel now exposes the effective notebook teaching
+mode and a persisted choice. `ProjectMentorSetup.notebook_teaching_context` can
+be `generic` or `question_and_code`; null retains the pre-existing classification
+policy. Explicit `generic` also restricts public personal data to generic mode.
+The scoped detailed choice permits the bounded learner message, previous
+accepted questions/lessons, relevant column names and the latest successful,
+version-verified supported inspection expression. The expression is rendered
+from AST to remove comments. Arbitrary or unsupported code is not exported.
+The payload also identifies the execution surface as Python notebook. Raw rows,
+execution outputs, the local relationship map and broader metadata remain excluded.
+Values typed in a message or supported code may be shared; this is stated before
+the save action. This preference is not dataset reclassification, does not change
+other mentor paths, and never bypasses confidential/restricted classification or
+work policy. The personal-only PATCH endpoint checks workspace ownership using
+the existing learner-ID mechanism; it is not enterprise authentication.
+
+Turning sharing off excludes previous detailed-mode dialogue and the verified
+expression from subsequent generic requests. Task identity, progress, notebooks,
+data sensitivity and other learner setup preferences stay unchanged.
+
+Known confidential/restricted data
 and work contexts lacking approval stay on local fallback. This change does not
 make every other mentor path an enterprise privacy boundary.
 
@@ -94,7 +121,8 @@ python -m backend.benchmarks.run_mentor_teaching_probe --live
 
 It makes at most two configured provider attempts, stops on the first failed
 teaching response, and checks code consent locally. Default mode matches an
-unclassified personal project; `--public-synthetic` tests the full synthetic
+unclassified personal project; `--question-and-code` tests explicit scoped sharing
+without dataset reclassification. `--public-synthetic` tests the full synthetic
 question mode. The report contains actual replies and human review questions.
 Mechanical passage leaves novice usability and project completion unproven.
 

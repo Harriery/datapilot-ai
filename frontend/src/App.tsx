@@ -512,6 +512,10 @@ type DashboardWorkspace = {
 
   usage_context: "work" | "personal";
 
+  mentor_setup?: {
+    notebook_teaching_context?: "generic" | "question_and_code" | null;
+  } | null;
+
   data_sensitivity:
     | "public"
     | "internal"
@@ -10006,7 +10010,25 @@ async function restoreWorkspaceVersion(
 
       {currentView === "workspace" && dashboardWorkspace && (
         <WorkspaceMentorPanel
+          key={dashboardWorkspace.workspace_id}
           workspaceId={dashboardWorkspace.workspace_id}
+          usageContext={dashboardWorkspace.usage_context}
+          dataSensitivity={dashboardWorkspace.data_sensitivity}
+          teachingContext={dashboardWorkspace.mentor_setup?.notebook_teaching_context}
+          onTeachingContextChange={async (mode) => {
+            const workspaceId = dashboardWorkspace.workspace_id;
+            const response = await fetch(
+              `http://127.0.0.1:8000/workspaces/demo-learner/${workspaceId}/notebook-teaching`,
+              {method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify({mode})},
+            );
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || "Teaching preference could not be saved.");
+            const updated = data as DashboardWorkspace;
+            setDashboardWorkspace(previous => previous?.workspace_id === workspaceId
+              ? {...previous, mentor_setup: updated.mentor_setup} : previous);
+            setDashboardWorkspaces(previous => previous.map(item => item.workspace_id === workspaceId
+              ? {...item, mentor_setup: updated.mentor_setup} : item));
+          }}
           sessionId={dashboardWorkspace.mentor_session_id}
           language={language}
           contextualPrompt={mentorContextPrompt}

@@ -13146,6 +13146,14 @@
 }
 
 .workspace-mentor-messages { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; background:#fbfcfe; }
+.mentor-teaching-preference { padding:8px 12px; border-bottom:1px solid #e4ebf4; background:#f7faff; color:#405775; font-size:12px; }
+.mentor-teaching-preference p { margin:4px 0 8px; line-height:1.4; }
+.mentor-teaching-preference summary { cursor:pointer; color:#245f9d; font-weight:600; }
+.mentor-teaching-preference details[open] { max-height:240px; overflow-y:auto; padding-bottom:4px; }
+.mentor-teaching-preference label { display:block; margin:8px 0 4px; }
+.mentor-teaching-preference select { width:100%; padding:6px; border:1px solid #c9d8e9; border-radius:6px; background:white; font:inherit; }
+.mentor-teaching-preference button { margin-top:8px; padding:6px 10px; border:1px solid #9fc2ea; border-radius:6px; background:white; color:#245f9d; font:inherit; cursor:pointer; }
+.mentor-teaching-preference button:disabled { opacity:.6; cursor:default; }
 .workspace-mentor-empty { margin:auto 8px; padding:18px; text-align:center; color:#6c7e98; }
 .workspace-mentor-empty svg { color:#2f7ff0; }
 .workspace-mentor-message { display:flex; }

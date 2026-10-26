@@ -17,7 +17,7 @@ from backend.app.mentor_research_store import load_research_state
 from backend.benchmarks.run_mentor_connected_followup import recorded_cell
 
 
-def synthetic_context(*, public=False):
+def synthetic_context(*, public=False, shared=False):
     frame = pd.DataFrame({
         'delivery_days': [None if i % 4 == 0 else i % 8 for i in range(1000)],
         'shipment_status': ['pending' if i % 4 == 0 else 'delivered' for i in range(1000)],
@@ -25,7 +25,7 @@ def synthetic_context(*, public=False):
     cell = recorded_cell('count', "df['delivery_days'].isna().sum()", 250,
                          'delivery_days', 'teaching-synthetic-v1', 1000)
     return {'workspace_id': 'synthetic-teaching-only', 'ui_context': {'language': 'tr'},
-        'mentor_setup': {'experience_level': 'beginner'},
+        'mentor_setup': {'experience_level': 'beginner', **({'notebook_teaching_context': 'question_and_code'} if shared else {})},
         'teaching_data_policy': {'usage_context': 'personal', 'data_sensitivity': 'public' if public else None},
         'dataset_profile_summary': {'columns': list(frame.columns)},
         'local_relationship_map': build_relationship_map(frame, input_version='teaching-synthetic-v1'),
@@ -34,8 +34,8 @@ def synthetic_context(*, public=False):
             'latest_cell': cell, 'recent_cells': [cell]}}}
 
 
-def run_probe(*, public=False):
-    context = synthetic_context(public=public)
+def run_probe(*, public=False, shared=False):
+    context = synthetic_context(public=public, shared=shared)
     generate_research_reply(context,
         'delivery_days sayımını yaptım. Kaynak açıklaması elimde yok. Sonraki tek adımı söyle.', [], allow_provider=False)
     before = load_research_state(context['workspace_id'], 'n1')
@@ -74,6 +74,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--live', action='store_true', required=True, help='Allow at most two configured provider attempts.')
     parser.add_argument('--public-synthetic', action='store_true')
+    parser.add_argument('--question-and-code', action='store_true', help='Exercise explicit scoped sharing on an unclassified personal project.')
     parser.add_argument('--output-dir', type=Path, default=Path('backend/benchmarks/results/teaching-probe'))
     args = parser.parse_args(argv)
     folder = args.output_dir / datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
@@ -82,7 +83,7 @@ def main(argv=None):
     try:
         database.DATABASE_PATH = folder / 'isolated.sqlite'
         database.init_db()
-        report = run_probe(public=args.public_synthetic)
+        report = run_probe(public=args.public_synthetic, shared=args.question_and_code)
         path = folder / 'report.json'
         path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     finally:

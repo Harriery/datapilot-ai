@@ -12,6 +12,13 @@ belirtilir. Veri sınırı, mekanik kontroller ve canlı kabul sınırları
 [`mentor-adaptive-teaching.md`](mentor-adaptive-teaching.md) belgesinde.
 Bu değişikliğin gerçek model öğreticiliği henüz doğrulanmadı.
 
+26 Ekim canlı konuşmasında genel gizlilik modunun sorunun ayrıntısını modelden
+kaldırdığı ve kavram sorusuna aynı görev talimatıyla cevap verildiği görüldü.
+Mentor paneline görünür, kalıcı notebook bağlam paylaşımı seçimi eklendi.
+Ayrıntılı mod gerçek soruyu ve son doğrulanmış inceleme ifadesini taşır; ham
+satırları veya hücre çıktılarını taşımaz. Korumalı veriler bu seçimle aşılamaz.
+Bu düzeltmenin canlı öğreticilik kabulü hâlâ yapılmalıdır.
+
 Yerel ilişki araştırması eklendi: çalışma girdisinde birlikte eksilme ve az
 kategorili gruplara bağlı eksiklik adayları bulunur, ayrı bir bölümde aynı
 karşılaştırma kontrol edilir. Mentor ardından notebook'ta eksik ve dolu grupların
