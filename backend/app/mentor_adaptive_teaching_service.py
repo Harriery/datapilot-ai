@@ -40,7 +40,7 @@ If an explanation failed, address the sticking point using a different approach,
 not a paraphrase. Explain normalized distributions as proportions, not raw counts.
 first_action is ONE small prerequisite of this task, not the entire pipeline or
 another investigation. State why it helps. Do not supply code, expressions,
-method calls, backticks, links, dataset measurements, category values, numerical
+method calls, code fences, links, dataset measurements, category values, numerical
 results or factual conclusions. Use only columns in task_contract. Do not claim
 to see results or know the learner's understanding. No numerical examples.
 Do not repeat a request for a source definition or suggest cleaning/imputation.
@@ -134,11 +134,23 @@ def conceptual_request(payload, message):
     return result, aliases
 
 
-def validate_teaching(reply, payload, available_columns):
-    """Mechanical checks only, NOT semantic correctness verification."""
-    if reply.task_id != payload['task_id']:
-        return 'task_mismatch'
-    text = '\n'.join((reply.explanation, reply.first_action, reply.why))
+def normalize_teaching_presentation(reply):
+    """Remove harmless presentation, not code, numbers or factual content.
+
+    An inline identifier is a term/label, not an executable expression. Fenced
+    blocks and compound inline expressions deliberately remain for rejection.
+    A single leading list ordinal is presentation; other digits are retained.
+    """
+    changes = {}
+    for field in ('explanation', 'first_action', 'why'):
+        value = getattr(reply, field)
+        value = re.sub(r'(?<!`)`([^\W\d]\w*)`(?!`)', r'\1', value)
+        value = re.sub(r'\A\s*1[.)]\s+', '', value)
+        changes[field] = value.strip()
+    return TeachingExplanation.model_validate({**reply.model_dump(), **changes})
+
+
+def task_columns(payload):
     allowed = set(payload['task_contract'].get('measured_columns') or [])
     def fields(predicate):
         if isinstance(predicate, dict):
@@ -151,10 +163,39 @@ def validate_teaching(reply, payload, available_columns):
                     for child in value:
                         fields(child)
     fields(payload['task_contract'].get('row_predicate'))
-    checked = text
-    for column in sorted(allowed, key=len, reverse=True):
-        checked = re.sub(r'(?<!\w)' + re.escape(column) + r'(?!\w)', 'column', checked)
-    if re.search(r'[`\[\]{}=]|https?://|\b(?:df|SELECT|INSERT|UPDATE|DELETE)\b|\w+\s*\(', checked) or any(c.isdigit() for c in checked):
+    return allowed
+
+
+def teaching_content_violations(reply, payload):
+    """Return field and violation kinds, never user/provider text or values."""
+    allowed = task_columns(payload)
+    patterns = {
+        'code_markup': r'`',
+        'expression_syntax': r'[\[\]{}=]',
+        'link': r'https?://',
+        'code_identifier': r'\b(?:df|SELECT|INSERT|UPDATE|DELETE)\b',
+        # Whitespace before a parenthesis is common prose, not by itself a
+        # function call. Still reject actual calls and spaced notebook methods.
+        'method_call': r'\b[^\W\d]\w*\(|\b(?:isna|isnull|notna|notnull|value_counts|head|tail|sum|count|min|max|mean|median|nunique|print|eval|exec|open)\s+\(',
+        'numeric_literal': r'\d',
+    }
+    violations = []
+    for field in ('explanation', 'first_action', 'why'):
+        checked = getattr(reply, field)
+        for column in sorted(allowed, key=len, reverse=True):
+            checked = re.sub(r'(?<!\w)' + re.escape(column) + r'(?!\w)', 'column', checked)
+        violations.extend({'field': field, 'kind': kind} for kind, pattern in patterns.items()
+                          if re.search(pattern, checked))
+    return violations
+
+
+def validate_teaching(reply, payload, available_columns):
+    """Mechanical checks only, NOT semantic correctness verification."""
+    if reply.task_id != payload['task_id']:
+        return 'task_mismatch'
+    text = '\n'.join((reply.explanation, reply.first_action, reply.why))
+    allowed = task_columns(payload)
+    if teaching_content_violations(reply, payload):
         return 'code_or_numeric_claim'
     if any(x not in allowed for x in re.findall(r'\bFIELD_[A-Z]\b', text)):
         return 'unrelated_column'
@@ -201,10 +242,20 @@ def explain_pending_task(context, state, step, message, *, allow_provider, reque
             text_format=TeachingExplanation, max_output_tokens=min(1200, limit) if limit > 0 else 1200, **options)
         if getattr(response, 'status', None) == 'incomplete':
             return None, {**trace, 'reason': 'incomplete_response'}
-        reply = TeachingExplanation.model_validate(response.output_parsed)
+        raw_reply = TeachingExplanation.model_validate(response.output_parsed)
+        reply = normalize_teaching_presentation(raw_reply)
+        trace['presentation_normalized'] = reply != raw_reply
         error = validate_teaching(reply, payload, list(aliases.values()) if generic else state.get('available_columns') or [])
         if error:
-            return None, {**trace, 'reason': error}
+            details = teaching_content_violations(reply, payload) if error == 'code_or_numeric_claim' else []
+            # One bounded local candidate, not logs, provider error bodies or
+            # outbound context. Future diagnosis need not guess from a label.
+            state['last_rejected_teaching'] = {
+                'task_key': task_key(step), 'reason': error,
+                'context_mode': trace['teaching_context_mode'],
+                'violations': details, 'candidate': raw_reply.model_dump(),
+            }
+            return None, {**trace, 'reason': error, 'validation_violations': details}
     except Exception as exc:
         return None, {**trace, 'reason': 'provider_or_schema_error', 'error_type': type(exc).__name__}
     neutral = {k: getattr(reply, k) for k in ('approach', 'explanation', 'first_action', 'why')}

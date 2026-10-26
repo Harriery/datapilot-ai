@@ -9,6 +9,7 @@ import pytest
 from backend.app import database
 from backend.app.mentor_adaptive_teaching_service import (
     TeachingExplanation, build_teaching_request, conceptual_request, explain_pending_task,
+    normalize_teaching_presentation, validate_teaching,
 )
 from backend.app.mentor_research_service import generate_research_reply
 from backend.app.mentor_research_store import load_research_state
@@ -209,3 +210,72 @@ def test_probe_mechanical_pass_is_not_mislabeled_as_novice_or_live_acceptance():
         report = run_probe()
     assert report['mechanical_checks_passed'] and report['human_review_required']
     assert not report['novice_usability_accepted'] and not report['project_completion_proven']
+
+
+@pytest.mark.parametrize('explanation', [
+    'Önce `delivery_days` boş olan satırları seçen koşulu düşün.',
+    'Önce **`delivery_days`** boş olan satırları seçen koşulu düşün.',
+    'Burada koşul (boşluk kontrolü) hangi satırların kalacağını belirler.',
+    'First choose the condition (missing values) that defines the rows.',
+    'Kies eerst de voorwaarde (ontbrekende waarden) voor de rijselectie.',
+    '1. Önce delivery_days boş olan satırları düşün.',
+    'Boşlukları isna ile belirleriz; `value_counts` dağılımı anlatan işlem adıdır.',
+])
+def test_prose_formatting_and_parentheses_do_not_masquerade_as_code(explanation):
+    context, state, step = setup_task()
+    with runtime(), provider(lesson(step, explanation=explanation)):
+        reply = generate_research_reply(context, 'Önce neyi seçmeliyim? Kodu verme.', [])
+    after = load_research_state(context['workspace_id'], 'n1')
+    assert after['last_validation']['teaching_accepted'], after['last_validation']
+    assert after['proposals'] == state['proposals']
+    assert 'yerel yedek rehber' not in reply and '```' not in reply and '`' not in reply
+
+
+def test_generic_alias_markup_is_restored_locally_after_normalizing_format():
+    context, state, step = setup_task()
+    context['teaching_data_policy']['data_sensitivity'] = None
+    formatted = lesson(step, task_id='pending-task',
+        explanation='Satır seçimi (bir süzgeç gibi) ilgili grubu ayırır.',
+        first_action='1. Önce `FIELD_A` boş olan satırların koşulunu düşün.')
+    with runtime(), provider(formatted) as model:
+        reply = generate_research_reply(context, 'Önce neyi seçmeliyim?', [])
+    trace = load_research_state(context['workspace_id'], 'n1')['last_validation']
+    assert trace['teaching_accepted'] and trace['presentation_normalized']
+    assert 'delivery_days boş olan' in reply and 'FIELD_A' not in reply
+    assert 'delivery_days' not in model.call_args.kwargs['input']
+
+
+@pytest.mark.parametrize('bad', [
+    '```python\ndf.head()\n```', '`df["delivery_days"].isna()`',
+    'df["delivery_days"]', 'isna()', 'isna ()', 'custom_function()',
+    'Eksik satır sayısı 207.', 'Oran yüzde 80.', '2. Yeni bir incelemeye geç.',
+])
+def test_formatting_cleanup_does_not_strip_actual_code_or_measurements(bad):
+    context, state, step = setup_task()
+    candidate = normalize_teaching_presentation(lesson(step, explanation=bad))
+    payload = build_teaching_request(context, state, step, 'Kodu verme.')
+    assert validate_teaching(candidate, payload, ['delivery_days', 'shipment_status']) == 'code_or_numeric_claim'
+
+
+def test_rejection_records_exact_field_and_category_without_leaking_candidate_into_prompt():
+    context, state, step = setup_task()
+    with runtime(), provider(lesson(step, why='Eksik sayısı 207 olduğu için.')):
+        generate_research_reply(context, 'Kodu verme.', [])
+    after = load_research_state(context['workspace_id'], 'n1')
+    expected = [{'field': 'why', 'kind': 'numeric_literal'}]
+    assert after['last_validation']['validation_violations'] == expected
+    assert after['last_rejected_teaching']['violations'] == expected
+    assert after['last_rejected_teaching']['candidate']['why'] == 'Eksik sayısı 207 olduğu için.'
+    outbound = json.dumps(build_teaching_request(context, after, step, 'Nasıl?'))
+    assert '207' not in outbound and 'last_rejected_teaching' not in outbound
+    assert '207' not in json.dumps(after['last_validation'])
+
+
+def test_presentation_changes_do_not_evade_repeat_guard():
+    context, state, step = setup_task()
+    first = lesson(step, explanation='Önce `delivery_days` boş olan satırları düşün.')
+    with runtime(), provider(first):
+        generate_research_reply(context, 'Nasıl?', [])
+    with runtime(), provider(first.model_copy(update={'explanation': 'Önce delivery_days boş olan satırları düşün.'})):
+        generate_research_reply(context, 'Hâlâ anlamadım.', [])
+    assert load_research_state(context['workspace_id'], 'n1')['last_validation']['reason'] == 'repeated_explanation'

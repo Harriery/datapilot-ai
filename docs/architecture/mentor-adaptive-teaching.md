@@ -38,6 +38,29 @@ guidance. The visible message identifies it as fallback. Diagnostics distinguish
 generated explanation), with provider attempts and safe failure reasons. Provider
 exception bodies and credentials are not persisted in diagnostics.
 
+### Presentation validation correction (26 October)
+
+A live user turn reached Groq and fell back with `code_or_numeric_claim`.
+The original rejected candidate was not retained, so that aggregate diagnostic
+does not identify the exact trigger in that turn. Inspection reproduced false
+positives for inline identifier markup and ordinary prose with parentheses.
+
+The validator now separates presentation normalization from content checks:
+single inline identifiers lose their backticks, and one leading list ordinal
+is removed. Fenced blocks, compound code expressions, calls, unrelated columns
+and numerical measurements still fail validation. A word followed by a space
+and a parenthesis is no longer alone evidence of a function call. Spaced known
+notebook method calls remain rejected. These are bounded checks, not a proof
+that all possible generated prose is appropriate or code-free.
+
+Rejections now record field/category pairs in `validation_violations` without
+capturing user values in the trace. The last bounded, parsed rejected candidate
+is retained locally as `last_rejected_teaching`, separately from accepted
+lessons. It is not included in provider prompts or server logs. In generic mode
+it keeps anonymous aliases; no actual user candidate is published in fixtures.
+This makes a future rejection inspectable without guessing or another model
+request. A fresh live-model acceptance turn is still required.
+
 ## Data boundary
 
 For policy-allowed data the bounded learner question, structural contracts,
