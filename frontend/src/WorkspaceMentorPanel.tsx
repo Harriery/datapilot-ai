@@ -31,8 +31,8 @@ type Props = {
   workspaceId: string;
   usageContext?: "personal" | "work";
   dataSensitivity?: "public" | "internal" | "unknown" | "confidential" | "restricted" | null;
-  teachingContext?: "generic" | "question_and_code" | null;
-  onTeachingContextChange?: (mode: "generic" | "question_and_code") => Promise<void>;
+  teachingContext?: "generic" | "question_and_code" | "question_code_and_summaries" | null;
+  onTeachingContextChange?: (mode: "generic" | "question_and_code" | "question_code_and_summaries") => Promise<void>;
   sessionId: string | null;
   language: "en" | "nl" | "tr";
   contextualPrompt?: string | null;
@@ -88,7 +88,9 @@ export default function WorkspaceMentorPanel({
       limited: "Notebook öğretimi genel modda: Bu öğretici yolda sorunun tam metni modele gönderilmiyor; ayrıntılı kod soruları yeterince yanıtlanamayabilir.",
       shared: "Notebook öğretimi, mesajlarını ve doğrulanmış inceleme kodunu kullanabilir.",
       protected: "Bu verinin koruma sınıfı, bu öğretici yolda harici AI bağlam paylaşımını engelliyor.",
-      description: "Ayrıntılı yardım seçeneği, mesajlarını, ilgili sütun adlarını ve doğrulanmış inceleme kodunu harici AI sağlayıcısına gönderir. Mesaj veya kodda yazdığın değerler de paylaşılabilir. Ham veri satırları ve hücre çıktıları bu öğretici isteğine eklenmez. Bu seçim diğer mentor yollarının veri politikasını değiştirmez.",
+      description: "Ayrıntılı yardım seçeneği, mesajlarını, ilgili sütun adlarını ve doğrulanmış inceleme kodunu harici AI sağlayıcısına gönderir. Mesaj veya kodda yazdığın değerler de paylaşılabilir. Kontrol özetlerini de seçersen proje hedefi, öğrenme tercihleri, araştırma notları, doğrulanmış eksik sayıları, tam okunabilen oran dağılımları ve kategori etiketleri de paylaşılır. Ham satırlar ve serbest hücre çıktıları gönderilmez. Yalnız mesaj ve kod seçeneği bu özetleri paylaşmaz. Bu seçim diğer mentor yollarının veri politikasını değiştirmez.",
+      summaries: "Mesajım, kodum ve kontrol özetleriyle yardım",
+      summariesShared: "Notebook öğretimi mesajlarını, kodunu ve izin verdiğin kontrol özetlerini kullanabilir.",
       generic: "Genel kavramlarla yardım", detailed: "Mesajım ve inceleme kodumla yardım",
       save: "Seçimi kaydet", saving: "Kaydediliyor…", label: "Notebook öğretim bağlamı",
     },
@@ -97,7 +99,9 @@ export default function WorkspaceMentorPanel({
       limited: "Notebook teaching is in general mode: This teaching path does not send your full question to the model, so detailed code questions may not be answered adequately.",
       shared: "Notebook teaching can use your messages and verified inspection code.",
       protected: "This data classification blocks external AI context sharing in this teaching path.",
-      description: "Detailed help sends your messages, relevant column names and verified inspection code to the external AI provider. Values written in messages or code may also be shared. Raw rows and cell outputs are not added to this teaching request. This choice does not change data policies for other mentor paths.",
+      description: "Detailed help sends your messages, relevant column names and verified inspection code to the external AI provider. Values written in messages or code may also be shared. Choosing inspection summaries also shares the project goal, learning preferences, investigation notes, verified missing counts, fully parsed proportion distributions and category labels. Raw rows and free-form cell outputs are not sent. The messages and code option does not share these summaries. This choice does not change data policies for other mentor paths.",
+      summaries: "Help using messages, code and inspection summaries",
+      summariesShared: "Notebook teaching can use your messages, code and permitted inspection summaries.",
       generic: "Help with general concepts", detailed: "Help using my messages and inspection code",
       save: "Save choice", saving: "Saving…", label: "Notebook teaching context",
     },
@@ -106,7 +110,9 @@ export default function WorkspaceMentorPanel({
       limited: "Algemene notebookuitleg: dit uitlegpad stuurt je volledige vraag niet naar het model. Gedetailleerde codevragen worden daardoor mogelijk onvoldoende beantwoord.",
       shared: "Notebookuitleg kan je berichten en gecontroleerde onderzoekscode gebruiken.",
       protected: "Deze gegevensclassificatie blokkeert externe AI-context in dit uitlegpad.",
-      description: "Gedetailleerde hulp stuurt je berichten, relevante kolomnamen en gecontroleerde onderzoekscode naar de externe AI-aanbieder. Waarden in berichten of code kunnen ook worden gedeeld. Ruwe rijen en celuitvoer worden niet aan dit uitlegverzoek toegevoegd. Deze keuze verandert het gegevensbeleid voor andere mentorpaden niet.",
+      description: "Gedetailleerde hulp stuurt je berichten, relevante kolomnamen en gecontroleerde onderzoekscode naar de externe AI-aanbieder. Waarden in berichten of code kunnen ook worden gedeeld. Met controleoverzichten deel je ook het projectdoel, leervoorkeuren, onderzoeksnotities, gecontroleerde aantallen ontbrekende waarden, volledig gelezen verhoudingen en categorielabels. Ruwe rijen en vrije celuitvoer worden niet verstuurd. Alleen berichten en code deelt deze overzichten niet. Deze keuze verandert het gegevensbeleid voor andere mentorpaden niet.",
+      summaries: "Hulp met berichten, code en controleoverzichten",
+      summariesShared: "Notebookuitleg kan je berichten, code en toegestane controleoverzichten gebruiken.",
       generic: "Hulp met algemene begrippen", detailed: "Hulp met mijn berichten en onderzoekscode",
       save: "Keuze opslaan", saving: "Opslaan…", label: "Context voor notebookuitleg",
     },
@@ -399,15 +405,16 @@ export default function WorkspaceMentorPanel({
 
       {activeMode==="chat" && usageContext==="personal" && onTeachingContextChange && (
         <div className="mentor-teaching-preference">
-          <p role="status">{protectedData ? teachingCopy.protected : effectiveTeachingContext === "generic" ? teachingCopy.limited : teachingCopy.shared}</p>
+          <p role="status">{protectedData ? teachingCopy.protected : effectiveTeachingContext === "generic" ? teachingCopy.limited : effectiveTeachingContext === "question_code_and_summaries" ? teachingCopy.summariesShared : teachingCopy.shared}</p>
           {!protectedData && <details>
             <summary>{teachingCopy.title}</summary>
             <p>{teachingCopy.description}</p>
             <label htmlFor="notebook-teaching-context">{teachingCopy.label}</label>
             <select id="notebook-teaching-context" value={teachingDraft} disabled={teachingSaving || loading}
-              onChange={event => setTeachingDraft(event.target.value as "generic" | "question_and_code")}>
+              onChange={event => setTeachingDraft(event.target.value as "generic" | "question_and_code" | "question_code_and_summaries")}>
               <option value="generic">{teachingCopy.generic}</option>
               <option value="question_and_code">{teachingCopy.detailed}</option>
+              <option value="question_code_and_summaries">{teachingCopy.summaries}</option>
             </select>
             <button type="button" disabled={teachingSaving || loading || teachingDraft === effectiveTeachingContext}
               onClick={() => { void saveTeachingContext(); }}>{teachingSaving ? teachingCopy.saving : teachingCopy.save}</button>

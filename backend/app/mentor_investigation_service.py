@@ -7,11 +7,21 @@ kept as a compatibility projection, never a second source of task ownership.
 from copy import deepcopy
 import hashlib
 import json
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from backend.app.mentor_product_registry import resolve_product_context
 
 from backend.app.mentor_observation_contract import expression_contract
 from backend.app.mentor_orchestration_service import determine_assistance_level
 from backend.app.mentor_stage_playbook_service import STAGE_PLAYBOOKS
 from backend.app.mentor_tutoring_service import normalized
+
+
+def task_key(step):
+    return hashlib.sha256(json.dumps([step.get(k) for k in
+        ('id', 'signature', 'expected_version', 'dataset_kind')]).encode()).hexdigest()[:24]
 
 
 def signature(code):
@@ -149,8 +159,10 @@ def bind_learning_context(state, context):
     flow['learner_skills'] = [{k: item.get(k) for k in ('skill_name', 'status')}
                              for item in profile[:4]]
     flow['project_goal'] = str(context.get('task_brief') or '')[:400]
-    flow['stage_goal'] = STAGE_PLAYBOOKS['prepare.profile']['goal']
-    flow['learning_sequence'] = STAGE_PLAYBOOKS['prepare.profile']['sequence']
+    stage = resolve_product_context(context.get('ui_context'))['path']
+    playbook = STAGE_PLAYBOOKS.get(stage, STAGE_PLAYBOOKS.get(stage.rsplit('.', 1)[0], STAGE_PLAYBOOKS['prepare.profile']))
+    flow['stage_goal'] = playbook['goal']
+    flow['learning_sequence'] = playbook['sequence']
 
 
 def pending_step(state, message):
@@ -173,17 +185,6 @@ def pending_step(state, message):
     status = next((x.get('status') for x in flow.get('learner_skills', []) if x.get('skill_name') == skill), 'new')
     step['assistance_level'] = determine_assistance_level(skill_status=status, learner_message=message)
     return step
-
-
-def prompt_workflow(state):
-    flow = workflow(state)
-    result = {key: flow.get(key) for key in ('schema_version', 'question', 'phase', 'status',
-                                            'project_goal', 'stage_goal', 'learning_sequence', 'learner_skills')}
-    active = flow.get('active_step') or {}
-    result['active_step'] = {key: active.get(key) for key in ('id', 'kind', 'status', 'instruction', 'blocker')}
-    result['completed_steps'] = [{key: x.get(key) for key in ('id', 'kind', 'status', 'completion_evidence_id')}
-                                 for x in flow.get('step_history', [])[-4:]]
-    return result
 
 
 def document_deferral(state, message):
@@ -236,3 +237,123 @@ def schema_start_action(state, notebook):
         return None
     return {'kind': 'inspect', 'code': code, 'focus_column': focus, 'columns': [focus],
             'evidence_ids': [], 'instruction': '', 'why': ''}
+
+
+# Shared projections of the existing ledger, not a second task/state owner.
+# Model notes remain explicitly speculative and can never complete a step.
+class InvestigationHypothesis(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    explanation: str = Field(min_length=1, max_length=260)
+    prediction: str = Field(min_length=1, max_length=260)
+    supporting_evidence_ids: list[str] = Field(default_factory=list, max_length=3)
+    contradicting_evidence_ids: list[str] = Field(default_factory=list, max_length=3)
+
+
+class InvestigationReasoning(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    hypotheses: list[InvestigationHypothesis] = Field(default_factory=list, max_length=3)
+    next_test_reason: str | None = Field(default=None, max_length=300)
+
+
+def verified_observations(state):
+    current = set(state.get('current_evidence_ids') or [])
+    by_id = {item['id']: item for item in state.get('observations', [])
+        if item.get('id') in current and item.get('success') and item.get('version_verified')
+        and not item.get('stale_scope') and (item.get('analysis_contract') or {}).get('supported')}
+    return [by_id[key] for key in state.get('current_evidence_ids', []) if key in by_id]
+
+
+def investigation_view(context, state, *, include_results=False):
+    """One bounded context for planning and pending-task conversation.
+
+    Teaching excludes result values, rows and source code. Privacy projection
+    happens again at its provider boundary. Research retains typed contracts;
+    the existing evidence compiler remains the only publisher of factual values.
+    """
+    flow = workflow(state)
+    active = flow.get('active_step') or {}
+    notebook = (context.get('artifacts') or {}).get('selected_notebook') or {}
+    setup = context.get('mentor_setup') or {}
+    evidence = []
+    for item in verified_observations(state)[:8]:
+        contract = item['analysis_contract']
+        entry = {'id': item['id'], 'contract': {k: deepcopy(contract.get(k)) for k in
+            ('operation', 'row_predicate', 'measured_columns', 'options', 'measurement_transform')},
+            'coverage': 'recorded_notebook_execution', 'full_source_verified': False,
+            'dataset_kind': item.get('dataset_kind')}
+        if include_results:
+            # Do not send previews or unbounded Series through this common view.
+            if contract.get('operation') == 'missing_count':
+                entry['result'] = contract.get('result')
+            elif contract.get('operation') == 'distribution':
+                from backend.app.mentor_relationship_interpretation import proportions
+                parsed = proportions(item)
+                if parsed is not None:
+                    entry['proportions'] = parsed
+                    entry['summary_complete'] = True
+            entry['data_version'] = item.get('input_data_version')
+        evidence.append(entry)
+    memory = state.get('investigation_reasoning') or {}
+    same_scope = (bool(notebook.get('current_input_version')) and memory.get('focus_column') == state.get('focus_column')
+        and memory.get('data_version') == notebook.get('current_input_version')
+        and memory.get('dataset_kind') == notebook.get('dataset_kind'))
+    product = resolve_product_context(context.get('ui_context'))
+    return {'schema_version': 1, 'project_goal': str(context.get('task_brief') or '')[:400],
+        'stage': product['path'], 'stage_goal': flow.get('stage_goal'),
+        'learning_sequence': deepcopy(flow.get('learning_sequence', [])),
+        'learner_skills': deepcopy(flow.get('learner_skills', [])),
+        'research_question': state.get('goal'), 'focus_column': state.get('focus_column'),
+        'learner_preferences': {k: deepcopy(setup.get(k)) for k in
+            ('experience_level', 'approach', 'learning_focus') if setup.get(k) is not None},
+        'surface': 'python_notebook',
+        'product_limits': ['Use Prepare > Workbench > Notebook for Python cells.',
+                           'The Learning Notebook stores personal notes, not executable cells.'],
+        'definition_availability': deepcopy(state.get('definition_availability')),
+        'verified_checks': evidence,
+        'other_check_count': max(0, len(state.get('observations', [])) - len(evidence)),
+        'pending_task': {k: deepcopy(active.get(k)) for k in ('id', 'kind', 'status')},
+        'recent_steps': [{k: x.get(k) for k in ('kind', 'status', 'completion_evidence_id')}
+                         for x in flow.get('step_history', [])[-4:]],
+        'candidate_explanations': deepcopy(memory.get('hypotheses', [])) if same_scope else [],
+        'candidate_status': 'untested_model_candidates_not_facts',
+        'previous_candidates_out_of_scope': bool(memory and not same_scope),
+        'decision_status': flow.get('status'),
+        'decision_gate': 'A pattern is not a business rule. Check exceptions; justify treatment or record deferral.',
+        'learner_need': (state.get('conversation_memory') or {}).get('learner_need')
+            if (state.get('conversation_memory') or {}).get('task_key') == task_key(active) else None,
+        'understanding_verified': False}
+
+
+def validate_reasoning(reasoning, state):
+    """Validate provenance and syntax; do not certify semantic reasoning."""
+    if reasoning is None:
+        return []
+    ids = {x['id'] for x in verified_observations(state)}
+    errors = []
+    import re
+    for hypothesis in reasoning.hypotheses:
+        if set(hypothesis.supporting_evidence_ids) & set(hypothesis.contradicting_evidence_ids):
+            errors.append('The same evidence cannot both support and contradict this candidate')
+        if not set(hypothesis.supporting_evidence_ids + hypothesis.contradicting_evidence_ids) <= ids:
+            errors.append('Candidate evidence must be a current verified observation')
+    texts = [reasoning.next_test_reason or ''] + [text for h in reasoning.hypotheses
+        for text in (h.explanation, h.prediction)]
+    for text in texts:
+        # Proposals describe possible mechanisms/predictions. Factual numbers,
+        # executable solutions and links belong to grounded/separate artifacts.
+        for column in state.get('available_columns') or []:
+            text = text.replace(column, 'column')
+        if re.search(r'\d|[`\[\]{}=]|https?://|\b\w+\(', text):
+            errors.append('Candidate reasoning must be qualitative prose, not code or measurements')
+    return list(dict.fromkeys(errors))
+
+
+def remember_reasoning(state, context, reasoning):
+    if reasoning is None:
+        return
+    notebook = (context.get('artifacts') or {}).get('selected_notebook') or {}
+    state['investigation_reasoning'] = {
+        **reasoning.model_dump(), 'focus_column': state.get('focus_column'),
+        'data_version': notebook.get('current_input_version'), 'dataset_kind': notebook.get('dataset_kind'),
+        'status': 'untested_model_candidates_not_facts', 'source': 'model_proposal',
+        'semantic_quality_verified': False}

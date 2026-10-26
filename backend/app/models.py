@@ -1924,7 +1924,7 @@ class ProjectMentorSetup(BaseModel):
     approach: Literal["guided", "balanced", "direct"] = "guided"
     learning_focus: list[Literal["python", "sql", "cleaning", "pipelines", "modeling", "quality", "bi"]] = Field(default_factory=list)
     # Scoped permission for notebook explanation context, not dataset reclassification.
-    notebook_teaching_context: Literal["generic", "question_and_code"] | None = None
+    notebook_teaching_context: Literal["generic", "question_and_code", "question_code_and_summaries"] | None = None
 
 
 class Workspace(BaseModel):

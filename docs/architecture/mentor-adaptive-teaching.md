@@ -152,3 +152,15 @@ Mechanical passage leaves novice usability and project completion unproven.
 No Groq key is configured in the implementation environment, so live teaching
 quality is not verified here. The existing Orders notebook is the next novice
 acceptance scenario; no new dataset or workspace is needed for this check.
+
+## Shared-core follow-up
+
+The teacher now consumes the same investigation projection as the research
+planner, with an explicit conversation kind and evidence references. The default
+and question/code modes still exclude output values. An additional explicitly
+saved personal-project preference permits only bounded parsed inspection
+summaries, goals/preferences and investigation notes, never raw rows or arbitrary
+cell output. See [the core implementation and retirement review](mentor-core-audit.md#implemented-follow-up-shared-investigation-and-conversation-contract)
+for the new contract, six-turn probe, privacy boundaries and outstanding live
+acceptance. Accepted provider candidates are retained separately from the
+normalized teaching journal and are not replayed into provider prompts.

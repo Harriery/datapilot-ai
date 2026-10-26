@@ -103,3 +103,97 @@ The next implementation unit is a shared investigation context and conversation
 decision contract evaluated on the frozen dialogue suite. Replace overlapping
 owners gradually, preserving saved workspaces and notebooks; retire superseded
 routes instead of adding another competing mentor path. Work stays on `main`.
+
+## Implemented follow-up: shared investigation and conversation contract
+
+The follow-up replaces the separate workflow prompt projection with
+`investigation_view`, built from the existing workflow and observation ledger.
+Both the research request and pending-task conversation consume this projection.
+It includes project/stage/research goals, learner preferences, scoped verified
+checks, pending/history status, definition availability, speculative candidates
+and the last inferred learning need for the same task/scope. Prompt budgeting
+retains the current question, task and verified source expression before older
+secondary history. Omitted history is marked, not presented as exhaustive.
+
+The conversation wire now distinguishes concept, attempt, evidence, plan and
+decision questions. This is a model-reported assessment, not a proven intent
+classifier. An evidence reply must cite current, successful, supported,
+version-verified observations. Exact values and recorded input scope are
+rendered by the backend. An auxiliary check can be explained without making its
+column a new authorized task. A partial/failed attempt does not complete a step.
+Inferred learner difficulties are not skill mastery and expire across task keys.
+
+The research wire can propose qualitative candidate explanations, predictions,
+current supporting/contradicting references and a purpose for the next test.
+Unknown/stale references, the same reference on both sides, code and numerical
+claims are rejected. Only a fully validated research turn stores these proposals.
+They are labeled untested, never evidence, and are withheld after a scope change.
+The model may still propose a poor hypothesis; provenance is not semantic proof.
+
+A rejected teaching response no longer becomes the long distribution-task recap
+and another request for output. It becomes a short explicit failure with the task
+retained. Scope changes still require revalidation. Offline/local probes retain
+the deterministic presenter; it is not presented as adaptive teaching.
+
+### Data access remains explicit
+
+Existing preferences are unchanged. `generic` uses an explicit allow-list and
+aliases, so newly added context fields cannot silently leak into it.
+`question_and_code` does not send inspection summaries. A new, explicitly saved
+personal-project option, `question_code_and_summaries`, permits the project goal,
+learning preferences, investigation notes and a bounded summary of verified
+checks. Summaries currently cover parsed missing counts and complete unambiguous
+normalized single-column distributions (including printed category labels).
+They are not anonymization. Raw rows, previews, free-form cell output and source
+version tokens are excluded from the teaching request. Unsupported or truncated
+outputs have no invented summary. Turning the option off removes summaries from
+subsequent requests. Protected classifications and work policy cannot be
+bypassed by this preference. Other existing mentor paths retain their own policy;
+this change is not an enterprise-wide data isolation guarantee.
+
+### File review and retired duplication
+
+A static import-graph review found the existing `mentor_*` runtime modules
+reachable from application entry points. Reachability does not prove every
+branch is useful, but does rule out treating the modules as disposable merely
+because their names overlap.
+
+| Group | Decision in this change |
+| --- | --- |
+| Investigation workflow/store and scope receipts | Retained as the single task/evidence owner; shared projection lives here. |
+| Adaptive teaching | Retained as a conversational view of the investigation, not a second task owner. |
+| Grounded reply / observation parser / refresh | Retained: these bind factual outputs, scope and execution truth. |
+| Relationship discovery / planner / comparison | Retained: bounded local evidence tools; candidates are not business rules. |
+| General mentor, guided learning and stage routes | Retained: still called outside the notebook research route; deleting them would remove application behavior. |
+| Product registry and stage playbooks | Reused by the shared projection; no new retrieval store or embedding index. |
+| `prompt_workflow` | Removed; the shared investigation projection replaces this duplicate prompt view. |
+| Teacher's separate completed-operation extraction | Removed; it now uses verified checks from the shared projection. |
+| Production failure-to-long-task-recap behavior | Removed; failure cannot masquerade as a new adaptive lesson. |
+| Existing regression fixtures and benchmark runners | Retained where tests/imports or distinct historical acceptance checks still depend on them. No new standalone benchmark runner. |
+
+The six-turn dialogue suite extends the existing teaching probe. It freezes
+learner questions and known synthetic receipts across orders, sensors and service
+schemas, including exceptions, a partial condition, a failed attempt and a
+completed distribution. It does not execute model-generated Python. Reports
+retain the provider candidate, final displayed response, diagnostics and pending
+task status after every completed turn, including on interruption. The old
+three-turn probe remains available for comparison.
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --dialogue-suite --case orders
+```
+
+At most six provider calls, one per conversational turn; default pacing is 45
+seconds. `--case sensors` and `--case service` exercise other schemas. Data and
+SQLite state are isolated from real projects. A completed report still requires
+human assessment of teaching quality; it is not an automatic acceptance result.
+
+### Remaining acceptance boundary
+
+No live Groq key is configured in the development environment, so no live model
+quality, paired model comparison, novice UI journey or full project completion
+is claimed. Local planning still proposes some initial read-only checks; the
+conversation does not gain authority to replace tasks, execute code or transform
+data. Whole-project stage transitions and learning outcomes remain separate
+acceptance work. This is a concrete shared-core implementation, not a declaration
+that the mentor is ready.

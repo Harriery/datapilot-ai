@@ -32,13 +32,14 @@ def client_workspace(**changes):
     return client, response.json()
 
 
-def test_preference_persists_without_reclassifying_data_or_changing_other_project_state():
+@pytest.mark.parametrize('mode', ['question_and_code', 'question_code_and_summaries'])
+def test_preference_persists_without_reclassifying_data_or_changing_other_project_state(mode):
     client, before = client_workspace()
     workspace_id = before['workspace_id']
-    response = client.patch(f'/workspaces/context-choice/{workspace_id}/notebook-teaching', json={'mode': 'question_and_code'})
+    response = client.patch(f'/workspaces/context-choice/{workspace_id}/notebook-teaching', json={'mode': mode})
     assert response.status_code == 200, response.text
     saved = database.get_workspace(workspace_id=workspace_id, learner_id='context-choice').model_dump()
-    assert saved['mentor_setup']['notebook_teaching_context'] == 'question_and_code'
+    assert saved['mentor_setup']['notebook_teaching_context'] == mode
     assert saved['data_sensitivity'] is None
     assert saved['mentor_setup']['learning_focus'] == ['python', 'quality']
     for key in ('notebooks', 'dataset_profile', 'checkpoint', 'project_deliverables', 'mentor_session_id'):
@@ -52,9 +53,10 @@ def test_preference_persists_without_reclassifying_data_or_changing_other_projec
     ('work', 'public', 403), ('work', 'internal', 403),
     ('personal', 'confidential', 409), ('personal', 'restricted', 409),
 ])
-def test_preference_does_not_bypass_protected_data_or_work_policy(context, sensitivity, status):
+@pytest.mark.parametrize('mode', ['question_and_code', 'question_code_and_summaries'])
+def test_preference_does_not_bypass_protected_data_or_work_policy(context, sensitivity, status, mode):
     client, workspace = client_workspace(usage_context=context, data_sensitivity=sensitivity)
-    response = client.patch(f"/workspaces/context-choice/{workspace['workspace_id']}/notebook-teaching", json={'mode': 'question_and_code'})
+    response = client.patch(f"/workspaces/context-choice/{workspace['workspace_id']}/notebook-teaching", json={'mode': mode})
     assert response.status_code == status
     saved = database.get_workspace(workspace_id=workspace['workspace_id'], learner_id='context-choice')
     assert saved.data_sensitivity == sensitivity

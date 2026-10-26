@@ -242,7 +242,7 @@ router = APIRouter()
 
 class NotebookTeachingPreferenceRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    mode: Literal["generic", "question_and_code"]
+    mode: Literal["generic", "question_and_code", "question_code_and_summaries"]
 
 
 @router.patch("/workspaces/{learner_id}/{workspace_id}/notebook-teaching", response_model=Workspace)
@@ -254,7 +254,7 @@ def update_notebook_teaching_preference(
         raise HTTPException(status_code=404, detail="Workspace bulunamadı.")
     if workspace.usage_context != "personal":
         raise HTTPException(status_code=403, detail="This preference is available for personal projects only.")
-    if request.mode == "question_and_code" and workspace.data_sensitivity in {"confidential", "restricted"}:
+    if request.mode in {"question_and_code", "question_code_and_summaries"} and workspace.data_sensitivity in {"confidential", "restricted"}:
         raise HTTPException(status_code=409, detail="Protected data cannot enable external notebook teaching context.")
     setup = workspace.mentor_setup or ProjectMentorSetup()
     workspace.mentor_setup = setup.model_copy(update={"notebook_teaching_context": request.mode})

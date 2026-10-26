@@ -84,7 +84,7 @@ def test_one_active_step_survives_help_reload_and_no_execution_then_closes_on_ne
         initial = saved()
         step_id = initial['workflow']['active_step']['id']
         assert initial['workflow']['active_step']['status'] == 'awaiting_execution'
-        assert requests[0]['learning_workflow']['learner_skills'][0]['skill_name'] == 'null_analysis'
+        assert requests[0]['investigation_context']['learner_skills'][0]['skill_name'] == 'null_analysis'
         for question in ['Tamam şimdi ne yapacağız, nereden araştırmaya başlayacağız?',
                          'Yaptım, gördün mü?', 'Anlamadım, beraber ilerleyelim.', 'Kodu gösterme. Nasıl yapacağım?']:
             reply = generate_research_reply(ctx, question, [], allow_provider=False)
@@ -204,7 +204,7 @@ def test_failed_or_unrelated_execution_does_not_complete_or_reassign_count():
         notebook['latest_cell'] = wrong
         notebook['recent_cells'] = [wrong] + notebook['recent_cells']
         reply = generate_research_reply(ctx, 'Neden olmadı, nasıl ilerleyelim?', [])
-        assert 'tamamlandı saymıyorum' in reply
+        assert 'tamamlanmış sayılmıyor' in reply and 'yeni çıktı istemeyeceğim' in reply
         assert saved()['workflow']['active_step']['status'] == 'awaiting_execution'
         assert len(saved()['proposals']) == 1 and model.call_count == 1
 

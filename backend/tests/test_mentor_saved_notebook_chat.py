@@ -71,7 +71,8 @@ def test_saved_notebook_guidance_uses_actual_context_and_advances_only_after_exe
             start_id = state['workflow']['active_step']['id']
             assert state['observations'] == [] and '```' not in reply
             reply, state = chat('Nereden başlayacağımı anlamadım. Beraber ilerleyelim, kodu gösterme.')
-            assert 'isna' in reply and '```' not in reply
+            assert 'yerel yedek rehber' in reply and '```' not in reply
+            assert not state['last_validation']['teaching_accepted']
             assert state['workflow']['active_step']['id'] == start_id
             assert len(state['proposals']) == 1
             notebook.cells = [count_cell]
