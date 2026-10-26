@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 import pandas as pd
 
 from backend.app import database
@@ -208,7 +210,7 @@ def run_dialogue_suite(case, *, delay=45, checkpoint=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--live', action='store_true', required=True, help='Allow at most two configured provider attempts.')
+    parser.add_argument('--live', action='store_true', required=True, help='Allow configured provider calls: two in the short probe, at most six in the dialogue suite.')
     parser.add_argument('--dialogue-suite', action='store_true', help='Frozen six-turn synthetic conversation; at most six provider calls.')
     parser.add_argument('--case', choices=tuple(DIALOGUE_CASES), default='orders')
     parser.add_argument('--delay', type=float, default=45, help='Minimum seconds between requests in dialogue suite.')
@@ -216,6 +218,7 @@ def main(argv=None):
     parser.add_argument('--question-and-code', action='store_true', help='Exercise explicit scoped sharing on an unclassified personal project.')
     parser.add_argument('--output-dir', type=Path, default=Path('backend/benchmarks/results/teaching-probe'))
     args = parser.parse_args(argv)
+    load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
     folder = args.output_dir / datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
     folder.mkdir(parents=True, exist_ok=False)
     previous = database.DATABASE_PATH

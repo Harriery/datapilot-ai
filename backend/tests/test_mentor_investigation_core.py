@@ -302,3 +302,24 @@ def test_auxiliary_evidence_can_be_explained_without_changing_the_pending_task()
     response.first_action = 'side_field üzerinde yeni bir dağılım incele.'
     _, after, _ = teach(context, response, 'Sırada ne var?')
     assert after['last_validation']['reason'] == 'unrelated_column'
+
+
+def test_probe_cli_loads_local_provider_config_without_overwriting_shell_settings(tmp_path, monkeypatch):
+    from backend.benchmarks import run_mentor_teaching_probe as probe
+    from backend.app.ai_provider_service import get_ai_runtime_config
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv('AI_GROQ_MENTOR_MODEL', 'synthetic-before')
+    monkeypatch.delenv('AI_GROQ_MENTOR_MODEL')
+    monkeypatch.setenv('AI_MENTOR_PROVIDER', 'groq')
+    (tmp_path / '.env').write_text('AI_MENTOR_PROVIDER=openai\nAI_GROQ_MENTOR_MODEL=synthetic-config-choice\n')
+    previous_database = database.DATABASE_PATH
+    seen = []
+    def controlled(*args, **kwargs):
+        config = get_ai_runtime_config('mentor')
+        seen.append((config.provider, config.model))
+        return {'turns': [], 'status': 'completed_requires_human_review'}
+    monkeypatch.setattr(probe, 'run_dialogue_suite', controlled)
+    assert probe.main(['--live', '--dialogue-suite', '--output-dir', str(tmp_path / 'reports')]) == 0
+    assert seen == [('groq', 'synthetic-config-choice')]
+    assert database.DATABASE_PATH == previous_database
+    assert len(list((tmp_path / 'reports').glob('*/report.json'))) == 1
