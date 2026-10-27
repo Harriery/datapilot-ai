@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from backend.app import database
-from backend.app.mentor_adaptive_teaching_service import TeachingExplanation, build_teaching_request, conceptual_request
+from backend.app.mentor_adaptive_teaching_service import TeachingAnswer, build_teaching_request, conceptual_request
 from backend.app.mentor_investigation_service import (
     investigation_view, InvestigationReasoning, validate_reasoning, remember_reasoning,
 )
@@ -48,11 +48,8 @@ def setup(case='orders'):
     return context, load_research_state(context['workspace_id'], 'n1'), target, helper
 
 
-def provider_reply(step, **fields):
-    return TeachingExplanation(task_id=step['id'], approach='contrast',
-        explanation='Sayım bir toplam verir; koşul ise hangi satırların kalacağını işaretler.',
-        first_action='Eksikliği gösteren işaretleri satırları süzen koşul olarak kullan.',
-        why='İncelemeyi ilgili satır grubuna sınırlandırmak için.', **fields)
+def provider_reply(step):
+    return TeachingAnswer(answer='Sayım bir toplam verir; koşul ise hangi satırların kalacağını işaretler.')
 
 
 def teach(context, reply, message):
@@ -68,8 +65,7 @@ def teach(context, reply, message):
 def test_concept_partial_attempt_evidence_and_scope_change_share_one_investigation(case):
     context, state, target, helper = setup(case)
     step = deepcopy(state['workflow']['active_step'])
-    visible, state, payload = teach(context, provider_reply(step,
-        conversation_kind='concept', learner_need='Counting versus row selection.'),
+    visible, state, payload = teach(context, provider_reply(step),
         'Saymakla satır seçmek arasındaki farkı anlamadım; kod verme.')
     core = payload['investigation_context']
     assert core['project_goal'] == context['task_brief']
@@ -83,23 +79,22 @@ def test_concept_partial_attempt_evidence_and_scope_change_share_one_investigati
     notebook = context['artifacts']['selected_notebook']
     partial = recorded_cell('condition', f'df[{target!r}].isna()', 'synthetic condition output', target, 'core-v1', 1000)
     notebook.update(latest_cell=partial, recent_cells=[partial, notebook['latest_cell']])
-    response = provider_reply(step, conversation_kind='attempt', learner_need='Apply the condition to rows.')
-    response.explanation = 'Koşul işaretleri üretmek, satırları seçmekten önce gelir; henüz seçimi tamamladığını varsayamayız.'
+    response = provider_reply(step)
+    response.answer = 'Koşul işaretleri üretmek, satırları seçmekten önce gelir; henüz seçimi tamamladığını varsayamayız.'
     _, state, payload = teach(context, response, 'Bu koşulu yazdım; şimdi nasıl kullanacağım?')
     assert 'isna' in payload['latest_attempt']['source']
     assert not payload['latest_attempt']['verified_result']
-    assert payload['investigation_context']['learner_need'] == 'Counting versus row selection.'
+    assert 'learner_need' not in payload['investigation_context']
     assert state['workflow']['active_step']['id'] == step['id']
     assert state['workflow']['active_step']['status'] == 'awaiting_execution'
     # Valid count remains available although the latest attempt is unsupported.
-    count_id = payload['investigation_context']['verified_checks'][0]['id']
-    response = provider_reply(step, conversation_kind='evidence', evidence_ids=[count_id])
-    response.explanation = 'Kayıtlı sayım aşağıda gösteriliyor; satır seçiminin yapıldığını göstermez.'
+    response = provider_reply(step)
+    response.answer = 'Kayıtlı sayım aşağıda gösteriliyor; satır seçiminin yapıldığını göstermez.'
     visible, state, payload = teach(context, response, 'Önceki sayımın sonucu neyi gösteriyordu?')
-    assert '250' in visible and '1,000' in visible
+    assert visible == response.answer
     assert 'result' not in json.dumps(payload['investigation_context']['verified_checks'])
     assert state['workflow']['active_step']['status'] == 'awaiting_execution'
-    assert state['last_validation']['conversation_kind'] == 'evidence'
+    assert state['last_validation']['conversation_kind'] is None
 
     # New data cannot inherit execution completion or an old hypothesis.
     notebook['current_input_version'] = 'core-v2'
@@ -147,15 +142,14 @@ def test_scoped_consent_does_not_expand_into_sharing_results_or_project_brief():
     assert after['last_validation']['teaching_context_mode'] == 'user_shared_question_and_code'
 
 
-@pytest.mark.parametrize('ids', [['unknown'], []])
-def test_evidence_conversation_requires_current_verifiable_references(ids):
+def test_teaching_schema_rejects_model_metadata_without_changing_task():
     context, state, _, _ = setup()
-    visible, after, _ = teach(context, provider_reply(state['workflow']['active_step'],
-        conversation_kind='evidence', evidence_ids=ids), 'Sonuç ne?')
-    assert after['last_validation']['reason'] == 'unavailable_evidence_reference'
-    assert 'yeni çıktı istemeyeceğim' in visible
-    assert 'value_counts' not in visible and 'çalıştır' not in visible
-    assert 'conversation_memory' not in after
+    visible, after, _ = teach(context, {'answer': 'Bir açıklama.', 'task_id': 'invented',
+        'evidence_ids': ['unknown'], 'complete': True}, 'Sonuç ne?')
+    assert after['last_validation']['reason'] == 'provider_or_schema_error'
+    assert not after['last_validation']['teaching_accepted']
+    assert after['workflow']['active_step']['id'] == state['workflow']['active_step']['id']
+    assert after['workflow']['active_step']['status'] == 'awaiting_execution'
 
 
 def test_research_candidates_are_speculative_scoped_and_require_valid_provenance():
@@ -200,7 +194,7 @@ def test_summary_consent_exposes_only_parsed_aggregates_and_can_be_revoked():
     assert after['last_validation']['teaching_context_mode'] == 'user_shared_question_code_and_summaries'
     context['mentor_setup']['notebook_teaching_context'] = 'question_and_code'
     answer = provider_reply(state['workflow']['active_step'])
-    answer.explanation = 'Sayımın kendisi satırları ayırmaz; ilgili grubun seçilmesi gerekir.'
+    answer.answer = 'Sayımın kendisi satırları ayırmaz; ilgili grubun seçilmesi gerekir.'
     _, _, payload = teach(context, answer, 'Satır seçimi neydi?')
     assert payload['aggregate_summaries_shared'] is False
     assert 'result' not in payload['investigation_context']['verified_checks'][0]
@@ -213,15 +207,10 @@ def test_frozen_six_turn_probe_preserves_actual_model_candidate_and_displayed_re
     def model(*args, **kwargs):
         payload = json.loads(kwargs['input'])
         calls.append(payload)
-        kind = 'evidence' if 'Yeni çalıştırdığım' in payload['learner_question'] else 'concept'
-        refs = [payload['investigation_context']['verified_checks'][0]['id']] if kind == 'evidence' else []
-        result = TeachingExplanation(task_id=payload['task_id'], conversation_kind=kind,
-            approach='contrast', explanation='Bu ayrı bir konuşma açıklamasıdır: ' + ['sayım ile seçim farklıdır.',
+        result = TeachingAnswer(answer='Bu ayrı bir konuşma açıklamasıdır: ' + ['sayım ile seçim farklıdır.',
                 'işaretleri satır filtresi olarak kullanırız.', 'koşul tek başına satır seçmez.',
                 'hata nedeni bu bağlamdan kesin belirlenemiyor.', 'görünen dağılım tek başına neden kanıtlamaz.',
-                'kaynak tanımı olmadan kesin iş kuralı çıkaramayız.'][len(calls)-1],
-            first_action='Önce ilgili satır grubunu belirleyen koşulu düşün.',
-            why='Araştırmanın hedefini korumak için.', evidence_ids=refs)
+                'kaynak tanımı olmadan kesin iş kuralı çıkaramayız.'][len(calls)-1])
         return SimpleNamespace(output_parsed=result, status='completed')
     runtime = SimpleNamespace(provider='groq', model='controlled', client=object())
     with patch('backend.app.mentor_adaptive_teaching_service.get_ai_runtime', return_value=runtime), \
@@ -295,17 +284,19 @@ def test_auxiliary_evidence_can_be_explained_without_changing_the_pending_task()
     prepared = prepare_research_context({**notebook, 'available_columns': context['dataset_profile_summary']['columns']},
                                         'Önceki kontrolü açıkla.', state)
     ref = prepared['current_evidence_ids'][0]
-    response = provider_reply(state['workflow']['active_step'], conversation_kind='evidence', evidence_ids=[ref])
-    response.explanation = 'side_field sayımı ayrı bir yardımcı kontroldür; hedef eksikliğinin dağılımını ölçmez.'
+    response = provider_reply(state['workflow']['active_step'])
+    response.answer = 'side_field sayımı ayrı bir yardımcı kontroldür; hedef eksikliğinin dağılımını ölçmez.'
     visible, after, _ = teach(context, response, 'Yaptığım yardımcı kontrolü açıklar mısın?')
     assert after['last_validation']['teaching_accepted'] and 'side_field' in visible
     assert after['workflow']['active_step']['id'] == state['workflow']['active_step']['id']
-    response.explanation = 'side_field kontrolü ayrı bir ölçümdür; araştırmanın hedefi değişmedi.'
-    response.first_action = 'side_field üzerinde yeni bir dağılım incele.'
+    response.answer = 'side_field üzerinde yeni bir dağılım incele.'
     _, after, _ = teach(context, response, 'Sırada ne var?')
-    assert after['last_validation']['reason'] == 'optional_guidance_omitted'
-    assert after['last_validation']['guidance_rejection_reason'] == 'unrelated_column'
-    assert after['last_validation']['provider_contract_accepted'] is False
+    # A bad conversational recommendation is not a workflow action. This test
+    # asserts authority only, not that the recommendation is good teaching.
+    assert after['workflow']['active_step']['id'] == state['workflow']['active_step']['id']
+    assert after['proposals'] == state['proposals']
+    assert not after['last_validation']['semantic_quality_verified']
+
 
 
 def test_probe_cli_loads_local_provider_config_without_overwriting_shell_settings(tmp_path, monkeypatch):
@@ -335,18 +326,11 @@ def test_probe_collects_section_failures_without_counting_scripted_continuation_
     def model(*args, **kwargs):
         payload = json.loads(kwargs['input']); calls.append(payload)
         n = len(calls)
-        evidence = n == 5
-        return SimpleNamespace(status='completed', output_parsed=TeachingExplanation(
-            task_id=payload['task_id'], conversation_kind='evidence' if evidence else 'concept',
-            evidence_ids=[payload['investigation_context']['verified_checks'][0]['id']] if evidence else [],
-            approach='break_down',
-            explanation=['Sayım bir toplamdır; seçim ilgili kayıtları ayırır.',
+        return SimpleNamespace(status='completed', output_parsed=TeachingAnswer(answer=['Sayım bir toplamdır; seçim ilgili kayıtları ayırır.',
                 '`df[unverified_flags]` ile seç.', 'Koşul tek başına satır seçimi değildir.',
                 'Hata nedenini bu bağlamla kesinleştiremiyorum.',
                 'Kayıtlı dağılım tek başına iş kuralı kanıtlamaz.',
-                'Kaynak tanımı olmadan nedeni kesinleştiremeyiz.'][n-1],
-            first_action='df.dropna(inplace=True)' if n == 1 else None,
-            why='Önce bu işlemi yap.' if n == 1 else None))
+                'Kaynak tanımı olmadan nedeni kesinleştiremeyiz.'][n-1]))
     runtime = SimpleNamespace(provider='groq', model='controlled', client=object())
     with patch('backend.app.mentor_adaptive_teaching_service.get_ai_runtime', return_value=runtime), \
          patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse', side_effect=model):
@@ -354,8 +338,8 @@ def test_probe_collects_section_failures_without_counting_scripted_continuation_
     assert len(calls) == 6 and len(report['turns']) == 6
     first, second = report['turns'][:2]
     assert first['diagnostics']['teaching_accepted']
-    assert first['diagnostics']['provider_contract_accepted'] is False
-    assert first['diagnostics']['delivery_mode'] == 'explanation_only'
+    assert first['diagnostics']['provider_contract_accepted'] is True
+    assert first['diagnostics']['delivery_mode'] == 'conversation'
     assert 'dropna' not in first['displayed_reply']
     assert not second['diagnostics']['teaching_accepted']
     assert not second['continuation_after_blocked_reply']
@@ -363,7 +347,7 @@ def test_probe_collects_section_failures_without_counting_scripted_continuation_
     assert not report['protocol_checks_passed']
     assert report['status'] == 'completed_with_protocol_failures'
     assert report['delivery_checks'] == {'all_explanations_delivered': False,
-        'guidance_was_omitted': True, 'blocked_reply_occurred': True}
+        'guidance_was_omitted': False, 'blocked_reply_occurred': True}
     assert report['scripted_execution_receipts'] and not report['project_completion_proven']
     # The invalid model instruction must not seed the next model request.
     assert 'df.dropna(inplace=True)' not in json.dumps(calls[1])
@@ -421,9 +405,7 @@ def test_paired_live_wiring_uses_same_model_budget_and_keeps_candidates_separate
             parsed = probe.ComparisonAnswer(answer='Bu serbest deney cevabıdır; kod çalıştırılmaz.')
         else:
             payload = json.loads(kwargs['input'])
-            parsed = TeachingExplanation(task_id=payload['task_id'], approach='break_down',
-                explanation='Sayım ile satır seçimi farklı işlemlerdir.',
-                first_action='df.dropna(inplace=True)', why=None)
+            parsed = TeachingAnswer(answer='df[flags] ile satır seç.')
         return SimpleNamespace(output_parsed=parsed, status='completed',
             usage=SimpleNamespace(input_tokens=100, output_tokens=20, total_tokens=120))
     original_database = database.DATABASE_PATH
@@ -443,8 +425,8 @@ def test_paired_live_wiring_uses_same_model_budget_and_keeps_candidates_separate
         assert current['input']['learner_question'] == simple['input']['question']
         assert current['max_output_tokens'] == simple['max_output_tokens']
         assert current['reasoning'] == simple['reasoning']
-        assert 'dropna' in current['provider_candidate']['first_action']
-        assert 'dropna' not in current['displayed_reply']
+        assert 'df[flags]' in current['provider_candidate']['answer']
+        assert 'df[flags]' not in current['displayed_reply']
         assert current['diagnostics']['provider_contract_accepted'] is False
         assert current['usage']['total_tokens'] == simple['usage']['total_tokens'] == 120
         assert all(score is None for score in pair['human_scores'].values())
@@ -487,8 +469,7 @@ def test_paired_experiment_retains_normal_usage_guards_while_research_state_is_i
             parsed = probe.ComparisonAnswer(answer='Sentetik karşılaştırma cevabı.')
         else:
             request = json.loads(kwargs['input'])
-            parsed = TeachingExplanation(task_id=request['task_id'], approach='contrast',
-                explanation='Sayım toplam verir; seçim satırları ayırır.', first_action=None, why=None)
+            parsed = TeachingAnswer(answer='Sayım toplam verir; seçim satırları ayırır.')
         return SimpleNamespace(status='completed', output_parsed=parsed)
     runtime = SimpleNamespace(provider='groq', model='openai/gpt-oss-120b',
                               client=SimpleNamespace(responses=SimpleNamespace(parse=parse)))
@@ -574,8 +555,7 @@ def test_comparison_classifies_schema_failure_symmetrically_and_stops_on_quota(r
         if arm == 'simple': parsed = probe.ComparisonAnswer(answer='Kısa sentetik cevap.')
         else:
             payload = json.loads(kwargs['input'])
-            parsed = TeachingExplanation(task_id=payload['task_id'],approach='contrast',
-                explanation='Sayım ile seçim farklı işlemlerdir.',first_action=None,why=None)
+            parsed = TeachingAnswer(answer='Sayım ile seçim farklı işlemlerdir.')
         return SimpleNamespace(status='completed',output_parsed=parsed)
     with patch.object(probe,'get_ai_runtime',return_value=SimpleNamespace(provider='groq',model='controlled',client=object())), \
          patch.object(probe,'get_ai_billing_policy',return_value={'free_only':True,'allowed_free_providers':['groq']}), \

@@ -28,10 +28,8 @@ def request(case='orders', scenario='evidence'):
     return context, state, step, payload
 
 
-def answer(step, **changes):
-    return teaching.TeachingExplanation(task_id=step['id'], approach='break_down',
-        explanation=changes.pop('explanation', 'Bu gözlem tek başına eksikliğin nedenini açıklamaz.'),
-        first_action=None, why=None, **changes)
+def answer(step=None, **changes):
+    return teaching.TeachingAnswer(answer=changes.get('explanation', 'Bu gözlem tek başına eksikliğin nedenini açıklamaz.'))
 
 
 def runtime():
@@ -95,104 +93,56 @@ def test_truncated_source_is_not_misdiagnosed_as_a_real_syntax_error():
 
 
 @pytest.mark.parametrize('case', ['orders', 'sensors', 'service'])
-@pytest.mark.parametrize('kind', ['concept', 'evidence'])
-def test_scoped_numeric_facts_render_regardless_of_conversation_label(case, kind):
-    _, _, step, payload = request(case)
-    fact = teaching.teaching_result_facts(payload)[0]
-    candidate = answer(step, conversation_kind=kind, evidence_ids=[fact['evidence_id']],
-        explanation=fact['marker'] + ' Bu dağılım eksikliğin nedenini tek başına kanıtlamaz.')
-    delivered, trace = teaching.compile_teaching_delivery(candidate, payload, [])
-    assert delivered and trace['provider_contract_accepted']
-    assert trace['rendered_result_ids'] == [fact['evidence_id']]
-    assert fact['text'] in delivered.explanation and '[[result:' not in delivered.explanation
-    assert '1000' in delivered.explanation and 'Tam kaynak doğrulanmadı' in delivered.explanation
-    assert step['status'] == 'awaiting_execution'
-    exact = answer(step, evidence_ids=[fact['evidence_id']], explanation=fact['text'])
-    assert teaching.compile_teaching_delivery(exact, payload, [])[0]
+def test_summary_context_is_typed_scoped_and_has_no_model_copying_protocol(case):
+    _, _, _, payload = request(case)
+    view = teaching.teaching_provider_view(payload)
+    checks = view['investigation_context']['verified_checks']
+    assert checks[0]['proportions'] and checks[0]['summary_complete']
+    assert checks[0]['input_rows'] == 1000 and not checks[0]['full_source_verified']
+    assert 'eksik' in checks[0]['selection']
+    assert all('id' not in x and 'marker' not in x for x in checks)
+    assert 'result_facts' not in view and 'task_id' not in view
 
 
-@pytest.mark.parametrize('mutation', ['wrong_label', 'wrong_number', 'wrong_group', 'wrong_measure'])
-def test_matching_values_cannot_be_transferred_to_other_labels_groups_or_measures(mutation):
-    _, _, step, payload = request('service')
-    fact = teaching.teaching_result_facts(payload)[0]
-    changed = fact['text']
-    if mutation == 'wrong_label':
-        changed = changed.replace('closed:', 'open:')
-    elif mutation == 'wrong_number':
-        changed = changed.replace('81.41%', '99.99%')
-    elif mutation == 'wrong_group':
-        changed = changed.replace('eksik', 'dolu')
-    else:
-        changed = changed.replace('ticket_state oranları', 'resolution_time ortalaması')
-    assert changed != fact['text']
-    delivered, trace = teaching.compile_teaching_delivery(answer(step,
-        evidence_ids=[fact['evidence_id']], explanation=changed), payload, [])
-    assert delivered is None and not trace['provider_contract_accepted']
-
-
-@pytest.mark.parametrize('change', ['no_consent', 'uncited', 'unknown', 'stale', 'truncated', 'failed'])
-def test_unavailable_results_never_authorize_numeric_fact_delivery(change):
-    context, state, step, payload = request('orders')
-    fact = teaching.teaching_result_facts(payload)[0]
-    refs = [fact['evidence_id']]
-    if change == 'no_consent':
-        payload['aggregate_summaries_shared'] = False
-    elif change == 'uncited':
-        refs = []
-    elif change == 'unknown':
-        fact = {**fact, 'marker': '[[result:unknown]]'}
-    else:
-        item = next(x for x in state['observations'] if x['id'] == fact['evidence_id'])
-        if change == 'stale': item['stale_scope'] = True
-        elif change == 'failed': item['success'] = False
-        else: item['analysis_contract']['output_truncated'] = True
-        from backend.app.mentor_investigation_service import investigation_view
-        payload['investigation_context'] = investigation_view(context, state, include_results=True)
-    delivered, trace = teaching.compile_teaching_delivery(answer(step,
-        evidence_ids=refs, explanation=fact['marker']), payload, [])
-    assert delivered is None and not trace['provider_contract_accepted']
-
-
-def test_revoking_summary_consent_drops_previous_fact_lesson_from_provider_history():
-    context, state, step, payload = request('service')
-    fact = teaching.teaching_result_facts(payload)[0]
+def test_revoking_summary_consent_drops_previous_numeric_lesson_from_provider_history():
+    context, state, step, _ = request('service')
     state['teaching_journal'] = [{
         'task_key': task_key(step), 'mode': 'user_shared_question_code_and_summaries',
-        'question': 'Sonuç?', 'approach': 'contrast', 'explanation': fact['text'],
-        'explanation_template': fact['marker'], 'first_action': None}]
+        'question': 'Sonuç?', 'explanation': 'private-category yaklaşık %81.',
+        'contract_version': 3}]
     context['mentor_setup']['notebook_teaching_context'] = 'question_and_code'
     with runtime(), patch.object(teaching, 'guarded_responses_parse',
-        return_value=SimpleNamespace(output_parsed=answer(step), status='completed')) as call:
+        return_value=SimpleNamespace(output_parsed=answer(), status='completed')) as call:
         delivered, _ = teaching.explain_pending_task(context, state, step, 'Nasıl seçerim?', allow_provider=True)
     view = json.loads(call.call_args.kwargs['input'])
-    assert delivered and view['previous_explanations'] == [] and not view['result_facts']
-    assert fact['text'] not in call.call_args.kwargs['input']
-    assert all('proportions' not in x for x in view['investigation_context']['verified_checks'])
+    assert delivered and view['previous_explanations'] == []
+    assert 'private-category' not in call.call_args.kwargs['input']
+    assert all('proportions' not in x and 'result' not in x for x in view['investigation_context']['verified_checks'])
 
 
 def test_generic_mode_does_not_send_failed_source_diagnostics_or_real_labels():
     context, state, step, _ = request('sensors', 'error')
     context['mentor_setup']['notebook_teaching_context'] = 'generic'
     with runtime(), patch.object(teaching, 'guarded_responses_parse',
-        return_value=SimpleNamespace(output_parsed=answer({**step, 'id': 'pending-task'}), status='completed')) as call:
+        return_value=SimpleNamespace(output_parsed=answer(), status='completed')) as call:
         delivered, _ = teaching.explain_pending_task(context, state, step, 'private-question', allow_provider=True)
     wire = call.call_args.kwargs['input']
     assert delivered and 'latest_attempt' not in wire
     assert 'reading' not in wire and 'sensor_mode' not in wire and 'private-question' not in wire
 
 
-def test_compiled_facts_reach_route_once_even_if_model_labels_result_as_concept():
-    context, state, step, payload = request('orders')
-    fact = teaching.teaching_result_facts(payload)[0]
-    candidate = answer(step, conversation_kind='concept', evidence_ids=[fact['evidence_id']],
-        explanation=fact['marker'] + ' Bu gözlem tek başına bir iş kuralı kanıtlamaz.')
+def test_numeric_conversation_reaches_route_without_becoming_a_fact_or_completing_task():
+    context, state, step, _ = request('orders')
+    candidate = answer(explanation='Eksik grupta açık kayıtların oranı %90; bu, eksikliğin nedenini kanıtlamaz.')
     with isolated_comparison_memory() as memory, runtime(), patch.object(teaching, 'guarded_responses_parse',
         return_value=SimpleNamespace(output_parsed=candidate, status='completed')):
         memory[(context['workspace_id'], 'n1')] = deepcopy(state)
         visible = generate_research_reply(context, 'Bu sonuç neyi gösterir?', [])
         after = memory[(context['workspace_id'], 'n1')]
-    assert visible.count(fact['text']) == 1 and '[[result:' not in visible
+    assert visible == candidate.answer
     assert after['workflow']['active_step']['id'] == step['id']
     assert after['workflow']['active_step']['status'] == 'awaiting_execution'
     assert after['last_validation']['teaching_accepted']
+    assert after['last_validation']['model_factual_prose_published']
+    assert not after['last_validation']['factual_claims_verified']
     assert not after['last_validation']['semantic_quality_verified']

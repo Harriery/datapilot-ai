@@ -1,15 +1,20 @@
-"""Invented-data protocol tests; controlled replies do not prove live quality."""
+"""Conversation delivery and authority boundaries; invented data, controlled model.
+
+Numbers/formatting are not factual proof. This suite deliberately does not turn
+schema or presentation acceptance into a learning-quality score.
+"""
 from copy import deepcopy
 import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from backend.app import database
 from backend.app.mentor_adaptive_teaching_service import (
-    TeachingExplanation, build_teaching_request, conceptual_request, explain_pending_task,
-    normalize_teaching_presentation, validate_teaching,
+    TeachingAnswer, build_teaching_request, conceptual_request, explain_pending_task,
+    assess_teaching_answer,
 )
 from backend.app.mentor_research_service import generate_research_reply
 from backend.app.mentor_research_store import load_research_state
@@ -30,11 +35,8 @@ def setup_task():
     return context, state, state['workflow']['active_step']
 
 
-def lesson(step, **changes):
-    return TeachingExplanation.model_validate({'task_id': step['id'], 'approach': 'break_down',
-        'explanation': 'Boşlukları saymak ile ilgili satırları seçmek farklı işlemlerdir.',
-        'first_action': 'Önce delivery_days boş olan satırları belirleyen koşulu kur.',
-        'why': 'Sonraki incelemeyi yalnız bu grupta yapabilmek için.', **changes})
+def lesson(step=None, *, explanation='Sayım miktarı bulur; seçim ilgili kayıtları ayırır.'):
+    return TeachingAnswer(answer=explanation)
 
 
 def provider(reply):
@@ -47,37 +49,109 @@ def runtime():
         return_value=SimpleNamespace(provider='groq', model='synthetic-test', client=object()))
 
 
-def test_actual_question_prior_count_and_normalized_task_reach_teacher_without_help_keyword():
+def test_current_question_work_scope_and_history_reach_one_answer_only_call():
     context, state, step = setup_task()
     with runtime(), provider(lesson(step)) as model:
-        reply = generate_research_reply(context, 'Önce neyi seçmeliyim? Kodu verme.', [])
+        visible = generate_research_reply(context, 'Önce neyi seçmeliyim? Kodu verme.', [])
     payload = json.loads(model.call_args.kwargs['input'])
+    assert model.call_args.kwargs['text_format'] is TeachingAnswer
     assert payload['learner_question'] == 'Önce neyi seçmeliyim? Kodu verme.'
-    assert [x['purpose'] for x in payload['completed_operations']] == ['count missing values']
-    assert 'mevcut df' in payload['completed_operations'][0]['selection']
+    assert payload['completed_operations'][0]['purpose'] == 'count missing values'
     assert payload['pending_step']['purpose'] == 'compare proportions'
-    assert payload['pending_step']['missing_categories_included'] is True
     assert payload['pending_step']['columns'] == ['shipment_status']
-    assert 'task_contract' not in payload
+    assert payload['response_preferences'] == {'show_code': False}
+    assert 'task_id' not in payload and 'result_facts' not in payload
+    assert 'row_predicate' not in json.dumps(payload)
+    assert visible == lesson(step).answer
     after = load_research_state(context['workspace_id'], 'n1')
-    assert after['proposals'] == state['proposals'] and '```' not in reply
+    assert after['proposals'] == state['proposals']
     assert after['workflow']['active_step']['id'] == step['id']
     assert after['workflow']['active_step']['status'] == 'awaiting_execution'
-    assert after['last_validation']['teaching_accepted']
     assert not after['last_validation']['semantic_quality_verified']
-    with runtime(), provider(lesson(step, approach='analogy', explanation='Bir süzgeç gibi düşün; koşul hangi satırların kalacağını belirler.')) as second:
-        generate_research_reply(context, 'Hâlâ anlamadım; daha basit anlat.', [])
-    followup = json.loads(second.call_args.kwargs['input'])
-    assert followup['previous_explanations'][0]['explanation'] == lesson(step).explanation
-    assert len(load_research_state(context['workspace_id'], 'n1')['teaching_journal']) == 2
+    with runtime(), provider(lesson(explanation='Bir süzgeç düşün: işaretler hangi kayıtların kalacağını belirler.')) as second:
+        generate_research_reply(context, 'Hâlâ anlamadım.', [])
+    assert json.loads(second.call_args.kwargs['input'])['previous_explanations'][0]['explanation'] == lesson().answer
 
 
-def test_payload_excludes_raw_outputs_rows_and_relationship_map():
+@pytest.mark.parametrize('text', [
+    'Eksik kayıtların %90 kadarı açık, %10 kadarı kapalı; bu tek başına iş kuralı değildir.',
+    'Oran olarak 0.9, yüzde olarak %90 ifade edilir.',
+    'İşlem 2 aşamada düşünülebilir: işaretleme ve satır seçimi.',
+    '`isna` işaretleri üretir; `sum` bunları sayar.',
+    'Koşul (True veya False) bir satır seçimi değildir.',
+])
+def test_natural_measurements_and_formatting_are_delivered_without_certifying_truth(text):
     context, state, step = setup_task()
-    context['local_relationship_map'] = {'private-canary': 'secret'}
-    state['observations'][0].update(output='private-canary', preview_rows=[{'key': 'private-canary'}])
-    payload = json.dumps(build_teaching_request(context, state, step, 'Nasıl yaparım?'))
-    assert 'private-canary' not in payload and 'input_rows' not in payload
+    with runtime(), provider(lesson(explanation=text)) as model:
+        visible = generate_research_reply(context, 'Kodu verme, açıkla.', [])
+    after = load_research_state(context['workspace_id'], 'n1')
+    assert visible == text and model.call_count == 1
+    assert after['last_validation']['content_accepted']
+    assert after['last_validation']['model_factual_prose_published']
+    assert not after['last_validation']['factual_claims_verified']
+    assert not after['last_validation']['semantic_quality_verified']
+    assert after['proposals'] == state['proposals']
+
+
+def test_wrong_measurement_is_not_silently_certified_by_a_matching_number_or_passing_schema():
+    # No semantic/numeric checker is claimed. Deliberately wrong prose remains
+    # a quality problem, flagged for human evaluation, never factual authority.
+    context, state, step = setup_task()
+    with runtime(), provider(lesson(explanation='Eksik değer sayısı 999999.')):
+        generate_research_reply(context, 'Sonucu açıkla.', [])
+    after = load_research_state(context['workspace_id'], 'n1')
+    trace = after['last_validation']
+    assert 'numeric_prose_requires_review' in trace['quality_signals']
+    assert trace['factual_claims_verified'] is False
+    assert trace['semantic_quality_verified'] is False
+    assert after['workflow']['active_step']['status'] == 'awaiting_execution'
+    assert after['proposals'] == state['proposals']
+
+
+@pytest.mark.parametrize('text', [
+    "df['delivery_days'].isna()", '```python\ndf.head()\n```',
+    'Bu işaretleri df[mask] ile kullan.', 'isna () ile koşulu kur.',
+])
+def test_unrequested_code_is_a_preference_failure_not_a_numeric_or_provider_failure(text):
+    context, state, step = setup_task()
+    with runtime(), provider(lesson(explanation=text)) as model:
+        visible = generate_research_reply(context, 'Kodu verme.', [])
+    after = load_research_state(context['workspace_id'], 'n1')
+    assert 'Kod istemediğin' in visible and text not in visible
+    assert model.call_count == 1 and after['last_validation']['reason'] == 'code_not_requested'
+    assert not after['last_validation']['content_accepted']
+    assert after['proposals'] == state['proposals']
+    assert not after.get('teaching_journal')
+
+
+def test_requested_model_code_is_suggestion_text_and_never_a_validated_execution_artifact():
+    context, state, step = setup_task()
+    code = "df['delivery_days'].isna()"
+    with runtime(), provider(lesson(explanation='```python\n'+code+'\n```')):
+        visible = generate_research_reply(context, 'Kodu göster.', [])
+    after = load_research_state(context['workspace_id'], 'n1')
+    assert code in visible and step['code'] not in visible
+    assert after['last_validation']['code_artifact_source'] == 'model_suggestion_not_executed'
+    assert after['proposals'] == state['proposals']
+    assert after['workflow']['active_step']['status'] == 'awaiting_execution'
+
+
+def test_requesting_code_can_still_display_pending_read_only_code_without_provider():
+    context, state, step = setup_task()
+    visible = generate_research_reply(context, 'Kodu göster.', [], allow_provider=False)
+    assert '```python\n'+step['code']+'\n```' in visible
+    assert load_research_state(context['workspace_id'], 'n1')['last_validation']['code_artifact_source'] == 'validated_pending_task'
+
+
+def test_repetition_is_a_quality_signal_not_an_all_answer_delivery_gate():
+    context, state, step = setup_task()
+    with runtime(), provider(lesson()) as model:
+        generate_research_reply(context, 'Anlamadım.', [])
+        visible = generate_research_reply(context, 'Hâlâ anlamadım.', [])
+    trace = load_research_state(context['workspace_id'], 'n1')['last_validation']
+    assert visible == lesson().answer and model.call_count == 2
+    assert 'repeated_explanation' in trace['quality_signals']
+    assert not trace['semantic_quality_verified']
 
 
 @pytest.mark.parametrize('policy', [None, {},
@@ -87,195 +161,42 @@ def test_payload_excludes_raw_outputs_rows_and_relationship_map():
 def test_protected_or_unknown_context_never_calls_provider(policy):
     context, state, step = setup_task()
     context['teaching_data_policy'] = policy
-    with runtime() as model, provider(lesson(step)) as service:
-        reply, trace = explain_pending_task(context, state, step, 'Nasıl yaparım?', allow_provider=True)
-    assert reply is None and trace['reason'] == 'external_ai_policy' and trace['provider_calls'] == 0
-    model.assert_not_called()
-    service.assert_not_called()
+    with runtime() as model, provider(lesson()) as service:
+        result, trace = explain_pending_task(context, state, step, 'Nasıl?', allow_provider=True)
+    assert result is None and trace['reason'] == 'external_ai_policy'
+    model.assert_not_called(); service.assert_not_called()
 
 
-@pytest.mark.parametrize('changes,reason', [
-    ({'task_id': 'another-task'}, 'task_mismatch'),
-    ({'explanation': 'Eksik değer sayısı 207.'}, 'code_or_numeric_claim'),
-    ({'explanation': 'private_reason sütununu incele.'}, 'unrelated_column')])
-def test_invalid_explanation_uses_explicit_fallback_and_preserves_task(changes, reason):
+def test_generic_mode_never_transmits_actual_question_code_or_labels_and_restores_aliases():
     context, state, step = setup_task()
-    context['dataset_profile_summary']['columns'].append('private_reason')
-    with runtime(), provider(lesson(step, **changes)):
-        reply = generate_research_reply(context, 'Anlamadım; kodu verme.', [])
+    context['mentor_setup'] = {'notebook_teaching_context': 'generic'}
+    with runtime(), provider(lesson(explanation='FIELD_A boş olan satırları düşün.')) as model:
+        visible = generate_research_reply(context, 'private-question', [])
+    wire = model.call_args.kwargs['input']
+    assert 'delivery_days' not in wire and 'private-question' not in wire and 'latest_attempt' not in wire
+    assert 'delivery_days boş' in visible and 'FIELD_A' not in visible
+
+
+def test_provider_failure_does_not_persist_exception_body_or_make_a_retry():
+    context, state, step = setup_task()
+    with runtime(), patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse', side_effect=RuntimeError('secret-body')) as model:
+        generate_research_reply(context, 'Nasıl?', [])
     after = load_research_state(context['workspace_id'], 'n1')
-    assert 'yerel yedek rehber' in reply and '```' not in reply
-    assert after['last_validation']['reason'] == reason
-    assert not after['last_validation']['teaching_accepted']
-    assert after['proposals'] == state['proposals']
-    assert 'teaching_journal' not in after
-
-
-def test_same_explanation_is_not_republished_and_no_retry_cascade():
-    context, state, step = setup_task()
-    with runtime(), provider(lesson(step)) as model:
-        generate_research_reply(context, 'Anlamadım.', [])
-        reply = generate_research_reply(context, 'Hâlâ anlamadım.', [])
-    assert model.call_count == 2
-    assert 'yerel yedek rehber' in reply
-    assert load_research_state(context['workspace_id'], 'n1')['last_validation']['reason'] == 'repeated_explanation'
-
-
-def test_code_only_comes_from_pending_task_after_positive_consent():
-    context, state, step = setup_task()
-    with runtime(), provider(lesson(step)):
-        reply = generate_research_reply(context, 'Kodu göster.', [])
-    assert '```python\n' + step['code'] + '\n```' in reply
-    with runtime(), provider(lesson(step, explanation='Önce koşulun hangi satırları seçtiğini düşün.')):
-        reply = generate_research_reply(context, 'Kodu gösterme; daha basit anlat.', [])
-    assert '```' not in reply
-
-
-def test_provider_failure_is_visible_without_persisting_exception_body():
-    context, state, step = setup_task()
-    with runtime(), patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse', side_effect=RuntimeError('secret-provider-body')):
-        reply = generate_research_reply(context, 'Nasıl yaparım?', [])
-    after = load_research_state(context['workspace_id'], 'n1')
-    assert 'yerel yedek rehber' in reply and 'secret-provider-body' not in json.dumps(after)
-    assert after['last_validation']['reason'] == 'provider_or_schema_error'
-    assert after['last_validation']['provider_calls'] == 1
-    assert not after['last_validation']['teaching_accepted']
+    assert model.call_count == 1 and after['last_validation']['reason'] == 'provider_or_schema_error'
+    assert 'secret-body' not in json.dumps(after)
 
 
 def test_stale_task_does_not_call_teacher():
     context, state, step = setup_task()
     step['status'] = 'needs_revalidation'
     with runtime() as model:
-        reply, trace = explain_pending_task(context, state, step, 'Anlamadım.', allow_provider=True)
-    assert reply is None and trace['reason'] == 'task_requires_revalidation'
+        result, trace = explain_pending_task(context, state, step, 'Nasıl?', allow_provider=True)
+    assert result is None and trace['reason'] == 'task_requires_revalidation'
     model.assert_not_called()
 
 
-def test_unclassified_personal_mode_never_transmits_schema_free_text_or_values():
-    context, state, step = setup_task()
-    context['teaching_data_policy']['data_sensitivity'] = None
-    neutral = lesson(step, task_id='pending-task', first_action='Önce FIELD_A boş olan satırları seçen koşulu düşün.')
-    with runtime(), provider(neutral) as model:
-        reply = generate_research_reply(context, 'Tam anlamadım; önce neyi seçmeliyim? private-customer-canary.', [])
-    payload = model.call_args.kwargs['input']
-    assert 'delivery_days' not in payload and 'shipment_status' not in payload and 'private-customer-canary' not in payload
-    assert 'Tam anlamadım' not in payload
-    assert json.loads(payload)['learner_question']['asks_where_to_start']
-    assert 'delivery_days boş olan' in reply and 'FIELD_A' not in reply
-    with runtime(), provider(neutral.model_copy(update={'explanation': 'Bir süzgeç gibi düşün; boş hücreli satırları ayıracağız.'})) as second:
-        generate_research_reply(context, 'Hâlâ anlamadım.', [])
-    followup = second.call_args.kwargs['input']
-    assert 'private-customer-canary' not in followup and 'delivery_days' not in followup
-    assert json.loads(followup)['previous_explanations'][0]['first_action'].startswith('Önce FIELD_A')
-
-
-def test_conceptual_payload_strips_comparison_literals_and_arbitrary_learner_metadata():
-    context, state, step = setup_task()
-    step['code'] = "df.loc[df['private_status'] == 'private-category', ['private_amount']].value_counts()"
-    context['mentor_setup'] = {'experience_level': 'private-canary'}
-    payload, _ = conceptual_request(build_teaching_request(context, state, step, 'private-question'), 'private-question')
-    assert 'private-' not in json.dumps(payload) and 'private_' not in json.dumps(payload)
-
-
-def test_partial_attempt_is_visible_without_completing_distribution():
-    context, state, step = setup_task()
-    cell = recorded_cell('partial', "df['delivery_days'].isna()", '0 True\n1 False', 'delivery_days', 'teaching-synthetic-v1', 1000)
-    notebook = context['artifacts']['selected_notebook']
-    notebook['latest_cell'] = cell
-    notebook['recent_cells'].insert(0, cell)
-    with runtime(), provider(lesson(step)) as model:
-        generate_research_reply(context, 'Koşulu kurdum; şimdi?', [])
-    attempt = json.loads(model.call_args.kwargs['input'])['latest_attempt']
-    assert 'isna' in attempt['source'] and 'value_counts' not in attempt['source']
-    assert not attempt['verified_result'] and attempt['success']
-    after = load_research_state(context['workspace_id'], 'n1')
-    assert after['workflow']['active_step']['id'] == step['id']
-    assert after['workflow']['active_step']['status'] == 'awaiting_execution'
-
-
-def test_same_step_number_on_another_version_does_not_reuse_old_explanation():
-    context, state, step = setup_task()
-    with runtime(), provider(lesson(step)):
-        reply, _ = explain_pending_task(context, state, step, 'Anlamadım.', allow_provider=True)
-    assert reply is not None
-    assert build_teaching_request(context, state, {**step, 'expected_version': 'different'}, 'Anlamadım.')['previous_explanations'] == []
-
-
-def test_probe_mechanical_pass_is_not_mislabeled_as_novice_or_live_acceptance():
-    replies = [TeachingExplanation(task_id='pending-task', approach='break_down', explanation=text,
-        first_action='Önce FIELD_A boş olan satırların koşulunu düşün.', why='Karşılaştırmanın grubunu belirlemek için.')
-        for text in ('Sayım miktarı bulur; seçim kayıtları ayırır.', 'Bir süzgeç düşün; koşula uyan kayıtlar kalır.')]
-    with runtime(), patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse',
-        side_effect=[SimpleNamespace(output_parsed=x, status='completed') for x in replies]):
-        report = run_probe()
-    assert report['mechanical_checks_passed'] and report['human_review_required']
-    assert not report['novice_usability_accepted'] and not report['project_completion_proven']
-
-
-@pytest.mark.parametrize('explanation', [
-    'Önce `delivery_days` boş olan satırları seçen koşulu düşün.',
-    'Önce **`delivery_days`** boş olan satırları seçen koşulu düşün.',
-    'Burada koşul (boşluk kontrolü) hangi satırların kalacağını belirler.',
-    'First choose the condition (missing values) that defines the rows.',
-    'Kies eerst de voorwaarde (ontbrekende waarden) voor de rijselectie.',
-    '1. Önce delivery_days boş olan satırları düşün.',
-    'Boşlukları isna ile belirleriz; `value_counts` dağılımı anlatan işlem adıdır.',
-])
-def test_prose_formatting_and_parentheses_do_not_masquerade_as_code(explanation):
-    context, state, step = setup_task()
-    with runtime(), provider(lesson(step, explanation=explanation)):
-        reply = generate_research_reply(context, 'Önce neyi seçmeliyim? Kodu verme.', [])
-    after = load_research_state(context['workspace_id'], 'n1')
-    assert after['last_validation']['teaching_accepted'], after['last_validation']
-    assert after['proposals'] == state['proposals']
-    assert 'yerel yedek rehber' not in reply and '```' not in reply and '`' not in reply
-
-
-def test_generic_alias_markup_is_restored_locally_after_normalizing_format():
-    context, state, step = setup_task()
-    context['teaching_data_policy']['data_sensitivity'] = None
-    formatted = lesson(step, task_id='pending-task',
-        explanation='Satır seçimi (bir süzgeç gibi) ilgili grubu ayırır.',
-        first_action='1. Önce `FIELD_A` boş olan satırların koşulunu düşün.')
-    with runtime(), provider(formatted) as model:
-        reply = generate_research_reply(context, 'Önce neyi seçmeliyim?', [])
-    trace = load_research_state(context['workspace_id'], 'n1')['last_validation']
-    assert trace['teaching_accepted'] and trace['presentation_normalized']
-    assert 'delivery_days boş olan' in reply and 'FIELD_A' not in reply
-    assert 'delivery_days' not in model.call_args.kwargs['input']
-
-
-@pytest.mark.parametrize('bad', [
-    '```python\ndf.head()\n```', '`df["delivery_days"].isna()`',
-    'df["delivery_days"]', 'isna()', 'isna ()', 'custom_function()',
-    'Eksik satır sayısı 207.', 'Oran yüzde 80.', '2. Yeni bir incelemeye geç.',
-])
-def test_formatting_cleanup_does_not_strip_actual_code_or_measurements(bad):
-    context, state, step = setup_task()
-    candidate = normalize_teaching_presentation(lesson(step, explanation=bad))
-    payload = build_teaching_request(context, state, step, 'Kodu verme.')
-    assert validate_teaching(candidate, payload, ['delivery_days', 'shipment_status']) == 'code_or_numeric_claim'
-
-
-def test_rejection_records_exact_field_and_category_without_leaking_candidate_into_prompt():
-    context, state, step = setup_task()
-    with runtime(), provider(lesson(step, why='Eksik sayısı 207 olduğu için.')):
-        generate_research_reply(context, 'Kodu verme.', [])
-    after = load_research_state(context['workspace_id'], 'n1')
-    expected = [{'field': 'why', 'kind': 'numeric_literal'}]
-    assert after['last_validation']['validation_violations'] == expected
-    assert after['last_rejected_teaching']['violations'] == expected
-    assert after['last_rejected_teaching']['candidate']['why'] == 'Eksik sayısı 207 olduğu için.'
-    outbound = json.dumps(build_teaching_request(context, after, step, 'Nasıl?'))
-    assert '207' not in outbound and 'last_rejected_teaching' not in outbound
-    assert '207' not in json.dumps(after['last_validation'])
-
-
-def test_presentation_changes_do_not_evade_repeat_guard():
-    context, state, step = setup_task()
-    first = lesson(step, explanation='Önce `delivery_days` boş olan satırları düşün.')
-    with runtime(), provider(first):
-        generate_research_reply(context, 'Nasıl?', [])
-    with runtime(), provider(first.model_copy(update={'explanation': 'Önce delivery_days boş olan satırları düşün.'})):
-        generate_research_reply(context, 'Hâlâ anlamadım.', [])
-    assert load_research_state(context['workspace_id'], 'n1')['last_validation']['reason'] == 'repeated_explanation'
+def test_provider_schema_cannot_propose_completion_task_ids_evidence_ids_or_actions():
+    assert set(TeachingAnswer.model_json_schema()['properties']) == {'answer'}
+    for key in ('task_id', 'evidence_ids', 'next_action', 'complete'):
+        with pytest.raises(ValidationError):
+            TeachingAnswer.model_validate({'answer': 'Açıklama.', key: True})

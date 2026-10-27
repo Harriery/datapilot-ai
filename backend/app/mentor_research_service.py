@@ -28,7 +28,7 @@ from backend.app.mentor_research_store import load_research_state, save_research
 from backend.app.mentor_local_progress_service import plan_missing_preview, plan_preview_continuation
 from backend.app.mentor_preview_evidence_service import preview_contradicts_selection, missing_preview_rows
 from backend.app.mentor_tutoring_service import explicit_code_requested, support_requested
-from backend.app.mentor_adaptive_teaching_service import explain_pending_task
+from backend.app.mentor_adaptive_teaching_service import explain_pending_task, has_code
 from backend.app.mentor_evidence_refresh_service import plan_evidence_refresh, render_evidence_refresh
 from backend.app.mentor_investigation_service import (
     reconcile_workflow, register_action, register_refresh, bind_learning_context,
@@ -810,24 +810,10 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
         lesson, trace = explain_pending_task(context, state, active, message,
             allow_provider=allow_provider, request_pacer=request_pacer)
         code_shown = explicit_code_requested(message) and active['status'] != 'needs_revalidation'
+        model_code = lesson is not None and has_code(lesson.explanation)
         if lesson is not None:
-            sections = [lesson.explanation]
-            if lesson.evidence_ids:
-                by_id = {x['id']: x for x in verified_observations(state)}
-                from backend.app.mentor_observation_contract import observation_text
-                for ref in lesson.evidence_ids:
-                    if ref in trace.get('rendered_result_ids', []):
-                        continue
-                    item = by_id[ref]
-                    fact = observation_text(item['analysis_contract'], state['response_language'])
-                    if item.get('input_rows') is not None:
-                        fact += {'tr': f" Kapsam: {item['input_rows']:,} satırlık kayıtlı notebook girdisi.",
-                                 'en': f" Scope: {item['input_rows']:,} rows in the recorded notebook input.",
-                                 'nl': f" Bereik: {item['input_rows']:,} rijen in de vastgelegde notebookinvoer."}[state['response_language']]
-                    sections.append(fact)
-            sections += [text for text in (lesson.first_action, lesson.why) if text]
-            reply = '\n\n'.join(sections)
-            if code_shown:
+            reply = lesson.explanation
+            if code_shown and not model_code:
                 reply += '\n\n```python\n' + active['code'] + '\n```'
         else:
             if not allow_provider or active['status'] == 'needs_revalidation':
@@ -835,11 +821,18 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
             else:
                 # Failure is not a lesson and not a request to rerun a cell.
                 # Retire the long operation recap that caused silent loops.
-                reply = {
-                    'tr': 'Uyarlanabilir açıklama şu anda kullanılamıyor; yerel yedek rehber: Soruna uygun açıklamayı doğrulayamadım; aynı görevi tekrar anlatıp yeni çıktı istemeyeceğim. Bekleyen görev korunuyor, tamamlanmış sayılmıyor.',
-                    'en': 'Adaptive teaching is unavailable. Local fallback guidance: I could not validate an answer to your question. I will not repeat the task or ask for another output. The pending task is retained, not completed.',
-                    'nl': 'Adaptieve uitleg is niet beschikbaar. Lokale reserve-uitleg: ik kon een antwoord op je vraag niet valideren. Ik herhaal de opdracht niet en vraag geen nieuwe uitvoer. De taak blijft open.',
-                }[state['response_language']]
+                if trace.get('reason') == 'code_not_requested':
+                    reply = {
+                        'tr': 'Kod istemediğin hâlde modelin yanıtı kod içeriyordu; bu yanıtı göstermedim. Bu, yanıt biçimi hatasıdır. İşlemin tamamlandı sayılmadı.',
+                        'en': 'The model included code although you did not request it, so I withheld that reply. This is a response-format failure; your task was not marked complete.',
+                        'nl': 'Het model gaf code zonder dat je daarom vroeg; daarom toon ik dat antwoord niet. Dit is een antwoordfout; je taak is niet als voltooid gemarkeerd.',
+                    }[state['response_language']]
+                else:
+                    reply = {
+                        'tr': 'Uyarlanabilir açıklama şu anda kullanılamıyor; yerel yedek rehber: Soruna uygun açıklamayı doğrulayamadım; aynı görevi tekrar anlatıp yeni çıktı istemeyeceğim. Bekleyen görev korunuyor, tamamlanmış sayılmıyor.',
+                        'en': 'Adaptive teaching is unavailable. Local fallback guidance: I could not validate an answer to your question. I will not repeat the task or ask for another output. The pending task is retained, not completed.',
+                        'nl': 'Adaptieve uitleg is niet beschikbaar. Lokale reserve-uitleg: ik kon een antwoord op je vraag niet valideren. Ik herhaal de opdracht niet en vraag geen nieuwe uitvoer. De taak blijft open.',
+                    }[state['response_language']]
                 if code_shown:
                     reply += '\n\n```python\n' + active['code'] + '\n```'
         state['last_validation'] = {
@@ -847,10 +840,11 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
             'teaching_accepted': lesson is not None, 'content_accepted': lesson is not None,
             'workflow_valid': active['status'] != 'needs_revalidation', 'validation_kind': 'pending_step_support',
             'active_step_id': active['id'], 'code_shown': code_shown,
-            'code_artifact_source': 'validated_pending_task' if code_shown else None,
+            'code_artifact_source': ('model_suggestion_not_executed' if model_code else 'validated_pending_task') if code_shown else None,
             'supported_proposal': {'next_action': {'kind': 'inspect', 'code': active['code']}},
-            'local_proposal': {'next_action': None}, 'rendering_contract': 'grounded-v1',
-            'model_factual_prose_published': False,
+            'local_proposal': {'next_action': None}, 'rendering_contract': 'conversation-v3',
+            'model_factual_prose_published': lesson is not None,
+            'factual_claims_verified': False,
         }
         save_research_state(workspace_id, notebook_id, state)
         return reply

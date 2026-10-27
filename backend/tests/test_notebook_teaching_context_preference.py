@@ -106,7 +106,7 @@ def test_turning_sharing_off_excludes_previous_questions_schema_and_expression()
     with runtime(), provider(lesson(step)):
         generate_research_reply(context, 'private-message-canary, isna ve sum?', [])
     context['mentor_setup']['notebook_teaching_context'] = 'generic'
-    with runtime(), provider(lesson(step, task_id='pending-task', first_action='Önce FIELD_A boş olan satırları düşün.')) as model:
+    with runtime(), provider(lesson(step, explanation='Önce FIELD_A boş olan satırları düşün.')) as model:
         generate_research_reply(context, 'private-second-question. Daha basit anlat.', [])
     outbound = model.call_args.kwargs['input']
     for secret in ('private-message-canary', 'private-second-question', 'delivery_days', 'shipment_status', 'latest_verified_expression'):
@@ -142,7 +142,7 @@ def test_verified_expression_strips_comments_and_unknown_attempts_never_export_r
 def test_generic_preference_is_honored_even_for_public_data():
     context, state, step = setup_task()
     context['mentor_setup']['notebook_teaching_context'] = 'generic'
-    with runtime(), provider(lesson(step, task_id='pending-task', first_action='Önce FIELD_A boş olan satırları düşün.')) as model:
+    with runtime(), provider(lesson(step, explanation='Önce FIELD_A boş olan satırları düşün.')) as model:
         generate_research_reply(context, 'private-question-canary', [])
     assert 'private-question-canary' not in model.call_args.kwargs['input']
     assert load_research_state(context['workspace_id'], 'n1')['last_validation']['teaching_context_mode'] == 'generic_concepts_only'
@@ -152,7 +152,7 @@ def test_saved_project_choice_flows_through_actual_workspace_context_and_chat(tm
     import pandas as pd
     from backend.app.models import WorkspaceNotebook, WorkspaceNotebookCell
     from backend.app.notebook_scope_service import notebook_input_version
-    from backend.app.mentor_adaptive_teaching_service import TeachingExplanation
+    from backend.app.mentor_adaptive_teaching_service import TeachingAnswer
     monkeypatch.setenv('AI_NOTEBOOK_RESEARCH_ENABLED', 'true')
     monkeypatch.setattr('backend.app.workspace_data_service.get_workspace_data_dir', lambda _: tmp_path)
     monkeypatch.setattr('backend.app.notebook_scope_service.get_workspace_data_dir', lambda _: tmp_path)
@@ -178,9 +178,7 @@ def test_saved_project_choice_flows_through_actual_workspace_context_and_chat(tm
     response = client.patch(f'/workspaces/context-choice/{workspace.workspace_id}/notebook-teaching', json={'mode': 'question_and_code'})
     assert response.status_code == 200
     message = 'isna ile sumun farkını son hücrem üzerinden açıkla. Kodu verme.'
-    reply = TeachingExplanation(task_id=task['id'], approach='contrast',
-        explanation='isna boş hücreleri işaretler; sum bu işaretleri sayar.',
-        first_action='Önce measure boş olan satırları seçen koşulu düşün.', why='İlgili satır grubunu ayırmak için.')
+    reply = TeachingAnswer(answer='isna boş hücreleri işaretler; sum bu işaretleri sayar.')
     with runtime(), provider(reply) as model, patch('backend.app.chat_routes.get_mentor_response_from_message') as legacy:
         response = client.post('/chat', json={**request, 'message': message})
     assert response.status_code == 200, response.text

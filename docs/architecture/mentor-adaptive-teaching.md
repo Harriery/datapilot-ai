@@ -1,171 +1,146 @@
-# Notebook teaching: current contract and acceptance boundary
+# Notebook mentor conversation: version 3
 
-27 October 2026. This document describes the current implementation, not a
-claim of novice learning or end-to-end project completion.
+27 October 2026. Experimental teaching behavior; neither local tests nor delivery
+success establishes mentoring quality or independent project completion.
 
-## Ownership
+## Why simplify
 
-The existing investigation workflow owns the active step, scope, validated
-read-only expression and completion receipts. The teacher explains the learner's
-current question. It cannot execute code, replace the step, modify data or mark
-an operation complete. A failed or unsupported expression can be useful learning
-context without being a successful observation. No additional state owner or
-mentor route is installed.
+The previous live six-turn probe delivered no teaching answers. The model could
+identify the syntax error and interpret the recorded proportions, but answers
+failed the application's code/numeric/metadata contract. It also ignored no-code
+requests and produced a wrong evidence identifier. Those are different failures;
+counting them all as provider unavailability concealed the problem.
 
-## Context at the provider boundary
+The earlier strict compiler did not certify truth: correct digit-bearing prose
+could be rejected while unsupported claims written in words could pass. Version 3
+removes that apparent guarantee rather than presenting a relaxed regex as a more
+capable factual validator. It also does not claim that the model is now a good tutor.
 
-The backend retains its analysis contracts for validation. `teaching_provider_view`
-projects them into selection descriptions, column names and operation purposes.
-Internal `row_predicate`, `measured_columns`, options dictionaries and completion
-machinery are not teaching material. Project goal, learner preferences, unknown
-source definitions and inferred difficulty remain available under the existing
-sharing policy. Candidate explanations are explicitly untested. The provider
-rules describe conversational responsibilities instead of explaining internal
-wire keys or prescribing a dataset-specific reply.
+## Conversation versus authority
 
-`latest_attempt` includes the last bounded code attempt, even when it failed or
-is outside the evidence grammar. String literals other than known column labels,
-numeric literals and comments are redacted. Ambiguous strings/f-strings and
-truncated code may be withheld entirely. A syntax diagnostic is computed from
-the sanitized source and labeled `local_parser`: it is not a recorded successful
-execution or the runtime's full error message. Only built-in exception type names
-are extracted from the recorded output. Raw tracebacks, paths, exception messages,
-row previews and arbitrary cell output are not sent. This is a bounded projection,
-not a general-purpose source-code secret detector; code identifiers and the
-learner's explicitly shared message can still contain sensitive information.
+The provider returns one bounded `TeachingAnswer.answer` string. No task identifier,
+evidence identifier, conversation classification, action/reason pair or result
+placeholder is required. The existing task and evidence ledger stay local. The
+learning view contains goal, level, current question, permitted recent dialogue,
+selected rows/columns, recorded work, latest code attempt and the pending step.
+Internal analysis contracts are not teaching material.
 
-Current, successful, version-verified observations alone populate verified checks.
-A count does not establish that rows were selected. Missing summaries mean unknown,
-not zero. Input row counts describe recorded notebook loading, not necessarily the
-size of df after prior transformations. Full-source validation is never inferred.
+Generated explanations and code suggestions are conversation only. They cannot
+install an action, change data, execute code, create an observation, advance a
+step or prove understanding. The existing workflow still requires a new matching,
+current, supported execution receipt for completion. The research planner's
+separate evidence/decision contract is unchanged.
 
-## Grounded numeric delivery
+A learner may explicitly request code. A model code suggestion is then labeled in
+diagnostics `model_suggestion_not_executed`, never a validated pipeline artifact.
+If no model code is included, the route can still display the existing pending
+read-only expression after explicit code consent. With the provider disabled,
+this existing local code-help path remains available. Model prose is never run.
 
-Summary consent permits only typed missing counts and complete, unambiguous
-normalized distributions parsed from current verified observations. Each eligible
-result has a compiler-owned full statement binding its row group, measured column,
-category labels, values and recorded input scope. It also states that the full
-source is unverified. There is no arbitrary match against a bag of allowed numbers.
+## What is retained and retired
 
-The provider may cite an evidence ID and insert its supplied `[[result:ID]]` marker
-in a natural explanation, or quote the complete immutable fact verbatim. The
-compiler validates the citation and substitutes the scoped statement. It never
-accepts a fabricated value, swapped category or different population merely
-because that number occurs somewhere else. Unbound generated measurements remain
-rejected. Markers cannot appear in optional guidance or survive on screen.
+Retained:
 
-Qualitative interpretation surrounds the compiled result. The conversation label
-(concept/attempt/evidence/plan/decision) is descriptive; it no longer determines
-whether cited results reach the user. A valid cited observation is displayed even
-if the model labels the question as a concept. Already expanded results are not
-printed again by the route. This prevents a label error from hiding evidence;
-it does not prove the interpretation is semantically correct.
+- Existing data-sharing/organization policies, bounded input/output and free-only
+  usage guards. One provider attempt; no classifier or automatic repair cascade.
+- Current successful observations separated from partial/failed attempts.
+- Task/scope identity, completion receipts, unavailable-definition memory and
+  typed summaries already parsed by the backend.
+- A presentation check that withholds detected executable code when code was not
+  requested. Its failure is reported as `code_not_requested`, not provider outage.
 
-## Explanation, guidance and code
+Retired:
 
-`TeachingExplanation` remains the provider schema. An explanation may answer a
-concept question without assigning work: action and reason can both be null.
-When needed, guidance is one small prerequisite of the existing task. Count,
-filter, error diagnosis and result interpretation are different conversational
-needs; repeating the full pending task does not answer all of them.
+- Provider-generated task/evidence IDs and mandatory conversation classifications.
+- Exact copied fact sentences, `[[result:ID]]` placeholders and their renderer.
+- The blanket digit ban, blanket punctuation/backtick ban, source-AST quotation
+  rewriting and field-specific action/reason compiler.
+- Exact repetition as a delivery-blocking condition. Repetition is now a quality
+  signal, not grounds to hide the whole answer.
 
-The delivery compiler validates the explanation independently. Invalid optional
-action/reason is omitted as a pair, with model noncompliance recorded. Invalid
-explanation, task identity or provenance blocks delivery; there is no sentence
-trimming, generated-code rewriting or automatic repair call. Exact references to
-the latest verified expression may be rendered as prose; new solution code is
-not admitted into an explanation. Requested code is the separately rendered,
-validated pending expression, subject to positive code consent. It is never run.
+The retired existing-code/compiler test module was removed. Tests for obsolete
+formatting policies were replaced with current privacy, presentation, diagnostic
+and authority checks; test counts before/after are not comparable quality scores.
+No parallel runtime mentor or dataset-specific answer exception was added.
 
-The old syntax-only attempt-shape helper was removed: the provider now has one
-bounded attempt view rather than duplicate summaries that hide the actual source.
-The nullable action, existing-code reference renderer and independent guidance
-compiler remain in use. No runtime module was removed solely for being old or
-having many tests.
+## Quality is explicitly unverified
 
-## Privacy and memory
+Natural numbers, percentages and ordinary identifier markup can be delivered.
+This is NOT an implementation of factual verification for natural language.
+`numeric_prose_requires_review` marks digit-bearing text without claiming it is
+wrong or right. Deliberately wrong numbers can pass schema/presentation checks;
+a regression explicitly verifies that they never acquire factual or workflow
+authority. The same is true of a bad recommendation written in words.
 
-- Generic mode uses anonymous fields and fixed intent flags. No real question,
-  attempt, error diagnostic, labels, results or arbitrary project metadata is sent.
-- Question/code mode permits the scoped question, relevant code/attempt context
-  and descriptions, without aggregate values or result facts.
-- Question/code/summaries adds bounded typed results, their category labels,
-  project goal, preferences and investigation notes, under explicit personal consent.
-- Confidential/restricted data and unapproved work policies block this provider
-  path. Scoped personal preferences do not reclassify data or override work policy.
+`content_accepted` / `teaching_accepted` mean an answer was delivered.
+`provider_contract_accepted` means the bounded answer contract and presentation
+check passed. `model_factual_prose_published` is true when conversation is delivered;
+`factual_claims_verified` and `semantic_quality_verified` remain false.
+`workflow_valid` describes retained state only. None certifies a helpful next step,
+correct interpretation, source attribution, successful learning or project readiness.
 
-The Mentor panel describes the failed-attempt projection in TR/EN/NL. Its existing
-save action and ownership checks remain. This does not establish enterprise-wide
-privacy or authentication for other application paths.
+The code detector is a presentation heuristic, not a sandbox, complete Python
+recognizer or security boundary. Links and repetition are also review signals,
+not automatic truth decisions. There is no hidden numeric-value-matching judge.
+The prototype requires human review before novice/product acceptance.
 
-Only displayed lessons enter the local journal. Provider history uses the checked
-unexpanded explanation template and the current sharing mode. Revoking summary
-consent excludes earlier summary lessons, preventing facts in prior prose from
-leaking into question/code mode. Rejected candidates stay local and are not reused
-as prompt history. Scope/task keys still prevent carrying lessons across versions.
+## Data and history boundary
 
-## Diagnostics and limits
+The last bounded code attempt remains available for explanation even if it is not
+in the evidence grammar. Other literals/comments are redacted; ambiguous strings,
+f-strings and truncated source may be withheld. The syntax diagnostic is computed
+from sanitized source and labeled `local_parser`. Only built-in recorded exception
+types are extracted; raw tracebacks, paths, exception messages and arbitrary row
+outputs are excluded. This is not a general source-code secret detector.
 
-One guarded request, at most 1200 output tokens and 9000 provider-input characters,
-uses the existing configured mentor model and free-only/usage policies. No classifier,
-paid fallback or repair cascade is added. Provider exception bodies and keys are
-not logged. Safe failure metadata remains available in the comparison probe.
+Generic mode excludes real messages, code, labels, results and project metadata;
+it uses anonymous fields and fixed intent flags. Question/code mode permits scoped
+messages/code without output values. Explicit question/code/summaries consent adds
+only typed current missing counts and complete parsed normalized distributions,
+with row selection and recorded input scope. Input rows are not necessarily df's
+size after preceding transformations; the full source is never implied verified.
+Protected data and unapproved work policies still block this provider path.
+Other application AI paths keep their own policies; this is no enterprise-wide
+privacy claim.
 
-`workflow_valid` describes retained task state. `teaching_accepted` and
-`content_accepted` mean content was delivered. `provider_contract_accepted=false`
-can accompany a valid explanation with omitted guidance. None is a teaching-quality
-score. `semantic_quality_verified` stays false. `rendered_result_ids` identifies
-backend-compiled factual delivery, not model-generated measurement authority.
+Provider history includes only delivered version-3 lessons from the same task/scope
+and sharing mode. Old dialogue with retired protocol markers is not replayed.
+Revoking summary consent also excludes earlier summary-mode prose. The local
+journal and old project evidence remain stored; they are not silently rewritten.
+Rejected candidates are diagnostic records, never later prompt history.
 
-## Verification and remaining acceptance
+## Verification and acceptance
 
-Controlled invented-data tests cover all three benchmark domains: failed and
-partial source context, redaction, truncated code, internal-schema exclusion,
-scoped result rendering, wrong category/group/value/measurement rejection, stale
-or failed observations, consent revocation, generic isolation, code consent and
-unchanged pending-task ownership. They establish boundary behavior, not model skill.
-Actual uploaded transcripts are not committed as fixtures.
+Controlled invented-data tests verify one-field requests, no metadata/action
+injection, unrequested-code failures, explicitly requested code suggestions,
+numeric delivery without truth certification, failed/partial source context,
+redaction, summary consent/revocation, generic isolation, provider failures and
+unchanged task ownership. The paired probe still preserves usage accounting,
+free-only policy, raw versus displayed text and partial failures.
 
-The frozen six-turn probe exercises count versus filter, masks, a partial attempt,
-a syntax error, result interpretation and an unavailable source definition:
+The frozen six-turn API probe remains available:
 
 ```powershell
 & ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --dialogue-suite --case orders
 ```
 
-At most six requests are made, no retries. Scripted execution receipts are test
-inputs; they do not prove a novice followed guidance. Deterministic content failures
-are collected without concealing later turns; provider/configuration failures stop
-the run. Raw candidates, delivered replies and diagnostics require human review.
-This environment has no configured Groq key, so live quality remains unverified.
+At most six attempts, no retries; supplied execution receipts are scripted inputs,
+not evidence that a novice followed the mentor. `result_context_available` means
+parsed results were in the request, NOT that the answer used them correctly.
+Human review evaluates whether the answer addressed the question, respected the
+code preference, explained the actual attempt/result, retained exceptions and
+supported a useful small next step. Reports identify context version 3.
 
-## Paired comparison
+The existing paired experiment can prepare all nine checkpoints offline, with zero
+provider calls, or compare the current and simple bundles under the same configured
+free Groq model. Context/rules/schema differ together; no automatic winner or
+learning-quality conclusion is assigned. Local project state is isolated and the
+normal usage ledger is retained. Safe provider error handling and request caps
+remain. Historical reports from versions 1/2 are not new model-generation results.
 
-The same CLI retains `--paired-comparison`, `--pairs` and one-based `--start-pair`.
-The current arm uses the current production boundary and compiler; the simple arm
-uses question, goal, code and recorded outputs with an answer-only schema. Same free
-Groq model, output cap and guarded ledger apply, with alternating arm order and
-isolated in-memory project state. No model-suggested code is executed. Context,
-rules, schema and rendering differ together, so this is not a context-only ablation.
-No automatic winner is assigned.
-
-The completed pilot checkpoints exposed two concrete losses: the old current
-context omitted failed code, and the old delivery gate rejected a result-aware
-answer containing numbers. The simple arm answered those checkpoints more directly,
-but earlier simple replies violated no-code/step constraints and confused counts
-with proportions. This supports correcting the boundary, not deploying the simple
-arm wholesale or claiming general model superiority. Reports from before context
-version 2 are historical baselines, not results of the current implementation.
-
-Offline preparation uses zero provider calls:
-
-```powershell
-& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --offline --paired-comparison
-```
-
-An explicit HTTP 400/json_validate_failed rejection counts as an arm failure and
-permits remaining fixed arms, without retry; final status retains arm failures.
-Quota/configuration/unknown provider failures stop the run. Neither a completed
-comparison nor passing mechanical checks proves novice project completion. The
-ultimate acceptance remains an independently completed new project with the app's
-mentor, including justified decisions and unresolved findings.
+No live Groq key is available in the implementation environment. A local replay
+can establish changed presentation behavior only. Before further production claims,
+freeze this implementation and evaluate actual model replies on the same scenarios,
+then previously unseen questions/data. Repeated semantic or preference failures
+should inform a model/scope decision, not another per-answer formatting exception.
+The final acceptance remains a novice completing a new project with the mentor.

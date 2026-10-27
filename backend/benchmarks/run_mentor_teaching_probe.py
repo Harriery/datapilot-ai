@@ -187,7 +187,7 @@ def run_dialogue_suite(case, *, delay=45, checkpoint=None):
             persist()
             if not trace.get('teaching_accepted') and trace.get('reason') not in {
                 'code_or_numeric_claim', 'unrelated_column', 'repeated_explanation',
-                'task_mismatch', 'unavailable_evidence_reference'}:
+                'task_mismatch', 'unavailable_evidence_reference', 'code_not_requested', 'internal_reference_markup'}:
                 # Do not repeat configuration, policy, quota or schema failures.
                 # Content rejections are collected across the fixed scenario,
                 # explicitly marked as scripted continuation, never recovery proof.
@@ -199,7 +199,7 @@ def run_dialogue_suite(case, *, delay=45, checkpoint=None):
             'initial_task_retained_before_receipt': all(x['pending_task'].get('id') == initial['id']
                 and x['pending_task'].get('status') == 'awaiting_execution' for x in turns[:4]),
             'task_advanced_after_receipt': len(turns) >= 5 and turns[4]['pending_task'].get('id') != initial['id'],
-            'result_question_uses_evidence': len(turns) >= 5 and turns[4]['diagnostics'].get('conversation_kind') == 'evidence',
+            'result_context_available': len(turns) >= 5 and turns[4]['diagnostics'].get('available_result_count', 0) > 0,
             'no_unrequested_code': all('```' not in x['displayed_reply'] for x in turns),
             'bounded_provider_calls': sum(x['provider_calls'] for x in turns) <= 6,
         }
@@ -371,7 +371,7 @@ def run_paired_comparison(*, live=False, max_pairs=3, start_pair=1, delay=45, ch
         raise ValueError('max_pairs must be between 1 and 9')
     if type(start_pair) is not int or not 1 <= start_pair <= len(COMPARISON_SCHEDULE) or start_pair - 1 + max_pairs > len(COMPARISON_SCHEDULE):
         raise ValueError('Requested comparison range is outside the fixed schedule')
-    report = {'experiment': 'current_vs_simple_frozen_checkpoints_v1', 'current_teaching_context_version': 2,
+    report = {'experiment': 'current_vs_simple_frozen_checkpoints_v1', 'current_teaching_context_version': 3,
         'mode': 'live' if live else 'offline_preparation', 'synthetic_data_only': True,
         'independent_checkpoints': True, 'same_model_required': True, 'project_state_isolated': True,
         'usage_ledger': 'normal_application_ledger', 'provider_call_count_kind': 'guarded_request_attempts', 'provider_calls': 0, 'max_provider_calls': 2 * max_pairs,
@@ -449,7 +449,7 @@ def run_paired_comparison(*, live=False, max_pairs=3, start_pair=1, delay=45, ch
                 report['pairs'].append(pair); persist()
                 if not live:
                     pair['arms'] = {'current': {'input': teaching.teaching_provider_view(current_preview), 'instructions': teaching.TEACHING_RULES,
-                        'response_schema': 'TeachingExplanation', 'max_output_tokens': cap},
+                        'response_schema': 'TeachingAnswer', 'max_output_tokens': cap},
                         'simple': {'input': common, 'instructions': SIMPLE_COMPARISON_RULES,
                         'response_schema': 'ComparisonAnswer', 'max_output_tokens': cap}}
                     persist(); continue
