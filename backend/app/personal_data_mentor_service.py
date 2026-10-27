@@ -7,7 +7,9 @@ the notebook's persisted input, never access to its live browser Python kernel.
 from contextlib import closing
 from datetime import datetime, timezone
 import json
+import logging
 from pathlib import Path
+import re
 from threading import Timer
 
 import duckdb
@@ -25,6 +27,26 @@ MAX_FRAME_ROWS = 20000
 MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_CONTEXT_CHARS = 18000
 MAX_TOOL_CALLS = 2
+logger = logging.getLogger(__name__)
+
+
+def _provider_error_metadata(exc):
+    """Record protocol identifiers only; never provider messages or generated data."""
+    result = {}
+    status = getattr(exc, 'status_code', None)
+    if type(status) is int:
+        result['status'] = status
+    body = getattr(exc, 'body', None)
+    if isinstance(body, dict):
+        error = body.get('error', body)
+        if isinstance(error, dict):
+            for name in ('code', 'type', 'param'):
+                value = error.get(name)
+                if isinstance(value, str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.\[\]-]{0,79}', value):
+                    result[name] = value
+    return result
+
+
 RULES = """You are a senior data analyst and patient mentor to this learner.
 Use the requested language, their project goal, conversation, notebook attempts
 and dataset together. Answer what they are stuck on before suggesting a next
@@ -260,6 +282,9 @@ def generate_personal_data_reply(workspace, context, message, history):
     except Exception as exc:
         diagnostics['reason'] = 'provider_or_runtime_error'
         diagnostics['error_type'] = type(exc).__name__
+        diagnostics['provider_error'] = _provider_error_metadata(exc)
+        logger.warning('Personal data mentor request failed (attempt=%d, error_type=%s, provider_error=%s)',
+            diagnostics['provider_calls'], type(exc).__name__, diagnostics['provider_error'])
         raise
     finally:
         if notebook:

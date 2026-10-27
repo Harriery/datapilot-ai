@@ -209,3 +209,32 @@ def test_profile_keeps_zero_and_false_examples(project):
     data = mentor.build_data_context(workspace, context, frame, {}, None)
     assert data['dataset']['schema'][0]['example_values'][0] == '0'
     assert data['dataset']['schema'][1]['example_values'][0] == 'False'
+
+
+@pytest.mark.parametrize('nested', [False, True])
+def test_provider_failure_records_protocol_metadata_without_content_or_retry(project, nested, caplog):
+    import httpx
+    from openai import BadRequestError
+
+    _, workspace, context, _, _ = project
+    error = {'code': 'tool_use_failed', 'type': 'invalid_request_error', 'param': 'tools[0]',
+        'message': 'PRIVATE_DATA in provider message', 'failed_generation': 'PRIVATE_DATA in generated SQL'}
+    exc = BadRequestError('PRIVATE_DATA in exception', response=httpx.Response(400,
+        request=httpx.Request('POST', 'https://provider.invalid/chat/completions')),
+        body={'error': error} if nested else error)
+    with runtime(), patch.object(mentor, 'guarded_chat_completions_create', side_effect=exc) as model:
+        with pytest.raises(BadRequestError):
+            mentor.generate_personal_data_reply(workspace, context, 'İncele.', [])
+    assert model.call_count == 1
+    diagnostic = load_research_state(workspace.workspace_id, 'n1')['last_validation']
+    assert diagnostic['provider_error'] == {'status': 400, 'code': 'tool_use_failed',
+        'type': 'invalid_request_error', 'param': 'tools[0]'}
+    assert diagnostic['error_type'] == 'BadRequestError'
+    assert 'PRIVATE_DATA' not in json.dumps(diagnostic) + caplog.text
+
+
+def test_provider_metadata_ignores_unstructured_or_free_text_fields():
+    assert mentor._provider_error_metadata(ValueError('private')) == {}
+    exc = SimpleNamespace(status_code=400, body={'message': 'private', 'param': 'private data',
+        'code': {'private': 'data'}, 'type': 'x' * 81})
+    assert mentor._provider_error_metadata(exc) == {'status': 400}

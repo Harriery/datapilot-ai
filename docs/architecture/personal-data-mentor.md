@@ -81,3 +81,14 @@ The next acceptance step uses the existing personal test dataset in the UI. Asse
 whether the mentor can explain the project, use an actual inspection, teach a small
 step, interpret the learner's next output, and retain the thread across follow-ups.
 Do not equate a delivered answer or tool result with successful learning.
+
+## Provider request diagnostics
+
+Provider HTTP errors are not evidence of teaching quality. The personal-data path
+records `last_validation.provider_error` with HTTP status and bounded protocol
+identifiers (`code`, `type`, `param`) when present. The same metadata and attempted
+call number appear in the backend warning. It deliberately excludes provider
+messages, generated SQL, request bodies, headers and credentials. No automatic
+model repair or extra provider call is introduced by this diagnostic record.
+An HTTP 400 without these details does not identify a specific invalid parameter
+or prove a tool-generation failure. Inspect the metadata before changing requests.
