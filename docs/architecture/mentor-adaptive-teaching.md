@@ -230,3 +230,23 @@ Use the bounded two-request pilot before repeating all six checkpoints:
 The implementation environment has no live Groq credential. Tests exercise both
 simulated response shapes and real SDK parsing over a mocked HTTP transport;
 they do not diagnose the live provider's cutoff cause.
+
+### Isolating the output format
+
+`--format-comparison` reuses the same harness with one fixed checkpoint and two
+Qwen requests: structured JSON via Responses `parse`, then unrestricted text via
+Responses `create`. The latter omits `text_format`; both use the same endpoint,
+model, instructions, input, low reasoning request and token cap. The report marks
+the output schema as the intentionally changed variable. The plain response is
+captured before local wrapping into the answer field; the usual delivery checks
+still apply, with no JSON repair, retries or generated code execution.
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --format-comparison --case orders
+```
+
+There are at most two generation attempts plus one model-catalog request, charged
+to the normal application usage ledger. Offline preparation is also supported.
+Only Qwen availability is required for this experiment. Production configuration
+is unchanged. A single pair is diagnostic evidence, not a causal study or a model
+quality pass; provider response status cannot certify a complete explanation.

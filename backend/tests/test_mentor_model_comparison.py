@@ -215,3 +215,53 @@ def test_interrupt_checkpoints_completed_work_and_does_not_retry():
             probe.run_model_comparison(live=True, turns=2, delay=0, checkpoint=lambda x: saved.append(x))
     assert provider.call_count == 2 and saved[-1]['status'] == 'interrupted'
     assert next(iter(saved[-1]['pairs'][0]['arms'].values()))['provider_candidate']
+
+
+def test_format_comparison_offline_is_one_pair_with_only_schema_changed():
+    with patch.object(probe, 'get_ai_runtime') as model, \
+         patch.object(probe, 'guarded_responses_create') as provider:
+        report = probe.run_model_comparison(live=False, format_comparison=True)
+    model.assert_not_called(); provider.assert_not_called()
+    assert report['max_provider_calls'] == 2 and len(report['pairs']) == 1
+    assert report['models'] == ['qwen/qwen3.8-27b']
+    a,b = report['pairs'][0]['arms'].values()
+    assert a['response_schema'] == 'TeachingAnswer' and b['response_schema'] == 'PlainText'
+    assert {k:v for k,v in a.items() if k != 'response_schema'} == {k:v for k,v in b.items() if k != 'response_schema'}
+
+
+@pytest.mark.parametrize('plain_status', ['completed', 'incomplete'])
+def test_format_comparison_real_guards_keep_ledger_caps_and_raw_text(monkeypatch, plain_status):
+    monkeypatch.setenv('AI_FREE_ONLY', 'true')
+    monkeypatch.setenv('AI_FREE_PROVIDER_ALLOWLIST', 'groq')
+    calls = []
+    client = Client(models=['qwen/qwen3.8-27b'])
+    def structured(**kwargs):
+        calls.append(('parse', kwargs))
+        return response()
+    raw = 'Bir sayı elde ettin. Şimdi ilgili satırları seç.'
+    def plain(**kwargs):
+        calls.append(('create', kwargs))
+        return SimpleNamespace(status=plain_status, output_text=raw,
+            incomplete_details=SimpleNamespace(reason='max_output_tokens') if plain_status == 'incomplete' else None)
+    client.responses = SimpleNamespace(parse=structured, create=plain)
+    before = database.get_ai_usage_counts()['daily_requests']
+    with patch.object(probe, 'get_ai_runtime', return_value=runtime(client)):
+        report = probe.run_model_comparison(live=True, format_comparison=True, delay=0)
+    assert database.get_ai_usage_counts()['daily_requests'] - before == 2
+    assert report['provider_calls'] == report['max_provider_calls'] == len(calls) == 2
+    assert calls[0][0] == 'parse' and calls[1][0] == 'create'
+    first,second = calls[0][1].copy(),calls[1][1].copy()
+    assert first.pop('text_format') is TeachingAnswer
+    assert first == second and second['model'] == 'qwen/qwen3.8-27b'
+    assert second['reasoning'] == {'effort': 'low'} and second['max_output_tokens'] <= 1200
+    arm = report['pairs'][0]['arms']['plain_text']
+    assert arm['response_completion']['output_text']['text'] == raw
+    assert arm['pending_task']['status'] == 'awaiting_execution'
+    if plain_status == 'completed':
+        assert report['status'] == 'completed_requires_human_review'
+        assert report['pairs'][0]['same_request_context']
+        assert arm['provider_candidate']['answer'] == arm['displayed_reply'] == raw
+    else:
+        assert report['status'] == 'blocked'
+        assert arm['diagnostics']['reason'] == 'incomplete_response'
+    assert report['comparison_winner'] is None and not report['project_completion_proven']

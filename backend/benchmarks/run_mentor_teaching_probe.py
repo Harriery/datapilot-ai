@@ -231,7 +231,7 @@ from unittest.mock import patch
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.app.ai_provider_service import get_ai_runtime
-from backend.app.ai_usage_guard import get_ai_billing_policy, get_ai_usage_limits, guarded_responses_parse
+from backend.app.ai_usage_guard import get_ai_billing_policy, get_ai_usage_limits, guarded_responses_parse, guarded_responses_create
 from backend.app import mentor_adaptive_teaching_service as teaching
 from backend.app import mentor_research_service as research
 from backend.app.mentor_investigation_service import bind_learning_context, register_action, investigation_view
@@ -572,7 +572,7 @@ def frozen_teaching_checkpoints(case):
     return snapshots
 
 
-def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkpoint=None):
+def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkpoint=None, format_comparison=False):
     """Same teacher input/rules/schema/options, two fixed free-plan models.
 
     No application configuration changes, generated code execution, provider
@@ -581,13 +581,18 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
     """
     import hashlib
     from dataclasses import replace
+    from types import SimpleNamespace
+    if format_comparison:
+        turns = 1  # Fixed two-request diagnostic, not a new dialogue suite.
+    arm_models = ({'structured_json': 'qwen/qwen3.8-27b', 'plain_text': 'qwen/qwen3.8-27b'}
+        if format_comparison else {model: model for model in MODEL_COMPARISON_IDS})
     if type(turns) is not int or not 1 <= turns <= len(DIALOGUE_QUESTIONS):
         raise ValueError('turns must be between 1 and 6')
     if case not in DIALOGUE_CASES:
         raise ValueError('Unknown synthetic case')
-    report = {'experiment': 'same_context_two_models_v1', 'current_teaching_context_version': 3,
+    report = {'experiment': 'same_context_qwen_output_formats_v1' if format_comparison else 'same_context_two_models_v1', 'current_teaching_context_version': 3,
         'mode': 'live' if live else 'offline_preparation', 'case': case,
-        'models': list(MODEL_COMPARISON_IDS), 'independent_checkpoints': True,
+        'models': list(dict.fromkeys(arm_models.values())), 'independent_checkpoints': True,
         'synthetic_data_only': True, 'project_state_isolated': True,
         'usage_ledger': 'normal_application_ledger', 'provider_call_count_kind': 'guarded_request_attempts',
         'provider_calls': 0, 'max_provider_calls': 2 * turns, 'model_catalog_requests': 0,
@@ -597,6 +602,9 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
             'Same low reasoning request and token cap do not equalize different model internals.',
             'Delivery checks and input equality do not certify semantic teaching quality.',
             'The prior six-turn user report is a historical baseline, not a matched arm.']}
+    if format_comparison:
+        report['changed_variable'] = 'required_json_schema_vs_plain_text'
+        report['limitations'].append('One pair cannot establish causality or general model quality; no automatic reruns.')
     def persist():
         if checkpoint: checkpoint(deepcopy(report))
     def digest(value):
@@ -616,7 +624,7 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
             report['model_catalog_requests'] = 1
             catalog = client.models.list()
             available = {item.id for item in catalog.data}
-            report['model_availability'] = {model: model in available for model in MODEL_COMPARISON_IDS}
+            report['model_availability'] = {model: model in available for model in arm_models.values()}
             if not all(report['model_availability'].values()):
                 report['status'] = 'blocked_model_unavailable'
                 persist(); return report
@@ -639,7 +647,7 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
         if kwargs['max_output_tokens'] != cap or len(kwargs['input']) > 9000:
             raise ValueError('Comparison request exceeded its fixed bounds')
         capture.update(input=json.loads(kwargs['input']), instructions=kwargs['instructions'],
-            response_schema=kwargs['text_format'].__name__, max_output_tokens=cap,
+            response_schema='PlainText' if capture['arm'] == 'plain_text' else kwargs['text_format'].__name__, max_output_tokens=cap,
             reasoning=kwargs['reasoning'], request_input_sha256=digest(kwargs['input']),
             instructions_sha256=digest(kwargs['instructions']))
         if time.monotonic() < deadline:
@@ -650,9 +658,19 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
         report['provider_calls'] += 1; persist()
         started = time.monotonic()
         try:
-            response = guarded_responses_parse(*args, **kwargs)
+            plain = format_comparison and capture['arm'] == 'plain_text'
+            if plain:
+                kwargs.pop('text_format')
+                response = guarded_responses_create(*args, **kwargs)
+            else:
+                response = guarded_responses_parse(*args, **kwargs)
             capture['usage'] = _response_usage(response)
             capture['response_completion'] = response_completion_metadata(response)
+            if plain:
+                # Only adapt the transport return shape; preserve original text
+                # in the report and use the same production delivery assessment.
+                return SimpleNamespace(status=getattr(response, 'status', None),
+                    output_parsed={'answer': getattr(response, 'output_text', '')})
             return response
         except Exception as exc:
             capture['failure'] = comparison_failure_metadata(exc)
@@ -663,8 +681,8 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
         with isolated_comparison_memory() as memory:
             for index, (context, state, question) in enumerate(snapshots):
                 pair = {'case': DIALOGUE_QUESTIONS[index][0], 'question': question,
-                    'call_order': list(MODEL_COMPARISON_IDS if index % 2 == 0 else reversed(MODEL_COMPARISON_IDS)),
-                    'arms': {}, 'human_scores': {model: None for model in MODEL_COMPARISON_IDS}}
+                    'call_order': list(arm_models if index % 2 == 0 else reversed(arm_models)),
+                    'arms': {}, 'human_scores': {arm: None for arm in arm_models}}
                 report['pairs'].append(pair)
                 if not live:
                     step = state['workflow']['active_step']
@@ -675,15 +693,16 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
                     view = teaching.teaching_provider_view(payload)
                     for model in pair['call_order']:
                         pair['arms'][model] = {'input': deepcopy(view), 'instructions': teaching.TEACHING_RULES,
-                            'response_schema': 'TeachingAnswer', 'max_output_tokens': cap, 'reasoning': {'effort': 'low'}}
+                            'response_schema': 'PlainText' if model == 'plain_text' else 'TeachingAnswer',
+                            'max_output_tokens': cap, 'reasoning': {'effort': 'low'}}
                     pair['same_request_context'] = True
                     persist(); continue
                 key = (context['workspace_id'], 'n1')
                 for model in pair['call_order']:
                     print(f'CHECKPOINT {index+1}/{turns}: {pair["case"]} — {model}', flush=True)
                     memory[key] = deepcopy(state)  # No other arm's text or memory is reused.
-                    capture = {}; pair['arms'][model] = capture
-                    arm_runtime = replace(runtime, model=model, client=client)
+                    capture = {'arm': model, 'model': arm_models[model]}; pair['arms'][model] = capture
+                    arm_runtime = replace(runtime, model=arm_models[model], client=client)
                     with patch.object(teaching, 'get_ai_runtime', return_value=arm_runtime), \
                          patch.object(teaching, 'guarded_responses_parse',
                             side_effect=lambda *a, **k: send(capture, *a, **k)):
@@ -698,8 +717,10 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
                         # are blockers, not reasoning scores. Never retry/fallback.
                         raise RuntimeError('An arm did not complete one provider attempt')
                 arms = list(pair['arms'].values())
-                pair['same_request_context'] = all(arms[0][key] == arms[1][key] for key in (
-                    'request_input_sha256', 'instructions_sha256', 'response_schema', 'max_output_tokens', 'reasoning'))
+                compared_keys = ['request_input_sha256', 'instructions_sha256', 'max_output_tokens', 'reasoning']
+                if not format_comparison:
+                    compared_keys.append('response_schema')
+                pair['same_request_context'] = all(arms[0][key] == arms[1][key] for key in compared_keys)
                 if not pair['same_request_context']:
                     raise ValueError('Matched request contexts diverged')
                 persist()
@@ -717,6 +738,7 @@ def main(argv=None):
     mode.add_argument('--live', action='store_true', help='Allow configured provider calls within the selected experiment cap.')
     mode.add_argument('--offline', action='store_true', help='Prepare paired requests without provider access.')
     parser.add_argument('--model-comparison', action='store_true', help='Same-context GPT-OSS/Qwen comparison; at most twelve guarded calls.')
+    parser.add_argument('--format-comparison', action='store_true', help='Qwen JSON schema versus plain text on one fixed checkpoint; at most two guarded calls.')
     parser.add_argument('--turns', type=int, default=6, choices=range(1,7), help='Model-comparison checkpoints; default six, at most twelve calls.')
     parser.add_argument('--paired-comparison', action='store_true', help='Isolated current versus simple comparison; no runtime mentor changes.')
     parser.add_argument('--start-pair', type=int, default=1, choices=range(1,10), help='Start at this fixed comparison pair; completed earlier pairs are not repeated.')
@@ -729,18 +751,19 @@ def main(argv=None):
     parser.add_argument('--output-dir', type=Path, default=Path('backend/benchmarks/results/teaching-probe'))
     args = parser.parse_args(argv)
     load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
-    if args.offline and not (args.paired_comparison or args.model_comparison):
-        parser.error("--offline requires --paired-comparison or --model-comparison")
-    if sum((args.paired_comparison, args.model_comparison, args.dialogue_suite)) > 1:
+    if args.offline and not (args.paired_comparison or args.model_comparison or args.format_comparison):
+        parser.error("--offline requires a comparison mode")
+    if sum((args.paired_comparison, args.model_comparison, args.format_comparison, args.dialogue_suite)) > 1:
         parser.error("Choose one comparison or dialogue suite")
     folder = args.output_dir / datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
     folder.mkdir(parents=True, exist_ok=False)
-    if args.model_comparison:
+    if args.model_comparison or args.format_comparison:
         if args.live:
             database.init_db()  # Retain the normal AI usage ledger; no isolated spending budget.
         path = folder / 'report.json'
         report = run_model_comparison(live=args.live, case=args.case, turns=args.turns, delay=args.delay,
-            checkpoint=lambda value: path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8'))
+            checkpoint=lambda value: path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8'),
+            format_comparison=args.format_comparison)
         print('REPORT:', path.resolve())
         print('STATUS:', report['status'], 'PROVIDER CALLS:', report['provider_calls'])
         print('No automatic winner; raw answers and teaching quality require human review.')
