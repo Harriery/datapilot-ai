@@ -144,3 +144,62 @@ freeze this implementation and evaluate actual model replies on the same scenari
 then previously unseen questions/data. Repeated semantic or preference failures
 should inform a model/scope decision, not another per-answer formatting exception.
 The final acceptance remains a novice completing a new project with the mentor.
+
+## Same-context model comparison
+
+The existing probe now supports `--model-comparison`. It freezes the current
+production teaching prompt and one-field answer contract. It compares
+`openai/gpt-oss-120b` with `qwen/qwen3.8-27b`; no application model setting, prompt,
+validator, workflow, or `.env` value is edited. Qwen is an evaluation candidate,
+not an assumed improvement or a new production default.
+
+As checked on 27 October 2026, Groq lists Qwen in its free-plan limit table and
+strict structured-output support. It is a preview model, whose availability can
+change. Sources: [models](https://console.groq.com/docs/models),
+[free-plan limits](https://console.groq.com/docs/rate-limits),
+[structured outputs](https://console.groq.com/docs/structured-outputs), and
+[Qwen inference options](https://console.groq.com/docs/model/qwen/qwen3.8-27b).
+Account access and remaining quota are not established by documentation alone.
+
+Six contexts are captured from the existing scripted receipt harness without
+provider calls or real project/database access. The capture placeholder is never
+sent as teaching history. Each arm starts from the exact same saved source state;
+answers from one arm never seed the other. These are independent checkpoints,
+not a six-turn learner conversation or proof that a novice progressed.
+
+Both arms use identical provider input, instructions, schema, low reasoning
+request and an output cap at most 1200 tokens. Actual input/instruction hashes and
+request options are compared in the report; call order alternates. Equal settings
+do not equalize the models' internals or establish a controlled study of every
+inference parameter. Their raw and displayed replies require human assessment.
+
+A free-only, allowlisted Groq runtime is required. One model-catalog metadata
+request checks availability before inference. SDK retries are disabled on a
+benchmark-only cloned client. The default is at most twelve guarded generation
+attempts, one per model/checkpoint, without automatic repair or fallback. The
+normal application usage ledger remains active. Catalog access does not prove
+free quota remains or override the account's billing configuration. Missing
+models, quota, schema and other provider failures stop the run, retaining partial
+results and safe diagnostic categories; they are not reasoning-quality failures.
+Content/preference rejections are retained so later checkpoints can be evaluated.
+Ctrl+C preserves completed progress; nothing automatically resumes/spends again.
+
+Prepare all requests with zero network/model calls:
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --offline --model-comparison
+```
+
+Collect the matched live comparison using the existing local Groq configuration:
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --model-comparison --case orders
+```
+
+`--turns 1` explicitly restricts a pilot to two generation attempts. The default
+six checkpoints include count/filter, mask, partial attempt, error, result and
+unknown definition. No automatic winner, semantic score or product-readiness
+claim is produced. Historical six-turn reports are useful background but are not
+substituted for a matched arm with known identical input. The implementation
+environment has no Groq key; controlled tests and offline preparation establish
+wiring only, not Qwen's access, response quality or superiority.

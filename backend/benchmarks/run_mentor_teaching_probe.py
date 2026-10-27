@@ -496,11 +496,182 @@ def run_paired_comparison(*, live=False, max_pairs=3, start_pair=1, delay=45, ch
     persist(); return report
 
 
+# Model comparison changes the model only, not the application's mentor contract.
+MODEL_COMPARISON_IDS = ('openai/gpt-oss-120b', 'qwen/qwen3.8-27b')
+
+
+def frozen_teaching_checkpoints(case):
+    """Capture six source states with no real model answers in either history.
+
+    Use the existing scripted receipt harness and production context preparation.
+    A local capture stub keeps the harness moving; its placeholder is NEVER put
+    into teaching_journal/provider history or graded as an actual mentor reply.
+    The resulting checkpoints are independent, not a novice conversation.
+    """
+    import sys
+    snapshots = []
+    actual_teacher = research.explain_pending_task
+    def capture(context, state, step, message, *, allow_provider, **kwargs):
+        if not allow_provider:
+            return actual_teacher(context, state, step, message, allow_provider=False)
+        snapshots.append((deepcopy(context), deepcopy(state), message))
+        return teaching.TeachingLesson(explanation='context-capture-only'), {
+            'provider_calls': 0, 'provider_contract_accepted': True}
+    with isolated_comparison_memory() as memory, \
+         patch.object(sys.modules[__name__], 'load_research_state',
+            side_effect=lambda workspace, notebook: deepcopy(memory.get((workspace, notebook)))), \
+         patch.object(research, 'explain_pending_task', side_effect=capture):
+        run_dialogue_suite(case, delay=0)
+    if len(snapshots) != len(DIALOGUE_QUESTIONS):
+        raise ValueError('The fixed teaching checkpoints could not be prepared')
+    return snapshots
+
+
+def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkpoint=None):
+    """Same teacher input/rules/schema/options, two fixed free-plan models.
+
+    No application configuration changes, generated code execution, provider
+    fallback or automatic winner. The normal usage ledger is retained. SDK
+    transport retries are disabled for this experiment's cloned client only.
+    """
+    import hashlib
+    from dataclasses import replace
+    if type(turns) is not int or not 1 <= turns <= len(DIALOGUE_QUESTIONS):
+        raise ValueError('turns must be between 1 and 6')
+    if case not in DIALOGUE_CASES:
+        raise ValueError('Unknown synthetic case')
+    report = {'experiment': 'same_context_two_models_v1', 'current_teaching_context_version': 3,
+        'mode': 'live' if live else 'offline_preparation', 'case': case,
+        'models': list(MODEL_COMPARISON_IDS), 'independent_checkpoints': True,
+        'synthetic_data_only': True, 'project_state_isolated': True,
+        'usage_ledger': 'normal_application_ledger', 'provider_call_count_kind': 'guarded_request_attempts',
+        'provider_calls': 0, 'max_provider_calls': 2 * turns, 'model_catalog_requests': 0,
+        'sdk_retries': 0, 'status': 'running', 'pairs': [], 'comparison_winner': None,
+        'human_review_required': True, 'novice_usability_accepted': False, 'project_completion_proven': False,
+        'limitations': ['Independent checkpoints are not a novice dialogue or project-completion evidence.',
+            'Same low reasoning request and token cap do not equalize different model internals.',
+            'Delivery checks and input equality do not certify semantic teaching quality.',
+            'The prior six-turn user report is a historical baseline, not a matched arm.']}
+    def persist():
+        if checkpoint: checkpoint(deepcopy(report))
+    def digest(value):
+        return hashlib.sha256(value.encode('utf-8')).hexdigest()
+    snapshots = frozen_teaching_checkpoints(case)[:turns]
+    if live:
+        try:
+            policy = get_ai_billing_policy()
+            if not policy['free_only'] or 'groq' not in policy['allowed_free_providers']:
+                raise ValueError('Comparison requires an allowlisted free-only Groq runtime')
+            runtime = get_ai_runtime('mentor')
+            if runtime.provider != 'groq':
+                raise ValueError('Comparison requires Groq')
+            # Disable hidden SDK retries without altering the application's client.
+            client = runtime.client.with_options(max_retries=0)
+            report['configured_model_unchanged'] = runtime.model
+            report['model_catalog_requests'] = 1
+            catalog = client.models.list()
+            available = {item.id for item in catalog.data}
+            report['model_availability'] = {model: model in available for model in MODEL_COMPARISON_IDS}
+            if not all(report['model_availability'].values()):
+                report['status'] = 'blocked_model_unavailable'
+                persist(); return report
+        except Exception as exc:
+            report.update(status='blocked_configuration', failure=comparison_failure_metadata(exc))
+            persist(); return report
+    limit = get_ai_usage_limits()['max_output_tokens_per_request']
+    cap = min(1200, limit) if limit > 0 else 1200
+    report['shared_output_token_limit'] = cap
+    deadline = 0.0
+    def send(capture, *args, **kwargs):
+        nonlocal deadline
+        # Both models get the same explicit inference options. This override is
+        # confined to the benchmark transport; production prompts remain frozen.
+        kwargs['reasoning'] = {'effort': 'low'}
+        if report['provider_calls'] >= report['max_provider_calls']:
+            raise ValueError('Model-comparison request cap reached')
+        if kwargs['model'] not in MODEL_COMPARISON_IDS or kwargs['provider'] != 'groq':
+            raise ValueError('Unexpected comparison model/provider')
+        if kwargs['max_output_tokens'] != cap or len(kwargs['input']) > 9000:
+            raise ValueError('Comparison request exceeded its fixed bounds')
+        capture.update(input=json.loads(kwargs['input']), instructions=kwargs['instructions'],
+            response_schema=kwargs['text_format'].__name__, max_output_tokens=cap,
+            reasoning=kwargs['reasoning'], request_input_sha256=digest(kwargs['input']),
+            instructions_sha256=digest(kwargs['instructions']))
+        if time.monotonic() < deadline:
+            print(f'Provider pacing: {deadline-time.monotonic():.0f}s', flush=True)
+        while time.monotonic() < deadline:
+            time.sleep(min(.5, max(0, deadline-time.monotonic())))
+        deadline = time.monotonic() + max(0, delay)
+        report['provider_calls'] += 1; persist()
+        started = time.monotonic()
+        try:
+            response = guarded_responses_parse(*args, **kwargs)
+            capture['usage'] = _response_usage(response)
+            return response
+        except Exception as exc:
+            capture['failure'] = comparison_failure_metadata(exc)
+            raise
+        finally:
+            capture['elapsed_seconds'] = round(time.monotonic()-started, 3)
+    try:
+        with isolated_comparison_memory() as memory:
+            for index, (context, state, question) in enumerate(snapshots):
+                pair = {'case': DIALOGUE_QUESTIONS[index][0], 'question': question,
+                    'call_order': list(MODEL_COMPARISON_IDS if index % 2 == 0 else reversed(MODEL_COMPARISON_IDS)),
+                    'arms': {}, 'human_scores': {model: None for model in MODEL_COMPARISON_IDS}}
+                report['pairs'].append(pair)
+                if not live:
+                    step = state['workflow']['active_step']
+                    payload = teaching.build_teaching_request(context, deepcopy(state), step, question)
+                    payload.update(show_code=False, aggregate_summaries_shared=True,
+                        investigation_context=investigation_view(context, deepcopy(state), include_results=True))
+                    teaching.bound_teaching_context(payload)
+                    view = teaching.teaching_provider_view(payload)
+                    for model in pair['call_order']:
+                        pair['arms'][model] = {'input': deepcopy(view), 'instructions': teaching.TEACHING_RULES,
+                            'response_schema': 'TeachingAnswer', 'max_output_tokens': cap, 'reasoning': {'effort': 'low'}}
+                    pair['same_request_context'] = True
+                    persist(); continue
+                key = (context['workspace_id'], 'n1')
+                for model in pair['call_order']:
+                    print(f'CHECKPOINT {index+1}/{turns}: {pair["case"]} — {model}', flush=True)
+                    memory[key] = deepcopy(state)  # No other arm's text or memory is reused.
+                    capture = {}; pair['arms'][model] = capture
+                    arm_runtime = replace(runtime, model=model, client=client)
+                    with patch.object(teaching, 'get_ai_runtime', return_value=arm_runtime), \
+                         patch.object(teaching, 'guarded_responses_parse',
+                            side_effect=lambda *a, **k: send(capture, *a, **k)):
+                        capture['displayed_reply'] = generate_research_reply(deepcopy(context), question, [], max_attempts=1)
+                    after = memory[key]; trace = after['last_validation']
+                    capture.update(provider_candidate=(after.get('last_teaching_attempt') or {}).get('provider_candidate'),
+                        diagnostics=trace,
+                        pending_task={k: after['workflow']['active_step'].get(k) for k in ('id', 'kind', 'status')})
+                    persist()
+                    if trace.get('provider_calls') != 1 or trace.get('reason') in {'provider_or_schema_error', 'incomplete_response'}:
+                        # Quota, schema, configuration and model-access failures
+                        # are blockers, not reasoning scores. Never retry/fallback.
+                        raise RuntimeError('An arm did not complete one provider attempt')
+                arms = list(pair['arms'].values())
+                pair['same_request_context'] = all(arms[0][key] == arms[1][key] for key in (
+                    'request_input_sha256', 'instructions_sha256', 'response_schema', 'max_output_tokens', 'reasoning'))
+                if not pair['same_request_context']:
+                    raise ValueError('Matched request contexts diverged')
+                persist()
+        report['status'] = 'completed_requires_human_review' if live else 'prepared_not_live_tested'
+    except KeyboardInterrupt:
+        report['status'] = 'interrupted'; persist(); raise
+    except Exception as exc:
+        report.update(status='blocked', failure=comparison_failure_metadata(exc))
+    persist(); return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--live', action='store_true', help='Allow configured provider calls within the selected experiment cap.')
     mode.add_argument('--offline', action='store_true', help='Prepare paired requests without provider access.')
+    parser.add_argument('--model-comparison', action='store_true', help='Same-context GPT-OSS/Qwen comparison; at most twelve guarded calls.')
+    parser.add_argument('--turns', type=int, default=6, choices=range(1,7), help='Model-comparison checkpoints; default six, at most twelve calls.')
     parser.add_argument('--paired-comparison', action='store_true', help='Isolated current versus simple comparison; no runtime mentor changes.')
     parser.add_argument('--start-pair', type=int, default=1, choices=range(1,10), help='Start at this fixed comparison pair; completed earlier pairs are not repeated.')
     parser.add_argument('--pairs', type=int, default=3, choices=range(1,10), help='Comparison pairs, default 3 (at most 6 provider calls).')
@@ -512,12 +683,22 @@ def main(argv=None):
     parser.add_argument('--output-dir', type=Path, default=Path('backend/benchmarks/results/teaching-probe'))
     args = parser.parse_args(argv)
     load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
-    if args.offline and not args.paired_comparison:
-        parser.error("--offline requires --paired-comparison")
-    if args.paired_comparison and args.dialogue_suite:
-        parser.error("Choose paired comparison or dialogue suite")
+    if args.offline and not (args.paired_comparison or args.model_comparison):
+        parser.error("--offline requires --paired-comparison or --model-comparison")
+    if sum((args.paired_comparison, args.model_comparison, args.dialogue_suite)) > 1:
+        parser.error("Choose one comparison or dialogue suite")
     folder = args.output_dir / datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
     folder.mkdir(parents=True, exist_ok=False)
+    if args.model_comparison:
+        if args.live:
+            database.init_db()  # Retain the normal AI usage ledger; no isolated spending budget.
+        path = folder / 'report.json'
+        report = run_model_comparison(live=args.live, case=args.case, turns=args.turns, delay=args.delay,
+            checkpoint=lambda value: path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8'))
+        print('REPORT:', path.resolve())
+        print('STATUS:', report['status'], 'PROVIDER CALLS:', report['provider_calls'])
+        print('No automatic winner; raw answers and teaching quality require human review.')
+        return 0 if report['status'] in {'prepared_not_live_tested', 'completed_requires_human_review'} else 1
     if args.paired_comparison:
         path = folder / 'report.json'
         report = run_paired_comparison(live=args.live, max_pairs=args.pairs, start_pair=args.start_pair, delay=args.delay,
