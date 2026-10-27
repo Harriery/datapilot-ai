@@ -42,7 +42,9 @@ this existing local code-help path remains available. Model prose is never run.
 Retained:
 
 - Existing data-sharing/organization policies, bounded input/output and free-only
-  usage guards. One provider attempt; no classifier or automatic repair cascade.
+  usage guards. Normally one provider attempt; an unrequested-code rejection can
+  use one bounded same-model wording revision within the turn's two-attempt cap.
+  There is no classifier or unbounded repair cascade.
 - Current successful observations separated from partial/failed attempts.
 - Task/scope identity, completion receipts, unavailable-definition memory and
   typed summaries already parsed by the backend.
@@ -328,3 +330,33 @@ live teaching improvement and independent novice completion remain unproven.
 The input and prompt hashes differ from earlier collected reports after this
 projection change; those reports remain historical evidence, not matched results
 for the updated context.
+
+## Bounded revision for an unrequested-code answer
+
+The application chat's existing `max_attempts` budget now also bounds pending-task
+teaching. A normal answer still uses one guarded generation attempt. Only
+`code_not_requested` can use the remaining attempt (at most one): the same model
+receives the already privacy-projected context plus its unverified draft, with a
+request to explain the same concept in prose. No sentence stripping, code masking,
+dataset-specific answer replacement or relaxation of the code preference gate is
+performed. The revision is checked by the same schema and delivery assessment.
+The direct teaching function defaults to one attempt unless its caller supplies
+the two-attempt budget. Model-comparison and teaching probes explicitly remain in
+single-attempt mode, so their advertised request caps and historical measurements
+are not silently changed.
+
+Both attempts use the normal AI usage guard/ledger and the same model, output cap,
+privacy projection and request pacer. The draft is not added to provider history
+as an accepted lesson. A revision whose input would exceed the existing 9,000
+character bound is skipped; original context is not deleted to make it fit.
+Quota, connection, incomplete-output, schema and other rejection failures never
+trigger another teaching attempt. This application-level budget does not change
+the configured SDK's transport retry behavior.
+
+Diagnostics retain attempt outcomes, actual guarded-attempt count and whether a
+style revision was used. The original rejected candidate stays local for review;
+only a delivered answer enters the teaching journal. No workflow step, evidence,
+data or completion authority is delegated to either answer. A style-compliant
+revision can still be factually wrong, incomplete or unhelpful: factual and semantic
+verification remain false. Controlled revision/ledger/privacy tests are not live
+model teaching or novice acceptance evidence.

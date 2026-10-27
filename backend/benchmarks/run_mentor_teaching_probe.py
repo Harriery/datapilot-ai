@@ -48,7 +48,7 @@ def run_probe(*, public=False, shared=False):
         'Tam anlamadım. Ben yalnız eksikleri saydım, satır seçmedim. Daha basit anlat; kodu verme.',
         'Kodu göster.',
     )):
-        reply = generate_research_reply(context, message, history, allow_provider=index < 2)
+        reply = generate_research_reply(context, message, history, allow_provider=index < 2, max_attempts=1)
         after = load_research_state(context['workspace_id'], 'n1')
         trace = after['last_validation']
         turns.append({'message': message, 'reply': reply, 'diagnostics': trace,

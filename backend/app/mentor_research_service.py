@@ -808,7 +808,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
         return render_evidence_refresh(refresh, state['response_language'])
     if active is not None and active['kind'] == 'inspect':
         lesson, trace = explain_pending_task(context, state, active, message,
-            allow_provider=allow_provider, request_pacer=request_pacer)
+            allow_provider=allow_provider, request_pacer=request_pacer, max_attempts=max_attempts)
         code_shown = explicit_code_requested(message) and active['status'] != 'needs_revalidation'
         model_code = lesson is not None and has_code(lesson.explanation)
         if lesson is not None:

@@ -6,7 +6,7 @@ schema or presentation acceptance into a learning-quality score.
 from copy import deepcopy
 import json
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -118,7 +118,7 @@ def test_unrequested_code_is_a_preference_failure_not_a_numeric_or_provider_fail
         visible = generate_research_reply(context, 'Kodu verme.', [])
     after = load_research_state(context['workspace_id'], 'n1')
     assert 'Kod istemediğin' in visible and text not in visible
-    assert model.call_count == 1 and after['last_validation']['reason'] == 'code_not_requested'
+    assert model.call_count == 2 and after['last_validation']['reason'] == 'code_not_requested'
     assert not after['last_validation']['content_accepted']
     assert after['proposals'] == state['proposals']
     assert not after.get('teaching_journal')
@@ -200,3 +200,127 @@ def test_provider_schema_cannot_propose_completion_task_ids_evidence_ids_or_acti
     for key in ('task_id', 'evidence_ids', 'next_action', 'complete'):
         with pytest.raises(ValidationError):
             TeachingAnswer.model_validate({'answer': 'Açıklama.', key: True})
+
+
+def test_no_code_revision_delivers_only_rechecked_answer_and_retains_first_rejection():
+    context, state, step = setup_task()
+    before = deepcopy(state)
+    rejected = lesson(explanation='İşaretleri df[mask] ile satır seçmekte kullan.')
+    revised = lesson(explanation='Her satırın işaretini bir seçim listesi olarak tabloya uygula; doğru işaretli satırlar alınır.')
+    responses = [SimpleNamespace(status='completed', output_parsed=x) for x in (rejected, revised)]
+    with runtime(), patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse',
+        side_effect=responses) as model:
+        visible = generate_research_reply(context, 'Kodu vermeden açıkla.', [])
+    after = load_research_state(context['workspace_id'], 'n1')
+    trace = after['last_validation']
+    assert visible == revised.answer and model.call_count == trace['provider_calls'] == 2
+    assert trace['style_rewrite_used']
+    assert trace['attempt_outcomes'] == [{'attempt': 1, 'reason': 'code_not_requested'}, {'attempt': 2, 'reason': None}]
+    assert after['last_rejected_teaching']['candidate'] == rejected.model_dump()
+    assert after['last_teaching_attempt']['provider_candidate'] == revised.model_dump()
+    assert len(after['teaching_journal']) == 1 and after['teaching_journal'][0]['explanation'] == revised.answer
+    first,second = [call.kwargs for call in model.call_args_list]
+    a,b = json.loads(first['input']),json.loads(second['input'])
+    revision = b.pop('answer_revision')
+    assert a == b and revision['previous_answer'] == rejected.answer
+    assert first['model'] == second['model'] and first['max_output_tokens'] == second['max_output_tokens']
+    assert after['workflow']['active_step']['id'] == before['workflow']['active_step']['id']
+    assert after['workflow']['active_step']['status'] == 'awaiting_execution'
+    assert 'completion_evidence_id' not in after['workflow']['active_step']
+    assert after['workflow']['step_history'] == before['workflow']['step_history']
+    assert after['observations'] == before['observations']
+    assert after['proposals'] == before['proposals']
+    assert not trace['factual_claims_verified'] and not trace['semantic_quality_verified']
+
+
+@pytest.mark.parametrize('second_kind', ['code', 'incomplete', 'schema', 'provider'])
+def test_failed_revision_never_retries_again_or_records_a_delivered_lesson(second_kind):
+    context, state, step = setup_task()
+    before = deepcopy(step)
+    rejected = SimpleNamespace(status='completed', output_parsed=lesson(explanation='df[mask] ile seç.'))
+    second = {'code': rejected, 'incomplete': SimpleNamespace(status='incomplete'),
+        'schema': SimpleNamespace(status='completed', output_parsed={'answer': '', 'next_action': 'execute'}),
+        'provider': RuntimeError('private-provider-body')}[second_kind]
+    with runtime(), patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse',
+        side_effect=[rejected, second]) as model:
+        reply, trace = explain_pending_task(context, state, step, 'Kod verme.', allow_provider=True, max_attempts=2)
+    assert reply is None and model.call_count == trace['provider_calls'] == 2
+    assert step == before and not state.get('teaching_journal')
+    assert 'private-provider-body' not in json.dumps(state) + json.dumps(trace)
+
+
+def test_revision_is_not_requested_for_valid_answer_or_explicit_code_request():
+    for message, candidate in [('Basit açıkla.', lesson()), ('Kodu göster.', lesson(explanation='df[mask]'))]:
+        context, state, step = setup_task()
+        with runtime(), provider(candidate) as model:
+            reply, trace = explain_pending_task(context, state, step, message, allow_provider=True, max_attempts=2)
+        assert reply and model.call_count == trace['provider_calls'] == 1
+        assert not trace['style_rewrite_used']
+
+
+def test_single_attempt_mode_preserves_benchmark_request_cap():
+    context, state, step = setup_task()
+    with runtime(), provider(lesson(explanation='df[mask]')) as model:
+        reply, trace = explain_pending_task(context, state, step, 'Kod verme.', allow_provider=True, max_attempts=1)
+    assert reply is None and model.call_count == trace['provider_calls'] == 1
+    assert trace['reason'] == 'code_not_requested' and not trace['style_rewrite_used']
+
+
+def test_revision_does_not_turn_wrong_prose_into_verified_facts():
+    context, state, step = setup_task()
+    with runtime(), patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse',
+        side_effect=[SimpleNamespace(status='completed', output_parsed=lesson(explanation='df[mask]')),
+            SimpleNamespace(status='completed', output_parsed=lesson(explanation='Eksik kayıt sayısı 999999.'))]):
+        reply, trace = explain_pending_task(context, state, step, 'Kod verme.', allow_provider=True, max_attempts=2)
+    assert reply and not trace['factual_claims_verified'] and not trace['semantic_quality_verified']
+    assert step['status'] == 'awaiting_execution'
+
+
+@pytest.mark.parametrize('daily_limit,expected_requests', [(1, 1), (2, 2)])
+def test_revision_uses_normal_usage_ledger_and_respects_remaining_quota(monkeypatch, daily_limit, expected_requests):
+    monkeypatch.setenv('AI_FREE_ONLY', 'true')
+    monkeypatch.setenv('AI_FREE_PROVIDER_ALLOWLIST', 'groq')
+    monkeypatch.setenv('AI_DAILY_REQUEST_LIMIT', str(daily_limit))
+    monkeypatch.setenv('AI_MONTHLY_REQUEST_LIMIT', '100')
+    context, state, step = setup_task()
+    parse = Mock(side_effect=[
+        SimpleNamespace(status='completed', output_parsed=lesson(explanation='df[mask]')),
+        SimpleNamespace(status='completed', output_parsed=lesson())])
+    client = SimpleNamespace(responses=SimpleNamespace(parse=parse))
+    with patch('backend.app.mentor_adaptive_teaching_service.get_ai_runtime',
+        return_value=SimpleNamespace(provider='groq', model='controlled', client=client)):
+        reply, trace = explain_pending_task(context, state, step, 'Kod verme.', allow_provider=True, max_attempts=2)
+    assert parse.call_count == database.get_ai_usage_counts()['daily_requests'] == expected_requests
+    assert bool(reply) == (daily_limit == 2)
+    assert step['status'] == 'awaiting_execution'
+
+
+def test_no_code_revision_keeps_generic_privacy_projection_and_paces_each_request():
+    context, state, step = setup_task()
+    context['mentor_setup']['notebook_teaching_context'] = 'generic'
+    pacer = Mock()
+    with runtime(), patch('backend.app.mentor_adaptive_teaching_service.guarded_responses_parse',
+        side_effect=[SimpleNamespace(status='completed', output_parsed=lesson(explanation='df[mask]')),
+            SimpleNamespace(status='completed', output_parsed=lesson(explanation='FIELD_A için işaretleri satır filtresi olarak uygula.'))]) as model:
+        reply, trace = explain_pending_task(context, state, step, 'private-question', allow_provider=True,
+            max_attempts=2, request_pacer=pacer)
+    assert reply and pacer.call_count == model.call_count == 2
+    for call in model.call_args_list:
+        wire = call.kwargs['input']
+        assert 'private-question' not in wire and 'delivery_days' not in wire and 'shipment_status' not in wire
+
+
+def test_revision_is_skipped_when_its_added_draft_exceeds_existing_context_bound():
+    context, state, step = setup_task()
+    from backend.app import mentor_adaptive_teaching_service as teaching
+    original = teaching.teaching_provider_view
+    def large_but_valid(payload):
+        view = original(payload)
+        view['synthetic_padding'] = 'x' * (8900 - len(json.dumps(view, ensure_ascii=False)))
+        return view
+    candidate = lesson(explanation='df[mask] ' + 'x' * 2300)
+    with runtime(), patch.object(teaching, 'teaching_provider_view', side_effect=large_but_valid), provider(candidate) as model:
+        reply, trace = explain_pending_task(context, state, step, 'Kod verme.', allow_provider=True, max_attempts=2)
+    assert reply is None and model.call_count == trace['provider_calls'] == 1
+    assert trace['style_rewrite_blocker'] == 'context_budget'
+    assert not state.get('teaching_journal')
