@@ -263,6 +263,49 @@ def verified_observations(state):
     return [by_id[key] for key in state.get('current_evidence_ids', []) if key in by_id]
 
 
+def observation_population(item, observations):
+    """Separate the loaded frame from the selected population and denominator.
+
+    Cross-observation arithmetic requires the same recorded version, frame kind
+    and input size. Only a whole-frame missing count establishes the size of a
+    simple missing/present selection; previews or proportions never do so.
+    Conflicting counts leave the size unknown. No model inference is involved.
+    """
+    rows = item.get('input_rows')
+    rows = rows if type(rows) is int and rows >= 0 else None
+    contract = item.get('analysis_contract') or {}
+    predicate = contract.get('row_predicate') or {}
+    selected, basis = None, 'unknown'
+    if predicate.get('op') == 'all_current_df':
+        selected, basis = rows, 'recorded_dataframe_size' if rows is not None else 'unknown'
+    elif (rows is not None and predicate.get('op') in {'missing', 'present'}
+            and item.get('input_data_version') and item.get('dataset_kind')):
+        counts = set()
+        for other in observations:
+            check = other.get('analysis_contract') or {}
+            if (other.get('success') and other.get('version_verified') and not other.get('stale_scope')
+                    and check.get('supported') is True
+                    and other.get('input_data_version') == item['input_data_version']
+                    and other.get('dataset_kind') == item['dataset_kind']
+                    and type(other.get('input_rows')) is int and other['input_rows'] == rows
+                    and check.get('operation') == 'missing_count'
+                    and check.get('row_predicate') == {'op': 'all_current_df'}
+                    and check.get('measured_columns') == [predicate.get('column')]
+                    and type(check.get('result')) is int and 0 <= check['result'] <= rows):
+                counts.add(check['result'])
+        if len(counts) == 1:
+            missing = counts.pop()
+            selected = missing if predicate['op'] == 'missing' else rows - missing
+            basis = 'matching_recorded_missing_count' if predicate['op'] == 'missing' else 'complement_of_recorded_missing_count'
+    normalized = contract.get('operation') == 'distribution' and (contract.get('options') or {}).get('normalize') is True
+    denominator = selected if normalized and (contract.get('options') or {}).get('dropna') is False else None
+    return {'dataframe_rows': rows, 'selected_rows': selected, 'selected_rows_basis': basis,
+        'proportion_denominator_rows': denominator,
+        'proportion_denominator': ('selected_rows_including_missing_categories' if
+            (contract.get('options') or {}).get('dropna') is False else 'selected_rows_with_nonmissing_measured_values')
+            if normalized else None}
+
+
 def investigation_view(context, state, *, include_results=False):
     """One bounded context for planning and pending-task conversation.
 
@@ -275,7 +318,8 @@ def investigation_view(context, state, *, include_results=False):
     notebook = (context.get('artifacts') or {}).get('selected_notebook') or {}
     setup = context.get('mentor_setup') or {}
     evidence = []
-    for item in verified_observations(state)[:8]:
+    observations = verified_observations(state)
+    for item in observations[:8]:
         contract = item['analysis_contract']
         entry = {'id': item['id'], 'contract': {k: deepcopy(contract.get(k)) for k in
             ('operation', 'row_predicate', 'measured_columns', 'options', 'measurement_transform')},
@@ -283,6 +327,7 @@ def investigation_view(context, state, *, include_results=False):
             'dataset_kind': item.get('dataset_kind')}
         if include_results:
             entry['input_rows'] = item.get('input_rows')
+            entry['population'] = observation_population(item, observations)
             # Do not send previews or unbounded Series through this common view.
             if contract.get('operation') == 'missing_count':
                 entry['result'] = contract.get('result')

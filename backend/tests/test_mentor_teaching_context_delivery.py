@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from backend.app import mentor_adaptive_teaching_service as teaching
-from backend.app.mentor_investigation_service import task_key
+from backend.app.mentor_investigation_service import task_key, verified_observations, observation_population
 from backend.app.mentor_research_service import generate_research_reply
 from backend.benchmarks.run_mentor_teaching_probe import (
     comparison_snapshot, isolated_comparison_memory,
@@ -52,7 +52,7 @@ def test_failed_expression_is_available_for_learning_but_never_completes_task(ca
     serialized = json.dumps(view)
     for key in ('row_predicate', 'measured_columns', 'task_contract', 'analysis_contract'):
         assert key not in serialized
-    assert view['pending_step']['purpose'] == 'compare proportions'
+    assert view['pending_step']['purpose'] == 'describe category proportions'
     assert len(view['investigation_context']['verified_checks']) == 1
     with runtime(), patch.object(teaching, 'guarded_responses_parse',
         return_value=SimpleNamespace(output_parsed=answer(step,
@@ -98,7 +98,7 @@ def test_summary_context_is_typed_scoped_and_has_no_model_copying_protocol(case)
     view = teaching.teaching_provider_view(payload)
     checks = view['investigation_context']['verified_checks']
     assert checks[0]['proportions'] and checks[0]['summary_complete']
-    assert checks[0]['input_rows'] == 1000 and not checks[0]['full_source_verified']
+    assert checks[0]['population']['dataframe_rows'] == 1000 and not checks[0]['full_source_verified']
     assert 'eksik' in checks[0]['selection']
     assert all('id' not in x and 'marker' not in x for x in checks)
     assert 'result_facts' not in view and 'task_id' not in view
@@ -146,3 +146,94 @@ def test_numeric_conversation_reaches_route_without_becoming_a_fact_or_completin
     assert after['last_validation']['model_factual_prose_published']
     assert not after['last_validation']['factual_claims_verified']
     assert not after['last_validation']['semantic_quality_verified']
+
+
+@pytest.mark.parametrize('case,selected_rows', [('orders', 250), ('sensors', 400), ('service', 242)])
+def test_population_distinguishes_frame_selected_group_and_fraction_denominator(case, selected_rows):
+    _, _, _, payload = request(case)
+    checks = teaching.teaching_provider_view(payload)['investigation_context']['verified_checks']
+    distribution, count = checks
+    assert distribution['population'] == {
+        'dataframe_rows': 1000, 'selected_rows': selected_rows,
+        'selected_rows_basis': 'matching_recorded_missing_count',
+        'proportion_denominator_rows': selected_rows,
+        'proportion_denominator': 'selected_rows_including_missing_categories'}
+    assert 'input_rows' not in distribution
+    assert distribution['purpose'] == 'describe category proportions'
+    assert count['result'] == selected_rows and count['population']['selected_rows'] == 1000
+    assert count['population']['proportion_denominator_rows'] is None
+
+
+@pytest.mark.parametrize('change', ['version', 'kind', 'rows', 'unknown_version', 'unknown_rows',
+    'stale', 'failed', 'unsupported', 'wrong_column', 'filtered_count', 'conflict'])
+def test_population_does_not_join_incompatible_or_unverified_counts(change):
+    _, state, _, _ = request()
+    observations = deepcopy(verified_observations(state))
+    distribution, count = observations
+    if change == 'version': count['input_data_version'] = 'different'
+    elif change == 'kind': count['dataset_kind'] = 'processed'
+    elif change == 'rows': count['input_rows'] = 999
+    elif change == 'unknown_version': distribution['input_data_version'] = None
+    elif change == 'unknown_rows': distribution['input_rows'] = None
+    elif change == 'stale': count['stale_scope'] = True
+    elif change == 'failed': count['success'] = False
+    elif change == 'unsupported': count['analysis_contract']['supported'] = False
+    elif change == 'wrong_column': count['analysis_contract']['measured_columns'] = ['another_field']
+    elif change == 'filtered_count': count['analysis_contract']['row_predicate'] = {'op': 'present', 'column': 'another_field'}
+    elif change == 'conflict':
+        other = deepcopy(count); other['analysis_contract']['result'] = 300; observations.append(other)
+    population = observation_population(distribution, observations)
+    assert population['selected_rows'] is None
+    assert population['selected_rows_basis'] == 'unknown'
+    assert population['proportion_denominator_rows'] is None
+
+
+def test_population_complement_and_zero_are_exact_but_excluded_nulls_have_unknown_denominator():
+    _, state, _, _ = request()
+    observations = deepcopy(verified_observations(state))
+    distribution, count = observations
+    distribution['analysis_contract']['row_predicate']['op'] = 'present'
+    population = observation_population(distribution, observations)
+    assert population['selected_rows'] == population['proportion_denominator_rows'] == 750
+    count['analysis_contract']['result'] = 1000
+    assert observation_population(distribution, observations)['selected_rows'] == 0
+    count['analysis_contract']['result'] = 250
+    distribution['analysis_contract']['options']['dropna'] = True
+    population = observation_population(distribution, observations)
+    assert population['selected_rows'] == 750 and population['proportion_denominator_rows'] is None
+
+
+def test_history_survives_task_transition_without_becoming_execution_evidence():
+    context, state, step, _ = request()
+    original = deepcopy(step)
+    state['teaching_journal'] = [{'task_key': 'previous-completed-task',
+        'scope_key': teaching.teaching_scope_key(context, state),
+        'mode': 'user_shared_question_code_and_summaries', 'contract_version': 3,
+        'question': 'Saymakla seçmek farklı mı?', 'explanation': 'Sayma bir sayı üretir.'}]
+    with runtime(), patch.object(teaching, 'guarded_responses_parse',
+        return_value=SimpleNamespace(output_parsed=answer(), status='completed')) as model:
+        reply, trace = teaching.explain_pending_task(context, state, step, 'Peki sonra?', allow_provider=True)
+    assert reply
+    history = json.loads(model.call_args.kwargs['input'])['previous_explanations']
+    assert history == [{'question': 'Saymakla seçmek farklı mı?', 'explanation': 'Sayma bir sayı üretir.'}]
+    assert step == original and not trace['factual_claims_verified']
+
+
+@pytest.mark.parametrize('boundary', ['workspace', 'notebook', 'version', 'kind', 'focus', 'consent'])
+def test_history_does_not_cross_scope_or_sharing_boundaries(boundary):
+    context, state, step, _ = request()
+    state['teaching_journal'] = [{'task_key': task_key(step),
+        'scope_key': teaching.teaching_scope_key(context, state),
+        'mode': 'user_shared_question_code_and_summaries', 'contract_version': 3,
+        'question': 'old-question', 'explanation': 'old-private-history'}]
+    notebook = context['artifacts']['selected_notebook']
+    if boundary == 'workspace': context['workspace_id'] = 'another-workspace'
+    elif boundary == 'notebook': notebook['notebook_id'] = 'another-notebook'
+    elif boundary == 'version': notebook['current_input_version'] = 'another-version'
+    elif boundary == 'kind': notebook['dataset_kind'] = 'processed'
+    elif boundary == 'focus': state['focus_column'] = 'another-field'
+    elif boundary == 'consent': context['mentor_setup']['notebook_teaching_context'] = 'question_and_code'
+    with runtime(), patch.object(teaching, 'guarded_responses_parse',
+        return_value=SimpleNamespace(output_parsed=answer(), status='completed')) as model:
+        teaching.explain_pending_task(context, state, step, 'Şimdi?', allow_provider=True)
+    assert 'old-private-history' not in model.call_args.kwargs['input']

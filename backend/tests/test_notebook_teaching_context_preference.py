@@ -85,7 +85,7 @@ def test_explicit_personal_choice_preserves_real_question_current_expression_and
     assert payload['execution_surface'] == 'python_notebook'
     assert payload['latest_verified_expression'] == "df['delivery_days'].isna().sum()"
     assert payload['completed_operations'][0]['purpose'] == 'count missing values'
-    assert payload['pending_step']['purpose'] == 'compare proportions'
+    assert payload['pending_step']['purpose'] == 'describe category proportions'
     assert 'task_contract' not in payload
     assert '250' not in model.call_args.kwargs['input']  # no measured output
     after = load_research_state(context['workspace_id'], 'n1')

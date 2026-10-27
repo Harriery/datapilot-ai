@@ -57,7 +57,7 @@ def test_current_question_work_scope_and_history_reach_one_answer_only_call():
     assert model.call_args.kwargs['text_format'] is TeachingAnswer
     assert payload['learner_question'] == 'Önce neyi seçmeliyim? Kodu verme.'
     assert payload['completed_operations'][0]['purpose'] == 'count missing values'
-    assert payload['pending_step']['purpose'] == 'compare proportions'
+    assert payload['pending_step']['purpose'] == 'describe category proportions'
     assert payload['pending_step']['columns'] == ['shipment_status']
     assert payload['response_preferences'] == {'show_code': False}
     assert 'task_id' not in payload and 'result_facts' not in payload

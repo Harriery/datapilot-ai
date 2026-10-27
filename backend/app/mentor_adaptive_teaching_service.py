@@ -5,6 +5,7 @@ semantic teaching quality; that requires live-model and novice acceptance.
 """
 import ast
 import builtins
+import hashlib
 from copy import deepcopy
 import io
 import json
@@ -43,11 +44,18 @@ without executable expressions or code blocks. When true, a short code suggestio
 may help, but never claim it has run or is a verified operation.
 
 Use the project goal, recorded work, latest attempt and pending step together.
+The pending analysis is background, not an instruction to repeat the whole task
+when the learner asks about one concept or one failed attempt. Previous
+explanations are conversation history, not verified observations.
 A partial/failed attempt can be explained but is not completion evidence.
 A local_parser diagnostic concerns the shown sanitized source; a recorded error
 type alone does not reveal the cause. Acknowledge unavailable details.
 Use recorded results with their row selection, columns and sample scope. Explain
 proportions versus counts correctly. Do not invent measurements, fields or actions.
+A distribution describes one selected group; a comparison requires another
+group's observations. Population dataframe_rows is the loaded frame size;
+selected_rows is the measured group size. Unknown sizes stay unknown. Proportions
+use their stated denominator, never automatically the loaded frame size.
 A pattern does not establish a cause or business rule. Keep unknown definitions
 unknown; do not repeatedly request a definition already reported unavailable.
 If the learner remains confused, address that difficulty differently rather than
@@ -55,6 +63,14 @@ repeating the full task. Do not recommend changing data without justification.
 You provide conversation only: no code execution, data changes or task completion.
 Return only answer. No task IDs, evidence IDs, result markers or internal schemas.
 """
+
+
+def teaching_scope_key(context, state):
+    """Local history boundary: project, notebook, data version, kind and focus."""
+    notebook = (context.get('artifacts') or {}).get('selected_notebook') or {}
+    parts = [context.get('workspace_id'), notebook.get('notebook_id'),
+        notebook.get('current_input_version'), notebook.get('dataset_kind'), state.get('focus_column')]
+    return hashlib.sha256(json.dumps(parts).encode()).hexdigest() if all(parts) else None
 
 
 def learner_attempt(state):
@@ -134,7 +150,7 @@ def teaching_provider_view(payload):
         operation = contract.get('operation')
         options = contract.get('options') or {}
         action = {'missing_count': 'count missing values', 'distribution': (
-            'compare proportions' if options.get('normalize') else 'count category occurrences'),
+            'describe category proportions' if options.get('normalize') else 'count category occurrences'),
             'preview_head': 'show first example rows', 'preview_tail': 'show last example rows'}.get(operation, operation)
         return {'selection': predicate_label(contract.get('row_predicate') or {}, language).replace('`', ''),
                 'columns': contract.get('measured_columns'), 'purpose': action,
@@ -151,7 +167,7 @@ def teaching_provider_view(payload):
             'focus_column', 'learner_preferences', 'definition_availability', 'decision_status',
             'other_check_count') if k in shared}
         core['verified_checks'] = [{**{k: deepcopy(x[k]) for k in
-            ('result', 'proportions', 'summary_complete', 'input_rows', 'dataset_kind') if k in x},
+            ('result', 'proportions', 'summary_complete', 'population', 'dataset_kind') if k in x},
             **describe(x['contract']), 'full_source_verified': False} for x in shared['verified_checks']]
         view['investigation_context'] = core
         core['possible_explanations'] = [{
@@ -336,9 +352,12 @@ def explain_pending_task(context, state, step, message, *, allow_provider, reque
         'user_shared_question_code_and_summaries' if share_summaries else
         'user_shared_question_and_code' if scoped_sharing else 'policy_allowed_context')
     if not generic:
+        scope_key = teaching_scope_key(context, state)
         payload['previous_explanations'] = [{
             'question': x.get('question'), 'explanation': x.get('explanation')} for x in state.get('teaching_journal', [])
-            if x.get('task_key') == task_key(step) and x.get('mode') == trace['teaching_context_mode']
+            if ((scope_key and x.get('scope_key') == scope_key) if x.get('scope_key') is not None
+                else x.get('task_key') == task_key(step))
+            and x.get('mode') == trace['teaching_context_mode']
             and x.get('contract_version') == 3][-2:]
     trace['conversation_context_version'] = 3
     last_failure = state.get('last_rejected_teaching') or {}
@@ -389,6 +408,7 @@ def explain_pending_task(context, state, step, message, *, allow_provider, reque
         reply = TeachingLesson(explanation=re.sub(r'\bFIELD_[A-Z]\b',
             lambda m: replacements.get(m.group(), m.group()), reply.explanation))
     entry = {'explanation': reply.explanation, 'question': message[:1200], 'task_key': task_key(step),
+        'scope_key': teaching_scope_key(context, state),
         'mode': trace['teaching_context_mode'], 'neutral_lesson': neutral if generic else None,
         'contract_version': 3}
     state['conversation_memory'] = {'task_key': task_key(step), 'conversation_kind': None,

@@ -287,3 +287,44 @@ delivery checks, reasoning request, token cap and five-call limit remain the
 same. The application model and `.env` are never changed. Separately collected
 runs can inform a qualitative comparison but are not a concurrent randomized
 experiment or proof of novice project completion.
+
+## Population and conversation boundaries
+
+The teaching projection now names a single normalized distribution **describe
+category proportions**, rather than **compare proportions**. One recorded group
+is not an executed comparison. This applies to every supported distribution,
+without column-name or dataset-specific reply rules.
+
+With explicit summary sharing, each check carries a `population` envelope:
+`dataframe_rows` is the recorded input frame size, `selected_rows` the selected
+group size when established, and `proportion_denominator_rows` the normalization
+denominator when established. Top-level ambiguous `input_rows` is no longer sent
+to the teacher. The research/evidence records themselves retain their original
+metadata. Counts are not converted into model-authored facts.
+
+For a whole-frame selection the selected size is the recorded frame size. A
+simple missing/present selection can use a matching recorded whole-frame missing
+count (or its complement), only when version, frame kind and input size agree.
+Conflicting counts, missing scope, different versions/kinds, failed/stale records,
+previews and unsupported predicates cannot supply a selected size. Unknown sizes
+remain null. A normalized distribution including missing categories uses the
+selected size; when missing categories are excluded its denominator stays unknown
+unless separately established. These are bounded metadata/arithmetic projections,
+not independent re-execution or statistical/semantic certification.
+
+Delivered conversation history can now survive a task transition within the same
+workspace, notebook, data version, frame kind, focus and sharing mode. At most the
+last two delivered exchanges are shared. New journal entries carry a local scope
+key; previous entries without it remain limited to their original task. Generic
+privacy mode remains restricted to same-task neutral lessons. Model history is
+explicitly conversation, not evidence, and never completes a task. Rejected model
+answers are not introduced into history by this change.
+
+The prompt clarifies these general distinctions and gives the current learner
+question priority over repeating the pending analysis. The model, output transport,
+code preference checks, usage limits and completion authority are unchanged.
+Controlled tests cover cross-domain group sizes and scope/consent boundaries;
+live teaching improvement and independent novice completion remain unproven.
+The input and prompt hashes differ from earlier collected reports after this
+projection change; those reports remain historical evidence, not matched results
+for the updated context.
