@@ -572,7 +572,8 @@ def frozen_teaching_checkpoints(case):
     return snapshots
 
 
-def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkpoint=None, format_comparison=False):
+def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkpoint=None,
+                         format_comparison=False, plain_text_suite=False):
     """Same teacher input/rules/schema/options, two fixed free-plan models.
 
     No application configuration changes, generated code execution, provider
@@ -582,20 +583,27 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
     import hashlib
     from dataclasses import replace
     from types import SimpleNamespace
+    if format_comparison and plain_text_suite:
+        raise ValueError('Choose one experiment')
     if format_comparison:
         turns = 1  # Fixed two-request diagnostic, not a new dialogue suite.
-    arm_models = ({'structured_json': 'qwen/qwen3.8-27b', 'plain_text': 'qwen/qwen3.8-27b'}
+    if plain_text_suite:
+        turns = 5  # Remaining frozen checkpoints only; do not repeat the pilot.
+    arm_models = ({'plain_text': 'qwen/qwen3.8-27b'} if plain_text_suite else
+        {'structured_json': 'qwen/qwen3.8-27b', 'plain_text': 'qwen/qwen3.8-27b'}
         if format_comparison else {model: model for model in MODEL_COMPARISON_IDS})
     if type(turns) is not int or not 1 <= turns <= len(DIALOGUE_QUESTIONS):
         raise ValueError('turns must be between 1 and 6')
     if case not in DIALOGUE_CASES:
         raise ValueError('Unknown synthetic case')
-    report = {'experiment': 'same_context_qwen_output_formats_v1' if format_comparison else 'same_context_two_models_v1', 'current_teaching_context_version': 3,
+    experiment = ('qwen_plain_text_remaining_checkpoints_v1' if plain_text_suite else
+        'same_context_qwen_output_formats_v1' if format_comparison else 'same_context_two_models_v1')
+    report = {'experiment': experiment, 'current_teaching_context_version': 3,
         'mode': 'live' if live else 'offline_preparation', 'case': case,
         'models': list(dict.fromkeys(arm_models.values())), 'independent_checkpoints': True,
         'synthetic_data_only': True, 'project_state_isolated': True,
         'usage_ledger': 'normal_application_ledger', 'provider_call_count_kind': 'guarded_request_attempts',
-        'provider_calls': 0, 'max_provider_calls': 2 * turns, 'model_catalog_requests': 0,
+        'provider_calls': 0, 'max_provider_calls': len(arm_models) * turns, 'model_catalog_requests': 0,
         'sdk_retries': 0, 'status': 'running', 'pairs': [], 'comparison_winner': None,
         'human_review_required': True, 'novice_usability_accepted': False, 'project_completion_proven': False,
         'limitations': ['Independent checkpoints are not a novice dialogue or project-completion evidence.',
@@ -605,11 +613,14 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
     if format_comparison:
         report['changed_variable'] = 'required_json_schema_vs_plain_text'
         report['limitations'].append('One pair cannot establish causality or general model quality; no automatic reruns.')
+    if plain_text_suite:
+        report['limitations'].append('Single-model collection, not a matched comparison or connected learner dialogue.')
     def persist():
         if checkpoint: checkpoint(deepcopy(report))
     def digest(value):
         return hashlib.sha256(value.encode('utf-8')).hexdigest()
-    snapshots = frozen_teaching_checkpoints(case)[:turns]
+    offset = 1 if plain_text_suite else 0
+    snapshots = frozen_teaching_checkpoints(case)[offset:offset+turns]
     if live:
         try:
             policy = get_ai_billing_policy()
@@ -658,7 +669,7 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
         report['provider_calls'] += 1; persist()
         started = time.monotonic()
         try:
-            plain = format_comparison and capture['arm'] == 'plain_text'
+            plain = capture['arm'] == 'plain_text'
             if plain:
                 kwargs.pop('text_format')
                 response = guarded_responses_create(*args, **kwargs)
@@ -680,7 +691,7 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
     try:
         with isolated_comparison_memory() as memory:
             for index, (context, state, question) in enumerate(snapshots):
-                pair = {'case': DIALOGUE_QUESTIONS[index][0], 'question': question,
+                pair = {'case': DIALOGUE_QUESTIONS[index+offset][0], 'question': question,
                     'call_order': list(arm_models if index % 2 == 0 else reversed(arm_models)),
                     'arms': {}, 'human_scores': {arm: None for arm in arm_models}}
                 report['pairs'].append(pair)
@@ -695,7 +706,7 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
                         pair['arms'][model] = {'input': deepcopy(view), 'instructions': teaching.TEACHING_RULES,
                             'response_schema': 'PlainText' if model == 'plain_text' else 'TeachingAnswer',
                             'max_output_tokens': cap, 'reasoning': {'effort': 'low'}}
-                    pair['same_request_context'] = True
+                    pair['same_request_context'] = None if plain_text_suite else True
                     persist(); continue
                 key = (context['workspace_id'], 'n1')
                 for model in pair['call_order']:
@@ -717,6 +728,9 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
                         # are blockers, not reasoning scores. Never retry/fallback.
                         raise RuntimeError('An arm did not complete one provider attempt')
                 arms = list(pair['arms'].values())
+                if plain_text_suite:
+                    pair['same_request_context'] = None  # No second arm to compare.
+                    persist(); continue
                 compared_keys = ['request_input_sha256', 'instructions_sha256', 'max_output_tokens', 'reasoning']
                 if not format_comparison:
                     compared_keys.append('response_schema')
@@ -739,6 +753,7 @@ def main(argv=None):
     mode.add_argument('--offline', action='store_true', help='Prepare paired requests without provider access.')
     parser.add_argument('--model-comparison', action='store_true', help='Same-context GPT-OSS/Qwen comparison; at most twelve guarded calls.')
     parser.add_argument('--format-comparison', action='store_true', help='Qwen JSON schema versus plain text on one fixed checkpoint; at most two guarded calls.')
+    parser.add_argument('--plain-text-suite', action='store_true', help='Qwen plain text on the remaining five fixed checkpoints; at most five guarded calls.')
     parser.add_argument('--turns', type=int, default=6, choices=range(1,7), help='Model-comparison checkpoints; default six, at most twelve calls.')
     parser.add_argument('--paired-comparison', action='store_true', help='Isolated current versus simple comparison; no runtime mentor changes.')
     parser.add_argument('--start-pair', type=int, default=1, choices=range(1,10), help='Start at this fixed comparison pair; completed earlier pairs are not repeated.')
@@ -751,19 +766,19 @@ def main(argv=None):
     parser.add_argument('--output-dir', type=Path, default=Path('backend/benchmarks/results/teaching-probe'))
     args = parser.parse_args(argv)
     load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
-    if args.offline and not (args.paired_comparison or args.model_comparison or args.format_comparison):
+    if args.offline and not (args.paired_comparison or args.model_comparison or args.format_comparison or args.plain_text_suite):
         parser.error("--offline requires a comparison mode")
-    if sum((args.paired_comparison, args.model_comparison, args.format_comparison, args.dialogue_suite)) > 1:
+    if sum((args.paired_comparison, args.model_comparison, args.format_comparison, args.plain_text_suite, args.dialogue_suite)) > 1:
         parser.error("Choose one comparison or dialogue suite")
     folder = args.output_dir / datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
     folder.mkdir(parents=True, exist_ok=False)
-    if args.model_comparison or args.format_comparison:
+    if args.model_comparison or args.format_comparison or args.plain_text_suite:
         if args.live:
             database.init_db()  # Retain the normal AI usage ledger; no isolated spending budget.
         path = folder / 'report.json'
         report = run_model_comparison(live=args.live, case=args.case, turns=args.turns, delay=args.delay,
             checkpoint=lambda value: path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8'),
-            format_comparison=args.format_comparison)
+            format_comparison=args.format_comparison, plain_text_suite=args.plain_text_suite)
         print('REPORT:', path.resolve())
         print('STATUS:', report['status'], 'PROVIDER CALLS:', report['provider_calls'])
         print('No automatic winner; raw answers and teaching quality require human review.')

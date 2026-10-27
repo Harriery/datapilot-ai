@@ -265,3 +265,49 @@ def test_format_comparison_real_guards_keep_ledger_caps_and_raw_text(monkeypatch
         assert report['status'] == 'blocked'
         assert arm['diagnostics']['reason'] == 'incomplete_response'
     assert report['comparison_winner'] is None and not report['project_completion_proven']
+
+
+def test_remaining_plain_text_checkpoints_exclude_pilot_and_preserve_frozen_inputs():
+    with patch.object(probe, 'get_ai_runtime') as model:
+        remaining = probe.run_model_comparison(live=False, plain_text_suite=True)
+        original = probe.run_model_comparison(live=False)
+    model.assert_not_called()
+    assert remaining['max_provider_calls'] == 5 and remaining['provider_calls'] == 0
+    assert [p['case'] for p in remaining['pairs']] == ['mask', 'partial', 'error', 'evidence', 'definition_unavailable']
+    for pair, old in zip(remaining['pairs'], original['pairs'][1:]):
+        arm = pair['arms']['plain_text']
+        assert arm['input'] == next(iter(old['arms'].values()))['input']
+        assert arm['input']['previous_explanations'] == []
+        assert pair['same_request_context'] is None and arm['response_schema'] == 'PlainText'
+
+
+@pytest.mark.parametrize('failure_on_second', [False, True])
+def test_remaining_plain_suite_caps_calls_and_stops_on_provider_failure(monkeypatch, failure_on_second):
+    monkeypatch.setenv('AI_FREE_ONLY', 'true')
+    monkeypatch.setenv('AI_FREE_PROVIDER_ALLOWLIST', 'groq')
+    calls, saved = [], []
+    client = Client(models=['qwen/qwen3.8-27b'])
+    def plain(**kwargs):
+        calls.append(kwargs)
+        if failure_on_second and len(calls) == 2:
+            raise RuntimeError('private-provider-message')
+        # This deliberately unfinished answer is captured, never certified.
+        return SimpleNamespace(status='completed', output_text='Koşul her satır için bir')
+    client.responses = SimpleNamespace(create=plain)
+    before = database.get_ai_usage_counts()['daily_requests']
+    with patch.object(probe, 'get_ai_runtime', return_value=runtime(client)), \
+         patch.object(probe, 'guarded_responses_parse') as structured:
+        report = probe.run_model_comparison(live=True, plain_text_suite=True, delay=0,
+            checkpoint=lambda value: saved.append(value))
+    structured.assert_not_called()
+    assert len(calls) == report['provider_calls'] == (2 if failure_on_second else 5)
+    assert database.get_ai_usage_counts()['daily_requests'] - before == len(calls)
+    assert report['max_provider_calls'] == 5
+    assert all('text_format' not in x and x['model'] == 'qwen/qwen3.8-27b' for x in calls)
+    assert 'private-provider-message' not in json.dumps(report)
+    assert report['status'] == ('blocked' if failure_on_second else 'completed_requires_human_review')
+    arm = report['pairs'][0]['arms']['plain_text']
+    assert arm['response_completion']['output_text']['text'] == arm['displayed_reply'] == 'Koşul her satır için bir'
+    assert arm['diagnostics']['semantic_quality_verified'] is False
+    assert arm['pending_task']['status'] == 'awaiting_execution'
+    assert saved[-1]['status'] == report['status']

@@ -250,3 +250,24 @@ to the normal application usage ledger. Offline preparation is also supported.
 Only Qwen availability is required for this experiment. Production configuration
 is unchanged. A single pair is diagnostic evidence, not a causal study or a model
 quality pass; provider response status cannot certify a complete explanation.
+
+### Remaining plain-text checkpoints
+
+`--plain-text-suite` collects only the other five frozen checkpoints (mask,
+partial attempt, syntax error, result interpretation, unavailable definition).
+It skips the count/filter pilot and makes at most five Qwen Responses `create`
+requests without a forced output schema. Input, instructions, low reasoning and
+token cap remain frozen; the normal usage ledger and production delivery checks
+remain active. Raw SDK text and parsed/displayed text are retained separately.
+Provider failures stop collection with partial results and no automatic retry.
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --plain-text-suite --case orders
+```
+
+`--offline` prepares these contexts with zero provider calls. The report keeps
+the existing `pairs` container but contains one arm per checkpoint and null
+`same_request_context`; this is not a two-arm comparison. Checkpoints remain
+independent, with no generated teaching history transferred between them. Five
+delivered replies would not establish learning, semantic correctness or project
+completion. Production mentor configuration is unchanged.
