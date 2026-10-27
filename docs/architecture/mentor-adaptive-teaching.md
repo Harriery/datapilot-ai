@@ -203,3 +203,30 @@ claim is produced. Historical six-turn reports are useful background but are not
 substituted for a matched arm with known identical input. The implementation
 environment has no Groq key; controlled tests and offline preparation establish
 wiring only, not Qwen's access, response quality or superiority.
+
+### Diagnosing unfinished comparison replies
+
+Each live comparison arm now records `response_completion`: SDK response status,
+incomplete reason, any exposed finish reason, output item types/statuses, visible
+output text before teaching extraction, and reasoning-token usage when exposed.
+Text captures include character counts, SHA-256 and an explicit truncation flag
+(12,000-character limit per text). Reasoning content, headers, tool arguments,
+and full provider objects are excluded. Missing metadata is null, not inferred.
+This is an SDK-level capture, not a raw HTTP trace. The parsed teaching candidate
+and displayed reply remain separate report fields for comparison.
+
+A provider `completed` status and valid JSON do not establish that the explanation
+is finished or correct. If the SDK output already contains an unfinished sentence,
+the teaching renderer did not introduce that particular cutoff; further provider
+diagnosis may still be necessary. No token-budget cause, winner or quality pass
+is inferred from these fields. Production model, prompt and token cap are unchanged.
+
+Use the bounded two-request pilot before repeating all six checkpoints:
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --model-comparison --case orders --turns 1
+```
+
+The implementation environment has no live Groq credential. Tests exercise both
+simulated response shapes and real SDK parsing over a mocked HTTP transport;
+they do not diagnose the live provider's cutoff cause.

@@ -338,6 +338,51 @@ def _response_usage(response):
             if isinstance((value := getattr(usage, key, None)), int)}
 
 
+def response_completion_metadata(response):
+    """Observe the parsed SDK response without dumping reasoning or transport secrets.
+
+    This experiment uses synthetic input only. Text is recorded before the teacher
+    extracts TeachingAnswer, not as an HTTP/network capture. No completeness score
+    is inferred from a provider's status or the final punctuation.
+    """
+    import hashlib
+
+    def field(value, name):
+        return value.get(name) if isinstance(value, dict) else getattr(value, name, None)
+
+    def label(value):
+        return value[:120] if isinstance(value, str) else None
+
+    def text_record(value):
+        if not isinstance(value, str):
+            return None
+        return {'text': value[:12000], 'characters': len(value),
+            'capture_truncated': len(value) > 12000,
+            'sha256': hashlib.sha256(value.encode('utf-8')).hexdigest()}
+
+    result = {'capture_layer': 'sdk_response_before_teaching_extraction',
+        'status': label(field(response, 'status')),
+        'incomplete_reason': label(field(field(response, 'incomplete_details'), 'reason')),
+        'finish_reason': label(field(response, 'finish_reason')),
+        'output_text': text_record(field(response, 'output_text')), 'output_items': []}
+    for item in (field(response, 'output') or [])[:20]:
+        entry = {'type': label(field(item, 'type')), 'status': label(field(item, 'status')),
+            'finish_reason': label(field(item, 'finish_reason')), 'content': []}
+        # Reasoning summaries, tool arguments and other payloads are not captured.
+        if entry['type'] == 'message':
+            for part in (field(item, 'content') or [])[:20]:
+                content = {'type': label(field(part, 'type'))}
+                if content['type'] == 'output_text':
+                    content['text'] = text_record(field(part, 'text'))
+                entry['content'].append(content)
+        result['output_items'].append(entry)
+    details = field(field(response, 'usage'), 'output_tokens_details')
+    reasoning_tokens = field(details, 'reasoning_tokens')
+    if type(reasoning_tokens) is int:
+        result['reasoning_tokens'] = reasoning_tokens
+    return result
+
+
 
 def comparison_failure_metadata(exc):
     """Keep diagnostic categories, never messages, failed output or request data."""
@@ -607,6 +652,7 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
         try:
             response = guarded_responses_parse(*args, **kwargs)
             capture['usage'] = _response_usage(response)
+            capture['response_completion'] = response_completion_metadata(response)
             return response
         except Exception as exc:
             capture['failure'] = comparison_failure_metadata(exc)

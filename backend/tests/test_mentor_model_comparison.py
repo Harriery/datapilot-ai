@@ -42,6 +42,60 @@ def response(*args, **kwargs):
         usage=SimpleNamespace(input_tokens=500, output_tokens=50, total_tokens=550))
 
 
+def test_completion_metadata_preserves_unfinished_text_without_claiming_quality():
+    raw = json.dumps({'answer': 'Koşul her satır için bir'}, ensure_ascii=False)
+    original = response()
+    original.output_text = raw
+    original.output = [SimpleNamespace(type='reasoning', summary='private-reasoning'),
+        SimpleNamespace(type='message', status='completed', content=[
+            SimpleNamespace(type='output_text', text=raw)])]
+    original.usage.output_tokens_details = SimpleNamespace(reasoning_tokens=17)
+    metadata = probe.response_completion_metadata(original)
+    assert metadata['status'] == 'completed'
+    assert metadata['output_text']['text'] == raw
+    assert metadata['output_items'][1]['content'][0]['text'] == metadata['output_text']
+    assert metadata['reasoning_tokens'] == 17
+    assert metadata['incomplete_reason'] is metadata['finish_reason'] is None
+    assert 'private-reasoning' not in json.dumps(metadata)
+    assert 'quality' not in metadata and 'accepted' not in metadata
+
+
+def test_completion_metadata_handles_missing_fields_and_bounds_text():
+    assert probe.response_completion_metadata(SimpleNamespace())['status'] is None
+    metadata = probe.response_completion_metadata({
+        'status': 'incomplete', 'incomplete_details': {'reason': 'max_output_tokens'},
+        'output_text': 'x' * 12001, 'output': [{'type': 'message', 'status': 'incomplete',
+            'content': [{'type': 'output_text', 'text': 'unfinished'},
+                {'type': 'refusal', 'refusal': 'private-body'}]}],
+        'headers': {'authorization': 'secret'}, 'error': {'message': 'private-error'}})
+    assert metadata['incomplete_reason'] == 'max_output_tokens'
+    assert metadata['output_text']['characters'] == 12001
+    assert metadata['output_text']['capture_truncated']
+    assert len(metadata['output_text']['text']) == 12000
+    assert metadata['output_items'][0]['content'][0]['text']['text'] == 'unfinished'
+    assert 'private-' not in json.dumps(metadata) and 'secret' not in json.dumps(metadata)
+
+
+def test_real_sdk_parse_keeps_provider_text_separate_from_teaching_extraction():
+    import httpx
+    from openai import OpenAI
+
+    raw = json.dumps({'answer': 'Bu işaretleri satır seçmek için'}, ensure_ascii=False)
+    body = {'id': 'resp_synthetic', 'object': 'response', 'created_at': 0,
+        'status': 'completed', 'model': 'synthetic-model',
+        'output': [{'id': 'msg_synthetic', 'type': 'message', 'role': 'assistant',
+            'status': 'completed', 'content': [{'type': 'output_text', 'text': raw, 'annotations': []}]}]}
+    with OpenAI(api_key='synthetic-test-key', max_retries=0,
+            http_client=httpx.Client(transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, json=body)))) as sdk:
+        parsed = sdk.responses.parse(model='synthetic-model', input='synthetic', text_format=TeachingAnswer)
+    metadata = probe.response_completion_metadata(parsed)
+    assert parsed.output_parsed.answer == 'Bu işaretleri satır seçmek için'
+    assert metadata['output_text']['text'] == raw
+    assert metadata['output_items'][0]['content'][0]['text']['text'] == raw
+    assert metadata['status'] == 'completed'  # Status alone does not prove a finished explanation.
+
+
 def test_offline_all_six_inputs_are_equal_and_never_touch_provider_or_database():
     with patch.object(probe, 'get_ai_runtime') as model, \
          patch.object(probe, 'guarded_responses_parse') as provider, \
@@ -93,6 +147,7 @@ def test_live_wiring_keeps_input_options_caps_order_and_actual_candidates():
         assert a['reasoning'] == b['reasoning'] == {'effort': 'low'}
         assert a['max_output_tokens'] == b['max_output_tokens'] <= 1200
         assert a['provider_candidate']['answer'] == a['displayed_reply']
+        assert a['response_completion']['status'] == 'completed'
         assert a['diagnostics']['semantic_quality_verified'] is False
         assert a['pending_task']['status'] == 'awaiting_execution'
     assert saved[-1]['status'] == report['status'] and report['comparison_winner'] is None
@@ -147,6 +202,9 @@ def test_blockers_and_content_failures_are_distinct_and_never_retried(kind):
         if kind == 'provider_failure':
             failed = next(iter(report['pairs'][0]['arms'].values()))
             assert failed['failure']['provider_error_code'] == 'rate_limit_exceeded'
+        else:
+            failed = next(iter(report['pairs'][0]['arms'].values()))
+            assert failed['response_completion']['status'] == 'incomplete'
 
 
 def test_interrupt_checkpoints_completed_work_and_does_not_retry():
