@@ -117,9 +117,15 @@ def test_one_tool_round_reaches_model_and_next_turn_preserves_real_inspection(pr
         reply = mentor.generate_personal_data_reply(workspace, context, 'Ne buldun?', [])
     assert reply == 'Eksik grup iki kayıt içeriyor.' and model.call_count == 2
     calls = model.call_args_list
-    assert calls[0].kwargs['reasoning_effort'] == 'medium' and calls[1].kwargs['tool_choice'] == 'none'
+    assert calls[0].kwargs['reasoning_effort'] == 'medium'
+    assert calls[0].kwargs['tools'] == [mentor.TOOL] and calls[0].kwargs['tool_choice'] == 'auto'
+    assert 'tools' not in calls[1].kwargs and 'tool_choice' not in calls[1].kwargs
     messages = calls[1].kwargs['messages']
-    result = json.loads(next(x['content'] for x in messages if x['role'] == 'tool'))
+    assert not any(x['role'] == 'tool' or 'tool_calls' in x for x in messages)
+    evidence = json.loads(messages[-2]['content'])
+    assert evidence['origin'] == 'mentor_read_only_inspection_not_learner_execution'
+    assert messages[-1] == {'role': 'system', 'content': mentor.FINAL_RESPONSE_RULES}
+    result = evidence['server_recorded_inspections'][0]
     assert result['rows'] == [{'n': 2}] and result['scope']['snapshot_rows'] == 4
     saved = load_research_state(workspace.workspace_id, 'n1')
     assert saved['last_validation']['origin'] == 'personal_data_mentor'
@@ -209,6 +215,41 @@ def test_profile_keeps_zero_and_false_examples(project):
     data = mentor.build_data_context(workspace, context, frame, {}, None)
     assert data['dataset']['schema'][0]['example_values'][0] == '0'
     assert data['dataset']['schema'][1]['example_values'][0] == 'False'
+
+
+def test_explanation_cannot_execute_another_tool_or_trigger_a_third_request(project):
+    _, workspace, context, _, _ = project
+    responses = [completion(calls=[tool('SELECT COUNT(*) n FROM data')], finish='tool_calls'),
+        completion(calls=[tool('SELECT * FROM data')], finish='tool_calls')]
+    with runtime(), patch.object(mentor, 'guarded_chat_completions_create', side_effect=responses) as model, \
+         patch.object(mentor, 'inspect_sql', wraps=mentor.inspect_sql) as execute:
+        reply = mentor.generate_personal_data_reply(workspace, context, 'Birlikte inceleyelim.', [])
+    assert model.call_count == 2 and execute.call_count == 1
+    assert reply and load_research_state(workspace.workspace_id, 'n1')['last_validation']['reason'] == 'tool_budget'
+
+
+def test_explanation_preserves_failed_inspections_and_all_batch_results(project):
+    _, workspace, context, _, _ = project
+    requests = [tool('SELECT COUNT(*) n FROM data', 'one'), tool('SELECT unknown_column FROM data', 'two')]
+    with runtime(), patch.object(mentor, 'guarded_chat_completions_create', side_effect=[
+        completion(calls=requests, finish='tool_calls'), completion('İkinci kontrol başarısız.')]) as model:
+        mentor.generate_personal_data_reply(workspace, context, 'İncele.', [])
+    first, final = [x.kwargs for x in model.call_args_list]
+    assert not any(x.get('role') == 'tool' or 'tool_calls' in x for x in first['messages'])
+    results = json.loads(final['messages'][-2]['content'])['server_recorded_inspections']
+    assert [x['status'] for x in results] == ['ok', 'query_failed']
+    assert results[0]['rows'] == [{'n': 4}]
+    assert results[1]['error_type'] == 'BinderException'
+    saved = load_research_state(workspace.workspace_id, 'n1')
+    assert len(saved['personal_data_inspections']) == 1
+
+
+def test_missing_snapshot_uses_plain_text_request_without_tool_definitions(project):
+    _, workspace, context, _, _ = project
+    context['artifacts'] = {}
+    with runtime(), patch.object(mentor, 'guarded_chat_completions_create', return_value=completion('Notebook seçmeliyiz.')) as model:
+        mentor.generate_personal_data_reply(workspace, context, 'İncele.', [])
+    assert 'tools' not in model.call_args.kwargs and 'tool_choice' not in model.call_args.kwargs
 
 
 @pytest.mark.parametrize('nested', [False, True])

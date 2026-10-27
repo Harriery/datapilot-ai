@@ -53,7 +53,17 @@ remain in the tool result rather than being inferred from model prose.
 
 A turn permits at most two tool requests in one batch and two guarded model
 attempts total: initial response, then interpretation of the tool results. There
-are no automatic correction retries. The account may still reject a request for
+is a protocol boundary between these stages: only the initial request advertises
+SQL tools. The explanation request has neither `tools` nor `tool_choice`; server
+results (including failed inspections and scope/truncation metadata) are supplied
+as labelled JSON observations, not assistant claims or learner execution. The
+tool-call transcript is not replayed into this plain-text phase. Further tool
+requests from an unexpected final response are not executed. This avoids offering
+tools while simultaneously forbidding them with `tool_choice="none"`, a pattern
+Groq documents can result in HTTP 400 when a model still attempts a tool call:
+https://console.groq.com/docs/tool-use/local-tool-calling . This is not proof that
+all tool-generation errors or provider failures are resolved.
+There are no automatic correction retries. The account may still reject a request for
 quota/TPM, and the configured SDK transport retry settings remain unchanged.
 Quota or incomplete output is not a teaching-quality result.
 
