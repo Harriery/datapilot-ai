@@ -39,6 +39,8 @@ export type WorkspaceNotebookCellData = {
     columns?: string[];
     preview_rows?: Record<string, unknown>[];
     executed_at: string;
+    output_truncated?: boolean;
+    executed_code?: string;
     input_row_count?: number;
     input_data_version?: string | null;
     input_total_row_count?: number | null;
@@ -666,6 +668,7 @@ function WorkspaceNotebook({
               expression_kind:
                 result.expressionKind,
               output: result.output.slice(0, 1000),
+              output_truncated: result.output.length > 1000,
               row_count:
                 result.rows.length || null,
               columns:
@@ -678,6 +681,7 @@ function WorkspaceNotebook({
                 previewRows,
               executed_at:
                 new Date().toISOString(),
+              executed_code: cell.code,
               input_row_count: inputRows.length,
               input_data_version: inputDataVersion,
               input_total_row_count: inputTotalRowCount,
@@ -789,10 +793,12 @@ function WorkspaceNotebook({
                 success,
                 expression_kind: result.expressionKind,
                 output: compactOutput,
+                output_truncated: result.output.length > 1000,
                 row_count: result.rows.length || null,
                 columns,
                 preview_rows: previewRows,
                 executed_at: new Date().toISOString(),
+                executed_code: item.code,
                 input_row_count: inputRows.length,
                 input_data_version: inputDataVersion,
                 input_total_row_count: inputTotalRowCount,

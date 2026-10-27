@@ -283,7 +283,8 @@ def build_chat_mentor_workspace_context(
     )
 
     relationship_map = None
-    if os.getenv('AI_NOTEBOOK_RESEARCH_ENABLED', 'false').strip().casefold() in {'1', 'true', 'yes'}:
+    if (os.getenv('AI_NOTEBOOK_RESEARCH_ENABLED', 'false').strip().casefold() in {'1', 'true', 'yes'}
+            and getattr(workspace.mentor_setup, 'notebook_teaching_context', None) != 'personal_data'):
         from backend.app.mentor_relationship_service import load_local_relationship_map
         relationship_map = load_local_relationship_map(workspace, selected_notebook_state)
 

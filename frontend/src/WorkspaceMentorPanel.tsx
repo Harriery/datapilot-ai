@@ -31,8 +31,8 @@ type Props = {
   workspaceId: string;
   usageContext?: "personal" | "work";
   dataSensitivity?: "public" | "internal" | "unknown" | "confidential" | "restricted" | null;
-  teachingContext?: "generic" | "question_and_code" | "question_code_and_summaries" | null;
-  onTeachingContextChange?: (mode: "generic" | "question_and_code" | "question_code_and_summaries") => Promise<void>;
+  teachingContext?: "generic" | "question_and_code" | "question_code_and_summaries" | "personal_data" | null;
+  onTeachingContextChange?: (mode: "generic" | "question_and_code" | "question_code_and_summaries" | "personal_data") => Promise<void>;
   sessionId: string | null;
   language: "en" | "nl" | "tr";
   contextualPrompt?: string | null;
@@ -89,6 +89,9 @@ export default function WorkspaceMentorPanel({
       shared: "Notebook öğretimi, mesajlarını ve son kod denemeni kullanabilir; hatalı deneme tamamlanmış işlem sayılmaz.",
       protected: "Bu verinin koruma sınıfı, bu öğretici yolda harici AI bağlam paylaşımını engelliyor.",
       description: "Ayrıntılı yardım seçeneği, mesajlarını, ilgili sütun adlarını ve son kod denemesini (hata veren denemeler dahil) harici AI sağlayıcısına gönderir. Koddaki diğer sabit değerler ve yorumlar ayıklanır; yerel sözdizimi tanısı ve kayıtlı hata türü paylaşılabilir. Mesaj veya kodda yazdığın değerler de paylaşılabilir. Kontrol özetlerini de seçersen proje hedefi, öğrenme tercihleri, araştırma notları, doğrulanmış eksik sayıları, tam okunabilen oran dağılımları ve kategori etiketleri de paylaşılır. Ham satırlar ve serbest hücre çıktıları gönderilmez. Yalnız mesaj ve kod seçeneği bu özetleri paylaşmaz. Bu seçim diğer mentor yollarının veri politikasını değiştirmez.",
+      personal: "Kişisel verimle birlikte çalışan mentor",
+      personalShared: "Mentor veri profilini, örnek kayıtları ve notebook sonuçlarını kullanabilir; veride salt okunur incelemeler yapabilir.",
+      personalDescription: "Kişisel veri modu, bu projedeki veri örneklerini, sütun değerlerini, notebook kodunu, kayıtlı çıktıları ve konuşmayı AI sağlayıcısına gönderir. Mentor seçili notebook’un başlangıç verisini salt okunur sorgulayabilir. Tarayıcıdaki değişmiş df doğrudan görülemez. Veri değişmez; projenin tamamlandığı otomatik işaretlenmez.",
       summaries: "Mesajım, kodum ve kontrol özetleriyle yardım",
       summariesShared: "Notebook öğretimi mesajlarını, kodunu ve izin verdiğin kontrol özetlerini kullanabilir.",
       generic: "Genel kavramlarla yardım", detailed: "Mesajım ve inceleme kodumla yardım",
@@ -100,6 +103,9 @@ export default function WorkspaceMentorPanel({
       shared: "Notebook teaching can use your messages and latest code attempt; a failed attempt is not a completed operation.",
       protected: "This data classification blocks external AI context sharing in this teaching path.",
       description: "Detailed help sends your messages, relevant column names and the latest code attempt (including failed attempts) to the external AI provider. Other code literals and comments are redacted; a local syntax diagnostic and recorded error type may be shared. Values written in messages or code may also be shared. Choosing inspection summaries also shares the project goal, learning preferences, investigation notes, verified missing counts, fully parsed proportion distributions and category labels. Raw rows and free-form cell outputs are not sent. The messages and code option does not share these summaries. This choice does not change data policies for other mentor paths.",
+      personal: "Mentor working with my personal data",
+      personalShared: "The mentor can use data profiles, example records and notebook results, and inspect data with read-only queries.",
+      personalDescription: "Personal data mode sends this project’s data examples, column values, notebook code, recorded outputs and conversation to the AI provider. It can query the selected notebook’s input snapshot read-only. It cannot see the browser’s transformed live df. Data is unchanged and project completion is not marked automatically.",
       summaries: "Help using messages, code and inspection summaries",
       summariesShared: "Notebook teaching can use your messages, code and permitted inspection summaries.",
       generic: "Help with general concepts", detailed: "Help using my messages and inspection code",
@@ -111,6 +117,9 @@ export default function WorkspaceMentorPanel({
       shared: "Notebookuitleg kan je berichten en laatste codepoging gebruiken; een mislukte poging is geen voltooide bewerking.",
       protected: "Deze gegevensclassificatie blokkeert externe AI-context in dit uitlegpad.",
       description: "Gedetailleerde hulp stuurt je berichten, relevante kolomnamen en de laatste codepoging (ook mislukte pogingen) naar de externe AI-aanbieder. Andere vaste waarden en commentaar worden afgeschermd; een lokale syntaxdiagnose en vastgelegd fouttype kunnen worden gedeeld. Waarden in berichten of code kunnen ook worden gedeeld. Met controleoverzichten deel je ook het projectdoel, leervoorkeuren, onderzoeksnotities, gecontroleerde aantallen ontbrekende waarden, volledig gelezen verhoudingen en categorielabels. Ruwe rijen en vrije celuitvoer worden niet verstuurd. Alleen berichten en code deelt deze overzichten niet. Deze keuze verandert het gegevensbeleid voor andere mentorpaden niet.",
+      personal: "Mentor met toegang tot mijn persoonlijke data",
+      personalShared: "De mentor kan dataprofielen, voorbeeldrijen en notebookresultaten gebruiken en alleen-lezenquery’s uitvoeren.",
+      personalDescription: "Deze modus deelt datavoorbeelden, kolomwaarden, notebookcode, opgeslagen uitvoer en het gesprek met de AI-aanbieder. De mentor kan de invoer van het geselecteerde notebook alleen-lezen bevragen. De gewijzigde df in de browser is niet rechtstreeks zichtbaar. Data en voltooiingsstatus worden niet gewijzigd.",
       summaries: "Hulp met berichten, code en controleoverzichten",
       summariesShared: "Notebookuitleg kan je berichten, code en toegestane controleoverzichten gebruiken.",
       generic: "Hulp met algemene begrippen", detailed: "Hulp met mijn berichten en onderzoekscode",
@@ -405,13 +414,14 @@ export default function WorkspaceMentorPanel({
 
       {activeMode==="chat" && usageContext==="personal" && onTeachingContextChange && (
         <div className="mentor-teaching-preference">
-          <p role="status">{protectedData ? teachingCopy.protected : effectiveTeachingContext === "generic" ? teachingCopy.limited : effectiveTeachingContext === "question_code_and_summaries" ? teachingCopy.summariesShared : teachingCopy.shared}</p>
+          <p role="status">{protectedData ? teachingCopy.protected : effectiveTeachingContext === "personal_data" ? teachingCopy.personalShared : effectiveTeachingContext === "generic" ? teachingCopy.limited : effectiveTeachingContext === "question_code_and_summaries" ? teachingCopy.summariesShared : teachingCopy.shared}</p>
           {!protectedData && <details>
             <summary>{teachingCopy.title}</summary>
-            <p>{teachingCopy.description}</p>
+            <p>{teachingDraft === "personal_data" ? teachingCopy.personalDescription : teachingCopy.description}</p>
             <label htmlFor="notebook-teaching-context">{teachingCopy.label}</label>
             <select id="notebook-teaching-context" value={teachingDraft} disabled={teachingSaving || loading}
-              onChange={event => setTeachingDraft(event.target.value as "generic" | "question_and_code" | "question_code_and_summaries")}>
+              onChange={event => setTeachingDraft(event.target.value as "generic" | "question_and_code" | "question_code_and_summaries" | "personal_data")}>
+              <option value="personal_data">{teachingCopy.personal}</option>
               <option value="generic">{teachingCopy.generic}</option>
               <option value="question_and_code">{teachingCopy.detailed}</option>
               <option value="question_code_and_summaries">{teachingCopy.summaries}</option>

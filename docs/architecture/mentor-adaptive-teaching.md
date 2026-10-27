@@ -44,7 +44,8 @@ Retained:
 - Existing data-sharing/organization policies, bounded input/output and free-only
   usage guards. Normally one provider attempt; an unrequested-code rejection can
   use one bounded same-model wording revision within the turn's two-attempt cap.
-  There is no classifier or unbounded repair cascade.
+  There is no classifier or unbounded repair cascade. Application chat now uses
+  a single attempt for this legacy path after live style revision failed.
 - Current successful observations separated from partial/failed attempts.
 - Task/scope identity, completion receipts, unavailable-definition memory and
   typed summaries already parsed by the backend.
@@ -360,3 +361,9 @@ data or completion authority is delegated to either answer. A style-compliant
 revision can still be factually wrong, incomplete or unhelpful: factual and semantic
 verification remain false. Controlled revision/ledger/privacy tests are not live
 model teaching or novice acceptance evidence.
+
+Application chat no longer supplies the two-attempt style revision budget. The
+opt-in [personal data mentor](personal-data-mentor.md) uses natural dialogue and
+read-only data tools, bypassing this pending-task teaching path entirely. The
+revision helper remains bounded for controlled/explicit callers, not an active
+automatic application fallback.

@@ -21,6 +21,7 @@ from openai import (
 import backend.app.database as database
 from backend.app.models import ChatRequest, ChatResponse
 from backend.app.mentor_research_service import generate_research_reply
+from backend.app.personal_data_mentor_service import generate_personal_data_reply, selected as personal_data_mentor_selected
 from backend.app.prompts import SYSTEM_PROMPT
 from backend.app.mentor_evidence_contract import NOTEBOOK_EVIDENCE_RULES
 from backend.app.database import (
@@ -176,7 +177,7 @@ def chat(request: ChatRequest):
         # Only explicit named-column investigations may dispatch; never
         # infer business rules or spend model tokens on data counting.
         from backend.app.workspace_data_service import get_workspace_data_dir
-        local_result = dispatch_local_investigation(
+        local_result = {"status": "personal_data_mentor"} if personal_data_mentor_selected(workspace) else dispatch_local_investigation(
             workspace,
             message,
             get_workspace_data_dir(workspace.workspace_id) / "working.csv",
@@ -236,12 +237,16 @@ def chat(request: ChatRequest):
         )
         # Notebook research uses one shared structured planner/validator. It
         # must not fall through to a free-text answer or a skill classifier.
+        personal_reply = generate_personal_data_reply(workspace, workspace_context, message, previous_history) if (
+            workspace_context is not None and personal_data_mentor_selected(workspace)) else None
         research_reply = generate_research_reply(
-            workspace_context, message, previous_history,
-        ) if workspace_context is not None and os.getenv(
+            workspace_context, message, previous_history, max_attempts=1,
+        ) if personal_reply is None and workspace_context is not None and os.getenv(
             "AI_NOTEBOOK_RESEARCH_ENABLED", "false",
         ).strip().casefold() in {"1", "true", "yes"} else None
-        if research_reply is not None:
+        if personal_reply is not None:
+            reply = personal_reply
+        elif research_reply is not None:
             reply = research_reply
         elif local_evidence.get("status") == "verified":
             evidence = local_evidence["evidence"]
@@ -444,7 +449,7 @@ def chat(request: ChatRequest):
             detail="Beklenmeyen bir sunucu hatası oluştu.",
         )
 
-    if workspace_context is not None:
+    if workspace_context is not None and not personal_data_mentor_selected(workspace):
         reply = enforce_discovery_contract(message, reply)
         reply = enforce_reply_review_contract(message, reply)
 

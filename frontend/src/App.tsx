@@ -513,7 +513,7 @@ type DashboardWorkspace = {
   usage_context: "work" | "personal";
 
   mentor_setup?: {
-    notebook_teaching_context?: "generic" | "question_and_code" | "question_code_and_summaries" | null;
+    notebook_teaching_context?: "generic" | "question_and_code" | "question_code_and_summaries" | "personal_data" | null;
   } | null;
 
   data_sensitivity:

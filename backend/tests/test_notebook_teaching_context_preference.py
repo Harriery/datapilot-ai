@@ -32,7 +32,7 @@ def client_workspace(**changes):
     return client, response.json()
 
 
-@pytest.mark.parametrize('mode', ['question_and_code', 'question_code_and_summaries'])
+@pytest.mark.parametrize('mode', ['question_and_code', 'question_code_and_summaries', 'personal_data'])
 def test_preference_persists_without_reclassifying_data_or_changing_other_project_state(mode):
     client, before = client_workspace()
     workspace_id = before['workspace_id']
@@ -53,7 +53,7 @@ def test_preference_persists_without_reclassifying_data_or_changing_other_projec
     ('work', 'public', 403), ('work', 'internal', 403),
     ('personal', 'confidential', 409), ('personal', 'restricted', 409),
 ])
-@pytest.mark.parametrize('mode', ['question_and_code', 'question_code_and_summaries'])
+@pytest.mark.parametrize('mode', ['question_and_code', 'question_code_and_summaries', 'personal_data'])
 def test_preference_does_not_bypass_protected_data_or_work_policy(context, sensitivity, status, mode):
     client, workspace = client_workspace(usage_context=context, data_sensitivity=sensitivity)
     response = client.patch(f"/workspaces/context-choice/{workspace['workspace_id']}/notebook-teaching", json={'mode': mode})
