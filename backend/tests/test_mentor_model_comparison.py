@@ -282,11 +282,12 @@ def test_remaining_plain_text_checkpoints_exclude_pilot_and_preserve_frozen_inpu
 
 
 @pytest.mark.parametrize('failure_on_second', [False, True])
-def test_remaining_plain_suite_caps_calls_and_stops_on_provider_failure(monkeypatch, failure_on_second):
+@pytest.mark.parametrize('selected_model', probe.MODEL_COMPARISON_IDS)
+def test_remaining_plain_suite_caps_calls_and_stops_on_provider_failure(monkeypatch, failure_on_second, selected_model):
     monkeypatch.setenv('AI_FREE_ONLY', 'true')
     monkeypatch.setenv('AI_FREE_PROVIDER_ALLOWLIST', 'groq')
     calls, saved = [], []
-    client = Client(models=['qwen/qwen3.8-27b'])
+    client = Client(models=[selected_model])
     def plain(**kwargs):
         calls.append(kwargs)
         if failure_on_second and len(calls) == 2:
@@ -298,12 +299,13 @@ def test_remaining_plain_suite_caps_calls_and_stops_on_provider_failure(monkeypa
     with patch.object(probe, 'get_ai_runtime', return_value=runtime(client)), \
          patch.object(probe, 'guarded_responses_parse') as structured:
         report = probe.run_model_comparison(live=True, plain_text_suite=True, delay=0,
-            checkpoint=lambda value: saved.append(value))
+            checkpoint=lambda value: saved.append(value), suite_model=selected_model)
     structured.assert_not_called()
     assert len(calls) == report['provider_calls'] == (2 if failure_on_second else 5)
     assert database.get_ai_usage_counts()['daily_requests'] - before == len(calls)
     assert report['max_provider_calls'] == 5
-    assert all('text_format' not in x and x['model'] == 'qwen/qwen3.8-27b' for x in calls)
+    assert all('text_format' not in x and x['model'] == selected_model for x in calls)
+    assert report['models'] == [selected_model]
     assert 'private-provider-message' not in json.dumps(report)
     assert report['status'] == ('blocked' if failure_on_second else 'completed_requires_human_review')
     arm = report['pairs'][0]['arms']['plain_text']
@@ -311,3 +313,21 @@ def test_remaining_plain_suite_caps_calls_and_stops_on_provider_failure(monkeypa
     assert arm['diagnostics']['semantic_quality_verified'] is False
     assert arm['pending_task']['status'] == 'awaiting_execution'
     assert saved[-1]['status'] == report['status']
+
+
+def test_plain_suite_model_selection_preserves_every_context_and_option():
+    reports = [probe.run_model_comparison(live=False, plain_text_suite=True, suite_model=model)
+        for model in probe.MODEL_COMPARISON_IDS]
+    assert reports[0]['experiment'] != reports[1]['experiment']
+    for left,right in zip(reports[0]['pairs'],reports[1]['pairs']):
+        assert left == right
+    assert all(report['max_provider_calls'] == 5 for report in reports)
+
+
+def test_invalid_suite_model_is_rejected_before_any_provider_access():
+    with patch.object(probe, 'get_ai_runtime') as provider:
+        with pytest.raises(ValueError):
+            probe.run_model_comparison(live=True, plain_text_suite=True, suite_model='unapproved-model')
+        with pytest.raises(ValueError):
+            probe.run_model_comparison(live=True, suite_model='openai/gpt-oss-120b')
+    provider.assert_not_called()

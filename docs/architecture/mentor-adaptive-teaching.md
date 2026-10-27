@@ -271,3 +271,19 @@ the existing `pairs` container but contains one arm per checkpoint and null
 independent, with no generated teaching history transferred between them. Five
 delivered replies would not establish learning, semantic correctness or project
 completion. Production mentor configuration is unchanged.
+
+To collect the same five plain-text checkpoints with GPT-OSS-120B instead,
+select the benchmark-only model explicitly:
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --plain-text-suite --suite-model openai/gpt-oss-120b --case orders
+```
+
+`--suite-model` is restricted to the two existing comparison models and requires
+`--plain-text-suite`. The default remains Qwen for compatibility with earlier
+commands. The selected model is recorded in the report and in every live arm;
+only that model's catalog availability is required. Contexts, questions, prompt,
+delivery checks, reasoning request, token cap and five-call limit remain the
+same. The application model and `.env` are never changed. Separately collected
+runs can inform a qualitative comparison but are not a concurrent randomized
+experiment or proof of novice project completion.

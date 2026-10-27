@@ -573,7 +573,7 @@ def frozen_teaching_checkpoints(case):
 
 
 def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkpoint=None,
-                         format_comparison=False, plain_text_suite=False):
+                         format_comparison=False, plain_text_suite=False, suite_model=None):
     """Same teacher input/rules/schema/options, two fixed free-plan models.
 
     No application configuration changes, generated code execution, provider
@@ -585,18 +585,22 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
     from types import SimpleNamespace
     if format_comparison and plain_text_suite:
         raise ValueError('Choose one experiment')
+    if suite_model is not None and (not plain_text_suite or suite_model not in MODEL_COMPARISON_IDS):
+        raise ValueError('suite_model requires the plain-text suite and an allowed comparison model')
+    selected_suite_model = suite_model or 'qwen/qwen3.8-27b'
     if format_comparison:
         turns = 1  # Fixed two-request diagnostic, not a new dialogue suite.
     if plain_text_suite:
         turns = 5  # Remaining frozen checkpoints only; do not repeat the pilot.
-    arm_models = ({'plain_text': 'qwen/qwen3.8-27b'} if plain_text_suite else
+    arm_models = ({'plain_text': selected_suite_model} if plain_text_suite else
         {'structured_json': 'qwen/qwen3.8-27b', 'plain_text': 'qwen/qwen3.8-27b'}
         if format_comparison else {model: model for model in MODEL_COMPARISON_IDS})
     if type(turns) is not int or not 1 <= turns <= len(DIALOGUE_QUESTIONS):
         raise ValueError('turns must be between 1 and 6')
     if case not in DIALOGUE_CASES:
         raise ValueError('Unknown synthetic case')
-    experiment = ('qwen_plain_text_remaining_checkpoints_v1' if plain_text_suite else
+    experiment = (('qwen_plain_text_remaining_checkpoints_v1' if selected_suite_model == 'qwen/qwen3.8-27b'
+        else 'gpt_oss_plain_text_remaining_checkpoints_v1') if plain_text_suite else
         'same_context_qwen_output_formats_v1' if format_comparison else 'same_context_two_models_v1')
     report = {'experiment': experiment, 'current_teaching_context_version': 3,
         'mode': 'live' if live else 'offline_preparation', 'case': case,
@@ -753,7 +757,8 @@ def main(argv=None):
     mode.add_argument('--offline', action='store_true', help='Prepare paired requests without provider access.')
     parser.add_argument('--model-comparison', action='store_true', help='Same-context GPT-OSS/Qwen comparison; at most twelve guarded calls.')
     parser.add_argument('--format-comparison', action='store_true', help='Qwen JSON schema versus plain text on one fixed checkpoint; at most two guarded calls.')
-    parser.add_argument('--plain-text-suite', action='store_true', help='Qwen plain text on the remaining five fixed checkpoints; at most five guarded calls.')
+    parser.add_argument('--plain-text-suite', action='store_true', help='Plain text on the remaining five fixed checkpoints; at most five guarded calls.')
+    parser.add_argument('--suite-model', choices=MODEL_COMPARISON_IDS, help='Benchmark-only model for --plain-text-suite; default Qwen. Does not edit application configuration.')
     parser.add_argument('--turns', type=int, default=6, choices=range(1,7), help='Model-comparison checkpoints; default six, at most twelve calls.')
     parser.add_argument('--paired-comparison', action='store_true', help='Isolated current versus simple comparison; no runtime mentor changes.')
     parser.add_argument('--start-pair', type=int, default=1, choices=range(1,10), help='Start at this fixed comparison pair; completed earlier pairs are not repeated.')
@@ -765,6 +770,8 @@ def main(argv=None):
     parser.add_argument('--question-and-code', action='store_true', help='Exercise explicit scoped sharing on an unclassified personal project.')
     parser.add_argument('--output-dir', type=Path, default=Path('backend/benchmarks/results/teaching-probe'))
     args = parser.parse_args(argv)
+    if args.suite_model and not args.plain_text_suite:
+        parser.error('--suite-model requires --plain-text-suite')
     load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
     if args.offline and not (args.paired_comparison or args.model_comparison or args.format_comparison or args.plain_text_suite):
         parser.error("--offline requires a comparison mode")
@@ -778,7 +785,8 @@ def main(argv=None):
         path = folder / 'report.json'
         report = run_model_comparison(live=args.live, case=args.case, turns=args.turns, delay=args.delay,
             checkpoint=lambda value: path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8'),
-            format_comparison=args.format_comparison, plain_text_suite=args.plain_text_suite)
+            format_comparison=args.format_comparison, plain_text_suite=args.plain_text_suite,
+            suite_model=args.suite_model)
         print('REPORT:', path.resolve())
         print('STATUS:', report['status'], 'PROVIDER CALLS:', report['provider_calls'])
         print('No automatic winner; raw answers and teaching quality require human review.')
