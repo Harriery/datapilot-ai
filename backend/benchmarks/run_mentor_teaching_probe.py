@@ -371,7 +371,7 @@ def run_paired_comparison(*, live=False, max_pairs=3, start_pair=1, delay=45, ch
         raise ValueError('max_pairs must be between 1 and 9')
     if type(start_pair) is not int or not 1 <= start_pair <= len(COMPARISON_SCHEDULE) or start_pair - 1 + max_pairs > len(COMPARISON_SCHEDULE):
         raise ValueError('Requested comparison range is outside the fixed schedule')
-    report = {'experiment': 'current_vs_simple_frozen_checkpoints_v1',
+    report = {'experiment': 'current_vs_simple_frozen_checkpoints_v1', 'current_teaching_context_version': 2,
         'mode': 'live' if live else 'offline_preparation', 'synthetic_data_only': True,
         'independent_checkpoints': True, 'same_model_required': True, 'project_state_isolated': True,
         'usage_ledger': 'normal_application_ledger', 'provider_call_count_kind': 'guarded_request_attempts', 'provider_calls': 0, 'max_provider_calls': 2 * max_pairs,
@@ -448,7 +448,7 @@ def run_paired_comparison(*, live=False, max_pairs=3, start_pair=1, delay=45, ch
                     'arms': {}, 'human_scores': {'current_raw': None, 'current_displayed': None, 'simple': None}}
                 report['pairs'].append(pair); persist()
                 if not live:
-                    pair['arms'] = {'current': {'input': current_preview, 'instructions': teaching.TEACHING_RULES,
+                    pair['arms'] = {'current': {'input': teaching.teaching_provider_view(current_preview), 'instructions': teaching.TEACHING_RULES,
                         'response_schema': 'TeachingExplanation', 'max_output_tokens': cap},
                         'simple': {'input': common, 'instructions': SIMPLE_COMPARISON_RULES,
                         'response_schema': 'ComparisonAnswer', 'max_output_tokens': cap}}

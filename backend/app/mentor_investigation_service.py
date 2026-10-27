@@ -282,6 +282,7 @@ def investigation_view(context, state, *, include_results=False):
             'coverage': 'recorded_notebook_execution', 'full_source_verified': False,
             'dataset_kind': item.get('dataset_kind')}
         if include_results:
+            entry['input_rows'] = item.get('input_rows')
             # Do not send previews or unbounded Series through this common view.
             if contract.get('operation') == 'missing_count':
                 entry['result'] = contract.get('result')

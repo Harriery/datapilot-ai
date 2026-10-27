@@ -76,7 +76,7 @@ def test_concept_partial_attempt_evidence_and_scope_change_share_one_investigati
     assert core['learner_preferences']['approach'] == 'guided'
     assert core['stage'] == 'prepare.workbench.notebook'
     assert core['definition_availability']['status'] == 'unavailable'
-    assert core['verified_checks'][0]['contract']['operation'] == 'missing_count'
+    assert core['verified_checks'][0]['purpose'] == 'count missing values'
     assert state['conversation_memory']['understanding_verified'] is False
     assert '```' not in visible
 
@@ -86,8 +86,8 @@ def test_concept_partial_attempt_evidence_and_scope_change_share_one_investigati
     response = provider_reply(step, conversation_kind='attempt', learner_need='Apply the condition to rows.')
     response.explanation = 'Koşul işaretleri üretmek, satırları seçmekten önce gelir; henüz seçimi tamamladığını varsayamayız.'
     _, state, payload = teach(context, response, 'Bu koşulu yazdım; şimdi nasıl kullanacağım?')
-    assert payload['last_attempt_shape']['uses_missing_condition']
-    assert not payload['last_attempt_shape']['uses_row_selection']
+    assert 'isna' in payload['latest_attempt']['source']
+    assert not payload['latest_attempt']['verified_result']
     assert payload['investigation_context']['learner_need'] == 'Counting versus row selection.'
     assert state['workflow']['active_step']['id'] == step['id']
     assert state['workflow']['active_step']['status'] == 'awaiting_execution'
@@ -232,8 +232,9 @@ def test_frozen_six_turn_probe_preserves_actual_model_candidate_and_displayed_re
     assert all(turn['provider_candidate'] and turn['displayed_reply'] for turn in report['turns'])
     assert all(turn['provider_calls'] == 1 for turn in report['turns'])
     assert report['turns'][2]['pending_task']['status'] == 'awaiting_execution'
-    assert calls[2]['last_attempt_shape']['uses_missing_condition']
-    assert calls[3]['last_attempt_shape']['success'] is False
+    assert 'isna' in calls[2]['latest_attempt']['source']
+    assert calls[3]['latest_attempt']['success'] is False
+    assert calls[3]['latest_attempt']['diagnostic']['origin'] == 'local_parser'
     assert calls[4]['investigation_context']['verified_checks'][0]['proportions'] == {'open': .9, 'closed': .1}
     assert report['turns'][4]['pending_task']['id'] != report['turns'][0]['pending_task']['id']
     assert report['status'] == 'completed_requires_human_review'

@@ -280,6 +280,7 @@ def _evidence(notebook: dict) -> list[dict]:
         item = {
             "id": key, "cell_id": cell.get("cell_id"), "section_title": cell.get("section_title"),
             "code": code[:1600], "signature": code_signature(code),
+            "code_truncated": bool(cell.get("code_truncated") or len(code) > 1600),
             "analysis_contract": observation_contract(code, run) if not cell.get("code_truncated") else {"supported": False, "reason": "recorded code was truncated"},
             "fields": fields_in_code(code), "success": run.get("success") is True,
             "output": str(run.get("output") or "")[:1000],
@@ -811,10 +812,12 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
         code_shown = explicit_code_requested(message) and active['status'] != 'needs_revalidation'
         if lesson is not None:
             sections = [lesson.explanation]
-            if lesson.conversation_kind == 'evidence':
+            if lesson.evidence_ids:
                 by_id = {x['id']: x for x in verified_observations(state)}
                 from backend.app.mentor_observation_contract import observation_text
                 for ref in lesson.evidence_ids:
+                    if ref in trace.get('rendered_result_ids', []):
+                        continue
                     item = by_id[ref]
                     fact = observation_text(item['analysis_contract'], state['response_language'])
                     if item.get('input_rows') is not None:

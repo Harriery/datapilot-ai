@@ -84,8 +84,9 @@ def test_explicit_personal_choice_preserves_real_question_current_expression_and
     assert payload['learner_question'] == message
     assert payload['execution_surface'] == 'python_notebook'
     assert payload['latest_verified_expression'] == "df['delivery_days'].isna().sum()"
-    assert payload['completed_operations'][0]['operation'] == 'missing_count'
-    assert payload['task_contract']['operation'] == 'distribution'
+    assert payload['completed_operations'][0]['purpose'] == 'count missing values'
+    assert payload['pending_step']['purpose'] == 'compare proportions'
+    assert 'task_contract' not in payload
     assert '250' not in model.call_args.kwargs['input']  # no measured output
     after = load_research_state(context['workspace_id'], 'n1')
     assert after['last_validation']['teaching_context_mode'] == 'user_shared_question_and_code'

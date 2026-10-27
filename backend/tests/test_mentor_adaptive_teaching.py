@@ -53,11 +53,12 @@ def test_actual_question_prior_count_and_normalized_task_reach_teacher_without_h
         reply = generate_research_reply(context, 'Önce neyi seçmeliyim? Kodu verme.', [])
     payload = json.loads(model.call_args.kwargs['input'])
     assert payload['learner_question'] == 'Önce neyi seçmeliyim? Kodu verme.'
-    assert [x['operation'] for x in payload['completed_operations']] == ['missing_count']
-    assert payload['completed_operations'][0]['row_predicate'] == {'op': 'all_current_df'}
-    assert payload['task_contract']['operation'] == 'distribution'
-    assert payload['task_contract']['options']['normalize'] is True
-    assert payload['task_contract']['measured_columns'] == ['shipment_status']
+    assert [x['purpose'] for x in payload['completed_operations']] == ['count missing values']
+    assert 'mevcut df' in payload['completed_operations'][0]['selection']
+    assert payload['pending_step']['purpose'] == 'compare proportions'
+    assert payload['pending_step']['missing_categories_included'] is True
+    assert payload['pending_step']['columns'] == ['shipment_status']
+    assert 'task_contract' not in payload
     after = load_research_state(context['workspace_id'], 'n1')
     assert after['proposals'] == state['proposals'] and '```' not in reply
     assert after['workflow']['active_step']['id'] == step['id']
@@ -184,9 +185,9 @@ def test_partial_attempt_is_visible_without_completing_distribution():
     notebook['recent_cells'].insert(0, cell)
     with runtime(), provider(lesson(step)) as model:
         generate_research_reply(context, 'Koşulu kurdum; şimdi?', [])
-    shape = json.loads(model.call_args.kwargs['input'])['last_attempt_shape']
-    assert shape['uses_missing_condition'] and not shape['uses_row_selection']
-    assert not shape['uses_distribution'] and not shape['contract_supported']
+    attempt = json.loads(model.call_args.kwargs['input'])['latest_attempt']
+    assert 'isna' in attempt['source'] and 'value_counts' not in attempt['source']
+    assert not attempt['verified_result'] and attempt['success']
     after = load_research_state(context['workspace_id'], 'n1')
     assert after['workflow']['active_step']['id'] == step['id']
     assert after['workflow']['active_step']['status'] == 'awaiting_execution'
