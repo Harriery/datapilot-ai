@@ -208,7 +208,7 @@ def test_local_ollama_is_free_only_and_does_not_spend_remote_quota(monkeypatch):
     client.responses.create.return_value = SimpleNamespace(output_text="Merhaba")
     for _ in range(4):
         guarded_responses_create(client, provider="ollama", purpose="mentor_chat_reply",
-                                 model="qwen3:4b", input="merhaba")
+                                 model="qwen3:4b-instruct", input="merhaba")
     assert client.responses.create.call_count == 4
     assert client.responses.create.call_args.kwargs["extra_body"] == {"think": False}
     assert get_ai_usage_status()["daily_requests"] == 0
@@ -221,7 +221,7 @@ def test_local_ollama_is_free_only_and_does_not_spend_remote_quota(monkeypatch):
     )
     parsed = guarded_responses_parse(
         client, provider="ollama", purpose="mentor_skill_detection",
-        model="qwen3:4b", input="Türkçe yanıt", instructions="Kısa açıkla",
+        model="qwen3:4b-instruct", input="Türkçe yanıt", instructions="Kısa açıkla",
         text_format=Answer, max_output_tokens=120, reasoning={"effort": "low"}
     )
     assert parsed.output_parsed.answer == "Kısa cevap"
@@ -236,7 +236,7 @@ def test_local_ollama_is_free_only_and_does_not_spend_remote_quota(monkeypatch):
     monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "groq")
     with pytest.raises(AIBillingPolicyError):
         guarded_responses_create(client, provider="ollama", purpose="mentor",
-                                 model="qwen3:4b", input="should block")
+                                 model="qwen3:4b-instruct", input="should block")
 
 
 def test_ollama_structured_missing_parse_fails_closed(monkeypatch):
@@ -254,4 +254,4 @@ def test_ollama_structured_missing_parse_fails_closed(monkeypatch):
     )
     with pytest.raises(ValueError, match="valid structured response"):
         guarded_responses_parse(client, provider="ollama", purpose="mentor_research_turn",
-                                model="qwen3:4b", input="hi", text_format=Answer)
+                                model="qwen3:4b-instruct", input="hi", text_format=Answer)
