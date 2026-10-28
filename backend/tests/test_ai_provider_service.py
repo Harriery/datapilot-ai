@@ -102,3 +102,30 @@ def test_groq_guided_learning_defaults_to_20b(monkeypatch):
     assert evaluator.model == "openai/gpt-oss-20b"
     assert tutor.provider == "groq"
     assert tutor.model == "openai/gpt-oss-20b"
+
+
+
+def test_local_ollama_runtime_uses_loopback_and_saved_model(monkeypatch):
+    from backend.app.ai_provider_service import get_ai_runtime, AIProviderConfigurationError
+    import pytest
+
+    monkeypatch.setenv("AI_FREE_ONLY", "true")
+    monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "ollama")
+    monkeypatch.setenv("AI_MENTOR_PROVIDER", "ollama")
+    monkeypatch.setenv("AI_CLASSIFIER_PROVIDER", "ollama")
+    monkeypatch.setenv("AI_OLLAMA_MODEL", "qwen3:4b")
+    config = get_ai_runtime_config("mentor")
+    classifier = get_ai_runtime_config("classifier")
+    assert config.provider == classifier.provider == "ollama"
+    assert config.model == classifier.model == "qwen3:4b"
+    runtime = get_ai_runtime("mentor")
+    assert str(runtime.client.base_url) == "http://127.0.0.1:11434/v1/"
+    monkeypatch.setenv("AI_OLLAMA_MODEL", "some-model:cloud")
+    with pytest.raises(AIProviderConfigurationError):
+        get_ai_runtime("mentor")
+
+
+def test_groq_remains_selected_when_ollama_is_in_allowlist(monkeypatch):
+    _configure_free_groq(monkeypatch)
+    monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "groq,ollama")
+    assert get_ai_runtime_config("mentor").provider == "groq"
