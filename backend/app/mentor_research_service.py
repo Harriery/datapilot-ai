@@ -27,7 +27,7 @@ from backend.app.mentor_grounded_reply import compile_reply
 from backend.app.mentor_research_store import load_research_state, save_research_state
 from backend.app.mentor_local_progress_service import plan_missing_preview, plan_preview_continuation
 from backend.app.mentor_preview_evidence_service import preview_contradicts_selection, missing_preview_rows
-from backend.app.mentor_tutoring_service import explicit_code_requested, support_requested
+from backend.app.mentor_tutoring_service import explicit_code_requested, support_requested, teaching_code_mode
 from backend.app.mentor_adaptive_teaching_service import explain_pending_task, has_code
 from backend.app.mentor_evidence_refresh_service import plan_evidence_refresh, render_evidence_refresh
 from backend.app.mentor_investigation_service import (
@@ -809,11 +809,12 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
     if active is not None and active['kind'] == 'inspect':
         lesson, trace = explain_pending_task(context, state, active, message,
             allow_provider=allow_provider, request_pacer=request_pacer, max_attempts=max_attempts)
-        code_shown = explicit_code_requested(message) and active['status'] != 'needs_revalidation'
+        direct_code_requested = teaching_code_mode(message) == 'direct'
         model_code = lesson is not None and has_code(lesson.explanation)
+        code_shown = (direct_code_requested or model_code) and active['status'] != 'needs_revalidation'
         if lesson is not None:
             reply = lesson.explanation
-            if code_shown and not model_code:
+            if direct_code_requested and not model_code:
                 reply += '\n\n```python\n' + active['code'] + '\n```'
         else:
             if not allow_provider or active['status'] == 'needs_revalidation':
@@ -833,7 +834,7 @@ def generate_research_reply(context: dict, message: str, history: list[dict], *,
                         'en': 'Adaptive teaching is unavailable. Local fallback guidance: I could not validate an answer to your question. I will not repeat the task or ask for another output. The pending task is retained, not completed.',
                         'nl': 'Adaptieve uitleg is niet beschikbaar. Lokale reserve-uitleg: ik kon een antwoord op je vraag niet valideren. Ik herhaal de opdracht niet en vraag geen nieuwe uitvoer. De taak blijft open.',
                     }[state['response_language']]
-                if code_shown:
+                if direct_code_requested:
                     reply += '\n\n```python\n' + active['code'] + '\n```'
         state['last_validation'] = {
             **trace, 'accepted': active['status'] != 'needs_revalidation',

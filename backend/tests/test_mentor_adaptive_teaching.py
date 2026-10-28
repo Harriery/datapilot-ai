@@ -324,3 +324,63 @@ def test_revision_is_skipped_when_its_added_draft_exceeds_existing_context_bound
     assert reply is None and model.call_count == trace['provider_calls'] == 1
     assert trace['style_rewrite_blocker'] == 'context_budget'
     assert not state.get('teaching_journal')
+
+
+
+def test_teaching_code_mode_scaffolds_without_a_strict_code_ban():
+    from backend.app.mentor_tutoring_service import teaching_code_mode
+    assert teaching_code_mode('İki sütunu nasıl karşılaştırabilirim?') == 'example'
+    assert teaching_code_mode('Bana kod örneği ver.') == 'example'
+    assert teaching_code_mode('Önce mantığını açıkla, kod verme.') == 'none'
+    assert teaching_code_mode('Denedim; kodu göster.') == 'direct'
+    assert teaching_code_mode('Explain this concept.') == 'none'
+
+
+def test_general_how_question_can_receive_analogous_teaching_code():
+    context, state, step = setup_task()
+    example = ("Bir koşul, hangi satırların eksik olduğunu işaretler. "
+               "Örneğin başka bir veri setinde `df['height'].isna()` "
+               "True/False işaretleri üretir; satır saymaz.")
+    with runtime(), provider(lesson(explanation=example)) as model:
+        visible = generate_research_reply(context, 'Eksik satırları nasıl seçebilirim?', [])
+    trace = load_research_state(context['workspace_id'], 'n1')['last_validation']
+    assert visible == example and model.call_count == 1
+    preferences = json.loads(model.call_args.kwargs['input'])['response_preferences']
+    assert preferences == {'show_code': True, 'code_mode': 'example'}
+    assert trace['teaching_accepted'] and trace['code_shown']
+    assert trace['code_artifact_source'] == 'model_suggestion_not_executed'
+
+
+
+def test_help_for_failed_attempt_accepts_small_correction_without_direct_solution():
+    from backend.app.mentor_tutoring_service import teaching_code_mode
+    assert teaching_code_mode('Son denemem hata verdi. Nerede takıldım?') == 'repair'
+    assert teaching_code_mode('Hata aldım; ama kod verme.') == 'none'
+    context, state, step = setup_task()
+    answer = "Bir parantez açık kalmış olabilir. `df['delivery_days'].isna()` kapanış parantezini de içerir."
+    with runtime(), provider(lesson(explanation=answer)) as model:
+        visible = generate_research_reply(context, 'Son denemem hata verdi. Nerede takıldım?', [])
+    assert visible == answer
+    assert model.call_count == 1
+    preferences = json.loads(model.call_args.kwargs['input'])['response_preferences']
+    assert preferences == {'show_code': True, 'code_mode': 'repair'}
+    assert 'THIS TURN IS TROUBLESHOOTING' in model.call_args.kwargs['instructions']
+    assert step['code'] not in visible
+
+
+def test_example_request_never_appends_full_pending_task_code():
+    context, state, step = setup_task()
+    with runtime(), provider(lesson(explanation='Bir sütunda boş değerleri işaretlersin.')) as model:
+        visible = generate_research_reply(context, 'Bana başka sütunlarla kod örneği ver.', [])
+    assert visible == 'Bir sütunda boş değerleri işaretlersin.'
+    assert step['code'] not in visible
+    assert json.loads(model.call_args.kwargs['input'])['response_preferences']['code_mode'] == 'example'
+    assert model.call_count == 1
+
+
+def test_no_code_turn_gets_explicit_prose_only_model_instruction():
+    context, state, step = setup_task()
+    with runtime(), provider(lesson()) as model:
+        generate_research_reply(context, 'Kodu vermeden kısa açıkla.', [])
+    assert 'THIS TURN MUST BE PROSE ONLY' in model.call_args.kwargs['instructions']
+    assert 'code_mode' not in json.loads(model.call_args.kwargs['input'])['response_preferences']

@@ -7,7 +7,7 @@ def mentor_reply_rules() -> str:
     - Give only ONE small next step.
     - The reply must have one cognitive target only. Do not combine two checks
       or two questions in one sentence.
-    - Prefer one short sentence; target <= 20 words.
+    - Prefer 2-3 clear, short sentences; expand only when the learner requests detail.
     - If success=true and next_phase differs from current_phase, briefly
       acknowledge the learner and move to the next phase. Do not ask them to
       repeat or reconfirm what they already established.
@@ -38,8 +38,12 @@ def mentor_reply_rules() -> str:
       GUIDE = one concrete, targeted step;
       TEACH = one compact concept explanation plus one immediate check;
       DEMONSTRATE = one minimal example only when needed.
-    - Do not provide code unless learner_message explicitly asks for code or
-      assistance_level=DEMONSTRATE.
+    - Do not impose an absolute code ban. On a general how-to question, a
+      short illustrative example with unrelated invented fields can teach syntax.
+      Explain its logic; do not automatically provide the learner's task solution.
+    - When direct code is explicitly requested, provide the smallest useful
+      task-specific snippet and briefly explain it. Diagnose shared errors first.
+    - Honor an explicit no-code request, and never treat generated code as execution evidence.
     - When the learner asks what supplied code, a function, or a parameter means,
       explain it directly in compact beginner-friendly language before continuing.
       Do not send the learner to documentation or external reading unless they
