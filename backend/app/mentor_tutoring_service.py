@@ -33,3 +33,30 @@ def support_requested(message: str) -> bool:
                           r'explain\s+(?:it\s+)?more\s+simply|'
                           r'weet\s+niet\s+hoe|hoe\s+(?:doe|kan|moet)\s+ik|'
                           r'geef\s+(?:me\s+)?een\s+hint|nog\s+steeds\s+niet|eenvoudiger|simpeler', text))
+
+
+
+def teaching_code_mode(message: str) -> str:
+    """none=prose; example=analogous snippet; direct=learner's task code."""
+    text = normalized(message)
+    if re.search(
+        r'kod\w*\s+(?:gosterme\w*|verme\w*|yazma\w*|paylasma\w*)|'
+        r'cozum\w*\s+(?:verme\w*|gosterme\w*|soyleme\w*)|'
+        r'without\s+(?:giving\s+(?:me\s+)?)?(?:(?:any|the)\s+)?(?:code|solution)|'
+        r'no\s+(?:(?:python|sql)\s+)?(?:code|solution)|'
+        r'(?:do not|don\x27t)\s+(?:show|give|write|provide).{0,20}(?:code|solution)|'
+        r'zonder\s+(?:de\s+)?(?:code|oplossing)|geen\s+(?:code|oplossing)|'
+        r'(?:toon|geef)\s+de\s+code\s+niet',
+        text,
+    ):
+        return 'none'
+    if re.search(r'\bkod\s+ornegi\b|\bcode\s+example\b|\bvoorbeeldcode\b', text):
+        return 'example'
+    if explicit_code_requested(message):
+        return 'direct'
+    if re.search(
+        r'\bnasil\b|\bhow\s+(?:do|can|should)\s+i\b|'
+        r'\bhoe\s+(?:doe|kan|moet)\s+ik\b', text,
+    ):
+        return 'example'
+    return 'none'
