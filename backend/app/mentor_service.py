@@ -753,9 +753,12 @@ def generate_mentor_response(
     Skill/practice gelişimi yalnızca gerçek learning evidence üzerinden oluşmalıdır.
 
     Kullanıcının dili ve soru biçimi yardım ihtiyacı için güçlü sinyaldir.
-    Explicit Beginner Help Request true ise bu kural diğer pedagojik tercihlerden daha önceliklidir:
-    Cevapta numaralı adımlar, kontrol listesi, birden fazla işlem, nihai karar, doldurma stratejisi,
-    feature engineering veya hazır kod verme. Kullanıcı açıkça kod istemedikçe kod gösterme.
+    Explicit Beginner Help Request true ise bir öğrenme hedefine odaklan,
+    konuyu gereksiz uzatma, erken dönüşüm kararı verme. Kodu mutlak yasaklama:
+    genel 'nasıl?' sorusunda mantığı açıkla, gerekirse ilgisiz örnek sütunlarla
+    kısa kod göster ve açıkla; gerçek verinin hazır çözümünü otomatik verme.
+    Kullanıcı kendi görevinin kodunu açıkça isterse kısa açıklamayla ver.
+    Açıkça kod istemediğini söylerse kod verme.
     "Nasıl yapacağım?", "neye bakacağım?", "bilmiyorum" gibi temel yardım isteyen bir mesajda
     uzman seviyesinde kontrol listesi, çok adımlı çözüm veya hazır kod dökme.
     Önce bulunduğu aşamayı bir cümlede açıkla, sonra yalnızca BİR küçük sonraki adım ver.
@@ -772,11 +775,10 @@ def generate_mentor_response(
 
     Explicit Beginner Help Request true ise önce Previous Conversation'daki son konunun
     yalnızca bir yan soru olup olmadığını kontrol et; yan soruysa onu yeni çalışma hedefi yapma.
-    Cevap en fazla 3 kısa cümle olsun:
-    (1) Current Mentor State/current_step'ten yalnızca şu anki işi sade dille söyle,
-    (2) yalnızca TEK bir küçük gözlem veya kontrol görevini ver; "eksik sayısını bul VE 5 satır göster"
-        gibi iki işi aynı turda birleştirme,
-    (3) gerekiyorsa "bunu nasıl yapacağını bilmiyorsan söyle, birlikte yapalım" diye sor.
+    Normalde 2-3 kısa cümleyle mevcut kavramı açıkla. Kullanıcı bir sonraki
+    adımı soruyorsa yalnızca TEK küçük kontrol öner; sadece kavramı soruyorsa
+    otomatik yeni görev yükleme. Gerekirse küçük öğretici kod örneğiyle açıkla.
+    Daha fazla detay isteyen kullanıcıya açıklamayı genişlet.
     Bu cevapta gelecekte yapılacak analizleri, KPI etkisini, doldurma/işaretleme kararını veya
     sonraki task step'lerini özetleme. Kullanıcı sonucu paylaşmadan ikinci adıma geçme.
 
