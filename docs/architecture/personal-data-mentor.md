@@ -140,6 +140,14 @@ is labelled outcome unknown. Do not rerun automatically: a fresh command is a ne
 experiment that may spend quota again. Project data and chat remain unchanged;
 the normal AI usage ledger is updated during live calls.
 
+To continue a run interrupted **between** requests, use the same mode plus
+`--resume-report path/to/report.json`. The frozen questions, contexts and saved
+answers are retained; only pending requests run. Resume rejects failed/incomplete
+or unknown-outcome attempts, inconsistent accounting, and changed model/provider
+or output settings. It does not diagnose or suppress the source of a terminal
+interrupt. A run interrupted during pacing is eligible; one interrupted while a
+provider request was in flight requires review rather than automatic retry.
+
 The report contains actual shared project context and answers, not credentials.
 Keep it local unless intentionally sharing it for review. Word count, code-fence
 presence and completion metadata are observations, not teaching-quality grades.

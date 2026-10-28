@@ -168,3 +168,32 @@ def test_snapshot_change_blocks_preparation_before_live_model_calls(project):
     with patch.object(personal, 'load_input_snapshot', side_effect=changed):
         with pytest.raises(ValueError, match='changed during preparation'):
             prepare(workspace)
+
+
+def test_resume_preserves_first_answer_and_spends_only_five_more_calls(project):
+    report = prepare(seed(project))
+    saved = report['pairs'][0]['arms']['lean']
+    saved.update(status='received', answer='Previously saved answer', finish_reason='stop')
+    report['provider_calls'] = 1
+    before = deepcopy(saved)
+    runtime = fake_runtime()
+    with patch.object(probe, 'get_ai_runtime', return_value=runtime):
+        result = probe.run_personal_context_comparison(report, live=True, delay=0)
+    assert runtime.client.chat.completions.create.call_count == 5
+    assert result['provider_calls'] == 6
+    assert result['pairs'][0]['arms']['lean'] == before
+
+
+@pytest.mark.parametrize('change', ['unknown', 'count', 'settings'])
+def test_resume_rejects_ambiguous_accounting_or_changed_settings_before_provider(project, change):
+    report = prepare(seed(project))
+    if change == 'unknown':
+        report['pairs'][0]['arms']['lean']['status'] = 'interrupted_outcome_unknown'
+    elif change == 'count':
+        report['provider_calls'] = 1
+    else:
+        report['settings']['max_completion_tokens'] = 100
+    with patch.object(probe, 'get_ai_runtime') as provider:
+        with pytest.raises(ValueError):
+            probe.run_personal_context_comparison(report, live=True, delay=0)
+    provider.assert_not_called()

@@ -869,6 +869,25 @@ def run_personal_context_comparison(report, *, live=False, delay=65, checkpoint=
     """Six bounded plain-text generations. No tools, rewriting or project writes."""
     from backend.app.ai_usage_guard import guarded_chat_completions_create
     from backend.app import personal_data_mentor_service as personal
+    if report.get('experiment') != 'personal_context_ablation_v1' or len(report.get('pairs', [])) != 3:
+        raise ValueError('Not a supported personal context comparison report.')
+    arms = []
+    for pair in report['pairs']:
+        if set(pair['arms']) != {'lean', 'application_context'}:
+            raise ValueError('Invalid comparison arms.')
+        arms.extend(pair['arms'].values())
+    if any(a.get('status') not in {'pending', 'received'} for a in arms):
+        raise ValueError('Cannot resume failed, incomplete or unknown-outcome requests automatically.')
+    if report.get('provider_calls') != sum(a['status'] == 'received' for a in arms) or report.get('max_provider_calls') != 6:
+        raise ValueError('Request accounting does not match the saved report.')
+    expected_settings = {'model': report['model'], 'max_completion_tokens': 1500}
+    if report['provider'] == 'groq' and report['model'] in {'openai/gpt-oss-120b', 'openai/gpt-oss-20b'}:
+        expected_settings['reasoning_effort'] = 'medium'
+    cap = get_ai_usage_limits()['max_output_tokens_per_request']
+    if cap > 0:
+        expected_settings['max_completion_tokens'] = min(1500, cap)
+    if report.get('settings') != expected_settings:
+        raise ValueError('Generation settings changed; do not mix conditions in a resumed report.')
     persist = lambda: checkpoint(deepcopy(report)) if checkpoint else None
     persist()
     if not live:
@@ -889,8 +908,9 @@ def run_personal_context_comparison(report, *, live=False, delay=65, checkpoint=
             order = ['lean', 'application_context'] if index % 2 == 0 else ['application_context', 'lean']
             for name in order:
                 current = pair['arms'][name]
-                if current['status'] != 'pending':
-                    raise ValueError('Do not replay an already attempted report.')
+                if current['status'] == 'received':
+                    print(f'Skipping saved answer: question {index+1}, {name}', flush=True)
+                    continue
                 remaining = max(0, deadline - time.monotonic())
                 if remaining:
                     print(f'Provider pacing: {remaining:.0f}s (Ctrl+C saves completed results)', flush=True)
@@ -931,6 +951,7 @@ def main(argv=None):
     mode.add_argument('--live', action='store_true', help='Allow configured provider calls within the selected experiment cap.')
     mode.add_argument('--offline', action='store_true', help='Prepare paired requests without provider access.')
     parser.add_argument('--context-comparison', action='store_true', help='Current personal mentor context versus lean context on three actual saved questions; six calls maximum.')
+    parser.add_argument('--resume-report', type=Path, help='Continue pending context-comparison requests from the exact saved report; completed answers are not repeated.')
     parser.add_argument('--learner-id', default='demo-learner')
     parser.add_argument('--workspace-title', default='Mentor Test — Orders')
     parser.add_argument('--notebook-id', help='Required when multiple notebooks have saved executions.')
@@ -949,6 +970,8 @@ def main(argv=None):
     parser.add_argument('--question-and-code', action='store_true', help='Exercise explicit scoped sharing on an unclassified personal project.')
     parser.add_argument('--output-dir', type=Path, default=Path('backend/benchmarks/results/teaching-probe'))
     args = parser.parse_args(argv)
+    if args.resume_report and not args.context_comparison:
+        parser.error('--resume-report requires --context-comparison')
     if args.suite_model and not args.plain_text_suite:
         parser.error('--suite-model requires --plain-text-suite')
     load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
@@ -956,12 +979,13 @@ def main(argv=None):
         parser.error("--offline requires a comparison mode")
     if sum((args.context_comparison, args.paired_comparison, args.model_comparison, args.format_comparison, args.plain_text_suite, args.dialogue_suite)) > 1:
         parser.error("Choose one comparison or dialogue suite")
-    folder = args.output_dir / datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
-    folder.mkdir(parents=True, exist_ok=False)
+    folder = args.resume_report.parent if args.resume_report else args.output_dir / datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
+    if not args.resume_report:
+        folder.mkdir(parents=True, exist_ok=False)
     if args.context_comparison:
-        path = folder / 'report.json'
-        report = prepare_personal_context_comparison(learner_id=args.learner_id,
-            workspace_title=args.workspace_title, notebook_id=args.notebook_id)
+        path = args.resume_report or folder / 'report.json'
+        report = json.loads(path.read_text(encoding='utf-8')) if args.resume_report else prepare_personal_context_comparison(
+            learner_id=args.learner_id, workspace_title=args.workspace_title, notebook_id=args.notebook_id)
         def save_context_report(value):
             temporary = path.with_suffix('.json.tmp')
             temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8')
