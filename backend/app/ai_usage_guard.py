@@ -1,5 +1,6 @@
 import json
 import os
+from types import SimpleNamespace
 from typing import Any
 
 import backend.app.database as database
@@ -99,6 +100,10 @@ def get_ai_usage_status() -> dict:
     ).strip() or "gpt-5-mini"
 
     normalized_provider = current_provider.casefold()
+    if normalized_provider == "ollama":
+        current_model = os.getenv("AI_OLLAMA_MODEL", "qwen3:4b").strip() or "qwen3:4b"
+    elif normalized_provider == "groq":
+        current_model = os.getenv("AI_GROQ_MENTOR_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b"
     allowed_free_providers = set(
         billing_policy["allowed_free_providers"]
     )
@@ -195,6 +200,11 @@ def reserve_ai_request(*, provider: str, model: str, purpose: str, input_value: 
             "AI request blocked locally: input is larger than AI_MAX_INPUT_CHARS_PER_REQUEST."
         )
 
+    if provider.casefold() == "ollama":
+        # No external billing/quota: local inference still respects the same
+        # maximum input size and the explicit FREE_ONLY allowlist.
+        return {**limits, "input_chars": input_chars, "local_inference": True}
+
     try:
         usage = database.reserve_ai_usage_event(
             provider=provider,
@@ -220,6 +230,10 @@ def guarded_responses_create(client, *, provider: str = "openai", purpose: str, 
     max_output_tokens = get_ai_usage_limits()["max_output_tokens_per_request"]
     if max_output_tokens > 0 and "max_output_tokens" not in kwargs:
         kwargs["max_output_tokens"] = max_output_tokens
+    if provider.casefold() == "ollama":
+        # Preserve the Responses API used across DataPilot. Local Ollama
+        # supports this endpoint; never expose model reasoning in the UI.
+        kwargs.setdefault("extra_body", {"think": False})
     return client.responses.create(**kwargs)
 
 
@@ -233,6 +247,52 @@ def guarded_responses_parse(client, *, provider: str = "openai", purpose: str, *
     max_output_tokens = get_ai_usage_limits()["max_output_tokens_per_request"]
     if max_output_tokens > 0 and "max_output_tokens" not in kwargs:
         kwargs["max_output_tokens"] = max_output_tokens
+
+    if provider.casefold() == "ollama":
+        # Ollama's OpenAI-compatible Responses API does not promise the
+        # text.format schema field sent by the SDK's responses.parse().
+        # Chat Completions DOES support JSON Schema / Pydantic parsing.
+        # Adapt locally to DataPilot's existing .output_parsed interface,
+        # without adding another Mentor/router or a second network request.
+        response_format = kwargs.pop("text_format")
+        instructions = kwargs.pop("instructions", "")
+        model = kwargs.pop("model")
+        source_input = kwargs.pop("input")
+        max_tokens = kwargs.pop("max_output_tokens", None)
+        kwargs.pop("reasoning", None)  # Local Qwen replies should not think aloud.
+        if isinstance(source_input, str):
+            messages = [{"role": "user", "content": source_input}]
+        elif isinstance(source_input, list):
+            messages = list(source_input)
+        else:
+            raise TypeError("Unsupported Ollama structured input type.")
+        if instructions:
+            messages.insert(0, {"role": "system", "content": instructions})
+        allowed = {"temperature", "top_p"}
+        if set(kwargs) - allowed:
+            raise TypeError("Unsupported Ollama structured request options.")
+        chat = client.chat.completions.parse(
+            model=model,
+            messages=messages,
+            response_format=response_format,
+            max_tokens=max_tokens,
+            extra_body={"think": False},
+            **kwargs,
+        )
+        if not chat.choices or chat.choices[0].message.parsed is None:
+            raise ValueError("Ollama did not return a valid structured response.")
+        usage = getattr(chat, "usage", None)
+        return SimpleNamespace(
+            status="completed" if chat.choices[0].finish_reason == "stop" else "incomplete",
+            output_parsed=chat.choices[0].message.parsed,
+            usage=SimpleNamespace(
+                input_tokens=getattr(usage, "prompt_tokens", None),
+                output_tokens=getattr(usage, "completion_tokens", None),
+                total_tokens=getattr(usage, "total_tokens", None),
+            ),
+            incomplete_details=None,
+        )
+
     return client.responses.parse(**kwargs)
 
 
@@ -278,6 +338,9 @@ def guarded_chat_completions_create(
             kwargs["max_completion_tokens"] = (
                 max_output_tokens
             )
+
+    if provider.casefold() == "ollama":
+        kwargs.setdefault("extra_body", {"think": False})
 
     return (
         client.chat.completions.create(
