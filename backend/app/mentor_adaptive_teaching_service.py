@@ -45,6 +45,10 @@ Respect response_preferences.code_mode (defaults to none):
   demonstrate it with ONE small snippet using invented, unrelated column names.
   Explain the snippet's purpose. Do not give the direct solution for the
   learner's dataset unless explicitly asked.
+- repair: when the learner reports a failed attempt, explain the visible
+  difficulty. A brief syntax correction of THAT attempted code is allowed even
+  without an explicit 'show code' request. Never append the entire pending task
+  solution. Only claim an exact error if the provided evidence supports it.
 - direct: when the learner explicitly requests their task's code, supply the
   smallest useful snippet and explain it briefly. Never claim it was executed.
 Keep replies concise (usually 2-3 short sentences); expand when requested.
@@ -182,7 +186,7 @@ def teaching_provider_view(payload):
             'idea': x.get('explanation'), 'prediction': x.get('prediction'), 'untested': True}
             for x in shared.get('candidate_explanations', []) if isinstance(x, dict)]
     view['response_preferences'] = {'show_code': bool(payload.get('show_code'))}
-    if payload.get('code_mode') in {'example', 'direct'}:
+    if payload.get('code_mode') in {'example', 'repair', 'direct'}:
         view['response_preferences']['code_mode'] = payload['code_mode']
     return view
 
@@ -390,6 +394,22 @@ def explain_pending_task(context, state, step, message, *, allow_provider, reque
         trace.update(provider=runtime.provider, model=runtime.model, attempt_outcomes=[], style_rewrite_used=False)
         options = {'reasoning': {'effort': 'low'}} if runtime.provider == 'groq' and runtime.model in {'openai/gpt-oss-120b', 'openai/gpt-oss-20b'} else {}
         request_view, instructions = provider_payload, TEACHING_RULES
+        if payload['code_mode'] == 'none':
+            instructions += (
+                '\nTHIS TURN MUST BE PROSE ONLY: No Python/SQL code, inline executable '
+                'expressions, backtick code, code blocks or copyable syntax. '
+                'Explain the specific question in at most three brief sentences. '
+                'For a count-versus-filter or True/False question, use ordinary '
+                'words to distinguish an indicator, a count and selected rows. '
+                'Do not switch to the pending analysis task unless asked.\n'
+            )
+        elif payload['code_mode'] == 'repair':
+            instructions += (
+                '\nTHIS TURN IS TROUBLESHOOTING: Explain the observable failed '
+                'attempt first, using only the error evidence actually provided. '
+                'You may show a minimal correction of that attempt, but do not '
+                'provide the complete next analysis or claim an unreported runtime error.\n'
+            )
         for attempt in range(max_attempts):
             encoded = json.dumps(request_view, ensure_ascii=False)
             if len(encoded) > 9000:
