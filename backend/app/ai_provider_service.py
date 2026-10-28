@@ -113,7 +113,7 @@ def _configured_model(
     role: AIRole,
 ) -> str:
     if provider == "ollama":
-        return os.getenv("AI_OLLAMA_MODEL", "qwen3:4b").strip() or "qwen3:4b"
+        return os.getenv("AI_OLLAMA_MODEL", "qwen3:4b-instruct").strip() or "qwen3:4b-instruct"
 
     if provider == "groq":
         if role == "classifier":
