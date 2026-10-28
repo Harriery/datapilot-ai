@@ -102,3 +102,48 @@ messages, generated SQL, request bodies, headers and credentials. No automatic
 model repair or extra provider call is introduced by this diagnostic record.
 An HTTP 400 without these details does not identify a specific invalid parameter
 or prove a tool-generation failure. Inspect the metadata before changing requests.
+
+## Context-only teaching comparison
+
+The existing `backend.benchmarks.run_mentor_teaching_probe` CLI has a
+`--context-comparison` mode for the current personal-data path. It captures the
+production request builder on a disposable SQLite backup, using the existing
+personal workspace, its selected notebook input and last three saved user turns.
+It creates no dataset, workspace, conversation or learner execution. Preparation
+does not call the provider. Current notebook evidence is frozen for all three
+pairs; this is **not** a replay of historical notebook versions. Multiple executed
+notebooks require `--notebook-id` rather than guessing which one is active.
+
+Both arms use the same configured Groq model, production system instructions,
+bounded actual conversation history, notebook cells/outputs, input scope and
+generation settings. Only one context message differs: the lean arm omits the
+dataset profile/example rows, product context, quality checks and saved mentor
+inspections. Both append the same production explanation instruction and disable
+new tools. This isolates context packaging for teaching; it is not the complete
+app/tool pipeline and cannot establish tool competence or end-to-end mentoring.
+
+From the repository root, with the existing personal-data consent already saved:
+
+```powershell
+& ".\venv\Scripts\python.exe" -m backend.benchmarks.run_mentor_teaching_probe --live --context-comparison
+```
+
+Defaults are learner `demo-learner` and exact title `Mentor Test — Orders`;
+override with `--learner-id`, `--workspace-title` or `--notebook-id` if needed.
+`--offline` instead of `--live` prepares requests without spending provider quota.
+Six requests maximum, alternating arm order across pairs, at least 65 seconds
+between starts from the CLI. No paid fallback, SDK retries, answer rewriting or
+model-generated code execution. Real requests retain normal usage accounting.
+Results checkpoint after each request into the printed `report.json` path. On an
+error or Ctrl+C the run stops and keeps completed answers; an in-flight interruption
+is labelled outcome unknown. Do not rerun automatically: a fresh command is a new
+experiment that may spend quota again. Project data and chat remain unchanged;
+the normal AI usage ledger is updated during live calls.
+
+The report contains actual shared project context and answers, not credentials.
+Keep it local unless intentionally sharing it for review. Word count, code-fence
+presence and completion metadata are observations, not teaching-quality grades.
+This six-call pilot has no automatic winner and one sample per arm/question;
+sampling variation and the retained historical replies remain limitations. A
+lean-arm improvement suggests investigating context packaging; failure in both
+arms does not by itself prove a model's maximum capability or a need to retrain it.

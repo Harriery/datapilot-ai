@@ -750,11 +750,190 @@ def run_model_comparison(*, live=False, case='orders', turns=6, delay=45, checkp
     persist(); return report
 
 
+def prepare_personal_context_comparison(*, learner_id='demo-learner', workspace_title='Mentor Test — Orders', notebook_id=None):
+    """Freeze actual recent questions and current inputs without touching project state.
+
+    This is a context ablation, not replay of historical notebook versions or a
+    live UI/tool acceptance test. Both arms use the same production instructions.
+    """
+    import sqlite3
+    import tempfile
+    from contextlib import closing
+    from types import SimpleNamespace
+    from backend.app import personal_data_mentor_service as personal
+    from backend.app.ai_provider_service import get_ai_runtime_config
+    from backend.app.mentor_workspace_context_service import build_chat_mentor_workspace_context
+
+    config = get_ai_runtime_config('mentor')
+    if config.provider != 'groq':
+        raise ValueError('This comparison requires the configured free Groq provider.')
+    source = Path(database.DATABASE_PATH).resolve()
+    if not source.is_file():
+        raise ValueError('Project database not found; run from the repository root.')
+    report = {'experiment': 'personal_context_ablation_v1', 'status': 'prepared_not_live_tested',
+        'provider': config.provider, 'model': config.model, 'provider_calls': 0,
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'changed_variable': 'context_message_only', 'new_tool_calls_enabled': False,
+        'historical_notebook_replay': False, 'contains_personal_project_context': True,
+        'project_completion_proven': False, 'human_review_required': True,
+        'review_questions': ['Does it answer the actual difficulty?', 'Does it respect code and length preferences?',
+            'Does it maintain focus?', 'Does it distinguish evidence from guesses?',
+            'Is the next action small and learnable?'], 'pairs': []}
+    # The real ledger is used later, outside this copy. Context builders may write
+    # learner/research bookkeeping, so even preparation runs against a disposable DB.
+    with tempfile.TemporaryDirectory(prefix='mentor-context-') as folder:
+        copied = Path(folder) / 'snapshot.sqlite'
+        with closing(sqlite3.connect(source.as_uri() + '?mode=ro', uri=True)) as src, closing(sqlite3.connect(copied)) as dst:
+            src.backup(dst)
+        with patch.object(database, 'DATABASE_PATH', copied):
+            workspaces = [w for w in database.get_workspaces_by_learner(learner_id)
+                          if w.title == workspace_title]
+            if len(workspaces) != 1:
+                raise ValueError('Expected exactly one matching workspace; specify --workspace-title.')
+            workspace = workspaces[0]
+            if not personal.selected(workspace) or workspace.usage_context != 'personal' or workspace.data_sensitivity in {'confidential', 'restricted'}:
+                raise ValueError('The selected workspace must already allow personal_data mentor mode.')
+            notebooks = [n for n in workspace.notebooks if n.notebook_id == notebook_id] if notebook_id else [
+                n for n in workspace.notebooks if any(c.last_execution for c in n.cells)]
+            if len(notebooks) != 1:
+                candidates = ', '.join(f'{n.name}: {n.notebook_id}' for n in workspace.notebooks)
+                raise ValueError('Specify --notebook-id; available notebooks: ' + candidates)
+            notebook = notebooks[0]
+            history = database.get_messages_by_session(workspace.mentor_session_id)
+            indexes = [i for i, m in enumerate(history) if m['role'] == 'user'][-3:]
+            if len(indexes) != 3:
+                raise ValueError('This experiment needs three saved user turns in the workspace chat.')
+            report['source'] = {'workspace_title': workspace.title, 'workspace_id': workspace.workspace_id,
+                'notebook_id': notebook.notebook_id, 'notebook_name': notebook.name,
+                'question_selection': 'last_three_saved_user_turns', 'input_time': 'current_frozen_snapshot'}
+            for index in indexes:
+                question = history[index]['content']
+                ui = {'language': 'tr', 'active_workspace_stage': 'prepare', 'active_prepare_stage': 'workbench',
+                      'workbench_view': 'notebook', 'selected_notebook_id': notebook.notebook_id}
+                context = build_chat_mentor_workspace_context(workspace=workspace, learner_id=learner_id,
+                    ui_context=ui, message=question, current_task=None, current_step=None)
+                capture = {}
+                class RequestCaptured(BaseException):
+                    pass
+                def intercept(*args, **kwargs):
+                    capture.update(deepcopy(kwargs))
+                    raise RequestCaptured()
+                with patch.object(personal, 'get_ai_runtime', return_value=SimpleNamespace(
+                        provider=config.provider, model=config.model, client=None)), \
+                     patch.object(personal, 'guarded_chat_completions_create', side_effect=intercept):
+                    try:
+                        personal.generate_personal_data_reply(workspace, context, question, history[max(0, index-9):index])
+                    except RequestCaptured:
+                        pass
+                if not capture:
+                    raise ValueError('Production request could not be captured; no live requests were sent.')
+                full = capture['messages']
+                body = json.loads(full[1]['content'])
+                data = body['context']
+                if data['dataset']['scope'].get('status') != 'ready':
+                    raise ValueError('Notebook input snapshot is unavailable; no live requests were sent.')
+                scope = data['dataset']['scope']
+                if 'frozen_input_scope' in report and report['frozen_input_scope'] != scope:
+                    raise ValueError('Notebook input changed during preparation; no live requests were sent.')
+                report['frozen_input_scope'] = deepcopy(scope)
+                # Keep the same notebook evidence and history. Only extra dataset,
+                # product and saved-investigation context is removed in the lean arm.
+                lean = deepcopy(full)
+                lean_data = deepcopy(data)
+                lean_data['dataset'] = {'scope': data['dataset']['scope']}
+                lean_data['project'].pop('product_context', None)
+                lean_data['notebook'].pop('quality_checks', None)
+                lean_data.pop('recorded_mentor_inspections', None)
+                lean[1]['content'] = json.dumps({'context': lean_data, 'omissions': body['omissions'] + [
+                    'experiment: dataset profile/examples, product context, quality checks and mentor inspections omitted']},
+                    ensure_ascii=False, default=str)
+                instruction = {'role': 'system', 'content': personal.FINAL_RESPONSE_RULES}
+                full = [*full, instruction]
+                lean = [*lean, deepcopy(instruction)]
+                if max(len(json.dumps(x, ensure_ascii=False)) for x in (full, lean)) > personal.MAX_CONTEXT_CHARS:
+                    raise ValueError('Frozen request exceeds the production context budget.')
+                settings = {k: v for k, v in capture.items() if k in {'model', 'max_completion_tokens', 'reasoning_effort'}}
+                limit = get_ai_usage_limits()['max_output_tokens_per_request']
+                if limit > 0:
+                    settings['max_completion_tokens'] = min(settings['max_completion_tokens'], limit)
+                report['settings'] = settings
+                report['pairs'].append({'question': question, 'historical_message_index': index,
+                    'arms': {name: {'messages': messages, 'status': 'pending',
+                        'input_characters': len(json.dumps(messages, ensure_ascii=False))}
+                        for name, messages in [('lean', lean), ('application_context', full)]}})
+    report['max_provider_calls'] = 2 * len(report['pairs'])
+    return report
+
+
+def run_personal_context_comparison(report, *, live=False, delay=65, checkpoint=None):
+    """Six bounded plain-text generations. No tools, rewriting or project writes."""
+    from backend.app.ai_usage_guard import guarded_chat_completions_create
+    from backend.app import personal_data_mentor_service as personal
+    persist = lambda: checkpoint(deepcopy(report)) if checkpoint else None
+    persist()
+    if not live:
+        return report
+    policy = get_ai_billing_policy()
+    if not policy['free_only']:
+        raise ValueError('AI_FREE_ONLY must remain enabled for this experiment.')
+    runtime = get_ai_runtime('mentor')
+    if (runtime.provider, runtime.model) != (report['provider'], report['model']):
+        raise ValueError('Configured model/provider changed after request preparation.')
+    client = runtime.client.with_options(max_retries=0, timeout=90)
+    deadline = 0.0
+    report['status'] = 'running'
+    current = None
+    try:
+        for index, pair in enumerate(report['pairs']):
+            # Alternate order to reduce a systematic first/second-arm effect.
+            order = ['lean', 'application_context'] if index % 2 == 0 else ['application_context', 'lean']
+            for name in order:
+                current = pair['arms'][name]
+                if current['status'] != 'pending':
+                    raise ValueError('Do not replay an already attempted report.')
+                remaining = max(0, deadline - time.monotonic())
+                if remaining:
+                    print(f'Provider pacing: {remaining:.0f}s (Ctrl+C saves completed results)', flush=True)
+                while time.monotonic() < deadline:
+                    time.sleep(min(.5, max(0, deadline-time.monotonic())))
+                print(f"Request {report['provider_calls']+1}/{report['max_provider_calls']}: question {index+1}, {name}", flush=True)
+                current['status'] = 'request_started'
+                report['provider_calls'] += 1
+                persist()
+                deadline = time.monotonic() + max(0, delay)
+                response = guarded_chat_completions_create(client, provider=runtime.provider,
+                    purpose='personal_context_comparison', messages=current['messages'], **report['settings'])
+                choice = response.choices[0]
+                answer = choice.message.content or ''
+                current.update(status='received', answer=answer, finish_reason=choice.finish_reason,
+                    unexpected_tool_calls=bool(choice.message.tool_calls), word_count=len(answer.split()),
+                    has_code_fence='```' in answer,
+                    usage=response.usage.model_dump() if response.usage else None)
+                if choice.finish_reason != 'stop' or choice.message.tool_calls or not answer.strip():
+                    current['status'] = 'incomplete_or_unexpected_response'
+                persist()
+        report['status'] = 'completed_requires_human_review'
+    except KeyboardInterrupt:
+        if current is not None and current['status'] == 'request_started':
+            current['status'] = 'interrupted_outcome_unknown'
+        report['status'] = 'interrupted_no_automatic_retry'
+    except Exception as exc:
+        if current is not None and current['status'] == 'request_started':
+            current.update(status='failed', error_type=type(exc).__name__, provider_error=personal._provider_error_metadata(exc))
+        report['status'] = 'stopped_on_error_no_retry'
+    persist()
+    return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--live', action='store_true', help='Allow configured provider calls within the selected experiment cap.')
     mode.add_argument('--offline', action='store_true', help='Prepare paired requests without provider access.')
+    parser.add_argument('--context-comparison', action='store_true', help='Current personal mentor context versus lean context on three actual saved questions; six calls maximum.')
+    parser.add_argument('--learner-id', default='demo-learner')
+    parser.add_argument('--workspace-title', default='Mentor Test — Orders')
+    parser.add_argument('--notebook-id', help='Required when multiple notebooks have saved executions.')
     parser.add_argument('--model-comparison', action='store_true', help='Same-context GPT-OSS/Qwen comparison; at most twelve guarded calls.')
     parser.add_argument('--format-comparison', action='store_true', help='Qwen JSON schema versus plain text on one fixed checkpoint; at most two guarded calls.')
     parser.add_argument('--plain-text-suite', action='store_true', help='Plain text on the remaining five fixed checkpoints; at most five guarded calls.')
@@ -773,12 +952,29 @@ def main(argv=None):
     if args.suite_model and not args.plain_text_suite:
         parser.error('--suite-model requires --plain-text-suite')
     load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
-    if args.offline and not (args.paired_comparison or args.model_comparison or args.format_comparison or args.plain_text_suite):
+    if args.offline and not (args.context_comparison or args.paired_comparison or args.model_comparison or args.format_comparison or args.plain_text_suite):
         parser.error("--offline requires a comparison mode")
-    if sum((args.paired_comparison, args.model_comparison, args.format_comparison, args.plain_text_suite, args.dialogue_suite)) > 1:
+    if sum((args.context_comparison, args.paired_comparison, args.model_comparison, args.format_comparison, args.plain_text_suite, args.dialogue_suite)) > 1:
         parser.error("Choose one comparison or dialogue suite")
     folder = args.output_dir / datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
     folder.mkdir(parents=True, exist_ok=False)
+    if args.context_comparison:
+        path = folder / 'report.json'
+        report = prepare_personal_context_comparison(learner_id=args.learner_id,
+            workspace_title=args.workspace_title, notebook_id=args.notebook_id)
+        def save_context_report(value):
+            temporary = path.with_suffix('.json.tmp')
+            temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8')
+            temporary.replace(path)
+        print('SOURCE:', report['source']['workspace_title'], '/', report['source']['notebook_name'])
+        print('REPORT:', path.resolve(), flush=True)
+        print('The report contains actual project context. No project data or chat will be changed.')
+        for i, pair in enumerate(report['pairs'], 1):
+            print(f"QUESTION {i}: {pair['question']}")
+        report = run_personal_context_comparison(report, live=args.live, delay=max(65, args.delay), checkpoint=save_context_report)
+        print('STATUS:', report['status'], 'PROVIDER CALLS:', report['provider_calls'])
+        print('Context-only pilot; no automatic winner, tool/UI acceptance or learning proof.')
+        return 0 if report['status'] in {'prepared_not_live_tested', 'completed_requires_human_review'} else 1
     if args.model_comparison or args.format_comparison or args.plain_text_suite:
         if args.live:
             database.init_db()  # Retain the normal AI usage ledger; no isolated spending budget.
