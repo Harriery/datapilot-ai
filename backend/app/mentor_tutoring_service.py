@@ -37,7 +37,7 @@ def support_requested(message: str) -> bool:
 
 
 def teaching_code_mode(message: str) -> str:
-    """none=prose; example=analogous snippet; direct=learner's task code."""
+    """none=prose; example=analogous snippet; repair=fix attempt; direct=task code."""
     text = normalized(message)
     if re.search(
         r'kod\w*\s+(?:gosterme\w*|verme\w*|yazma\w*|paylasma\w*)|'
@@ -54,6 +54,14 @@ def teaching_code_mode(message: str) -> str:
         return 'example'
     if explicit_code_requested(message):
         return 'direct'
+    if re.search(
+        r'\b(?:hata\s+(?:aldim|verdi|veriyor)|hatali\s+(?:kod|ifade)|'
+        r'kodum\s+calismiyor|son\s+denemem\s+hata|'
+        r'error\s+(?:in|when|while)|my\s+code\s+fails|'
+        r'ik\s+krijg\s+een\s+fout)\b',
+        text,
+    ):
+        return 'repair'
     if re.search(
         r'\bnasil\b|\bhow\s+(?:do|can|should)\s+i\b|'
         r'\bhoe\s+(?:doe|kan|moet)\s+ik\b', text,
