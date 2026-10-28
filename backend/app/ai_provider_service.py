@@ -242,6 +242,14 @@ def _resolve_provider(
 
     policy = get_ai_billing_policy()
 
+    # Explicit local inference must never silently fall back to a remote provider.
+    if configured == "ollama":
+        if policy["free_only"] and "ollama" not in policy["allowed_free_providers"]:
+            raise AIProviderConfigurationError(
+                "Local Ollama was selected but is not in AI_FREE_PROVIDER_ALLOWLIST."
+            )
+        return "ollama"
+
     if not policy["free_only"]:
         return configured
 
