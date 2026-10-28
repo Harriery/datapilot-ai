@@ -113,11 +113,11 @@ def test_local_ollama_runtime_uses_loopback_and_saved_model(monkeypatch):
     monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "ollama")
     monkeypatch.setenv("AI_MENTOR_PROVIDER", "ollama")
     monkeypatch.setenv("AI_CLASSIFIER_PROVIDER", "ollama")
-    monkeypatch.setenv("AI_OLLAMA_MODEL", "qwen3:4b")
+    monkeypatch.setenv("AI_OLLAMA_MODEL", "qwen3:4b-instruct")
     config = get_ai_runtime_config("mentor")
     classifier = get_ai_runtime_config("classifier")
     assert config.provider == classifier.provider == "ollama"
-    assert config.model == classifier.model == "qwen3:4b"
+    assert config.model == classifier.model == "qwen3:4b-instruct"
     runtime = get_ai_runtime("mentor")
     assert str(runtime.client.base_url) == "http://127.0.0.1:11434/v1/"
     monkeypatch.setenv("AI_OLLAMA_MODEL", "some-model:cloud")
@@ -129,3 +129,12 @@ def test_groq_remains_selected_when_ollama_is_in_allowlist(monkeypatch):
     _configure_free_groq(monkeypatch)
     monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "groq,ollama")
     assert get_ai_runtime_config("mentor").provider == "groq"
+
+
+def test_local_ollama_defaults_to_non_thinking_instruct(monkeypatch):
+    monkeypatch.setenv("AI_FREE_ONLY", "true")
+    monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "ollama")
+    monkeypatch.setenv("AI_MENTOR_PROVIDER", "ollama")
+    monkeypatch.delenv("AI_OLLAMA_MODEL", raising=False)
+    runtime = get_ai_runtime_config("mentor")
+    assert runtime.model == "qwen3:4b-instruct"
