@@ -361,3 +361,41 @@ def test_ollama_uses_bounded_project_context_and_last_verified_notebook_work(pro
     assert context_body['context']['dataset']['schema'][0]['missing'] == 2
     assert 'df[\'days\'].isna().sum()' in messages[-1]['content']
     assert '"recorded_output": "2"' in messages[-1]['content']
+
+
+
+def test_local_ollama_short_answer_guidance_keeps_the_original_question(project):
+    _, workspace, context, _, _ = project
+    local = SimpleNamespace(provider='ollama', model='qwen3:4b-instruct', client=object())
+    with patch.object(mentor, 'get_ai_runtime', return_value=local), patch.object(
+        mentor, 'guarded_chat_completions_create', return_value=completion('Sonuç kesin hata değildir.')
+    ) as model:
+        reply = mentor.generate_personal_data_reply(
+            workspace, context, 'İki farklı ihtimali değerlendir.', [])
+    assert reply == 'Sonuç kesin hata değildir.'
+    messages = model.call_args.kwargs['messages']
+    assert '4 to 6 concise sentences' in messages[0]['content']
+    assert 'İki farklı ihtimali değerlendir.' in messages[-1]['content']
+    assert model.call_args.kwargs['max_completion_tokens'] == 650
+
+
+def test_local_incomplete_output_saves_finish_reason_and_usage_without_content(project):
+    _, workspace, context, _, _ = project
+    local = SimpleNamespace(provider='ollama', model='qwen3:4b-instruct', client=object())
+    response = completion('PRIVATE_MODEL_REPLY', finish='length')
+    response.usage = SimpleNamespace(prompt_tokens=1587, completion_tokens=650)
+    with patch.object(mentor, 'get_ai_runtime', return_value=local), patch.object(
+        mentor, 'guarded_chat_completions_create', return_value=response
+    ) as model:
+        reply = mentor.generate_personal_data_reply(
+            workspace, context, 'PRIVATE_QUESTION', [])
+    assert 'token sınırına' in reply
+    assert model.call_count == 1
+    state = load_research_state(workspace.workspace_id, 'n1')['last_validation']
+    assert state['reason'] == 'incomplete_response'
+    assert state['finish_reason'] == 'length'
+    assert state['prompt_tokens'] == 1587
+    assert state['completion_tokens'] == 650
+    assert 'PRIVATE_MODEL_REPLY' not in json.dumps(state)
+    assert 'PRIVATE_QUESTION' not in json.dumps(state)
+    assert not state['semantic_quality_verified']
