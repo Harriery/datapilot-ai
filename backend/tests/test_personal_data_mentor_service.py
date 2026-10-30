@@ -330,3 +330,34 @@ def test_stale_or_unknown_notebook_run_is_not_emphasized(project):
         mentor.generate_personal_data_reply(workspace, context, 'Son kodumu gördün mü?', [])
     latest = model.call_args.kwargs['messages'][-1]['content']
     assert latest == 'Son kodumu gördün mü?'
+
+
+
+def test_ollama_uses_bounded_project_context_and_last_verified_notebook_work(project):
+    _, workspace, context, _, _ = project
+    local = SimpleNamespace(provider='ollama', model='qwen3:4b-instruct', client=object())
+    long_history = [
+        {'role': 'user', 'content': 'A' * 1800},
+        {'role': 'assistant', 'content': 'B' * 1800},
+        {'role': 'user', 'content': 'C' * 1800},
+        {'role': 'assistant', 'content': 'D' * 1800},
+    ]
+    with patch.object(mentor, 'get_ai_runtime', return_value=local), patch.object(
+        mentor, 'guarded_chat_completions_create', return_value=completion('İki eksik satır var.')
+    ) as model:
+        reply = mentor.generate_personal_data_reply(
+            workspace, context, 'Önceki varsayımını sorgula, kod verme.', long_history)
+    assert reply == 'İki eksik satır var.'
+    kwargs = model.call_args.kwargs
+    assert kwargs['max_completion_tokens'] == 650
+    assert kwargs['tools'] == [mentor.TOOL]  # Read-only inspection is still available.
+    messages = kwargs['messages']
+    assert len(messages) == 5  # System, data, 2 recent history turns, question.
+    assert len(json.dumps(messages, ensure_ascii=False)) < 11000
+    assert 'A' * 100 not in json.dumps(messages)
+    context_body = json.loads(messages[1]['content'])
+    assert context_body['omissions'] == ['compact_local_model_projection']
+    assert context_body['context']['notebook']['recent_cells'][0]['recorded_output'] == '2'
+    assert context_body['context']['dataset']['schema'][0]['missing'] == 2
+    assert 'df[\'days\'].isna().sum()' in messages[-1]['content']
+    assert '"recorded_output": "2"' in messages[-1]['content']
