@@ -399,3 +399,101 @@ def test_local_incomplete_output_saves_finish_reason_and_usage_without_content(p
     assert 'PRIVATE_MODEL_REPLY' not in json.dumps(state)
     assert 'PRIVATE_QUESTION' not in json.dumps(state)
     assert not state['semantic_quality_verified']
+
+
+
+def test_verified_subset_uses_snapshot_and_saved_rows_not_guessed_text(project):
+    _, workspace, context, frame, _ = project
+    notebook = workspace.notebooks[0]
+    version = notebook.cells[0].last_execution['input_data_version']
+    notebook.cells = [WorkspaceNotebookCell(cell_id='filter', code='edited draft', last_execution={
+        'success': True, 'expression_kind': 'dataframe',
+        'executed_code': 'df.loc[(df["days"].isna()) & (df["status"] == "done"), :]',
+        'input_row_count': 4, 'input_data_version': version, 'row_count': 1,
+        'preview_rows': [{'days': None, 'status': 'done'}],
+        'executed_at': '2026-10-27T12:00:00',
+    })]
+    loaded, scope, selected = mentor.load_input_snapshot(workspace, context)
+    facts = mentor._verified_notebook_subset(loaded, scope, selected, 'status dağılımına bak')
+    assert facts['selected_rows'] == 1
+    assert facts['input_rows'] == 4
+    assert facts['preview_rows_matched'] == 1
+    distribution = facts['category_distributions'][0]
+    assert distribution['column'] == 'status'
+    assert {x['value']: x['count'] for x in distribution['values']} == {'pending': 0, 'done': 1}
+    assert list(frame.columns) == ['days', 'status']
+
+
+def test_category_guard_rejects_affirmative_unobserved_group_but_not_negation(project):
+    _, workspace, context, _, _ = project
+    notebook = workspace.notebooks[0]
+    version = notebook.cells[0].last_execution['input_data_version']
+    notebook.cells = [WorkspaceNotebookCell(cell_id='filter', code='draft', last_execution={
+        'success': True, 'expression_kind': 'dataframe',
+        'executed_code': 'df.loc[(df["days"].isna()) & (df["status"] == "done"), :]',
+        'input_row_count': 4, 'input_data_version': version, 'row_count': 1,
+        'preview_rows': [{'days': None, 'status': 'done'}],
+        'executed_at': '2026-10-27T12:00:00',
+    })]
+    with runtime(), patch.object(mentor, 'guarded_chat_completions_create',
+        return_value=completion('Bu seçilmiş kayıtlarda pending de bulunuyor.')) as model:
+        reply = mentor.generate_personal_data_reply(workspace, context, 'status dağılımını kontrol et.', [])
+    assert 'doğrulanmış' in reply.lower() and 'pending=0' in reply
+    assert 'pending de bulunuyor' not in reply
+    assert model.call_count == 1
+    saved = load_research_state(workspace.workspace_id, 'n1')['last_validation']
+    assert saved['reason'] == 'grounding_guarded'
+    assert not saved['semantic_quality_verified']
+    with runtime(), patch.object(mentor, 'guarded_chat_completions_create',
+        return_value=completion('Bu grupta pending yok.')) as model:
+        good = mentor.generate_personal_data_reply(workspace, context, 'status dağılımını kontrol et.', [])
+    assert good == 'Bu grupta pending yok.'
+    assert model.call_count == 1
+
+
+@pytest.mark.parametrize('change', ['stale', 'wrong_count', 'wrong_preview', 'unsafe_code'])
+def test_subset_safely_skips_unmatched_saved_execution(project, change):
+    _, workspace, context, _, _ = project
+    notebook = workspace.notebooks[0]
+    version = notebook.cells[0].last_execution['input_data_version']
+    run = {
+        'success': True, 'expression_kind': 'dataframe',
+        'executed_code': 'df.loc[df["status"] == "pending", :]',
+        'input_row_count': 4, 'input_data_version': version, 'row_count': 1,
+        'preview_rows': [{'days': None, 'status': 'pending'}],
+        'executed_at': '2026-10-27T12:00:00',
+    }
+    if change == 'stale': run['input_data_version'] = 'different'
+    if change == 'wrong_count': run['row_count'] = 2
+    if change == 'wrong_preview': run['preview_rows'][0]['status'] = 'done'
+    if change == 'unsafe_code': run['executed_code'] = 'df.loc[run_arbitrary_code(), :]'
+    notebook.cells = [WorkspaceNotebookCell(cell_id='filter', code='draft', last_execution=run)]
+    frame, scope, selected = mentor.load_input_snapshot(workspace, context)
+    assert mentor._verified_notebook_subset(frame, scope, selected, 'status') is None
+
+
+def test_subset_verification_is_column_agnostic(project):
+    _, workspace, context, _, root = project
+    data = pd.DataFrame({
+        'zone': ['Alpha', 'Beta', 'Alpha', 'Gamma', 'Beta'],
+        'flag': [True, False, True, False, True],
+    })
+    data.to_csv(root / 'working.csv', index=False)
+    notebook = workspace.notebooks[0]
+    version = notebook_input_version(workspace.workspace_id, notebook, 1000)
+    notebook.cells = [WorkspaceNotebookCell(cell_id='filter', code='draft', last_execution={
+        'success': True, 'expression_kind': 'dataframe',
+        'executed_code': 'df.loc[df["flag"] == True, :]',
+        'input_row_count': 5, 'input_data_version': version, 'row_count': 3,
+        'preview_rows': [
+            {'zone': 'Alpha', 'flag': True},
+            {'zone': 'Alpha', 'flag': True},
+            {'zone': 'Beta', 'flag': True},
+        ],
+        'executed_at': '2026-10-27T12:00:00',
+    })]
+    frame, scope, selected = mentor.load_input_snapshot(workspace, context)
+    facts = mentor._verified_notebook_subset(frame, scope, selected, 'zone dağılımı')
+    assert facts['selected_rows'] == 3
+    values = {x['value']: x['count'] for x in facts['category_distributions'][0]['values']}
+    assert values == {'Alpha': 2, 'Beta': 1, 'Gamma': 0}
