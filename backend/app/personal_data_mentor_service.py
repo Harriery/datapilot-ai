@@ -250,6 +250,52 @@ def _recent_execution_evidence(data):
     }
 
 
+def _ollama_context_projection(data):
+    """Conserve a small local model's context while retaining verified work.
+
+    Stored state remains unchanged; the model can still request scoped SQL
+    inspection for any omitted input rows. No domain-specific filtering.
+    """
+    project = data.get('project') or {}
+    dataset = data.get('dataset') or {}
+    notebook = data.get('notebook') or {}
+    stage = project.get('stage') or {}
+    schema = dataset.get('schema') or []
+    runs = notebook.get('recent_cells') or []
+    return {
+        'project': {
+            'title': project.get('title'),
+            'goal': str(project.get('goal') or '')[:350],
+            'learner': project.get('learner'),
+            'stage': {key: stage.get(key) for key in (
+                'active_workspace_stage', 'active_prepare_stage', 'workbench_view')
+                if key in stage},
+        },
+        'dataset': {
+            'scope': dataset.get('scope'),
+            'schema': [{'name': col.get('name'), 'dtype': col.get('dtype'),
+                        'missing': col.get('missing')}
+                       for col in schema[:24]],
+            'schema_columns_omitted': max(0, len(schema) - 24),
+            'example_rows': (dataset.get('example_rows') or [])[:1],
+        },
+        'notebook': {
+            'name': notebook.get('name'),
+            'recent_cells': [
+                {
+                    'executed_code': (cell.get('executed_code') or {}).get('text', '')[-500:],
+                    'recorded_output': (cell.get('recorded_output') or {}).get('text', '')[:550],
+                    'recorded_code_and_scope_match': cell.get('recorded_code_and_scope_match'),
+                    'input_row_count': (cell.get('execution') or {}).get('input_row_count'),
+                } for cell in runs[:3]
+            ],
+            'quality_checks': (notebook.get('quality_checks') or [])[-1:],
+            'older_cells_omitted': notebook.get('cells_omitted', 0) + max(0, len(runs) - 3),
+        },
+        'recorded_mentor_inspections': (data.get('recorded_mentor_inspections') or [])[-1:],
+    }
+
+
 def generate_personal_data_reply(workspace, context, message, history):
     """One natural reply, optionally one bounded read-only inspection round."""
     if not selected(workspace): return None
@@ -295,6 +341,19 @@ def generate_personal_data_reply(workspace, context, message, history):
     while len(json.dumps(messages, ensure_ascii=False)) > MAX_CONTEXT_CHARS and len(messages) > 3:
         messages.pop(2)
     runtime = get_ai_runtime('mentor')
+    if runtime.provider == 'ollama':
+        # The local 4B model may have a 4096-token context window and partial
+        # CPU offload. Avoid sending the full project JSON and six long turns.
+        # Keep the two newest verified runs beside the question as well.
+        projected = _ollama_context_projection(data)
+        messages[1]['content'] = json.dumps({
+            'context': projected,
+            'omissions': ['compact_local_model_projection'],
+        }, ensure_ascii=False, default=str)
+        messages[2:-1] = [
+            {'role': turn['role'], 'content': str(turn.get('content') or '')[-450:]}
+            for turn in history[-2:] if turn.get('role') in {'user', 'assistant'}
+        ]
     diagnostics = {'origin': 'personal_data_mentor', 'model': runtime.model, 'provider': runtime.provider,
         'provider_calls': 0, 'tool_calls': [], 'scope': scope, 'context_omissions': sorted(set(omissions)),
         'style_rewrite_used': False, 'factual_claims_verified': False, 'semantic_quality_verified': False}
@@ -308,7 +367,8 @@ def generate_personal_data_reply(workspace, context, message, history):
             tool_options = {'tools': [TOOL], 'tool_choice': 'auto'} if frame is not None and round_index == 0 else {}
             response = guarded_chat_completions_create(runtime.client, provider=runtime.provider,
                 purpose='personal_data_mentor', model=runtime.model, messages=messages,
-                max_completion_tokens=1500, **tool_options, **options)
+                max_completion_tokens=650 if runtime.provider == 'ollama' else 1500,
+                **tool_options, **options)
             choice = response.choices[0]
             if choice.finish_reason not in {'stop', 'tool_calls'}:
                 diagnostics['reason'] = 'incomplete_response'
@@ -347,8 +407,9 @@ def generate_personal_data_reply(workspace, context, message, history):
         diagnostics['reason'] = 'provider_or_runtime_error'
         diagnostics['error_type'] = type(exc).__name__
         diagnostics['provider_error'] = _provider_error_metadata(exc)
-        logger.warning('Personal data mentor request failed (attempt=%d, error_type=%s, provider_error=%s)',
-            diagnostics['provider_calls'], type(exc).__name__, diagnostics['provider_error'])
+        logger.warning('Personal data mentor request failed (attempt=%d, error_type=%s, provider_error=%s, input_chars=%d)',
+            diagnostics['provider_calls'], type(exc).__name__, diagnostics['provider_error'],
+            len(json.dumps(messages, ensure_ascii=False, default=str)))
         raise
     finally:
         if notebook:
