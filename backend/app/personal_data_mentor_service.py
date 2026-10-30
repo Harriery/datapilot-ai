@@ -342,6 +342,16 @@ def generate_personal_data_reply(workspace, context, message, history):
         messages.pop(2)
     runtime = get_ai_runtime('mentor')
     if runtime.provider == 'ollama':
+        # Encourage a complete, concise answer within the local token budget.
+        # Do not replace the learner's actual question or remove evidence.
+        messages[0]['content'] += (
+            "\nLocal model output guidance: answer the user's actual question "
+            "directly, normally in 4 to 6 concise sentences (roughly 120-180 "
+            "words maximum), without lengthy introductions, repetitive examples, "
+            "unrequested code or additional questions. Prioritize verified "
+            "notebook observations and clear reasoning over verbose formatting. "
+            "If the user explicitly requests depth, give the essentials first."
+        )
         # The local 4B model may have a 4096-token context window and partial
         # CPU offload. Avoid sending the full project JSON and six long turns.
         # Keep the two newest verified runs beside the question as well.
@@ -370,8 +380,20 @@ def generate_personal_data_reply(workspace, context, message, history):
                 max_completion_tokens=650 if runtime.provider == 'ollama' else 1500,
                 **tool_options, **options)
             choice = response.choices[0]
+            # Store metadata only. Never persist model content or notebook data
+            # in the diagnostics record.
+            diagnostics['finish_reason'] = choice.finish_reason
+            usage = getattr(response, 'usage', None)
+            if usage is not None:
+                for field in ('prompt_tokens', 'completion_tokens'):
+                    value = getattr(usage, field, None)
+                    if type(value) is int and value >= 0:
+                        diagnostics[field] = value
             if choice.finish_reason not in {'stop', 'tool_calls'}:
                 diagnostics['reason'] = 'incomplete_response'
+                if choice.finish_reason == 'length':
+                    return ('Mentor yanıtı token sınırına ulaştığı için yarım kaldı. '
+                            'Bu turda bir sonuca varılmış sayılmaz.')
                 return 'Mentor yanıtı tamamlanmadı; bu turda bir sonuca veya karara varılmış sayılmaz.'
             answer = choice.message
             calls = answer.tool_calls or []
