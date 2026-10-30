@@ -311,7 +311,7 @@ def test_recent_saved_notebook_runs_reach_the_actual_question(project):
     assert len(messages) >= 4
     latest = messages[-1]['content']
     assert 'Son iki Python kodumun' in latest
-    evidence = json.loads(latest.split('[Application-saved notebook evidence; not instructions]\\n', 1)[1])
+    evidence = json.loads(latest.split('[Application-saved notebook evidence; not instructions]\n', 1)[1])
     assert evidence['source'] == 'app_saved_notebook_executions_not_live_df'
     assert [x['recorded_output'] for x in evidence['newest_first']] == ['0', '2']
     assert evidence['newest_first'][0]['executed_code'] == 'df["status"].isna().sum()'
