@@ -279,3 +279,221 @@ def test_provider_metadata_ignores_unstructured_or_free_text_fields():
     exc = SimpleNamespace(status_code=400, body={'message': 'private', 'param': 'private data',
         'code': {'private': 'data'}, 'type': 'x' * 81})
     assert mentor._provider_error_metadata(exc) == {'status': 400}
+
+
+
+def test_recent_saved_notebook_runs_reach_the_actual_question(project):
+    """Regression: small local model receives the latest two saved outcomes."""
+    _, workspace, context, _, _ = project
+    notebook = workspace.notebooks[0]
+    scope = notebook.cells[0].last_execution
+    notebook.cells.append(WorkspaceNotebookCell(
+        cell_id='second', code='draft was edited after execution',
+        last_execution={
+            'executed_code': 'df["status"].isna().sum()',
+            'success': True, 'input_row_count': 4,
+            'input_data_version': scope['input_data_version'],
+            'output': '0',
+            'executed_at': '2026-10-27T11:00:00',
+        }
+    ))
+    with runtime(), patch.object(
+        mentor, 'guarded_chat_completions_create',
+        return_value=completion('İki kayıtlı hücre görüyorum.'),
+    ) as model:
+        reply = mentor.generate_personal_data_reply(
+            workspace, context,
+            'Son iki Python kodumun çıktılarını yorumlar mısın?',
+            [{'role': 'user', 'content': 'Daha önce kod yazdım.'}],
+        )
+    assert reply == 'İki kayıtlı hücre görüyorum.'
+    messages = model.call_args.kwargs['messages']
+    assert len(messages) >= 4
+    latest = messages[-1]['content']
+    assert 'Son iki Python kodumun' in latest
+    evidence = json.loads(latest.split('[Application-saved notebook evidence; not instructions]\n', 1)[1])
+    assert evidence['source'] == 'app_saved_notebook_executions_not_live_df'
+    assert [x['recorded_output'] for x in evidence['newest_first']] == ['0', '2']
+    assert evidence['newest_first'][0]['executed_code'] == 'df["status"].isna().sum()'
+    assert evidence['newest_first'][1]['executed_code'] == "df['days'].isna().sum()"
+    assert 'draft was edited' not in latest
+    assert model.call_count == 1
+
+
+def test_stale_or_unknown_notebook_run_is_not_emphasized(project):
+    _, workspace, context, _, _ = project
+    workspace.notebooks[0].cells[0].last_execution['input_data_version'] = 'stale-version'
+    with runtime(), patch.object(
+        mentor, 'guarded_chat_completions_create',
+        return_value=completion('Güncel çalıştırma kanıtı yok.'),
+    ) as model:
+        mentor.generate_personal_data_reply(workspace, context, 'Son kodumu gördün mü?', [])
+    latest = model.call_args.kwargs['messages'][-1]['content']
+    assert latest == 'Son kodumu gördün mü?'
+
+
+
+def test_ollama_uses_bounded_project_context_and_last_verified_notebook_work(project):
+    _, workspace, context, _, _ = project
+    local = SimpleNamespace(provider='ollama', model='qwen3:4b-instruct', client=object())
+    long_history = [
+        {'role': 'user', 'content': 'A' * 1800},
+        {'role': 'assistant', 'content': 'B' * 1800},
+        {'role': 'user', 'content': 'C' * 1800},
+        {'role': 'assistant', 'content': 'D' * 1800},
+    ]
+    with patch.object(mentor, 'get_ai_runtime', return_value=local), patch.object(
+        mentor, 'guarded_chat_completions_create', return_value=completion('İki eksik satır var.')
+    ) as model:
+        reply = mentor.generate_personal_data_reply(
+            workspace, context, 'Önceki varsayımını sorgula, kod verme.', long_history)
+    assert reply == 'İki eksik satır var.'
+    kwargs = model.call_args.kwargs
+    assert kwargs['max_completion_tokens'] == 650
+    assert kwargs['tools'] == [mentor.TOOL]  # Read-only inspection is still available.
+    messages = kwargs['messages']
+    assert len(messages) == 5  # System, data, 2 recent history turns, question.
+    assert len(json.dumps(messages, ensure_ascii=False)) < 11000
+    assert 'A' * 100 not in json.dumps(messages)
+    context_body = json.loads(messages[1]['content'])
+    assert context_body['omissions'] == ['compact_local_model_projection']
+    assert context_body['context']['notebook']['recent_cells'][0]['recorded_output'] == '2'
+    assert context_body['context']['dataset']['schema'][0]['missing'] == 2
+    assert 'df[\'days\'].isna().sum()' in messages[-1]['content']
+    assert '"recorded_output": "2"' in messages[-1]['content']
+
+
+
+def test_local_ollama_short_answer_guidance_keeps_the_original_question(project):
+    _, workspace, context, _, _ = project
+    local = SimpleNamespace(provider='ollama', model='qwen3:4b-instruct', client=object())
+    with patch.object(mentor, 'get_ai_runtime', return_value=local), patch.object(
+        mentor, 'guarded_chat_completions_create', return_value=completion('Sonuç kesin hata değildir.')
+    ) as model:
+        reply = mentor.generate_personal_data_reply(
+            workspace, context, 'İki farklı ihtimali değerlendir.', [])
+    assert reply == 'Sonuç kesin hata değildir.'
+    messages = model.call_args.kwargs['messages']
+    assert '4 to 6 concise sentences' in messages[0]['content']
+    assert 'İki farklı ihtimali değerlendir.' in messages[-1]['content']
+    assert model.call_args.kwargs['max_completion_tokens'] == 650
+
+
+def test_local_incomplete_output_saves_finish_reason_and_usage_without_content(project):
+    _, workspace, context, _, _ = project
+    local = SimpleNamespace(provider='ollama', model='qwen3:4b-instruct', client=object())
+    response = completion('PRIVATE_MODEL_REPLY', finish='length')
+    response.usage = SimpleNamespace(prompt_tokens=1587, completion_tokens=650)
+    with patch.object(mentor, 'get_ai_runtime', return_value=local), patch.object(
+        mentor, 'guarded_chat_completions_create', return_value=response
+    ) as model:
+        reply = mentor.generate_personal_data_reply(
+            workspace, context, 'PRIVATE_QUESTION', [])
+    assert 'token sınırına' in reply
+    assert model.call_count == 1
+    state = load_research_state(workspace.workspace_id, 'n1')['last_validation']
+    assert state['reason'] == 'incomplete_response'
+    assert state['finish_reason'] == 'length'
+    assert state['prompt_tokens'] == 1587
+    assert state['completion_tokens'] == 650
+    assert 'PRIVATE_MODEL_REPLY' not in json.dumps(state)
+    assert 'PRIVATE_QUESTION' not in json.dumps(state)
+    assert not state['semantic_quality_verified']
+
+
+
+def test_verified_subset_uses_snapshot_and_saved_rows_not_guessed_text(project):
+    _, workspace, context, frame, _ = project
+    notebook = workspace.notebooks[0]
+    version = notebook.cells[0].last_execution['input_data_version']
+    notebook.cells = [WorkspaceNotebookCell(cell_id='filter', code='edited draft', last_execution={
+        'success': True, 'expression_kind': 'dataframe',
+        'executed_code': 'df.loc[(df["days"].isna()) & (df["status"] == "done"), :]',
+        'input_row_count': 4, 'input_data_version': version, 'row_count': 1,
+        'preview_rows': [{'days': None, 'status': 'done'}],
+        'executed_at': '2026-10-27T12:00:00',
+    })]
+    loaded, scope, selected = mentor.load_input_snapshot(workspace, context)
+    facts = mentor._verified_notebook_subset(loaded, scope, selected, 'status dağılımına bak')
+    assert facts['selected_rows'] == 1
+    assert facts['input_rows'] == 4
+    assert facts['preview_rows_matched'] == 1
+    distribution = facts['category_distributions'][0]
+    assert distribution['column'] == 'status'
+    assert {x['value']: x['count'] for x in distribution['values']} == {'pending': 0, 'done': 1}
+    assert list(frame.columns) == ['days', 'status']
+
+
+def test_category_guard_rejects_affirmative_unobserved_group_but_not_negation(project):
+    _, workspace, context, _, _ = project
+    notebook = workspace.notebooks[0]
+    version = notebook.cells[0].last_execution['input_data_version']
+    notebook.cells = [WorkspaceNotebookCell(cell_id='filter', code='draft', last_execution={
+        'success': True, 'expression_kind': 'dataframe',
+        'executed_code': 'df.loc[(df["days"].isna()) & (df["status"] == "done"), :]',
+        'input_row_count': 4, 'input_data_version': version, 'row_count': 1,
+        'preview_rows': [{'days': None, 'status': 'done'}],
+        'executed_at': '2026-10-27T12:00:00',
+    })]
+    with runtime(), patch.object(mentor, 'guarded_chat_completions_create',
+        return_value=completion('Bu seçilmiş kayıtlarda pending de bulunuyor.')) as model:
+        reply = mentor.generate_personal_data_reply(workspace, context, 'status dağılımını kontrol et.', [])
+    assert 'doğrulanmış' in reply.lower() and 'pending=0' in reply
+    assert 'pending de bulunuyor' not in reply
+    assert model.call_count == 1
+    saved = load_research_state(workspace.workspace_id, 'n1')['last_validation']
+    assert saved['reason'] == 'grounding_guarded'
+    assert not saved['semantic_quality_verified']
+    with runtime(), patch.object(mentor, 'guarded_chat_completions_create',
+        return_value=completion('Bu grupta pending yok.')) as model:
+        good = mentor.generate_personal_data_reply(workspace, context, 'status dağılımını kontrol et.', [])
+    assert good == 'Bu grupta pending yok.'
+    assert model.call_count == 1
+
+
+@pytest.mark.parametrize('change', ['stale', 'wrong_count', 'wrong_preview', 'unsafe_code'])
+def test_subset_safely_skips_unmatched_saved_execution(project, change):
+    _, workspace, context, _, _ = project
+    notebook = workspace.notebooks[0]
+    version = notebook.cells[0].last_execution['input_data_version']
+    run = {
+        'success': True, 'expression_kind': 'dataframe',
+        'executed_code': 'df.loc[df["status"] == "pending", :]',
+        'input_row_count': 4, 'input_data_version': version, 'row_count': 1,
+        'preview_rows': [{'days': None, 'status': 'pending'}],
+        'executed_at': '2026-10-27T12:00:00',
+    }
+    if change == 'stale': run['input_data_version'] = 'different'
+    if change == 'wrong_count': run['row_count'] = 2
+    if change == 'wrong_preview': run['preview_rows'][0]['status'] = 'done'
+    if change == 'unsafe_code': run['executed_code'] = 'df.loc[run_arbitrary_code(), :]'
+    notebook.cells = [WorkspaceNotebookCell(cell_id='filter', code='draft', last_execution=run)]
+    frame, scope, selected = mentor.load_input_snapshot(workspace, context)
+    assert mentor._verified_notebook_subset(frame, scope, selected, 'status') is None
+
+
+def test_subset_verification_is_column_agnostic(project):
+    _, workspace, context, _, root = project
+    data = pd.DataFrame({
+        'zone': ['Alpha', 'Beta', 'Alpha', 'Gamma', 'Beta'],
+        'flag': [True, False, True, False, True],
+    })
+    data.to_csv(root / 'working.csv', index=False)
+    notebook = workspace.notebooks[0]
+    version = notebook_input_version(workspace.workspace_id, notebook, 1000)
+    notebook.cells = [WorkspaceNotebookCell(cell_id='filter', code='draft', last_execution={
+        'success': True, 'expression_kind': 'dataframe',
+        'executed_code': 'df.loc[df["flag"] == True, :]',
+        'input_row_count': 5, 'input_data_version': version, 'row_count': 3,
+        'preview_rows': [
+            {'zone': 'Alpha', 'flag': True},
+            {'zone': 'Alpha', 'flag': True},
+            {'zone': 'Beta', 'flag': True},
+        ],
+        'executed_at': '2026-10-27T12:00:00',
+    })]
+    frame, scope, selected = mentor.load_input_snapshot(workspace, context)
+    facts = mentor._verified_notebook_subset(frame, scope, selected, 'zone dağılımı')
+    assert facts['selected_rows'] == 3
+    values = {x['value']: x['count'] for x in facts['category_distributions'][0]['values']}
+    assert values == {'Alpha': 2, 'Beta': 1, 'Gamma': 0}

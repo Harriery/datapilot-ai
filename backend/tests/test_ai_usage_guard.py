@@ -192,3 +192,110 @@ def test_usage_breakdown_does_not_store_prompt_content():
     )
 
     assert secret_text not in serialized
+
+
+
+def test_local_ollama_is_free_only_and_does_not_spend_remote_quota(monkeypatch):
+    from backend.app.ai_usage_guard import guarded_responses_parse, AIBillingPolicyError
+    from types import SimpleNamespace
+    from pydantic import BaseModel
+
+    class Answer(BaseModel):
+        answer: str
+
+    monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "ollama")
+    client = MagicMock()
+    client.responses.create.return_value = SimpleNamespace(output_text="Merhaba")
+    for _ in range(4):
+        guarded_responses_create(client, provider="ollama", purpose="mentor_chat_reply",
+                                 model="qwen3:4b-instruct", input="merhaba")
+    assert client.responses.create.call_count == 4
+    assert client.responses.create.call_args.kwargs["extra_body"] == {"think": False}
+    assert get_ai_usage_status()["daily_requests"] == 0
+
+    client.chat.completions.parse.return_value = SimpleNamespace(
+        choices=[SimpleNamespace(
+            finish_reason="stop",
+            message=SimpleNamespace(parsed=Answer(answer="Kısa cevap"))
+        )], usage=SimpleNamespace(prompt_tokens=8, completion_tokens=5, total_tokens=13)
+    )
+    parsed = guarded_responses_parse(
+        client, provider="ollama", purpose="mentor_skill_detection",
+        model="qwen3:4b-instruct", input="Türkçe yanıt", instructions="Kısa açıkla",
+        text_format=Answer, max_output_tokens=120, reasoning={"effort": "low"}
+    )
+    assert parsed.output_parsed.answer == "Kısa cevap"
+    assert parsed.status == "completed"
+    assert parsed.usage.input_tokens == 8
+    req = client.chat.completions.parse.call_args.kwargs
+    assert req["response_format"] is Answer
+    assert req["messages"][0]["role"] == "system"
+    assert req["extra_body"] == {"think": False}
+    assert get_ai_usage_status()["daily_requests"] == 0
+
+    monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "groq")
+    with pytest.raises(AIBillingPolicyError):
+        guarded_responses_create(client, provider="ollama", purpose="mentor",
+                                 model="qwen3:4b-instruct", input="should block")
+
+
+def test_ollama_structured_missing_parse_fails_closed(monkeypatch):
+    from backend.app.ai_usage_guard import guarded_responses_parse
+    from types import SimpleNamespace
+    from pydantic import BaseModel
+
+    class Answer(BaseModel):
+        answer: str
+
+    monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "ollama")
+    client = MagicMock()
+    client.chat.completions.parse.return_value = SimpleNamespace(
+        choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(parsed=None))]
+    )
+    with pytest.raises(ValueError, match="valid structured response"):
+        guarded_responses_parse(client, provider="ollama", purpose="mentor_research_turn",
+                                model="qwen3:4b-instruct", input="hi", text_format=Answer)
+
+
+
+@pytest.mark.parametrize(
+    "requested, expected",
+    [(200, 200), (650, 321), (0, 0)],
+)
+def test_ollama_chat_maps_completion_budget_to_supported_max_tokens(
+    monkeypatch, requested, expected
+):
+    from backend.app.ai_usage_guard import guarded_chat_completions_create
+
+    monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "ollama")
+    client = MagicMock()
+    guarded_chat_completions_create(
+        client,
+        provider="ollama",
+        purpose="personal_data_mentor",
+        model="qwen3:4b-instruct",
+        messages=[{"role": "user", "content": "Kısa cevap ver."}],
+        max_completion_tokens=requested,
+    )
+    sent = client.chat.completions.create.call_args.kwargs
+    assert "max_completion_tokens" not in sent
+    assert sent["max_tokens"] == expected
+    assert sent["extra_body"] == {"think": False}
+
+
+def test_groq_chat_preserves_completion_budget_parameter(monkeypatch):
+    from backend.app.ai_usage_guard import guarded_chat_completions_create
+
+    monkeypatch.setenv("AI_FREE_PROVIDER_ALLOWLIST", "groq")
+    client = MagicMock()
+    guarded_chat_completions_create(
+        client,
+        provider="groq",
+        purpose="mentor",
+        model="openai/gpt-oss-120b",
+        messages=[{"role": "user", "content": "Merhaba."}],
+        max_completion_tokens=150,
+    )
+    sent = client.chat.completions.create.call_args.kwargs
+    assert sent["max_completion_tokens"] == 150
+    assert "max_tokens" not in sent

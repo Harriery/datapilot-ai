@@ -112,6 +112,9 @@ def _configured_model(
     provider: str,
     role: AIRole,
 ) -> str:
+    if provider == "ollama":
+        return os.getenv("AI_OLLAMA_MODEL", "qwen3:4b-instruct").strip() or "qwen3:4b-instruct"
+
     if provider == "groq":
         if role == "classifier":
             return (
@@ -208,6 +211,9 @@ def _configured_model(
 def _provider_has_credentials(
     provider: str,
 ) -> bool:
+    if provider == "ollama":
+        return True  # Loopback Ollama does not require account credentials.
+
     if provider == "groq":
         return bool(
             os.getenv(
@@ -235,6 +241,14 @@ def _resolve_provider(
     )
 
     policy = get_ai_billing_policy()
+
+    # Explicit local inference must never silently fall back to a remote provider.
+    if configured == "ollama":
+        if policy["free_only"] and "ollama" not in policy["allowed_free_providers"]:
+            raise AIProviderConfigurationError(
+                "Local Ollama was selected but is not in AI_FREE_PROVIDER_ALLOWLIST."
+            )
+        return "ollama"
 
     if not policy["free_only"]:
         return configured
@@ -305,6 +319,22 @@ def get_ai_runtime(
                 base_url=(
                     "https://api.groq.com/openai/v1"
                 ),
+            ),
+        )
+
+    if provider == "ollama":
+        if model.casefold().endswith(":cloud"):
+            raise AIProviderConfigurationError(
+                "Ollama Mentor requires a locally installed model, not a cloud model."
+            )
+        return AIRuntime(
+            provider="ollama",
+            model=model,
+            client=OpenAI(
+                api_key="ollama",  # Required by SDK; ignored by local Ollama.
+                base_url="http://127.0.0.1:11434/v1/",
+                timeout=180.0,
+                max_retries=0,
             ),
         )
 
