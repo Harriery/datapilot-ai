@@ -340,6 +340,15 @@ def guarded_chat_completions_create(
             )
 
     if provider.casefold() == "ollama":
+        # Ollama's OpenAI-compatible /v1/chat/completions documents
+        # max_tokens, not max_completion_tokens. Translate only for Ollama;
+        # preserve the already enforced local output safety budget.
+        if "max_completion_tokens" in kwargs:
+            completion_limit = kwargs.pop("max_completion_tokens")
+            kwargs["max_tokens"] = min(
+                int(completion_limit),
+                int(kwargs.get("max_tokens", completion_limit)),
+            )
         kwargs.setdefault("extra_body", {"think": False})
 
     return (
