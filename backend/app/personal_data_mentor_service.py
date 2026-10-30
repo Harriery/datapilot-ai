@@ -4,6 +4,7 @@ This path does not assign/complete notebook tasks or run model Python. Model
 prose remains unverified. Data inspection is a separate, labelled snapshot of
 the notebook's persisted input, never access to its live browser Python kernel.
 """
+import ast
 from contextlib import closing
 from datetime import datetime, timezone
 import json
@@ -18,6 +19,7 @@ import pandas as pd
 from backend.app.ai_provider_service import get_ai_runtime
 from backend.app.ai_usage_guard import guarded_chat_completions_create
 from backend.app.notebook_scope_service import notebook_input_version
+from backend.app.mentor_observation_contract import predicate, UnsupportedObservation
 from backend.app import workspace_data_service
 from backend.app.mentor_research_store import load_research_state, save_research_state
 
@@ -296,6 +298,160 @@ def _ollama_context_projection(data):
     }
 
 
+
+def _notebook_filter_mask(frame, where, depth=0):
+    """Evaluate only a small, parsed, read-only Pandas row predicate."""
+    if depth > 6:
+        raise ValueError('predicate too deep')
+    op = where.get('op')
+    if op in {'and', 'or'} and 1 < len(where.get('args', [])) <= 4:
+        masks = [_notebook_filter_mask(frame, x, depth + 1) for x in where['args']]
+        result = masks[0]
+        for mask in masks[1:]:
+            result = (result & mask) if op == 'and' else (result | mask)
+        return result
+    if op == 'not':
+        return ~_notebook_filter_mask(frame, where['arg'], depth + 1)
+    column = where.get('column')
+    if column not in frame.columns:
+        raise ValueError('missing filtered column')
+    series = frame[column]
+    if op == 'missing':
+        return series.isna()
+    if op == 'present':
+        return series.notna()
+    if op == 'eq':
+        return series.eq(where['value']).fillna(False)
+    if op == 'ne':
+        return series.ne(where['value']).fillna(False)
+    raise ValueError('unsupported predicate operation')
+
+
+def _verified_notebook_subset(frame, scope, notebook, question):
+    """Reproduce a saved df.loc predicate against the unchanged input snapshot.
+
+    Require the notebook's saved row count and displayed preview rows to match,
+    not merely its dataset version. Prior in-notebook df transformations may
+    make the saved execution different from this persisted input snapshot.
+    This is intentionally conservative and never evaluates user Python.
+    """
+    if frame is None or notebook is None or scope.get('status') != 'ready':
+        return None
+    ordered = sorted(notebook.cells, key=lambda c: str((c.last_execution or {}).get('executed_at') or ''), reverse=True)
+    for cell in ordered[:6]:
+        run = cell.last_execution or {}
+        if (not run.get('success') or run.get('input_data_version') != scope.get('input_version')
+                or run.get('input_row_count') != scope.get('snapshot_rows')
+                or run.get('expression_kind') != 'dataframe'
+                or type(run.get('row_count')) is not int):
+            continue
+        preview = run.get('preview_rows')
+        if not isinstance(preview, list) or not preview or len(preview) > 5:
+            continue
+        code = run.get('executed_code')
+        if not isinstance(code, str) or len(code) > 1800:
+            continue
+        try:
+            tree = ast.parse(code)
+            if len(tree.body) != 1 or len(list(ast.walk(tree))) > 90 or not isinstance(tree.body[0], ast.Expr):
+                continue
+            node = tree.body[0].value
+            if not (isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute)
+                    and node.value.attr == 'loc' and isinstance(node.value.value, ast.Name)
+                    and node.value.value.id == 'df' and isinstance(node.slice, ast.Tuple)
+                    and len(node.slice.elts) == 2):
+                continue
+            where_node, projection = node.slice.elts
+            if not (isinstance(projection, ast.Slice)
+                    and projection.lower is projection.upper is projection.step is None):
+                continue
+            mask = _notebook_filter_mask(frame, predicate(where_node))
+            selected_rows = frame.loc[mask]
+            if len(selected_rows) != run['row_count'] or len(preview) > len(selected_rows):
+                continue
+            actual_preview = workspace_data_service.dataframe_to_records(selected_rows.head(len(preview)))
+            def comparable(value):
+                if value is None:
+                    return None
+                if isinstance(value, (str, int, float, bool)):
+                    return None if isinstance(value, float) and pd.isna(value) else value
+                return str(value)
+            if any(not isinstance(saved_row, dict) or not saved_row
+                   or any(key not in actual_row
+                          or comparable(value) != comparable(actual_row[key])
+                          for key, value in saved_row.items())
+                   for saved_row, actual_row in zip(preview, actual_preview)):
+                continue
+        except (SyntaxError, UnsupportedObservation, ValueError, KeyError, TypeError, RecursionError):
+            continue
+        # Only counts from the subset that matched saved evidence. This is
+        # descriptive, not a verified business cause or full-source result.
+        categorical = []
+        for col in frame.columns[:32]:
+            if not (pd.api.types.is_object_dtype(frame[col])
+                    or pd.api.types.is_string_dtype(frame[col])
+                    or pd.api.types.is_bool_dtype(frame[col])):
+                continue
+            global_values = list(frame[col].drop_duplicates())
+            if len(global_values) > 10 or len(global_values) <= 1:
+                continue
+            if selected_rows[col].nunique(dropna=False) > max(6, len(selected_rows) // 2):
+                continue
+            named = str(col).casefold() in question.casefold()
+            categorical.append((not named, str(col), col, global_values))
+        categorical.sort()
+        summaries = []
+        for _, name, col, values in categorical[:2]:
+            counts = []
+            for value in values:
+                quantity = int(selected_rows[col].isna().sum()) if pd.isna(value) else int(selected_rows[col].eq(value).sum())
+                counts.append({'value': '<missing>' if pd.isna(value) else str(value)[:60], 'count': quantity})
+            summaries.append({'column': name, 'values': counts})
+        return {
+            'source': 'read_only_persisted_input_snapshot_matched_to_saved_notebook_filter',
+            'selected_rows': len(selected_rows),
+            'input_rows': len(frame),
+            'preview_rows_matched': len(preview),
+            'category_distributions': summaries,
+            'limitation': 'Matched snapshot and saved preview; not proof of causes or full-source distribution.',
+        }
+    return None
+
+
+def _guard_unsupported_category_claim(answer, evidence):
+    """Fail closed on clear category-presence contradictions, never retry AI.
+
+    This is deliberately a narrow guard, NOT a full natural-language verifier.
+    Negated or tentative mentions are not treated as affirmative claims.
+    """
+    if not evidence:
+        return answer, False
+    positive = re.compile(r'\b(?:içerir|vardır|bulunur|bulunuyor|görülür|mevcut|var|contains|includes|present|there are|aanwezig|bevat)\b', re.I)
+    negative = re.compile(r'\b(?:yok|değil|hiç|olmayan|bulunmuyor|içermiyor|not|no|none|geen|niet|zero|sıfır)\b', re.I)
+    for group in evidence['category_distributions']:
+        for item in group['values']:
+            if item['count'] != 0 or item['value'] == '<missing>' or len(item['value']) < 2:
+                continue
+            label = re.escape(item['value'])
+            for sentence in re.split(r'[.\n;!?]+', answer):
+                if (re.search(r'(?<!\w)' + label + r'(?!\w)', sentence, re.I)
+                        and positive.search(sentence) and not negative.search(sentence)):
+                    facts = '; '.join(
+                        g['column'] + ': ' + ', '.join(
+                            x['value'] + '=' + str(x['count']) for x in g['values'])
+                        for g in evidence['category_distributions']
+                    )
+                    return (
+                        'Mentorun yanıtında kayıtlı gözlemlerle çelişebilecek bir kategori iddiası '
+                        'bulunduğu için yorumu doğrulanmış bilgi olarak göstermiyorum. '
+                        f'Kaydedilmiş Notebook filtresiyle eşleşen {evidence["input_rows"]} satırlık giriş '
+                        f'örnekleminde {evidence["selected_rows"]} satır seçildi. '
+                        f'Doğrulanmış dağılım: {facts}. '
+                        'Bu dağılım eksikliğin nedenini veya iş kuralını tek başına kanıtlamaz.'
+                    ), True
+    return answer, False
+
+
 def generate_personal_data_reply(workspace, context, message, history):
     """One natural reply, optionally one bounded read-only inspection round."""
     if not selected(workspace): return None
@@ -364,6 +520,12 @@ def generate_personal_data_reply(workspace, context, message, history):
             {'role': turn['role'], 'content': str(turn.get('content') or '')[-450:]}
             for turn in history[-2:] if turn.get('role') in {'user', 'assistant'}
         ]
+    verified_subset = _verified_notebook_subset(frame, scope, notebook, message)
+    if verified_subset:
+        messages[-1]['content'] += (
+            '\n\n[Verified read-only snapshot comparison, not model claims]\n'
+            + json.dumps(verified_subset, ensure_ascii=False, default=str)
+        )
     diagnostics = {'origin': 'personal_data_mentor', 'model': runtime.model, 'provider': runtime.provider,
         'provider_calls': 0, 'tool_calls': [], 'scope': scope, 'context_omissions': sorted(set(omissions)),
         'style_rewrite_used': False, 'factual_claims_verified': False, 'semantic_quality_verified': False}
@@ -401,8 +563,11 @@ def generate_personal_data_reply(workspace, context, message, history):
                 if not answer.content or not answer.content.strip():
                     diagnostics['reason'] = 'empty_response'
                     return 'Mentor bu turda bir açıklama üretemedi.'
-                diagnostics['reason'] = 'conversation_delivered'
-                return answer.content.strip()
+                checked, guarded = _guard_unsupported_category_claim(answer.content.strip(), verified_subset)
+                diagnostics['reason'] = 'grounding_guarded' if guarded else 'conversation_delivered'
+                diagnostics['category_claim_guarded'] = guarded
+                diagnostics['semantic_quality_verified'] = False  # Narrow contradiction check only.
+                return checked
             if frame is None or round_index or len(calls) > MAX_TOOL_CALLS:
                 diagnostics['reason'] = 'tool_budget'
                 return 'Bu tur için veri inceleme sınırına ulaşıldı; yeni işlem yapılmadı.'
