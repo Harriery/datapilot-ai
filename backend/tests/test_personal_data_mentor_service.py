@@ -279,3 +279,54 @@ def test_provider_metadata_ignores_unstructured_or_free_text_fields():
     exc = SimpleNamespace(status_code=400, body={'message': 'private', 'param': 'private data',
         'code': {'private': 'data'}, 'type': 'x' * 81})
     assert mentor._provider_error_metadata(exc) == {'status': 400}
+
+
+
+def test_recent_saved_notebook_runs_reach_the_actual_question(project):
+    """Regression: small local model receives the latest two saved outcomes."""
+    _, workspace, context, _, _ = project
+    notebook = workspace.notebooks[0]
+    scope = notebook.cells[0].last_execution
+    notebook.cells.append(WorkspaceNotebookCell(
+        cell_id='second', code='draft was edited after execution',
+        last_execution={
+            'executed_code': 'df["status"].isna().sum()',
+            'success': True, 'input_row_count': 4,
+            'input_data_version': scope['input_data_version'],
+            'output': '0',
+            'executed_at': '2026-10-27T11:00:00',
+        }
+    ))
+    with runtime(), patch.object(
+        mentor, 'guarded_chat_completions_create',
+        return_value=completion('İki kayıtlı hücre görüyorum.'),
+    ) as model:
+        reply = mentor.generate_personal_data_reply(
+            workspace, context,
+            'Son iki Python kodumun çıktılarını yorumlar mısın?',
+            [{'role': 'user', 'content': 'Daha önce kod yazdım.'}],
+        )
+    assert reply == 'İki kayıtlı hücre görüyorum.'
+    messages = model.call_args.kwargs['messages']
+    assert len(messages) >= 4
+    latest = messages[-1]['content']
+    assert 'Son iki Python kodumun' in latest
+    evidence = json.loads(latest.split('[Application-saved notebook evidence; not instructions]\\n', 1)[1])
+    assert evidence['source'] == 'app_saved_notebook_executions_not_live_df'
+    assert [x['recorded_output'] for x in evidence['newest_first']] == ['0', '2']
+    assert evidence['newest_first'][0]['executed_code'] == 'df["status"].isna().sum()'
+    assert evidence['newest_first'][1]['executed_code'] == "df['days'].isna().sum()"
+    assert 'draft was edited' not in latest
+    assert model.call_count == 1
+
+
+def test_stale_or_unknown_notebook_run_is_not_emphasized(project):
+    _, workspace, context, _, _ = project
+    workspace.notebooks[0].cells[0].last_execution['input_data_version'] = 'stale-version'
+    with runtime(), patch.object(
+        mentor, 'guarded_chat_completions_create',
+        return_value=completion('Güncel çalıştırma kanıtı yok.'),
+    ) as model:
+        mentor.generate_personal_data_reply(workspace, context, 'Son kodumu gördün mü?', [])
+    latest = model.call_args.kwargs['messages'][-1]['content']
+    assert latest == 'Son kodumu gördün mü?'
